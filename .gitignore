@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+monitor_metrics.db
+
+# Logs
+*.log
+logs/
+
+# Grafana dashboard exports (contains sensitive data)
+mysql.json
+oracle.json
+*.grafana.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Backup
+*.bak
+*.backup
+
+# Runtime data (统一运行时数据目录)
+runtime_data/
+
+# Legacy runtime directories (deprecated, will be removed)
+aas_data/
+data/
+monitor_data/
+
+# Tests (may contain sensitive data)
+tests/
+
+docs/
