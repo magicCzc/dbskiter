@@ -283,13 +283,14 @@ class OracleInspector(BaseInspector):
             # 检查大表
             # 使用 f-string 避免参数绑定兼容性问题
             result = self._execute_query(f"""
-                SELECT owner, segment_name, segment_type,
-                       ROUND(bytes / 1024 / 1024, 2) AS size_mb
-                FROM dba_segments
-                WHERE segment_type IN ('TABLE', 'TABLE PARTITION')
-                AND bytes > {self.TABLE_SIZE_THRESHOLD_MB} * 1024 * 1024
-                ORDER BY bytes DESC
-                FETCH FIRST 10 ROWS ONLY
+                SELECT * FROM (
+                    SELECT owner, segment_name, segment_type,
+                           ROUND(bytes / 1024 / 1024, 2) AS size_mb
+                    FROM dba_segments
+                    WHERE segment_type IN ('TABLE', 'TABLE PARTITION')
+                    AND bytes > {self.TABLE_SIZE_THRESHOLD_MB} * 1024 * 1024
+                    ORDER BY bytes DESC
+                ) WHERE ROWNUM <= 10
             """)
 
             if result:

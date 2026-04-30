@@ -9,6 +9,7 @@ cli/commands/base.py
 from abc import ABCMeta, abstractmethod
 from argparse import ArgumentParser, Namespace
 from typing import Dict, Type, Any, Optional
+import json
 
 from ..config import Config
 from ..output import OutputFormatter
@@ -167,7 +168,165 @@ class BaseCommand(metaclass=CommandMeta):
             CommandError: 连接失败时抛出
         """
         try:
-            # 触发连接测试
             _ = self.connector
         except Exception as e:
             raise CommandError(f"数据库连接失败: {e}")
+
+    @property
+    def output_mode(self) -> str:
+        """
+        获取输出模式
+
+        返回:
+            str: 输出模式 (rule/raw/ai)
+        """
+        return getattr(self.args, 'output_mode', 'rule')
+
+    @property
+    def ai_depth(self) -> str:
+        """
+        获取AI输出详细程度
+
+        返回:
+            str: 详细程度 (summary/detail/full)
+        """
+        return getattr(self.args, 'ai_depth', 'detail')
+
+    @property
+    def mask_sensitive(self) -> bool:
+        """
+        是否脱敏敏感信息
+
+        返回:
+            bool: True表示脱敏
+        """
+        if getattr(self.args, 'no_mask', False):
+            return False
+        return getattr(self.args, 'mask_sensitive', True)
+
+    def format_ai_output(
+        self,
+        skill_result: Dict[str, Any],
+        context_builder=None,
+    ) -> int:
+        """
+        根据输出模式格式化并输出结果
+
+        rule模式: 保持原有行为不变
+        raw模式: 只输出原始数据
+        ai模式: 输出AI友好的完整上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            context_builder: AI上下文构建器（可选）
+
+        返回:
+            int: 退出码
+        """
+        mode = self.output_mode
+
+        if mode == "rule":
+            return 0
+
+        if mode == "raw":
+            data = skill_result.get("data", {})
+            raw = data.get("raw_metrics", data)
+            self.output.print(json.dumps(raw, indent=2, ensure_ascii=False, default=str))
+            return 0
+
+        if mode == "ai":
+            from dbskiter.shared.ai_context import AIOutputFormatter
+
+            formatter = AIOutputFormatter(
+                dialect=self.config.dialect,
+                database_name=self.config.database,
+                ai_depth=self.ai_depth,
+                mask_sensitive=self.mask_sensitive,
+            )
+            envelope = formatter.format_from_skill_result(
+                skill_result=skill_result,
+                context_builder=context_builder,
+                connector=self._connector,
+            )
+            self.output.print(json.dumps(envelope, indent=2, ensure_ascii=False, default=str))
+            return 0
+
+        return 0
+
+    def _execute_ai_mode(
+        self,
+        skill,
+        action: str,
+        method_map: Dict[str, Any],
+        scenario_map: Optional[Dict[str, str]] = None,
+    ) -> int:
+        """
+        通用AI/Raw模式执行
+
+        各命令模块在execute()中检测output_mode != "rule"时，
+        构建method_map后调用此方法完成AI/Raw模式输出
+
+        参数:
+            skill: Skill实例
+            action: 子命令名称
+            method_map: action -> callable 的映射，每个callable返回标准结果dict
+            scenario_map: action -> scenario 的映射（可选，用于AI上下文场景标识）
+
+        返回:
+            int: 退出码
+
+        使用示例:
+            >>> method_map = {
+            ...     "health": lambda: skill.assess_health(),
+            ...     "anomalies": lambda: skill.detect_anomalies(),
+            ... }
+            >>> scenario_map = {"health": "monitor", "anomalies": "monitor"}
+            >>> return self._execute_ai_mode(skill, action, method_map, scenario_map)
+        """
+        handler = method_map.get(action)
+        if not handler:
+            self.output.error(f"不支持的操作: {action}")
+            return 1
+
+        result = handler()
+        if result is None:
+            self.output.error(f"操作返回空结果: {action}")
+            return 1
+
+        if not result.get("success"):
+            self.output.error(f"操作失败: {result.get('message', '未知错误')}")
+            return 1
+
+        if self.output_mode == "raw":
+            data = result.get("data", {})
+            self.output.print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
+            return 0
+
+        from dbskiter.shared.ai_context import AIOutputFormatter
+
+        formatter = AIOutputFormatter(
+            dialect=self.config.dialect,
+            database_name=self.config.database,
+            ai_depth=self.ai_depth,
+            mask_sensitive=self.mask_sensitive,
+        )
+
+        if hasattr(skill, "build_ai_context"):
+            scenario = (scenario_map or {}).get(action, "general")
+            ai_context = skill.build_ai_context(result, scenario=scenario)
+            envelope = formatter.format_envelope(
+                raw_metrics=ai_context.get("raw_metrics", {}),
+                rule_flags=ai_context.get("rule_flags", {}),
+                context=ai_context.get("context", {}),
+                reference_values=ai_context.get("reference_values", {}),
+                ai_hints=ai_context.get("ai_hints", {}),
+                connector=self._connector,
+            )
+        else:
+            envelope = formatter.format_from_skill_result(
+                skill_result=result,
+                connector=self._connector,
+            )
+
+        self.output.print(json.dumps(envelope, indent=2, ensure_ascii=False, default=str))
+        return 0

@@ -13,8 +13,10 @@ SQL审核命令 - SQL规范审核、性能评估、DDL影响分析
 
 import json
 from argparse import ArgumentParser
+from typing import Dict, Any
 
 from .base import BaseCommand
+from dbskiter.shared.error_handler import create_error_response, ErrorCode
 
 
 class AuditCommand(BaseCommand):
@@ -101,17 +103,38 @@ class AuditCommand(BaseCommand):
         from dbskiter.db_sql_auditor.skill import SQLAuditorSkill
 
         try:
-            # 确保数据库连接可用
             self.require_connector()
         except Exception as e:
             self.output.error(str(e))
             return 1
 
         try:
-            # 初始化 Skill
             skill = SQLAuditorSkill(self.connector)
 
             action = getattr(self.args, 'audit_action', None)
+
+            if self.output_mode != "rule":
+                method_map = {
+                    "sql": lambda: skill.audit_sql(self.args.sql),
+                    "file": lambda: self._audit_file_ai(skill),
+                    "ddl": lambda: skill.analyze_ddl_impact(self.args.ddl),
+                    "optimize": lambda: skill.optimize_sql(getattr(self.args, 'sql', '')),
+                    "recommend-indexes": lambda: skill.recommend_indexes(
+                        table=getattr(self.args, 'table', None),
+                    ),
+                }
+                scenario_map = {
+                    "sql": "sql_audit",
+                    "file": "sql_audit",
+                    "ddl": "ddl_audit",
+                    "optimize": "sql_optimize",
+                    "recommend-indexes": "index_recommend",
+                }
+                if action in method_map:
+                    return self._execute_ai_mode(skill, action, method_map, scenario_map)
+                if action != "rules":
+                    self.output.error(f"不支持的操作: {action}")
+                    return 1
 
             if action == "sql":
                 return self._audit_sql(skill)
@@ -201,6 +224,20 @@ class AuditCommand(BaseCommand):
                     self.output.print(f"    片段: {sql_fragment[:50]}...")
 
         return 0
+
+    def _audit_file_ai(self, skill) -> Dict[str, Any]:
+        """AI模式审核SQL文件"""
+        try:
+            with open(self.args.filepath, 'r', encoding='utf-8') as f:
+                content = f.read()
+
+            sql_list = [s.strip() for s in content.split(';') if s.strip()]
+
+            return skill.audit_sql_list(sql_list)
+        except FileNotFoundError:
+            return create_error_response(f"文件不存在: {self.args.filepath}", ErrorCode.FILE_NOT_FOUND)
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
     def _audit_file(self, skill) -> int:
         """审核SQL文件"""

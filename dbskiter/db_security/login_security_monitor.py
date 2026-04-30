@@ -293,7 +293,7 @@ class LoginSecurityMonitor:
         try:
             if "mysql" in self.dialect:
                 attempts = self._get_mysql_login_attempts(hours, success_only)
-            elif "postgres" in self.dialect:
+            elif "postgresql" in self.dialect:
                 attempts = self._get_postgres_login_attempts(hours, success_only)
             elif "oracle" in self.dialect:
                 attempts = self._get_oracle_login_attempts(hours, success_only)
@@ -382,29 +382,37 @@ class LoginSecurityMonitor:
         attempts = []
 
         try:
-            # Oracle需要查询审计表或日志
-            result = self.connector.execute("""
-                SELECT 
-                    username as user,
-                    osuser as os_user,
-                    machine as host,
-                    logon_time
-                FROM v$session
-                WHERE username IS NOT NULL
-                AND logon_time > SYSDATE - :hours/24
-                LIMIT 1000
-            """, {"hours": hours})
+            result = self.connector.execute(f"""
+                SELECT * FROM (
+                    SELECT
+                        username,
+                        osuser,
+                        machine,
+                        logon_time
+                    FROM v$session
+                    WHERE username IS NOT NULL
+                    AND logon_time > SYSDATE - {hours}/24
+                    ORDER BY logon_time DESC
+                )
+                WHERE ROWNUM <= 1000
+            """)
 
             for row in result.rows:
+                logon_time = row[3]
+                if logon_time and hasattr(logon_time, 'isoformat'):
+                    attempt_time = logon_time
+                else:
+                    attempt_time = datetime.now()
+
                 attempts.append(LoginAttempt(
-                    user=row[0] or "unknown",
-                    host=row[2] or "localhost",
-                    attempt_time=row[3] if row[3] else datetime.now(),
+                    user=str(row[0] or "unknown"),
+                    host=str(row[2] or "localhost"),
+                    attempt_time=attempt_time,
                     success=True
                 ))
 
         except Exception as e:
-            logger.warning(f"无法获取Oracle登录信息: {e}")
+            logger.debug(f"无法获取Oracle登录信息: {e}")
 
         return attempts
 

@@ -78,13 +78,8 @@ class MonitorCommand(BaseCommand):
 
         skill = None
         try:
-            # 获取 --database 参数（可以是数据库名、主机名或实例名）
             db_name = getattr(self.args, 'database', None)
-
-            # 获取所有可用的配置
             configs = self._load_all_configs()
-
-            # 智能选择数据源
             skill = self._create_skill_smart(
                 db_name=db_name,
                 configs=configs
@@ -95,10 +90,46 @@ class MonitorCommand(BaseCommand):
                                  "1. .env 文件中的数据库配置\n"
                                  "2. Zabbix/Prometheus 配置（如使用外部监控）")
                 return 1
-            
+
             action = getattr(self.args, 'monitor_action', None)
-            
-            # 只保留5个核心命令
+
+            if self.output_mode != "rule":
+                method_map = {
+                    "health": lambda: skill.assess_health(),
+                    "anomalies": lambda: skill.detect_anomalies(),
+                    "capacity": lambda: skill.predict_capacity(
+                        metric=getattr(self.args, 'resource', 'disk'),
+                    ),
+                    "collect": lambda: skill.collect_metrics(),
+                    "history": lambda: skill.get_metric_history(
+                        metric_type=getattr(self.args, 'metric', ''),
+                        hours=getattr(self.args, 'hours', 24),
+                    ),
+                    "capacity-advanced": lambda: skill.predict_capacity_advanced(
+                        metric=getattr(self.args, 'resource', 'disk'),
+                    ),
+                    "trend": lambda: skill.analyze_trend(
+                        metric=getattr(self.args, 'metric', 'cpu_usage'),
+                    ),
+                    "compare": lambda: skill.compare_with_baseline(
+                        metric=getattr(self.args, 'metric', ''),
+                        current_value=getattr(self.args, 'value', 0),
+                        baseline_date=getattr(self.args, 'baseline', None),
+                    ),
+                }
+                scenario_map = {
+                    "health": "monitor",
+                    "anomalies": "anomaly_detection",
+                    "capacity": "capacity",
+                    "collect": "metrics_collection",
+                    "history": "metrics_history",
+                    "capacity-advanced": "capacity_advanced",
+                    "trend": "trend_analysis",
+                    "compare": "baseline_comparison",
+                }
+                if action in method_map:
+                    return self._execute_ai_mode(skill, action, method_map, scenario_map)
+
             if action == "health":
                 return self._assess_health(skill)
             elif action == "health-all":
@@ -217,6 +248,7 @@ class MonitorCommand(BaseCommand):
                 
                 score = health.get('score', 0)
                 status = health.get('status', 'unknown')
+                issues = health.get('issues', [])
                 
                 total_score += score
                 
@@ -230,6 +262,14 @@ class MonitorCommand(BaseCommand):
                 else:
                     critical_count += 1
                     self.output.error(f"  评分: {score}/100 - 严重问题")
+                
+                # 显示问题列表
+                if issues:
+                    self.output.info(f"  发现问题:")
+                    for issue in issues[:3]:  # 只显示前3个问题
+                        self.output.warning(f"    - {issue}")
+                    if len(issues) > 3:
+                        self.output.info(f"    ... 还有 {len(issues) - 3} 个问题")
                 
                 # 显示关键指标
                 key_metrics = health.get('metrics_summary', {})
@@ -666,7 +706,7 @@ class MonitorCommand(BaseCommand):
             return 'mysql'
         elif 'oracle' in dialect:
             return 'oracle'
-        elif 'postgresql' in dialect or 'postgres' in dialect:
+        elif 'postgresql' in dialect:
             return 'postgresql'
         else:
             return 'unknown'
@@ -755,14 +795,15 @@ class MonitorCommand(BaseCommand):
 
         # 1. 如果指定了 db_name，尝试在所有配置中匹配
         if db_name:
+            db_name_lower = db_name.lower()
             for prefix, config in configs.items():
-                # 匹配数据库名、主机名或服务名
-                if (config.database == db_name or
-                    config.host == db_name or
-                    config.extra.get('service_name') == db_name):
+                # 匹配数据库名、主机名或服务名（不区分大小写）
+                if (config.database.lower() == db_name_lower or
+                    config.host.lower() == db_name_lower or
+                    config.extra.get('service_name', '').lower() == db_name_lower):
                     self.output.info(f"找到匹配配置 [{prefix}]: {config.host}/{config.database}")
-                    connector = self._create_connector_from_config(config)
-                    return MonitorSkill(connector)
+                    self._connector = self._create_connector_from_config(config)
+                    return MonitorSkill(self._connector)
 
             # 没有找到匹配的配置，根据 db_name 推断数据库类型
             if OracleHostMapping.is_oracle_group(db_name):
@@ -784,8 +825,8 @@ class MonitorCommand(BaseCommand):
             first_config = list(configs.values())[0]
             prefix = list(configs.keys())[0]
             self.output.info(f"使用默认配置 [{prefix}]: {first_config.host}/{first_config.database}")
-            connector = self._create_connector_from_config(first_config)
-            return MonitorSkill(connector)
+            self._connector = self._create_connector_from_config(first_config)
+            return MonitorSkill(self._connector)
 
         return None
 

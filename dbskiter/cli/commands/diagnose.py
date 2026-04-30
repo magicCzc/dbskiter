@@ -132,19 +132,28 @@ class DiagnoseCommand(BaseCommand):
         slowlog_parser = subparsers.add_parser(
             "slow-queries",
             aliases=["slowlog"],
-            help="慢查询日志 - 分析历史慢查询"
+            help="慢查询日志 - 分析历史慢查询（支持实时采集和日志文件解析）"
         )
         slowlog_parser.add_argument(
             "--limit",
             type=int,
             default=10,
-            help="返回条数（默认10）"
+            help="返回条数（默认10，仅实时模式）"
         )
         slowlog_parser.add_argument(
             "--min-time",
             type=float,
             default=1.0,
             help="最小执行时间（秒，默认1.0）"
+        )
+        slowlog_parser.add_argument(
+            "--log-file",
+            help="慢查询日志文件路径（指定则使用日志文件模式）"
+        )
+        slowlog_parser.add_argument(
+            "--since",
+            default="24h",
+            help="时间范围（如24h表示最近24小时，7d表示最近7天，仅日志模式）"
         )
 
         # 9. recommend-indexes - 索引建议
@@ -235,6 +244,67 @@ class DiagnoseCommand(BaseCommand):
         try:
             skill = DiagnoseSkill(self.connector)
 
+            if self.output_mode != "rule":
+                method_map = {
+                    "realtime": lambda: skill.realtime_diagnose(
+                        threshold=getattr(self.args, 'threshold', 5)
+                    ),
+                    "top": lambda: skill.get_top_sql(
+                        limit=getattr(self.args, 'limit', 10),
+                        order_by=getattr(self.args, 'by', 'time'),
+                    ),
+                    "locks": lambda: skill.analyze_locks(),
+                    "sql": lambda: skill.analyze_sql(self.args.sql),
+                    "space": lambda: skill.analyze_space(
+                        top_n=getattr(self.args, 'top', 20),
+                        min_size_mb=getattr(self.args, 'min_size', 100),
+                    ),
+                    "connections": lambda: skill.analyze_connections(
+                        show_idle=getattr(self.args, 'idle', False),
+                    ),
+                    "replication": lambda: skill.analyze_replication(),
+                    "slow-queries": lambda: skill.analyze_slow_queries(
+                        limit=getattr(self.args, 'limit', 10),
+                        min_time=getattr(self.args, 'min_time', 1.0),
+                        log_file=getattr(self.args, 'log_file', None),
+                        since=getattr(self.args, 'since', '24h'),
+                    ),
+                    "slowlog": lambda: skill.analyze_slow_queries(
+                        limit=getattr(self.args, 'limit', 10),
+                        min_time=getattr(self.args, 'min_time', 1.0),
+                        log_file=getattr(self.args, 'log_file', None),
+                        since=getattr(self.args, 'since', '24h'),
+                    ),
+                    "recommend-indexes": lambda: skill.recommend_indexes(
+                        table=getattr(self.args, 'table', None),
+                    ),
+                    "indexes": lambda: skill.recommend_indexes(
+                        table=getattr(self.args, 'table', None),
+                    ),
+                    "report": lambda: self._generate_report_for_ai_mode(skill),
+                    "table": lambda: skill.diagnose_table(self.args.table_name),
+                    "performance-snapshot": lambda: skill.take_performance_snapshot(),
+                    "bottleneck": lambda: skill.analyze_performance_bottleneck(),
+                }
+                scenario_map = {
+                    "realtime": "realtime",
+                    "top": "top_sql",
+                    "locks": "locks",
+                    "sql": "sql_analysis",
+                    "space": "space",
+                    "connections": "connections",
+                    "replication": "replication",
+                    "slow-queries": "slow_query",
+                    "slowlog": "slow_query",
+                    "recommend-indexes": "index_recommend",
+                    "indexes": "index_recommend",
+                    "report": "report",
+                    "table": "table",
+                    "performance-snapshot": "performance_snapshot",
+                    "bottleneck": "bottleneck",
+                }
+                return self._execute_ai_mode(skill, action, method_map, scenario_map)
+
             # P0: 高频场景
             if action == "realtime":
                 return self._realtime_diagnose(skill)
@@ -323,8 +393,8 @@ class DiagnoseCommand(BaseCommand):
                 self.output.info(f"  发现 {len(queries)} 个慢查询（>{self.args.threshold}秒）:")
                 for i, q in enumerate(queries, 1):
                     sql = q.get('sql', '')[:50]
-                    time = q.get('time', 0)
-                    self.output.info(f"    {i}. [{time:.2f}s] {sql}...")
+                    exec_time = q.get('exec_time', q.get('time', 0))
+                    self.output.info(f"    {i}. [{exec_time:.2f}s] {sql}...")
             else:
                 self.output.info("  未发现慢查询")
 
@@ -332,7 +402,22 @@ class DiagnoseCommand(BaseCommand):
         self.output.info("\n" + "=" * 60)
         self.output.info("诊断建议")
         self.output.info("=" * 60)
-        suggestions = data.get('suggestions', [])
+
+        suggestions = []
+        conn_data = conn_info.get('data', {}) if conn_info.get('success') else {}
+        if conn_data.get('total', 0) > 100:
+            suggestions.append(f"连接数过多({conn_data.get('total')})，检查连接池配置")
+        if conn_data.get('slow_count', 0) > 5:
+            suggestions.append(f"发现{conn_data.get('slow_count')}个慢查询，执行diagnose slow-queries查看详情")
+
+        lock_data = lock_info.get('data', {}) if lock_info.get('success') else {}
+        if lock_data.get('lock_waits', []):
+            suggestions.append(f"存在{len(lock_data.get('lock_waits', []))}个锁等待，检查长事务")
+
+        top_data = top_sql.get('data', {}) if top_sql.get('success') else {}
+        if top_data.get('queries', []):
+            suggestions.append(f"发现{len(top_data.get('queries', []))}个高耗SQL，执行diagnose top查看详情")
+
         if suggestions:
             for s in suggestions:
                 self.output.info(f"  - {s}")
@@ -366,9 +451,21 @@ class DiagnoseCommand(BaseCommand):
         self.output.info(f"\n共 {len(queries)} 条SQL:\n")
 
         for i, q in enumerate(queries, 1):
-            self.output.info(f"[{i}] 执行时间: {q.get('exec_time', 0):.3f}s")
-            self.output.info(f"    扫描行数: {q.get('rows_examined', 0)}")
-            self.output.info(f"    返回行数: {q.get('rows_sent', 0)}")
+            exec_time = q.get('exec_time', q.get('time', 0))
+            self.output.info(f"[{i}] 平均执行时间: {exec_time:.3f}s")
+            if q.get('total_time'):
+                self.output.info(f"    总执行时间: {q.get('total_time', 0):.2f}s")
+            if q.get('executions'):
+                self.output.info(f"    执行次数: {q.get('executions')}")
+            if q.get('sql_id'):
+                self.output.info(f"    SQL ID: {q.get('sql_id')}")
+            # 兼容MySQL和Oracle的不同字段
+            rows_examined = q.get('rows_examined', q.get('buffer_gets', 0))
+            rows_sent = q.get('rows_sent', q.get('disk_reads', 0))
+            self.output.info(f"    逻辑读: {rows_examined}")
+            self.output.info(f"    物理读: {rows_sent}")
+            if q.get('cpu_time'):
+                self.output.info(f"    CPU时间: {q.get('cpu_time', 0):.3f}s")
             self.output.info(f"    SQL: {q.get('sql', '')[:100]}...")
             if q.get('suggestion'):
                 self.output.info(f"    建议: {q.get('suggestion')}")
@@ -508,13 +605,28 @@ class DiagnoseCommand(BaseCommand):
         self.output.info("空间诊断结果")
         self.output.info("=" * 60)
 
-        # 总体空间
+        # 总体空间 - 支持GB和MB两种单位
         total = data.get('total_space', {})
         self.output.info(f"\n[总体空间]")
-        self.output.info(f"  总大小: {total.get('total_gb', 0):.2f} GB")
-        self.output.info(f"  数据大小: {total.get('data_gb', 0):.2f} GB")
-        self.output.info(f"  索引大小: {total.get('index_gb', 0):.2f} GB")
-        self.output.info(f"  剩余空间: {total.get('free_gb', 0):.2f} GB")
+
+        # 优先使用GB单位，如果没有则使用MB单位转换
+        if 'total_gb' in total:
+            self.output.info(f"  总大小: {total.get('total_gb', 0):.2f} GB")
+            self.output.info(f"  数据大小: {total.get('data_gb', 0):.2f} GB")
+            self.output.info(f"  索引大小: {total.get('index_gb', 0):.2f} GB")
+            self.output.info(f"  剩余空间: {total.get('free_gb', 0):.2f} GB")
+        elif 'total_mb' in total:
+            # PostgreSQL返回的是MB单位
+            self.output.info(f"  总大小: {total.get('total_mb', 0):.2f} MB ({total.get('total_mb', 0)/1024:.2f} GB)")
+            self.output.info(f"  数据大小: {total.get('data_mb', 0):.2f} MB ({total.get('data_mb', 0)/1024:.2f} GB)")
+            self.output.info(f"  索引大小: {total.get('index_mb', 0):.2f} MB ({total.get('index_mb', 0)/1024:.2f} GB)")
+            if 'free_gb' in total:
+                self.output.info(f"  剩余空间: {total.get('free_gb', 0):.2f} GB")
+        else:
+            self.output.info(f"  总大小: 0.00 GB")
+            self.output.info(f"  数据大小: 0.00 GB")
+            self.output.info(f"  索引大小: 0.00 GB")
+            self.output.info(f"  剩余空间: 0.00 GB")
 
         # TOP大表
         tables = data.get('large_tables', [])
@@ -535,7 +647,17 @@ class DiagnoseCommand(BaseCommand):
         if suggestions:
             self.output.info("\n[优化建议]")
             for s in suggestions:
-                self.output.info(f"  - {s}")
+                if isinstance(s, dict):
+                    priority = s.get('priority', '')
+                    suggestion_text = s.get('suggestion', s.get('description', ''))
+                    if priority == 'high':
+                        self.output.warning(f"  - [高] {suggestion_text}")
+                    elif priority == 'medium':
+                        self.output.info(f"  - [中] {suggestion_text}")
+                    else:
+                        self.output.info(f"  - [低] {suggestion_text}")
+                else:
+                    self.output.info(f"  - {s}")
 
         return 0
 
@@ -632,17 +754,36 @@ class DiagnoseCommand(BaseCommand):
         return 0
 
     def _analyze_slowlog(self, skill) -> int:
-        """历史慢查询分析"""
-        result = skill.analyze_slow_queries(
-            limit=self.args.limit,
-            min_time=self.args.min_time
-        )
+        """历史慢查询分析（支持实时和日志文件模式）"""
+        # 检查是否使用日志文件模式
+        log_file = getattr(self.args, 'log_file', None)
+
+        if log_file:
+            # 日志文件模式
+            self.output.info(f"\n分析慢查询日志文件: {log_file}")
+            result = skill.analyze_slow_queries(
+                min_time=self.args.min_time,
+                log_file=log_file,
+                since=getattr(self.args, 'since', '24h')
+            )
+        else:
+            # 实时模式
+            result = skill.analyze_slow_queries(
+                limit=self.args.limit,
+                min_time=self.args.min_time
+            )
 
         if not result.get('success'):
             self.output.error(f"慢查询分析失败: {result.get('message')}")
             return 1
 
         data = result.get('data', {})
+
+        # 检查是否是增强版报告格式
+        if 'summary' in data:
+            return self._display_enhanced_report(data)
+
+        # 兼容旧格式
         queries = data.get('queries', [])
 
         self.output.info("\n" + "=" * 60)
@@ -664,6 +805,49 @@ class DiagnoseCommand(BaseCommand):
 
         return 0
 
+    def _display_enhanced_report(self, data: Dict) -> int:
+        """显示增强版慢查询报告"""
+        summary = data.get('summary', {})
+        patterns = data.get('top_patterns', [])
+        recommendations = data.get('recommendations', [])
+
+        self.output.info("\n" + "=" * 70)
+        self.output.info("慢查询分析报告（增强版）")
+        self.output.info("=" * 70)
+
+        # 汇总信息
+        self.output.info(f"\n【汇总统计】")
+        self.output.info(f"  总查询数: {summary.get('total_queries', 0)}")
+        self.output.info(f"  唯一模式: {summary.get('unique_patterns', 0)}")
+        self.output.info(f"  总耗时: {summary.get('total_time', 0):.2f}秒")
+        self.output.info(f"  平均耗时: {summary.get('avg_time', 0):.3f}秒")
+
+        time_range = summary.get('time_range', [None, None])
+        if time_range[0] and time_range[1]:
+            self.output.info(f"  时间范围: {time_range[0]} ~ {time_range[1]}")
+
+        # TOP查询模式
+        if patterns:
+            self.output.info(f"\n【TOP {len(patterns)} 查询模式】")
+            for i, p in enumerate(patterns, 1):
+                self.output.info(f"\n[{i}] 指纹: {p.get('fingerprint', '')[:60]}...")
+                self.output.info(f"    SQL示例: {p.get('sql_pattern', '')[:80]}...")
+                self.output.info(f"    执行次数: {p.get('count', 0)}")
+                self.output.info(f"    总耗时: {p.get('total_time', 0):.2f}秒")
+                self.output.info(f"    平均耗时: {p.get('avg_time', 0):.3f}秒")
+                self.output.info(f"    P95耗时: {p.get('p95_time', 0):.3f}秒")
+                self.output.info(f"    扫描行数: {p.get('rows_examined', 0)}")
+                self.output.info(f"    返回行数: {p.get('rows_sent', 0)}")
+
+        # 优化建议
+        if recommendations:
+            self.output.info(f"\n【优化建议】")
+            for i, rec in enumerate(recommendations, 1):
+                self.output.info(f"  {i}. {rec}")
+
+        self.output.info("\n" + "=" * 70)
+        return 0
+
     def _recommend_indexes(self, skill) -> int:
         """索引建议"""
         result = skill.recommend_indexes(table=self.args.table)
@@ -673,25 +857,90 @@ class DiagnoseCommand(BaseCommand):
             return 1
 
         data = result.get('data', {})
-        indexes = data.get('indexes', [])
+        # 兼容两种字段名：suggestions（skill层返回）和indexes（旧格式）
+        suggestions = data.get('suggestions', data.get('indexes', []))
 
         self.output.info("\n" + "=" * 60)
         self.output.info("索引建议")
         self.output.info("=" * 60)
 
-        if not indexes:
+        if not suggestions:
             self.output.info("\n暂无索引建议")
             return 0
 
-        self.output.info(f"\n共 {len(indexes)} 条建议:\n")
+        summary = data.get('summary', {})
+        if summary:
+            self.output.info(f"\n总计: {summary.get('total', len(suggestions))} 条建议")
+            self.output.info(f"  高优先级: {summary.get('high_priority', 0)}")
+            self.output.info(f"  中优先级: {summary.get('medium_priority', 0)}")
+            self.output.info(f"  低优先级: {summary.get('low_priority', 0)}")
 
-        for i, idx in enumerate(indexes, 1):
-            self.output.info(f"[{i}] 表: {idx.get('table')}")
-            self.output.info(f"    建议: {idx.get('recommendation')}")
-            self.output.info(f"    原因: {idx.get('reason')}")
-            if idx.get('sql'):
-                self.output.info(f"    SQL: {idx.get('sql')}")
-            self.output.info("")
+        # 按类型分组展示
+        type_labels = {
+            'missing_index': '缺失索引',
+            'redundant_index': '冗余索引',
+            'unused_index': '未使用索引',
+            'low_cardinality': '低基数索引',
+            'low_selectivity': '低选择性索引',
+        }
+
+        priority_labels = {
+            'high': '[高]',
+            'medium': '[中]',
+            'low': '[低]',
+        }
+
+        for i, s in enumerate(suggestions, 1):
+            s_type = s.get('type', 'unknown')
+            type_label = type_labels.get(s_type, s_type)
+            priority = s.get('priority', 'low')
+            priority_label = priority_labels.get(priority, f'[{priority}]')
+
+            self.output.info(f"\n{i}. {priority_label} {type_label}")
+
+            # 根据类型展示不同详情
+            if s_type == 'missing_index':
+                sql_preview = s.get('sql_preview', '')
+                sql_id = s.get('sql_id', '')
+                elapsed = s.get('elapsed_sec', 0)
+                executions = s.get('executions', 0)
+                if sql_id:
+                    self.output.info(f"   SQL ID: {sql_id}")
+                if sql_preview:
+                    self.output.info(f"   SQL: {sql_preview}")
+                self.output.info(f"   耗时: {elapsed}秒, 执行次数: {executions}")
+                self.output.info(f"   原因: {s.get('reason', '')}")
+                self.output.info(f"   建议: {s.get('suggestion', '')}")
+
+            elif s_type == 'redundant_index':
+                self.output.info(f"   表: {s.get('table', '')}")
+                self.output.info(f"   索引: {s.get('index', '')}")
+                self.output.info(f"   列: {s.get('columns', '')}")
+                self.output.info(f"   原因: {s.get('reason', '')}")
+                self.output.info(f"   建议: {s.get('suggestion', '')}")
+
+            elif s_type in ('unused_index', 'low_cardinality', 'low_selectivity'):
+                self.output.info(f"   表: {s.get('table', '')}")
+                self.output.info(f"   索引: {s.get('index', '')}")
+                if s.get('column'):
+                    self.output.info(f"   列: {s.get('column')}")
+                if s.get('distinct_keys') is not None:
+                    self.output.info(f"   不同键数: {s.get('distinct_keys')}")
+                if s.get('selectivity_percent') is not None:
+                    self.output.info(f"   选择性: {s.get('selectivity_percent')}%")
+                self.output.info(f"   原因: {s.get('reason', '')}")
+                self.output.info(f"   建议: {s.get('suggestion', '')}")
+
+            else:
+                # 通用展示
+                table_name = s.get('table', '')
+                if table_name:
+                    self.output.info(f"   表: {table_name}")
+                self.output.info(f"   描述: {s.get('description', s.get('reason', ''))}")
+                if s.get('suggestion'):
+                    self.output.info(f"   建议: {s.get('suggestion')}")
+                if s.get('sql'):
+                    self.output.info(f"   SQL: {s.get('sql')}")
 
         return 0
 
@@ -777,6 +1026,35 @@ class DiagnoseCommand(BaseCommand):
 
         return 0
 
+    def _generate_report_for_ai_mode(self, skill) -> Dict[str, Any]:
+        """为AI模式生成综合性能诊断报告（返回字典格式）"""
+        from datetime import datetime
+
+        # 获取数据库信息
+        db_name = self.args.database or "unknown"
+        db_type = self.connector.dialect if self.connector else "unknown"
+
+        # 收集各项诊断结果
+        snapshot_result = skill.take_performance_snapshot()
+        bottleneck_result = skill.analyze_performance_bottleneck()
+        space_result = skill.analyze_space(top_n=10, min_size_mb=1, database=db_name)
+
+        # 构建报告数据
+        report_data = {
+            "database": db_name,
+            "database_type": db_type,
+            "generated_at": datetime.now().isoformat(),
+            "performance_snapshot": snapshot_result.get('data', {}),
+            "bottleneck_analysis": bottleneck_result.get('data', {}),
+            "space_analysis": space_result.get('data', {}),
+        }
+
+        return {
+            "success": True,
+            "message": "综合性能诊断报告生成完成",
+            "data": report_data
+        }
+
     def _diagnose_table(self, skill) -> int:
         """单表诊断"""
         result = skill.diagnose_table(self.args.table_name)
@@ -833,7 +1111,17 @@ class DiagnoseCommand(BaseCommand):
         if suggestions:
             self.output.info(f"\n[优化建议]")
             for s in suggestions:
-                self.output.info(f"  - {s}")
+                if isinstance(s, dict):
+                    priority = s.get('priority', '')
+                    suggestion_text = s.get('suggestion', s.get('description', ''))
+                    if priority == 'high':
+                        self.output.warning(f"  - [高] {suggestion_text}")
+                    elif priority == 'medium':
+                        self.output.info(f"  - [中] {suggestion_text}")
+                    else:
+                        self.output.info(f"  - [低] {suggestion_text}")
+                else:
+                    self.output.info(f"  - {s}")
 
         return 0
 

@@ -21,7 +21,14 @@ class MySQLDiagnostician(BaseDiagnostician):
     """
     MySQL数据库诊断器
 
-    提供MySQL特有的慢查询分析、AAS分析、统计信息获取
+    提供MySQL特有的诊断能力：
+    - 慢查询分析
+    - AAS分析
+    - 性能指标分析
+    - 实时连接监控
+    - TOP SQL查询
+    - 锁等待分析
+    - 数据库统计信息
     """
 
     def __init__(self, connector: UnifiedConnector):
@@ -34,12 +41,19 @@ class MySQLDiagnostician(BaseDiagnostician):
     def _get_database_name(self) -> Optional[str]:
         """获取当前数据库名称"""
         if self._database_name is None:
-            try:
-                result = self.connector.execute("SELECT DATABASE()")
-                if result and result.rows:
-                    self._database_name = result.rows[0][0]
-            except Exception as e:
-                logger.warning(f"获取数据库名称失败: {e}")
+            # 优先使用connector配置的数据库名
+            if hasattr(self.connector, 'database') and self.connector.database:
+                self._database_name = self.connector.database
+                logger.info(f"使用connector配置的数据库: {self._database_name}")
+            else:
+                # 回退到执行SELECT DATABASE()
+                try:
+                    result = self.connector.execute("SELECT DATABASE()")
+                    if result and result.rows:
+                        self._database_name = result.rows[0][0]
+                        logger.info(f"通过SELECT DATABASE()获取数据库: {self._database_name}")
+                except Exception as e:
+                    logger.warning(f"获取数据库名称失败: {e}")
         return self._database_name
 
     def analyze_slow_queries(
@@ -69,9 +83,17 @@ class MySQLDiagnostician(BaseDiagnostician):
             )
 
             if not slow_queries:
+                # 获取采集过程中的错误信息
+                errors = self.slow_query_collector.get_errors()
+                if errors:
+                    error_msgs = [f"[{e.category.value}] {e.message}" for e in errors[:3]]
+                    message = f"慢查询采集失败: {'; '.join(error_msgs)}"
+                else:
+                    message = "未采集到慢查询（可能是当前没有慢查询或配置未启用）"
+
                 return self._create_result(
                     success=True,
-                    message="未采集到慢查询",
+                    message=message,
                     data={
                         "total_queries": 0,
                         "unique_patterns": 0,
@@ -114,23 +136,27 @@ class MySQLDiagnostician(BaseDiagnostician):
                 reverse=True
             )
 
+            # 构建查询列表（保留完整SQL）
+            queries_list = []
+            for q in slow_queries[:limit]:
+                sql_full = getattr(q, 'sql', None) or getattr(q, 'sql_text', '')
+                queries_list.append({
+                    "sql": sql_full,
+                    "sql_short": sql_full[:200] + "..." if len(sql_full) > 200 else sql_full,
+                    "query_time": q.query_time,
+                    "lock_time": getattr(q, 'lock_time', 0.0),
+                    "rows_examined": q.rows_examined,
+                    "rows_sent": q.rows_sent,
+                    "timestamp": getattr(q, 'timestamp', None).isoformat() if getattr(q, 'timestamp', None) else None
+                })
+
             return self._create_result(
                 success=True,
                 message=f"成功分析 {len(slow_queries)} 个慢查询",
                 data={
                     "total_queries": len(slow_queries),
                     "unique_patterns": len(fingerprints),
-                    "queries": [
-                        {
-                            "sql": (getattr(q, 'sql', None) or getattr(q, 'sql_text', ''))[:500],
-                            "query_time": q.query_time,
-                            "lock_time": getattr(q, 'lock_time', 0.0),
-                            "rows_examined": q.rows_examined,
-                            "rows_sent": q.rows_sent,
-                            "timestamp": getattr(q, 'timestamp', None).isoformat() if getattr(q, 'timestamp', None) else None
-                        }
-                        for q in slow_queries[:limit]
-                    ],
+                    "queries": queries_list,
                     "patterns": sorted_patterns[:10]
                 }
             )
@@ -155,6 +181,142 @@ class MySQLDiagnostician(BaseDiagnostician):
                 success=False,
                 message="数据解析错误",
                 error=str(e)
+            )
+
+    def get_realtime_connections(self) -> Dict[str, Any]:
+        """
+        获取实时连接信息
+
+        返回:
+            Dict: 连接统计信息
+        """
+        try:
+            result = self._execute_query("""
+                SELECT 
+                    COUNT(*) as total,
+                    SUM(CASE WHEN COMMAND != 'Sleep' THEN 1 ELSE 0 END) as active,
+                    SUM(CASE WHEN TIME > 5 THEN 1 ELSE 0 END) as slow
+                FROM information_schema.PROCESSLIST
+                WHERE USER != 'system user'
+            """)
+
+            row = result[0] if result else (0, 0, 0)
+
+            return self._create_result(
+                success=True,
+                message="实时连接信息获取成功",
+                data={
+                    "total": int(row[0]) if row[0] else 0,
+                    "active": int(row[1]) if row[1] else 0,
+                    "slow_count": int(row[2]) if row[2] else 0
+                }
+            )
+        except Exception as e:
+            logger.error(f"获取实时连接失败: {e}")
+            return self._create_result(
+                success=False,
+                message="获取实时连接失败",
+                error=str(e)
+            )
+
+    def get_top_sql(self, limit: int = 10, threshold: int = 0) -> Dict[str, Any]:
+        """
+        获取TOP SQL
+
+        参数:
+            limit: 返回条数
+            threshold: 执行时间阈值(秒)
+
+        返回:
+            Dict: TOP SQL列表
+        """
+        try:
+            result = self._execute_query("""
+                SELECT 
+                    ID,
+                    USER,
+                    HOST,
+                    DB,
+                    COMMAND,
+                    TIME as exec_time,
+                    STATE,
+                    LEFT(INFO, 500) as sql_text
+                FROM information_schema.PROCESSLIST
+                WHERE COMMAND != 'Sleep'
+                    AND INFO IS NOT NULL
+                    AND TIME >= %s
+                ORDER BY TIME DESC
+                LIMIT %s
+            """, (threshold, limit))
+
+            queries = []
+            for row in result:
+                queries.append({
+                    "id": row[0],
+                    "user": row[1],
+                    "host": row[2],
+                    "db": row[3],
+                    "command": row[4],
+                    "exec_time": row[5],
+                    "state": row[6],
+                    "sql": row[7] if row[7] else ""
+                })
+
+            return self._create_result(
+                success=True,
+                message=f"获取到 {len(queries)} 条TOP SQL",
+                data={"queries": queries}
+            )
+        except Exception as e:
+            logger.error(f"获取TOP SQL失败: {e}")
+            return self._create_result(
+                success=False,
+                message="获取TOP SQL失败",
+                error=str(e)
+            )
+
+    def get_lock_waits(self) -> Dict[str, Any]:
+        """
+        获取锁等待信息
+
+        返回:
+            Dict: 锁等待列表
+        """
+        try:
+            result = self._execute_query("""
+                SELECT 
+                    r.trx_id as waiting_trx_id,
+                    r.trx_mysql_thread_id as waiting_thread,
+                    b.trx_id as blocking_trx_id,
+                    b.trx_mysql_thread_id as blocking_thread,
+                    b.trx_query as blocking_query
+                FROM information_schema.INNODB_LOCK_WAITS w
+                JOIN information_schema.INNODB_TRX b ON b.trx_id = w.blocking_trx_id
+                JOIN information_schema.INNODB_TRX r ON r.trx_id = w.requesting_trx_id
+                LIMIT 10
+            """)
+
+            waits = []
+            for row in result:
+                waits.append({
+                    "waiting_trx": row[0],
+                    "waiting_thread": row[1],
+                    "blocking_trx": row[2],
+                    "blocking_thread": row[3],
+                    "sql": row[4] if row[4] else ""
+                })
+
+            return self._create_result(
+                success=True,
+                message=f"获取到 {len(waits)} 个锁等待",
+                data={"lock_waits": waits}
+            )
+        except Exception as e:
+            logger.warning(f"获取锁等待失败(可能INNODB_LOCK_WAITS表不存在): {e}")
+            return self._create_result(
+                success=True,
+                message="锁等待信息获取完成",
+                data={"lock_waits": []}
             )
 
     def analyze_performance_metrics(

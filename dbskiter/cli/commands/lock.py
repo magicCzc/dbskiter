@@ -76,17 +76,34 @@ class LockCommand(BaseCommand):
         from dbskiter.db_lock_analyzer.skill import LockAnalyzerSkill
 
         try:
-            # 确保数据库连接可用
             self.require_connector()
         except Exception as e:
             self.output.error(str(e))
             return 1
 
         try:
-            # 初始化 Skill
             skill = LockAnalyzerSkill(self.connector)
 
             action = getattr(self.args, 'lock_action', None)
+
+            if self.output_mode != "rule":
+                method_map = {
+                    "analyze": lambda: skill.analyze_current_locks(),
+                    "deadlocks": lambda: skill.detect_deadlocks(),
+                    "chains": lambda: skill.trace_lock_chains(),
+                    "report": lambda: skill.generate_lock_report(),
+                }
+                scenario_map = {
+                    "analyze": "lock_analysis",
+                    "deadlocks": "deadlock",
+                    "chains": "lock_chain",
+                    "report": "lock_report",
+                }
+                if action in method_map:
+                    return self._execute_ai_mode(skill, action, method_map, scenario_map)
+                if action != "kill":
+                    self.output.error(f"不支持的操作: {action}")
+                    return 1
 
             if action == "analyze":
                 return self._analyze_locks(skill)

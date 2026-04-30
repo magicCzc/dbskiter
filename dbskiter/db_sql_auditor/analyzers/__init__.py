@@ -55,7 +55,7 @@ def get_ddl_analyzer(dialect: str, connector):
         return MySQLDDLAnalyzer(connector)
     elif 'oracle' in dialect:
         return OracleDDLAnalyzer(connector)
-    elif 'postgresql' in dialect or 'postgres' in dialect:
+    elif 'postgresql' in dialect:
         return PostgreSQLDDLAnalyzer(connector)
     else:
         raise ValueError(f"不支持的数据库方言: {dialect}")

@@ -40,7 +40,7 @@ def get_inspector(dialect: str, connector):
         return MySQLInspector(connector)
     elif 'oracle' in dialect:
         return OracleInspector(connector)
-    elif 'postgresql' in dialect or 'postgres' in dialect:
+    elif 'postgresql' in dialect:
         return PostgreSQLInspector(connector)
     else:
         # 默认使用通用巡检器

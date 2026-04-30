@@ -90,7 +90,8 @@ class SchedulerSkill:
         self.max_workers = max_workers
 
         # 初始化组件
-        self.backup_manager = BackupManager(connector, backup_dir)
+        self.backup_manager = BackupManager(connector)
+        self.backup_manager.default_output_dir = str(backup_dir)
         self.circuit_breaker = CircuitBreaker(threshold=5)
         self.notification = NotificationManager()
         self.timeout_executor = TimeoutExecutor(timeout=3600, max_workers=max_workers)
@@ -142,6 +143,39 @@ class SchedulerSkill:
                 )
             """)
             conn.commit()
+
+        # 从数据库加载现有任务
+        self._load_tasks_from_db()
+
+    def _load_tasks_from_db(self):
+        """从数据库加载任务到内存"""
+        try:
+            with sqlite3.connect("./runtime_data/scheduler/scheduler.db") as conn:
+                cursor = conn.execute("SELECT * FROM tasks")
+                rows = cursor.fetchall()
+
+                for row in rows:
+                    task = ScheduledTask(
+                        task_id=row[0],
+                        name=row[1],
+                        task_type=TaskType(row[2]),
+                        schedule=row[3],
+                        params=json.loads(row[4]) if row[4] else {},
+                        enabled=bool(row[5]),
+                        next_run=datetime.fromisoformat(row[7]) if row[7] else None,
+                        retry_count=row[8] or 0,
+                        max_retries=row[9] or 3,
+                        priority=TaskPriority(row[10]) if row[10] else TaskPriority.MEDIUM,
+                        timeout=row[11] or 3600,
+                        created_at=datetime.fromisoformat(row[12]) if row[12] else datetime.now(),
+                        updated_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now()
+                    )
+                    self._tasks[row[0]] = task
+
+                if self._tasks:
+                    logger.info(f"从数据库加载了 {len(self._tasks)} 个任务")
+        except Exception as e:
+            logger.warning(f"从数据库加载任务失败: {e}")
 
     # =====================================================================
     # 备份功能
@@ -301,38 +335,68 @@ class SchedulerSkill:
             task = self._tasks.get(task_id)
             return task.to_dict() if task else None
 
-    def enable_task(self, task_id: str) -> Dict[str, Any]:
-        """启用任务"""
+    def _find_task_by_name_or_id(self, name_or_id: str) -> Optional[ScheduledTask]:
+        """通过名称或ID查找任务"""
+        # 先尝试作为ID查找
+        if name_or_id in self._tasks:
+            return self._tasks[name_or_id]
+        # 再尝试作为名称查找
+        for task in self._tasks.values():
+            if task.name == name_or_id:
+                return task
+        return None
+
+    def enable_task(self, task_id: str, enabled: bool = True) -> Dict[str, Any]:
+        """启用/禁用任务"""
         with self._lock:
-            task = self._tasks.get(task_id)
+            task = self._find_task_by_name_or_id(task_id)
             if not task:
                 return create_error_response(f"任务不存在: {task_id}")
-            task.enabled = True
+            task.enabled = enabled
             self._save_task_to_db(task)
-        return create_success_response({"task_id": task_id, "enabled": True})
+        return create_success_response({"task_id": task.task_id, "name": task.name, "enabled": enabled})
 
     def disable_task(self, task_id: str) -> Dict[str, Any]:
         """禁用任务"""
-        with self._lock:
-            task = self._tasks.get(task_id)
-            if not task:
-                return create_error_response(f"任务不存在: {task_id}")
-            task.enabled = False
-            self._save_task_to_db(task)
-        return create_success_response({"task_id": task_id, "enabled": False})
+        return self.enable_task(task_id, enabled=False)
 
     def delete_task(self, task_id: str) -> Dict[str, Any]:
         """删除任务"""
         with self._lock:
-            if task_id not in self._tasks:
+            task = self._find_task_by_name_or_id(task_id)
+            if not task:
                 return create_error_response(f"任务不存在: {task_id}")
-            del self._tasks[task_id]
+            actual_task_id = task.task_id
+            del self._tasks[actual_task_id]
 
         with sqlite3.connect("./runtime_data/scheduler/scheduler.db") as conn:
-            conn.execute("DELETE FROM tasks WHERE task_id = ?", (task_id,))
+            conn.execute("DELETE FROM tasks WHERE task_id = ?", (actual_task_id,))
             conn.commit()
 
-        return create_success_response({"task_id": task_id, "deleted": True})
+        return create_success_response({"task_id": actual_task_id, "name": task.name, "deleted": True})
+
+    def remove_task(self, task_id: str) -> Dict[str, Any]:
+        """删除任务（delete_task的别名）"""
+        return self.delete_task(task_id)
+
+    def run_task_now(self, task_id: str) -> Dict[str, Any]:
+        """立即执行任务"""
+        with self._lock:
+            task = self._find_task_by_name_or_id(task_id)
+            if not task:
+                return create_error_response(f"任务不存在: {task_id}")
+
+            start_time = time.time()
+            try:
+                result = self._execute_task(task)
+                duration = time.time() - start_time
+                return create_success_response({
+                    "task_id": task_id,
+                    "duration_seconds": duration,
+                    "result": result
+                })
+            except Exception as e:
+                return create_error_response(f"任务执行失败: {e}")
 
     # =====================================================================
     # 工作流功能
@@ -444,6 +508,19 @@ class SchedulerSkill:
 
         logger.info("调度器已停止")
         return create_success_response({"status": "stopped"})
+
+    def get_scheduler_status(self) -> Dict[str, Any]:
+        """获取调度器状态"""
+        enabled_tasks = sum(1 for t in self._tasks.values() if t.enabled)
+        disabled_tasks = len(self._tasks) - enabled_tasks
+
+        return create_success_response({
+            "running": self._running,
+            "total_tasks": len(self._tasks),
+            "enabled_tasks": enabled_tasks,
+            "disabled_tasks": disabled_tasks,
+            "thread_alive": self._scheduler_thread.is_alive() if self._scheduler_thread else False
+        })
 
     def _scheduler_loop(self):
         """调度器主循环"""
@@ -566,6 +643,71 @@ class SchedulerSkill:
         """获取死信队列统计信息"""
         return self.dlq_manager.get_statistics()
 
+    def get_task_logs(
+        self,
+        task_name: Optional[str] = None,
+        limit: int = 50,
+        status: str = "all"
+    ) -> Dict[str, Any]:
+        """
+        获取任务执行日志
+
+        参数:
+            task_name: 任务名称过滤
+            limit: 返回条数限制
+            status: 状态过滤 (all/success/failed)
+
+        返回:
+            Dict: 标准响应格式，包含执行日志列表
+        """
+        try:
+            db_path = "./runtime_data/scheduler/scheduler.db"
+            import os
+            if not os.path.exists(db_path):
+                return create_success_response(
+                    message="暂无执行日志",
+                    data={"logs": [], "total": 0}
+                )
+
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                conditions = []
+                params = []
+
+                if task_name:
+                    conditions.append("task_name = ?")
+                    params.append(task_name)
+                if status != "all":
+                    conditions.append("status = ?")
+                    params.append(status)
+
+                where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
+                params.append(limit)
+
+                rows = conn.execute(
+                    f"SELECT * FROM execution_history{where_clause} ORDER BY start_time DESC LIMIT ?",
+                    params
+                ).fetchall()
+
+                logs = []
+                for row in rows:
+                    logs.append({
+                        "task_id": row["task_id"],
+                        "task_name": row["task_name"],
+                        "status": row["status"],
+                        "start_time": row["start_time"],
+                        "end_time": row["end_time"],
+                        "result": row["result"],
+                        "error": row["error"],
+                    })
+
+                return create_success_response(
+                    message=f"获取到 {len(logs)} 条执行日志",
+                    data={"logs": logs, "total": len(logs)}
+                )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
     # =====================================================================
     # 通知配置
     # =====================================================================
@@ -604,3 +746,133 @@ class SchedulerSkill:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
         return False
+
+    # ==================== AI上下文构建 ====================
+
+    def build_ai_context(
+        self,
+        skill_result: Dict[str, Any],
+        scenario: str = "scheduler"
+    ) -> Dict[str, Any]:
+        """
+        构建AI分析上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            scenario: 场景标识 (scheduler/backup/logs)
+
+        返回:
+            Dict[str, Any]: AI上下文
+        """
+        from dbskiter.shared.ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(
+            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
+            database_name=getattr(self.connector, 'database', ''),
+        )
+        builder.detect_business_context(self.connector)
+
+        data = skill_result.get("data", {})
+
+        raw_metrics = self._extract_raw_metrics_for_ai(data, scenario)
+        rule_flags = self._extract_rule_flags_for_ai(data, scenario)
+        context = builder.build_database_profile(self.connector)
+        reference_values = self._build_reference_values(scenario)
+        ai_hints = self._build_ai_hints(scenario, data)
+
+        return {
+            "raw_metrics": raw_metrics,
+            "rule_flags": rule_flags,
+            "context": context,
+            "reference_values": reference_values,
+            "ai_hints": ai_hints,
+        }
+
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取原始指标"""
+        metrics = {}
+
+        # 提取关键字段
+        key_fields = ["backup", "logs", "tasks", "workflow", "schedule", "status", "result", "message"]
+        for key in key_fields:
+            if key in data:
+                metrics[key] = data[key]
+
+        # 场景特定提取
+        if scenario == "backup":
+            for key in ["backup_type", "start_time", "end_time", "size", "status", "error_message"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "task":
+            for key in ["task_name", "task_status", "last_run", "next_run", "schedule", "enabled"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "logs":
+            for key in ["total_logs", "failed_count", "success_count", "recent_errors"]:
+                if key in data:
+                    metrics[key] = data[key]
+
+        if not metrics:
+            metrics = data
+
+        return metrics
+
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取规则标记"""
+        flags = {}
+
+        # 备份失败标记
+        if "backup" in data:
+            backup = data["backup"]
+            if backup.get("status") == "failed":
+                flags["backup_failed"] = {"flagged": True, "level": "critical", "reason": "备份失败"}
+            elif backup.get("status") == "partial":
+                flags["backup_partial"] = {"flagged": True, "level": "warning", "reason": "备份部分成功"}
+
+        # 任务失败标记
+        if "tasks" in data and isinstance(data["tasks"], list):
+            failed_tasks = [t for t in data["tasks"] if t.get("status") == "failed"]
+            if failed_tasks:
+                flags["failed_tasks"] = {"flagged": True, "level": "high", "reason": f"发现 {len(failed_tasks)} 个失败任务"}
+
+        # 日志错误标记
+        if "logs" in data and isinstance(data["logs"], list):
+            error_logs = [l for l in data["logs"] if l.get("level") in ["error", "critical"]]
+            if error_logs:
+                flags["error_logs"] = {"flagged": True, "level": "medium", "reason": f"发现 {len(error_logs)} 条错误日志"}
+
+        return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
+
+    def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
+        """构建参考基线"""
+        refs = {
+            "backup_retention": {"standard": "7-30天", "compliance": "90天+"},
+            "task_timeout": {"normal": "<1小时", "warning": "1-4小时", "critical": ">4小时"},
+            "log_retention": {"standard": "30天", "compliance": "90天+"},
+        }
+        return refs
+
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """构建AI提示"""
+        hints = {"focus_areas": [], "related_commands": []}
+        db_name = getattr(self.connector, 'database', '')
+
+        if scenario == "backup":
+            hints["focus_areas"] = ["backup_strategy", "retention_policy", "recovery_time", "backup_verification"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} scheduler task list",
+                f"dbskiter --database={db_name} scheduler logs",
+            ]
+        elif scenario == "task":
+            hints["focus_areas"] = ["task_schedule", "execution_history", "failure_analysis"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} scheduler logs",
+                f"dbskiter --database={db_name} monitor health",
+            ]
+        elif scenario == "logs":
+            hints["focus_areas"] = ["error_analysis", "performance_trends", "failure_patterns"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} scheduler task list",
+            ]
+
+        return hints

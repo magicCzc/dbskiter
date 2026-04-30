@@ -4,16 +4,16 @@ description: |
   数据库锁分析与死锁检测，支持当前锁分析、死锁检测、锁等待链追踪。
 
   使用场景：
-  - 用户说"看锁" → 执行 analyze
-  - 用户说"死锁" → 执行 deadlocks
-  - 用户说"阻塞" → 执行 chains
-  - 用户说"终止事务" → 执行 kill <事务ID>
+  - 用户说"看锁" -> 执行 analyze
+  - 用户说"死锁" -> 执行 deadlocks
+  - 用户说"阻塞" -> 执行 chains
+  - 用户说"终止事务" -> 执行 kill <事务ID>
 
   用法：
-  - dbskiter --database=<name> lock analyze
-  - dbskiter --database=<name> lock deadlocks
-  - dbskiter --database=<name> lock chains
-  - dbskiter --database=<name> lock kill <transaction_id>
+  - dbskiter --output-mode=ai --database=<name> lock analyze
+  - dbskiter --output-mode=ai --database=<name> lock deadlocks
+  - dbskiter --output-mode=ai --database=<name> lock chains
+  - dbskiter --output-mode=ai --database=<name> lock kill <transaction_id>
 ---
 
 # 锁分析 Skill
@@ -24,11 +24,11 @@ description: |
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "看锁" | `dbskiter --database=<name> lock analyze` | 分析当前锁情况 |
-| "死锁" | `dbskiter --database=<name> lock deadlocks` | 检测死锁 |
-| "阻塞" | `dbskiter --database=<name> lock chains` | 追踪锁等待链 |
-| "锁报告" | `dbskiter --database=<name> lock report` | 生成锁分析报告 |
-| "终止事务" | `dbskiter --database=<name> lock kill <id>` | 终止阻塞事务 |
+| "看锁" | `dbskiter --output-mode=ai --database=<name> lock analyze` | 分析当前锁情况 |
+| "死锁" | `dbskiter --output-mode=ai --database=<name> lock deadlocks` | 检测死锁 |
+| "阻塞" | `dbskiter --output-mode=ai --database=<name> lock chains` | 追踪锁等待链 |
+| "锁报告" | `dbskiter --output-mode=ai --database=<name> lock report` | 生成锁分析报告 |
+| "终止事务" | `dbskiter --output-mode=ai --database=<name> lock kill <id>` | 终止阻塞事务 |
 
 ## 核心命令
 
@@ -38,11 +38,17 @@ dbskiter --database=<数据库名> lock analyze
 ```
 **输出**：总锁数、等待中锁数、已授予锁数
 
+**可选参数**：
+- `--format`：输出格式（text/json，默认text）
+
 ### 2. 检测死锁
 ```bash
 dbskiter --database=<数据库名> lock deadlocks
 ```
 **输出**：死锁数量、涉及事务、解决建议
+
+**可选参数**：
+- `--format`：输出格式（text/json，默认text）
 
 ### 3. 追踪锁等待链
 ```bash
@@ -50,11 +56,26 @@ dbskiter --database=<数据库名> lock chains
 ```
 **输出**：锁等待链数量、链深度、阻塞源头
 
-### 4. 终止事务
+**可选参数**：
+- `--format`：输出格式（text/json，默认text）
+
+### 4. 生成锁报告
+```bash
+dbskiter --database=<数据库名> lock report
+```
+**输出**：完整的锁分析报告
+
+**可选参数**：
+- `--output`：输出文件路径
+
+### 5. 终止事务
 ```bash
 dbskiter --database=<数据库名> lock kill <transaction_id>
 ```
 **注意**：谨慎使用，会强制终止事务
+
+**参数**：
+- `transaction_id`（必需）：要终止的事务ID
 
 ## 锁类型
 

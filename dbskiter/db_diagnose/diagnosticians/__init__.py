@@ -40,7 +40,7 @@ def get_diagnostician(dialect: str, connector):
         return MySQLDiagnostician(connector)
     elif 'oracle' in dialect:
         return OracleDiagnostician(connector)
-    elif 'postgresql' in dialect or 'postgres' in dialect:
+    elif 'postgresql' in dialect:
         return PostgreSQLDiagnostician(connector)
     else:
         # 默认使用通用诊断器

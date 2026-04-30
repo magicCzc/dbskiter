@@ -155,8 +155,11 @@ class AnomalyPatternDetector:
         """
         events = []
 
+        if not metrics:
+            return events
+
         for metric_name, data_points in metrics.items():
-            if len(data_points) < 3:
+            if not data_points or len(data_points) < 3:
                 continue
 
             threshold = thresholds.get(metric_name, 0) if thresholds else 0

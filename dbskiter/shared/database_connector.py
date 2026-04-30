@@ -29,6 +29,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 # 导入统一的QueryResult
 from .query_result import QueryResult
+from .sql_dialect import SQLDialectManager
 
 logger = logging.getLogger(__name__)
 
@@ -148,10 +149,40 @@ class DatabaseConnector:
             **kwargs
         )
 
+    def _convert_positional_to_named(self, sql: str, params: Union[tuple, list]) -> tuple:
+        """
+        将位置参数(%s)转换为命名参数(:param1)
+
+        SQLAlchemy 2.0+ 要求使用命名参数格式
+
+        参数:
+            sql: 包含 %s 的 SQL 语句
+            params: 位置参数元组或列表
+
+        返回:
+            tuple: (新SQL, 参数字典)
+        """
+        import re
+
+        new_params = {}
+        param_index = 0
+
+        def replace_param(match):
+            nonlocal param_index
+            param_name = f"param{param_index + 1}"
+            new_params[param_name] = params[param_index]
+            param_index += 1
+            return f":{param_name}"
+
+        # 替换所有 %s 为 :paramN
+        new_sql = re.sub(r'%s', replace_param, sql)
+
+        return new_sql, new_params
+
     def _init_engine(self) -> None:
         """初始化 SQLAlchemy 引擎(连接池)"""
         self._engine_url = self._build_connection_url()
-        
+
         try:
             self._engine = create_engine(
                 self._engine_url,
@@ -175,13 +206,13 @@ class DatabaseConnector:
             return self._build_sqlite_url()
         elif self.dialect in ("mysql", "mysql+pymysql"):
             return self._build_mysql_url()
-        elif self.dialect == "postgresql":
+        elif "postgresql" in self.dialect:
             return self._build_postgresql_url()
-        elif self.dialect == "sqlserver":
+        elif "sqlserver" in self.dialect:
             return self._build_sqlserver_url()
         elif self.dialect in ("oracle", "oracle+cx_oracle", "oracle+oracledb"):
             return self._build_oracle_url()
-        elif self.dialect == "clickhouse":
+        elif "clickhouse" in self.dialect:
             return self._build_clickhouse_url()
         else:
             raise ValueError(f"不支持的数据库类型: {self.dialect}")
@@ -312,7 +343,17 @@ class DatabaseConnector:
             with self._engine.connect() as conn:
                 # 参数化查询
                 if params:
-                    result = conn.execute(text(sql), params)
+                    # SQLAlchemy 2.0+ 对参数格式有严格要求
+                    # 需要将 %s 转换为 :param1, :param2 格式
+                    if isinstance(params, (list, tuple)):
+                        # 转换位置参数为命名参数
+                        new_sql, new_params = self._convert_positional_to_named(sql, params)
+                        result = conn.execute(text(new_sql), new_params)
+                    elif isinstance(params, dict):
+                        # 使用命名参数 :name 格式
+                        result = conn.execute(text(sql), params)
+                    else:
+                        result = conn.execute(text(sql), params)
                 else:
                     result = conn.execute(text(sql))
                 
@@ -384,7 +425,12 @@ class DatabaseConnector:
         try:
             start = time.time()
             with self._engine.connect() as conn:
-                conn.execute(text("SELECT 1"))
+                # 根据数据库类型使用不同的健康检查SQL
+                if 'oracle' in self.dialect:
+                    health_sql = "SELECT 1 FROM DUAL"
+                else:
+                    health_sql = "SELECT 1"
+                conn.execute(text(health_sql))
             latency_ms = (time.time() - start) * 1000
             
             return {
@@ -521,21 +567,9 @@ class DatabaseConnector:
         safe_table = self._validate_table_name(table)
         limit = int(limit)  # 防止注入
         
-        # 各数据库的 LIMIT 语法
-        limit_queries = {
-            "sqlite": f"SELECT * FROM {safe_table} LIMIT {limit}",
-            "sqlite3": f"SELECT * FROM {safe_table} LIMIT {limit}",
-            "mysql": f"SELECT * FROM `{safe_table}` LIMIT {limit}",
-            "mysql+pymysql": f"SELECT * FROM `{safe_table}` LIMIT {limit}",
-            "postgresql": f"SELECT * FROM {safe_table} LIMIT {limit}",
-            "oracle": f"SELECT * FROM {safe_table} FETCH FIRST {limit} ROWS ONLY",
-            "oracle+cx_oracle": f"SELECT * FROM {safe_table} FETCH FIRST {limit} ROWS ONLY",
-            "oracle+oracledb": f"SELECT * FROM {safe_table} FETCH FIRST {limit} ROWS ONLY",
-            "sqlserver": f"SELECT TOP {limit} * FROM {safe_table}",
-            "clickhouse": f"SELECT * FROM {safe_table} LIMIT {limit}",
-        }
-        
-        sql = limit_queries.get(self.dialect, f"SELECT * FROM {safe_table} LIMIT {limit}")
+        # 使用方言管理器生成限制SQL
+        dialect_mgr = SQLDialectManager(self.dialect)
+        sql = dialect_mgr.get_limit_sql(f"SELECT * FROM {safe_table}", limit)
         result = self.execute(sql)
         return result.df
 

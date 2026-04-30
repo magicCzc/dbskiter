@@ -4,23 +4,23 @@ description: |
   数据库实例巡检与报告生成，支持配置检查、性能检查、安全检查、报告生成、智能巡检、异常检测、根因分析、风险预测。
 
   使用场景：
-  - 用户说"巡检" → 执行 run
-  - 用户说"生成报告" → 执行 report
-  - 用户说"检查配置" → 执行 run --type configuration
-  - 用户说"建立基线" → 执行 baseline --create
-  - 用户说"智能巡检" → 执行 intelligent
-  - 用户说"异常检测" → 执行 anomalies
-  - 用户说"根因分析" → 执行 root-cause
-  - 用户说"风险预测" → 执行 risks
+  - 用户说"巡检" -> 执行 run
+  - 用户说"生成报告" -> 执行 report
+  - 用户说"检查配置" -> 执行 run --type configuration
+  - 用户说"建立基线" -> 执行 baseline --create
+  - 用户说"智能巡检" -> 执行 intelligent
+  - 用户说"异常检测" -> 执行 anomalies
+  - 用户说"根因分析" -> 执行 root-cause
+  - 用户说"风险预测" -> 执行 risks
 
   用法：
-  - dbskiter --database=<name> inspector run
-  - dbskiter --database=<name> inspector report --output report.html
-  - dbskiter --database=<name> inspector baseline --create
-  - dbskiter --database=<name> inspector intelligent
-  - dbskiter --database=<name> inspector anomalies --metric=cpu_usage
-  - dbskiter --database=<name> inspector root-cause --issue="CPU飙升"
-  - dbskiter --database=<name> inspector risks --days=7
+  - dbskiter --output-mode=ai --database=<name> inspector run
+  - dbskiter --output-mode=ai --database=<name> inspector report --output report.html
+  - dbskiter --output-mode=ai --database=<name> inspector baseline --create
+  - dbskiter --output-mode=ai --database=<name> inspector intelligent
+  - dbskiter --output-mode=ai --database=<name> inspector anomalies --metric=cpu_usage
+  - dbskiter --output-mode=ai --database=<name> inspector root-cause --issue="CPU飙升"
+  - dbskiter --output-mode=ai --database=<name> inspector risks --days=7
 ---
 
 # 数据库巡检 Skill
@@ -31,17 +31,17 @@ description: |
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "巡检" | `dbskiter --database=<name> inspector run` | 执行完整巡检 |
-| "生成报告" | `dbskiter --database=<name> inspector report` | 生成巡检报告 |
-| "检查配置" | `dbskiter --database=<name> inspector run --type configuration` | 仅检查配置 |
-| "检查安全" | `dbskiter --database=<name> inspector run --type security` | 仅安全检查 |
-| "建立基线" | `dbskiter --database=<name> inspector baseline --create` | 创建性能基线 |
-| "智能巡检" | `dbskiter --database=<name> inspector intelligent` | 智能巡检分析 |
-| "异常检测" | `dbskiter --database=<name> inspector anomalies` | 检测指标异常 |
-| "根因分析" | `dbskiter --database=<name> inspector root-cause` | 分析问题根因 |
-| "风险预测" | `dbskiter --database=<name> inspector risks` | 预测未来风险 |
+| "巡检" | `dbskiter --output-mode=ai --database=<name> inspector run` | 执行完整巡检 |
+| "生成报告" | `dbskiter --output-mode=ai --database=<name> inspector report` | 生成巡检报告 |
+| "检查配置" | `dbskiter --output-mode=ai --database=<name> inspector run --type configuration` | 仅检查配置 |
+| "检查安全" | `dbskiter --output-mode=ai --database=<name> inspector run --type security` | 仅安全检查 |
+| "建立基线" | `dbskiter --output-mode=ai --database=<name> inspector baseline --create` | 创建性能基线 |
+| "智能巡检" | `dbskiter --output-mode=ai --database=<name> inspector intelligent` | 智能巡检分析 |
+| "异常检测" | `dbskiter --output-mode=ai --database=<name> inspector anomalies` | 检测指标异常 |
+| "根因分析" | `dbskiter --output-mode=ai --database=<name> inspector root-cause` | 分析问题根因 |
+| "风险预测" | `dbskiter --output-mode=ai --database=<name> inspector risks` | 预测未来风险 |
 
-## 核心命令（7个）
+## 核心命令
 
 ### 1. 执行完整巡检
 ```bash
@@ -53,6 +53,11 @@ dbskiter --database=<数据库名> inspector run
 - 90-100：优秀
 - 70-89：良好
 - <70：需要关注
+
+**可选参数**：
+- `--type`：指定巡检类型（configuration/performance/storage/security/capacity/replication）
+- `--format`：输出格式（text/json/html/markdown）
+- `--output`：输出文件路径
 
 ### 2. 生成报告
 ```bash
@@ -66,41 +71,46 @@ dbskiter --database=<数据库名> inspector baseline --create
 ```
 **用途**：建立性能基线，用于后续对比
 
-### 4. 智能巡检（新增）
+**可选参数**：
+- `--create`：创建新基线
+- `--compare`：与基线对比
+
+### 4. 智能巡检
 ```bash
-dbskiter --database=<数据库名> inspector intelligent --metrics-history='{"cpu": [...], "memory": [...]}'
+dbskiter --database=<数据库名> inspector intelligent
 ```
 **功能**：异常检测、根因分析、风险预测、智能建议
 
-### 5. 异常检测（新增）
+**可选参数**：
+- `--metrics-file`：指标历史数据文件（JSON格式）
+
+### 5. 异常检测
 ```bash
-dbskiter --database=<数据库名> inspector detect-anomalies --metrics='{"cpu": [...]}'
+dbskiter --database=<数据库名> inspector anomalies --metric=cpu_usage
 ```
 **功能**：检测突然飙升、逐渐增长、周期性异常、基线偏离
 
-### 6. 根因分析（新增）
+**参数**：
+- `--metric`（必需）：指标名称（如cpu_usage, memory_usage）
+- `--hours`：检测最近多少小时的数据（默认24）
+
+### 6. 根因分析
 ```bash
-dbskiter --database=<数据库名> inspector analyze-root-causes --anomalies='[...]'
+dbskiter --database=<数据库名> inspector root-cause --issue="CPU飙升"
 ```
 **功能**：分析异常事件的根因，提供解决建议
 
-### 7. 风险预测（新增）
+**参数**：
+- `--issue`（必需）：问题描述（如"CPU使用率飙升"）
+
+### 7. 风险预测
 ```bash
-dbskiter --database=<数据库名> inspector predict-risks --time-horizon=7d
+dbskiter --database=<数据库名> inspector risks --days=7
 ```
 **功能**：预测未来7天/30天的容量和性能风险
 
-### 8. 智能建议（新增）
-```bash
-dbskiter --database=<数据库名> inspector smart-recommendations
-```
-**功能**：基于巡检结果生成优先级排序的优化建议
-
-### 9. 关联分析（新增）
-```bash
-dbskiter --database=<数据库名> inspector analyze-correlations --metrics='{"cpu": [...], "memory": [...]}'
-```
-**功能**：分析指标间关联性，发现隐藏模式
+**参数**：
+- `--days`：预测天数（默认7天）
 
 ## 巡检类型
 
@@ -109,6 +119,7 @@ dbskiter --database=<数据库名> inspector analyze-correlations --metrics='{"c
 - **storage**：存储检查
 - **security**：安全检查
 - **capacity**：容量检查
+- **replication**：复制检查
 
 ## AI决策流程
 

@@ -56,7 +56,7 @@ def get_collector(dialect: str, connector):
         return MySQLMetricsCollector(connector)
     elif 'oracle' in dialect:
         return OracleMetricsCollector(connector)
-    elif 'postgresql' in dialect or 'postgres' in dialect:
+    elif 'postgresql' in dialect:
         return PostgreSQLMetricsCollector(connector)
     else:
         raise ValueError(f"不支持的数据库方言: {dialect}")

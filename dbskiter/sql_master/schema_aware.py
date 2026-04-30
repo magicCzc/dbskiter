@@ -84,6 +84,7 @@ class SchemaCache:
         self._tables: Dict[str, TableInfo] = {}
         self._last_refresh = 0
         self._prefix_index: Dict[str, Set[str]] = defaultdict(set)
+        self.dialect = connector.dialect.lower() if hasattr(connector, 'dialect') else 'mysql'
     
     def refresh(self, force: bool = False) -> bool:
         """
@@ -113,7 +114,15 @@ class SchemaCache:
         """加载 Schema 信息"""
         self._tables = {}
         self._prefix_index = defaultdict(set)
-        
+
+        if 'oracle' in self.dialect:
+            self._load_oracle_schema()
+            return
+
+        self._load_mysql_schema()
+
+    def _load_mysql_schema(self):
+        """加载MySQL Schema信息"""
         # 获取所有表
         tables_result = self.connector.execute("""
             SELECT 
@@ -150,6 +159,10 @@ class SchemaCache:
     
     def _load_columns(self, table_info: TableInfo):
         """加载表的列信息"""
+        if 'oracle' in self.dialect:
+            self._load_oracle_columns(table_info)
+            return
+
         result = self.connector.execute(f"""
             SELECT 
                 COLUMN_NAME,
@@ -197,6 +210,10 @@ class SchemaCache:
     
     def _load_indexes(self, table_info: TableInfo):
         """加载表的索引信息"""
+        if 'oracle' in self.dialect:
+            self._load_oracle_indexes(table_info)
+            return
+
         result = self.connector.execute(f"""
             SELECT 
                 INDEX_NAME,
@@ -223,6 +240,209 @@ class SchemaCache:
             }
             for name, info in indexes.items()
         ]
+
+    def _load_oracle_schema(self):
+        """加载Oracle Schema信息（批量查询优化）"""
+        tables_result = self.connector.execute("""
+            SELECT
+                t.TABLE_NAME,
+                c.COMMENTS,
+                NVL(t.NUM_ROWS, 0),
+                ROUND(NVL(s.BYTES, 0) / 1024 / 1024, 2)
+            FROM USER_TABLES t
+            LEFT JOIN USER_TAB_COMMENTS c ON t.TABLE_NAME = c.TABLE_NAME
+            LEFT JOIN USER_SEGMENTS s ON t.TABLE_NAME = s.SEGMENT_NAME AND s.SEGMENT_TYPE = 'TABLE'
+            ORDER BY t.TABLE_NAME
+        """)
+
+        # 批量预加载所有列信息
+        all_columns = defaultdict(list)
+        try:
+            col_result = self.connector.execute("""
+                SELECT
+                    TABLE_NAME, COLUMN_NAME, DATA_TYPE,
+                    NULLABLE, DATA_DEFAULT, CHAR_LENGTH
+                FROM USER_TAB_COLUMNS
+                ORDER BY TABLE_NAME, COLUMN_ID
+            """)
+            for row in col_result.rows:
+                tbl = str(row[0])
+                all_columns[tbl].append(row)
+        except Exception:
+            pass
+
+        # 批量预加载主键
+        all_pks = defaultdict(list)
+        try:
+            pk_result = self.connector.execute("""
+                SELECT cc.TABLE_NAME, cc.COLUMN_NAME
+                FROM USER_CONSTRAINTS c
+                JOIN USER_CONS_COLUMNS cc ON c.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+                WHERE c.CONSTRAINT_TYPE = 'P'
+                ORDER BY cc.TABLE_NAME, cc.POSITION
+            """)
+            for row in pk_result.rows:
+                all_pks[str(row[0])].append(str(row[1]))
+        except Exception:
+            pass
+
+        # 批量预加载索引
+        all_indexes = defaultdict(lambda: defaultdict(lambda: {'columns': [], 'unique': False}))
+        try:
+            idx_result = self.connector.execute("""
+                SELECT
+                    i.TABLE_NAME, i.INDEX_NAME,
+                    ic.COLUMN_NAME, i.UNIQUENESS
+                FROM USER_INDEXES i
+                JOIN USER_IND_COLUMNS ic ON i.INDEX_NAME = ic.INDEX_NAME
+                ORDER BY i.TABLE_NAME, i.INDEX_NAME, ic.COLUMN_POSITION
+            """)
+            for row in idx_result.rows:
+                tbl = str(row[0])
+                idx_name = str(row[1])
+                col_name = str(row[2])
+                uniqueness = str(row[3])
+                all_indexes[tbl][idx_name]['columns'].append(col_name)
+                all_indexes[tbl][idx_name]['unique'] = (uniqueness == 'UNIQUE')
+        except Exception:
+            pass
+
+        # 组装到各表
+        for row in tables_result.rows:
+            table_name = str(row[0])
+            comment = str(row[1]) if row[1] else ""
+            row_count = int(str(row[2])) if row[2] else 0
+            size_mb = float(str(row[3])) if row[3] else 0.0
+
+            table_info = TableInfo(
+                name=table_name,
+                comment=comment,
+                row_count=row_count,
+                size_mb=size_mb
+            )
+
+            # 从预加载数据中分配列
+            for col_row in all_columns.get(table_name, []):
+                col_name = str(col_row[1])
+                data_type = str(col_row[2])
+                is_nullable = str(col_row[3]) == 'Y'
+                default = col_row[4]
+                max_len = col_row[5]
+
+                column = ColumnInfo(
+                    name=col_name,
+                    data_type=data_type,
+                    is_nullable=is_nullable,
+                    default_value=str(default) if default else None,
+                    comment="",
+                    max_length=int(str(max_len)) if max_len else None
+                )
+                table_info.columns[col_name] = column
+
+            # 分配主键
+            table_info.primary_key = all_pks.get(table_name, [])
+            for pk_col in table_info.primary_key:
+                if pk_col in table_info.columns:
+                    table_info.columns[pk_col].is_primary_key = True
+
+            # 分配索引
+            tbl_indexes = all_indexes.get(table_name, {})
+            table_info.indexes = [
+                {
+                    'name': name,
+                    'columns': info['columns'],
+                    'unique': info['unique']
+                }
+                for name, info in tbl_indexes.items()
+            ]
+
+            self._tables[table_name] = table_info
+
+            self._add_to_prefix_index(table_name)
+            for col_name in table_info.columns:
+                self._add_to_prefix_index(col_name)
+
+    def _load_oracle_columns(self, table_info: TableInfo):
+        """加载Oracle表的列信息"""
+        result = self.connector.execute(f"""
+            SELECT
+                COLUMN_NAME,
+                DATA_TYPE,
+                NULLABLE,
+                DATA_DEFAULT,
+                CHAR_LENGTH
+            FROM USER_TAB_COLUMNS
+            WHERE TABLE_NAME = '{table_info.name}'
+            ORDER BY COLUMN_ID
+        """)
+
+        for row in result.rows:
+            col_name = str(row[0])
+            data_type = str(row[1])
+            is_nullable = str(row[2]) == 'Y'
+            default = row[3]
+            max_len = row[4]
+
+            column = ColumnInfo(
+                name=col_name,
+                data_type=data_type,
+                is_nullable=is_nullable,
+                default_value=str(default) if default else None,
+                comment="",
+                max_length=int(str(max_len)) if max_len else None
+            )
+
+            table_info.columns[col_name] = column
+
+        # 获取主键
+        try:
+            pk_result = self.connector.execute(f"""
+                SELECT cc.COLUMN_NAME
+                FROM USER_CONSTRAINTS c
+                JOIN USER_CONS_COLUMNS cc ON c.CONSTRAINT_NAME = cc.CONSTRAINT_NAME
+                WHERE c.TABLE_NAME = '{table_info.name}'
+                AND c.CONSTRAINT_TYPE = 'P'
+                ORDER BY cc.POSITION
+            """)
+            table_info.primary_key = [str(row[0]) for row in pk_result.rows]
+            for pk_col in table_info.primary_key:
+                if pk_col in table_info.columns:
+                    table_info.columns[pk_col].is_primary_key = True
+        except Exception:
+            table_info.primary_key = []
+
+    def _load_oracle_indexes(self, table_info: TableInfo):
+        """加载Oracle表的索引信息"""
+        try:
+            result = self.connector.execute(f"""
+                SELECT
+                    i.INDEX_NAME,
+                    ic.COLUMN_NAME,
+                    i.UNIQUENESS
+                FROM USER_INDEXES i
+                JOIN USER_IND_COLUMNS ic ON i.INDEX_NAME = ic.INDEX_NAME
+                WHERE i.TABLE_NAME = '{table_info.name}'
+                ORDER BY i.INDEX_NAME, ic.COLUMN_POSITION
+            """)
+
+            indexes = defaultdict(lambda: {'columns': [], 'unique': False})
+            for row in result.rows:
+                idx_name = str(row[0])
+                col_name = str(row[1])
+                uniqueness = str(row[2])
+                indexes[idx_name]['columns'].append(col_name)
+                indexes[idx_name]['unique'] = (uniqueness == 'UNIQUE')
+
+            table_info.indexes = [
+                {
+                    'name': name,
+                    'columns': info['columns'],
+                    'unique': info['unique']
+                }
+                for name, info in indexes.items()
+            ]
+        except Exception:
+            table_info.indexes = []
     
     def _add_to_prefix_index(self, text: str):
         """添加到前缀索引"""

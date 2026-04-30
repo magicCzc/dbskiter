@@ -655,6 +655,173 @@ class SQLAuditorSkill:
                 ErrorCode.UNKNOWN_ERROR
             )
 
+    # ==================== AI上下文构建 ====================
 
-# 版本兼容说明：
-# 本模块已统一为 SQLAuditorSkill，不再区分V2/V3
+    def build_ai_context(
+        self,
+        skill_result: Dict[str, Any],
+        scenario: str = "sql_audit"
+    ) -> Dict[str, Any]:
+        """
+        构建AI分析上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            scenario: 场景标识 (sql_audit/ddl_impact/optimization)
+
+        返回:
+            Dict[str, Any]: AI上下文
+        """
+        from dbskiter.shared.ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(
+            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
+            database_name=getattr(self.connector, 'database', ''),
+        )
+        builder.detect_business_context(self.connector)
+
+        data = skill_result.get("data", {})
+
+        raw_metrics = self._extract_raw_metrics_for_ai(data, scenario)
+        rule_flags = self._extract_rule_flags_for_ai(data, scenario)
+        context = builder.build_database_profile(self.connector)
+        reference_values = self._build_reference_values(scenario)
+        ai_hints = self._build_ai_hints(scenario, data)
+
+        return {
+            "raw_metrics": raw_metrics,
+            "rule_flags": rule_flags,
+            "context": context,
+            "reference_values": reference_values,
+            "ai_hints": ai_hints,
+        }
+
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取原始指标"""
+        metrics = {}
+
+        # 提取关键字段
+        key_fields = ["violations", "suggestions", "impact_analysis", "audit_result", "score", "summary"]
+        for key in key_fields:
+            if key in data:
+                metrics[key] = data[key]
+
+        # 场景特定提取
+        if scenario == "sql_audit":
+            for key in ["sql", "violations", "suggestions", "score", "risk_level", "compliance_status"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "ddl_impact":
+            for key in ["ddl_statement", "affected_tables", "affected_rows", "estimated_duration", "rollback_plan", "risk_assessment"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "file_audit":
+            for key in ["file_path", "total_statements", "violations_count", "audit_summary"]:
+                if key in data:
+                    metrics[key] = data[key]
+
+        if not metrics:
+            metrics = data
+
+        return metrics
+
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取规则标记"""
+        flags = {}
+
+        violations = data.get("violations", [])
+        if isinstance(violations, list):
+            # 严重违规
+            critical = [v for v in violations if v.get("severity") == "error"]
+            if critical:
+                flags["critical_violations"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical)} 个严重违规"}
+
+            # 警告违规
+            warnings = [v for v in violations if v.get("severity") == "warning"]
+            if warnings:
+                flags["warning_violations"] = {"flagged": True, "level": "warning", "reason": f"发现 {len(warnings)} 个警告违规"}
+
+        # 评分标记
+        score = data.get("score", 100)
+        if isinstance(score, (int, float)):
+            if score < 60:
+                flags["poor_sql_quality"] = {"flagged": True, "level": "critical", "reason": f"SQL质量评分过低: {score}"}
+            elif score < 80:
+                flags["fair_sql_quality"] = {"flagged": True, "level": "warning", "reason": f"SQL质量评分一般: {score}"}
+
+        # DDL影响标记
+        if scenario == "ddl_impact":
+            impact = data.get("impact_analysis", {})
+            if isinstance(impact, dict):
+                risk_level = impact.get("risk_level", "low")
+                if risk_level == "high":
+                    flags["high_ddl_risk"] = {"flagged": True, "level": "critical", "reason": "DDL操作风险高"}
+                elif risk_level == "medium":
+                    flags["medium_ddl_risk"] = {"flagged": True, "level": "warning", "reason": "DDL操作风险中等"}
+
+        return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
+
+    def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
+        """构建参考基线"""
+        refs = {
+            "violation_severity": {"error": "必须修复", "warning": "建议修复", "info": "参考"},
+            "sql_quality_score": {"excellent": "90-100", "good": "80-89", "fair": "60-79", "poor": "<60"},
+            "ddl_risk_level": {"low": "低风险", "medium": "中风险", "high": "高风险"},
+        }
+        return refs
+
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """构建AI提示"""
+        hints = {"focus_areas": [], "related_commands": []}
+        db_name = getattr(self.connector, 'database', '')
+
+        violations = data.get("violations", [])
+        score = data.get("score", 100)
+
+        if scenario == "sql_audit":
+            hints["focus_areas"] = ["sql_standards", "performance_optimization", "security_practices"]
+
+            if isinstance(score, (int, float)):
+                if score >= 90:
+                    hints["focus_areas"].append("sql_best_practices")
+                elif score >= 80:
+                    hints["focus_areas"].append("minor_optimizations")
+                elif score >= 60:
+                    hints["focus_areas"].append("significant_improvements_needed")
+                else:
+                    hints["focus_areas"].append("critical_sql_rewrites_required")
+
+            if isinstance(violations, list) and violations:
+                security_issues = [v for v in violations if "security" in v.get("category", "").lower()]
+                if security_issues:
+                    hints["focus_areas"].append("security_vulnerabilities")
+
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} sql rewrite '<sql>'",
+                f"dbskiter --database={db_name} diagnose sql '<sql>'",
+            ]
+
+        elif scenario == "ddl_impact":
+            hints["focus_areas"] = ["schema_changes", "downtime_estimation", "rollback_plan", "data_migration"]
+
+            impact = data.get("impact_analysis", {})
+            if isinstance(impact, dict):
+                if impact.get("requires_downtime"):
+                    hints["focus_areas"].append("maintenance_window_planning")
+                if impact.get("affected_rows", 0) > 1000000:
+                    hints["focus_areas"].append("large_table_alteration_strategy")
+
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} diagnose table <table_name>",
+                f"dbskiter --database={db_name} inspector run --type storage",
+            ]
+
+        elif scenario == "file_audit":
+            hints["focus_areas"] = ["batch_sql_review", "standards_compliance", "code_quality_gates"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} audit file <file_path>",
+            ]
+
+        return hints
+
+

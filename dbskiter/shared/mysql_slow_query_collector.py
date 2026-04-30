@@ -520,6 +520,11 @@ class MySQLSlowQueryCollector:
         MySQL 5.7: 使用SQL_TEXT字段
         MySQL 8.0: 使用DIGEST_TEXT字段
 
+        注意:
+            - SCHEMA_NAME记录的是SQL执行时的默认数据库
+            - 如果SQL中使用了db.table格式，SCHEMA_NAME可能不等于实际操作的数据库
+            - database参数用于过滤SQL文本中包含该数据库名的查询
+
         安全说明:
             - 列名通过白名单验证，防止SQL注入
             - 所有用户输入使用参数化查询
@@ -548,11 +553,15 @@ class MySQLSlowQueryCollector:
 
         params = {"min_time": min_time}
 
-        # 数据库过滤（使用参数化查询）
+        # 数据库过滤（严格模式）
+        # 只返回SCHEMA_NAME匹配且SQL中不包含其他数据库名的查询
         if database:
             sql += " AND SCHEMA_NAME = :database"
             params["database"] = database
-            logger.info(f"添加数据库过滤: {database}")
+            # 排除SQL中明确包含其他数据库名的查询（如 db.table 格式）
+            # 但保留只操作当前数据库表的查询
+            sql += f" AND ({text_column} NOT LIKE '%.%' OR {text_column} LIKE :db_table_pattern)"
+            params["db_table_pattern"] = f"%{database}.%"
 
         # 表名过滤（使用参数化查询）
         if table:
@@ -568,8 +577,12 @@ class MySQLSlowQueryCollector:
         queries = []
         for row in result.rows:
             try:
+                # 清理SQL：移除换行符和多余空格
+                raw_sql = row[0] if row[0] else ''
+                cleaned_sql = ' '.join(raw_sql.split())
+
                 query = SlowQuery(
-                    sql=row[0] if row[0] else '',
+                    sql=cleaned_sql,
                     database=row[1],
                     count=int(row[2]) if row[2] else 0,
                     query_time=float(row[3]) if row[3] else 0.0,
@@ -590,7 +603,13 @@ class MySQLSlowQueryCollector:
                                min_time: float,
                                table: Optional[str],
                                database: Optional[str] = None) -> List[SlowQuery]:
-        """从mysql.slow_log表采集"""
+        """
+        从mysql.slow_log表采集
+
+        注意:
+            - db字段记录的是连接的数据库，不是SQL中操作的数据库
+            - 如果SQL中使用了db.table格式，db字段可能不等于实际操作的数据库
+        """
 
         sql = """
             SELECT
@@ -606,7 +625,8 @@ class MySQLSlowQueryCollector:
 
         params = {}
 
-        # 数据库过滤
+        # 数据库过滤（严格模式）
+        # 只返回db字段匹配的数据库的查询
         if database:
             sql += " AND db = :database"
             params["database"] = database
@@ -627,8 +647,12 @@ class MySQLSlowQueryCollector:
         queries = []
         for row in result.rows:
             try:
+                # 清理SQL：移除换行符和多余空格
+                raw_sql = row[0] if row[0] else ''
+                cleaned_sql = ' '.join(raw_sql.split())
+
                 query = SlowQuery(
-                    sql=row[0] if row[0] else '',
+                    sql=cleaned_sql,
                     database=row[1],
                     query_time=float(row[2]) if row[2] else 0.0,
                     count=1,  # slow_log每条是一个实例
@@ -648,7 +672,13 @@ class MySQLSlowQueryCollector:
                                   min_time: float,
                                   table: Optional[str],
                                   database: Optional[str] = None) -> List[SlowQuery]:
-        """从information_schema.PROCESSLIST采集（实时查询）"""
+        """
+        从information_schema.PROCESSLIST采集（实时查询）
+
+        注意:
+            - DB字段记录的是连接的数据库，不是SQL中操作的数据库
+            - 如果SQL中使用了db.table格式，DB字段可能不等于实际操作的数据库
+        """
 
         sql = """
             SELECT
@@ -668,7 +698,8 @@ class MySQLSlowQueryCollector:
 
         params = {}
 
-        # 数据库过滤
+        # 数据库过滤（严格模式）
+        # 只返回DB字段匹配的数据库的查询
         if database:
             sql += " AND DB = :database"
             params["database"] = database
@@ -691,8 +722,12 @@ class MySQLSlowQueryCollector:
             try:
                 query_time = int(row[5]) if row[5] else 0
 
+                # 清理SQL：移除换行符和多余空格
+                raw_sql = row[7] if row[7] else ''
+                cleaned_sql = ' '.join(raw_sql.split())
+
                 query = SlowQuery(
-                    sql=row[7] if row[7] else '',
+                    sql=cleaned_sql,
                     database=row[3],
                     query_time=float(query_time),
                     count=1,

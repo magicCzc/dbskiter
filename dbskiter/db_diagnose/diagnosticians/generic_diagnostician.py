@@ -2,6 +2,16 @@
 通用诊断器
 
 为不支持的数据库类型提供基础诊断能力
+
+继承说明:
+    本类继承自BaseDiagnostician，使用父类提供的_create_result方法
+    构建标准响应格式。具体数据库诊断器应继承BaseDiagnostician并
+    实现抽象方法。
+
+使用示例:
+    >>> from dbskiter.db_diagnose.diagnosticians import get_diagnostician
+    >>> diagnostician = get_diagnostician('unknown_db', connector)
+    >>> result = diagnostician.analyze_slow_queries()
 """
 
 import logging
@@ -17,7 +27,12 @@ class GenericDiagnostician(BaseDiagnostician):
     """
     通用数据库诊断器
 
-    为不支持的数据库类型提供基础诊断能力
+    为不支持的数据库类型提供基础诊断能力。
+    继承自BaseDiagnostician，使用父类的_create_result方法构建响应。
+
+    注意:
+        本类仅提供占位实现，返回提示信息说明该数据库类型暂不支持。
+        如需支持新的数据库类型，应创建继承BaseDiagnostician的子类。
     """
 
     def analyze_slow_queries(

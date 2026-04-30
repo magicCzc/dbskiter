@@ -1,7 +1,7 @@
 ---
 name: db-monitor
 description: |
-  数据库健康监控，支持健康检查、异常检测、容量预测、高级容量预测、趋势分析、基线对比。
+  数据库健康监控，支持健康检查、异常检测、容量预测、趋势分析、基线对比。
 
   智能数据源选择：
   - Oracle 数据库自动使用 Zabbix 监控
@@ -19,14 +19,14 @@ description: |
   - 用户说"基线对比" -> 执行 compare
 
   用法：
-  - dbskiter --database=<name> monitor health
-  - dbskiter --database=<name> monitor anomalies
-  - dbskiter --database=<name> monitor capacity --resource=disk
-  - dbskiter --database=<name> monitor collect
-  - dbskiter --database=<name> monitor history <metric>
-  - dbskiter --database=<name> monitor capacity-advanced --resource=disk
-  - dbskiter --database=<name> monitor trend --metric=cpu_usage
-  - dbskiter --database=<name> monitor compare --metric=qps --value=1250 --baseline=2026-04-01
+  - dbskiter --output-mode=ai --database=<name> monitor health
+  - dbskiter --output-mode=ai --database=<name> monitor anomalies
+  - dbskiter --output-mode=ai --database=<name> monitor capacity --resource=disk
+  - dbskiter --output-mode=ai --database=<name> monitor collect
+  - dbskiter --output-mode=ai --database=<name> monitor history <metric>
+  - dbskiter --output-mode=ai --database=<name> monitor capacity-advanced --resource=disk
+  - dbskiter --output-mode=ai --database=<name> monitor trend --metric=cpu_usage
+  - dbskiter --output-mode=ai --database=<name> monitor compare --metric=qps --value=1250 --baseline=2026-04-01
 ---
 
 # 数据库监控 Skill
@@ -40,15 +40,15 @@ description: |
 | Oracle | Z 系列资产组（Z18, Z5等）或 KF 系列 | Zabbix |
 | MySQL | 其他名称 | 直连数据库 > Prometheus |
 
-**示例**：
+**示例**:
 ```bash
 # Oracle 数据库（自动使用 Zabbix）
-dbskiter --database=Z18 monitor health
-dbskiter --database=Z5 monitor capacity --resource=disk
+dbskiter --output-mode=ai --database=Z18 monitor health
+dbskiter --output-mode=ai --database=Z5 monitor capacity --resource=disk
 
 # MySQL 数据库（优先直连，其次 Prometheus）
-dbskiter --database=jump monitor health
-dbskiter --database=prod monitor anomalies
+dbskiter --output-mode=ai --database=jump monitor health
+dbskiter --output-mode=ai --database=prod monitor anomalies
 ```
 
 ## 何时使用
@@ -57,29 +57,83 @@ dbskiter --database=prod monitor anomalies
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "检查健康" | `dbskiter --database=<name> monitor health` | 整体健康评分 |
-| "有异常吗" | `dbskiter --database=<name> monitor anomalies` | 检测异常指标 |
-| "容量够吗" | `dbskiter --database=<name> monitor capacity` | 容量预测 |
-| "采集数据" | `dbskiter --database=<name> monitor collect` | 采集当前指标 |
-| "看历史" | `dbskiter --database=<name> monitor history <指标>` | 查看指标历史 |
-| "高级容量预测" | `dbskiter --database=<name> monitor capacity-advanced` | 多算法容量预测 |
-| "趋势分析" | `dbskiter --database=<name> monitor trend` | 指标趋势分析 |
-| "基线对比" | `dbskiter --database=<name> monitor compare` | 与历史基线对比 |
+| "检查健康" | `dbskiter --output-mode=ai --database=<name> monitor health` | 整体健康评分 |
+| "批量检查健康" | `dbskiter --output-mode=ai monitor health-all` | 检查所有数据库 |
+| "有异常吗" | `dbskiter --output-mode=ai --database=<name> monitor anomalies` | 检测异常指标 |
+| "容量够吗" | `dbskiter --output-mode=ai --database=<name> monitor capacity` | 容量预测 |
+| "采集数据" | `dbskiter --output-mode=ai --database=<name> monitor collect` | 采集当前指标 |
+| "看历史" | `dbskiter --output-mode=ai --database=<name> monitor history <指标>` | 查看指标历史 |
+| "高级容量预测" | `dbskiter --output-mode=ai --database=<name> monitor capacity-advanced` | 多算法容量预测 |
+| "趋势分析" | `dbskiter --output-mode=ai --database=<name> monitor trend` | 指标趋势分析 |
+| "基线对比" | `dbskiter --output-mode=ai --database=<name> monitor compare` | 与历史基线对比 |
 
-## 核心命令（8个）
+## 核心命令
 
-### 高级功能（新增）
+### 1. 健康检查
+```bash
+dbskiter --database=<数据库名> monitor health
+```
+**功能**：整体健康评分和状态检查
 
-#### 6. 高级容量预测
+### 2. 批量健康检查
+```bash
+dbskiter monitor health-all
+```
+**功能**：批量检查所有配置的数据库健康状态
+
+### 3. 异常检测
+```bash
+dbskiter --database=<数据库名> monitor anomalies
+```
+**功能**：检测异常指标
+
+**可选参数**：
+- `--hours`：检测时间范围（小时，默认1）
+
+### 4. 容量预测
+```bash
+dbskiter --database=<数据库名> monitor capacity --resource=disk
+```
+**功能**：预测资源容量使用情况
+
+**可选参数**：
+- `--resource`：资源类型（disk/memory/connections，默认disk）
+- `--days`：预测天数（默认30）
+- `--source`：数据来源（auto/prometheus/zabbix/internal，默认auto）
+
+### 5. 指标采集
+```bash
+dbskiter --database=<数据库名> monitor collect
+```
+**功能**：采集当前指标数据
+
+**可选参数**：
+- `--metrics`：指定指标（逗号分隔）
+- `--source`：数据来源（auto/prometheus/zabbix/internal，默认auto）
+
+### 6. 历史查询
+```bash
+dbskiter --database=<数据库名> monitor history cpu_usage
+```
+**功能**：查看指标历史数据
+
+**参数**：
+- `metric`（必需）：指标名称
+
+**可选参数**：
+- `--hours`：查询小时数（默认24）
+
+### 7. 高级容量预测
 ```bash
 dbskiter --database=<数据库名> monitor capacity-advanced --resource=disk
 ```
-**特点**：
-- 自动选择最佳预测算法（线性回归、移动平均、指数平滑、多项式拟合）
-- 提供置信度评估
-- 更精确的预测结果
+**功能**：使用多算法进行更精确的容量预测
 
-**输出**：
+**可选参数**：
+- `--resource`：资源类型（disk/memory/connections/cpu/qps，默认disk）
+- `--days`：预测天数（默认30）
+
+**输出示例**：
 ```json
 {
   "algorithm": "linear_regression",
@@ -94,16 +148,19 @@ dbskiter --database=<数据库名> monitor capacity-advanced --resource=disk
 }
 ```
 
-#### 7. 趋势分析
+### 8. 趋势分析
 ```bash
-dbskiter --database=<数据库名> monitor trend --metric=cpu_usage --days=7
+dbskiter --database=<数据库名> monitor trend --metric=cpu_usage
 ```
-**适用场景**：
-- 分析指标变化趋势
-- 对比当前值与历史平均值
-- 判断性能是改善还是恶化
+**功能**：分析指标变化趋势
 
-**输出**：
+**参数**：
+- `--metric`（必需）：指标名称
+
+**可选参数**：
+- `--days`：分析天数（默认7）
+
+**输出示例**：
 ```json
 {
   "trend_direction": "degrading",
@@ -114,16 +171,18 @@ dbskiter --database=<数据库名> monitor trend --metric=cpu_usage --days=7
 }
 ```
 
-#### 8. 基线对比
+### 9. 基线对比
 ```bash
 dbskiter --database=<数据库名> monitor compare --metric=qps --value=1250 --baseline=2026-04-01
 ```
-**适用场景**：
-- 对比当前性能与历史基线
-- 评估优化效果
-- 检测性能退化
+**功能**：对比当前性能与历史基线
 
-**输出**：
+**参数**：
+- `--metric`（必需）：指标名称
+- `--value`（必需）：当前值
+- `--baseline`（必需）：基线日期（YYYY-MM-DD格式）
+
+**输出示例**：
 ```json
 {
   "current_value": 1250,
@@ -134,96 +193,28 @@ dbskiter --database=<数据库名> monitor compare --metric=qps --value=1250 --b
 }
 ```
 
-#### 9. 性能退化检测
-```bash
-dbskiter --database=<数据库名> monitor degradation
-```
-**适用场景**：
-- 自动检测所有性能退化指标
-- 与db-diagnose性能快照集成
-
-**输出**：
-```json
-{
-  "degradation_count": 2,
-  "degradations": [
-    {
-      "metric_type": "cpu_usage",
-      "change_percent": 30.5,
-      "severity": "warning"
-    }
-  ]
-}
-```
-
-### 1. 健康检查
-```bash
-dbskiter --database=<数据库名> monitor health
-```
-**输出**：总体评分、各组件状态、关键指标
-
-**评分标准**：
-- 90-100：优秀 [OK]
-- 70-89：良好 [WARN]
-- <70：需要关注 [CRITICAL]
-
-### 2. 异常检测
-```bash
-dbskiter --database=<数据库名> monitor anomalies
-```
-**默认行为**：检测所有指标的异常
-
-**输出**：异常列表、严重程度、建议
-
-### 3. 容量预测
-```bash
-dbskiter --database=<数据库名> monitor capacity --resource=disk
-```
-**可选资源**：
-- `disk`：磁盘空间
-- `memory`：内存使用
-- `connections`：连接数
-
-**输出**：当前使用率、预测值、剩余天数、风险等级
-
-### 4. 采集指标
-```bash
-dbskiter --database=<数据库名> monitor collect
-```
-**默认行为**：采集所有核心指标
-
-**可选参数**：
-- `--metrics=qps,connections`：只采集指定指标
-
-### 5. 查看历史
-```bash
-dbskiter --database=<数据库名> monitor history connections_active --hours=24
-```
-**输出**：历史指标数据、趋势图表
-
 ## AI决策流程
 
 ### 场景1：用户说"检查数据库健康"
 
 ```
 步骤1：执行 dbskiter --database=<name> monitor health
-步骤2：解读健康评分和状态
-步骤3：如果有问题，执行 dbskiter --database=<name> monitor anomalies
-步骤4：总结给用户
+步骤2：解读健康评分和各项指标
+步骤3：如果有异常，建议执行 diagnose realtime 进一步诊断
 ```
 
-### 场景2：用户说"磁盘还够用吗"
+### 场景2：用户说"容量够吗"
 
 ```
-步骤1：执行 dbskiter --database=<name> monitor capacity --resource=disk
-步骤2：解读当前使用率和预测
-步骤3：如果接近阈值，给出扩容建议
+步骤1：执行 dbskiter --database=<name> monitor capacity
+步骤2：查看容量预测结果
+步骤3：如果预测短期内将满，建议扩容
 ```
 
-### 场景3：用户说"看看有没有异常"
+### 场景3：用户说"看看CPU趋势"
 
 ```
-步骤1：执行 dbskiter --database=<name> monitor anomalies
-步骤2：列出发现的异常
-步骤3：对严重异常，建议进一步诊断
+步骤1：执行 dbskiter --database=<name> monitor trend --metric=cpu_usage --days=7
+步骤2：分析趋势方向和变化幅度
+步骤3：给出趋势解读和建议
 ```

@@ -663,6 +663,51 @@ class SecuritySkill:
                 except Exception as e:
                     logger.debug(f"无法从pg_stat_statements获取SQL: {e}")
 
+            elif db_type == 'oracle':
+                # 从v$sql获取当前SQL缓存
+                try:
+                    result = self.connector.execute("""
+                        SELECT sql_text
+                        FROM v$sql
+                        WHERE sql_text IS NOT NULL
+                        AND sql_text NOT LIKE '%v$%'
+                        AND sql_text NOT LIKE '%dba_%'
+                        AND sql_text NOT LIKE '%all_%'
+                        AND sql_text NOT LIKE '%user_%'
+                        AND sql_text NOT LIKE '%sys.%'
+                        AND sql_text NOT LIKE '%SELECT%FROM%DUAL%'
+                        AND executions > 0
+                        ORDER BY elapsed_time DESC
+                        FETCH FIRST 50 ROWS ONLY
+                    """)
+                    for row in result.rows:
+                        if row[0]:
+                            samples.append(row[0])
+                except Exception as e:
+                    logger.debug(f"无法从v$sql获取SQL: {e}")
+
+                # 尝试从AWR历史数据获取（需要DBA权限）
+                try:
+                    result = self.connector.execute("""
+                        SELECT t.sql_text
+                        FROM dba_hist_sqltext t
+                        JOIN dba_hist_sqlstat s ON t.sql_id = s.sql_id
+                        WHERE t.sql_text IS NOT NULL
+                        AND t.sql_text NOT LIKE '%v$%'
+                        AND t.sql_text NOT LIKE '%dba_%'
+                        AND s.snap_id IN (
+                            SELECT snap_id FROM dba_hist_snapshot
+                            WHERE begin_interval_time >= SYSDATE - 1
+                        )
+                        ORDER BY s.elapsed_time_total DESC
+                        FETCH FIRST 30 ROWS ONLY
+                    """)
+                    for row in result.rows:
+                        if row[0]:
+                            samples.append(row[0])
+                except Exception as e:
+                    logger.debug(f"无法从AWR获取SQL: {e}")
+
             # 去重并返回
             return list(set(samples))
 
@@ -674,6 +719,229 @@ class SecuritySkill:
         """关闭Skill，释放资源"""
         logger.info("关闭 SecuritySkill...")
         logger.info("SecuritySkill 已关闭")
+
+    # ==================== AI上下文构建 ====================
+
+    def build_ai_context(
+        self,
+        skill_result: Dict[str, Any],
+        scenario: str = "security"
+    ) -> Dict[str, Any]:
+        """
+        构建AI分析上下文
+
+        将SecuritySkill返回的规则结果转换为AI友好的结构化上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            scenario: 场景标识 (security/sql_injection/sensitive_data/permissions/login_security/audit_log/high_risk/password_policy/weak_passwords/config_security)
+
+        返回:
+            Dict[str, Any]: AI上下文，包含 raw_metrics / rule_flags / context / reference_values / ai_hints
+        """
+        from dbskiter.shared.ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(
+            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
+            database_name=getattr(self.connector, 'database', ''),
+        )
+        builder.detect_business_context(self.connector)
+
+        data = skill_result.get("data", {})
+
+        raw_metrics = self._extract_raw_metrics_for_ai(data, scenario)
+        rule_flags = self._extract_rule_flags_for_ai(data, scenario)
+        context = self._build_context_for_ai(builder, data)
+        reference_values = self._build_reference_values(scenario)
+        ai_hints = self._build_ai_hints(scenario, data)
+
+        return {
+            "raw_metrics": raw_metrics,
+            "rule_flags": rule_flags,
+            "context": context,
+            "reference_values": reference_values,
+            "ai_hints": ai_hints,
+        }
+
+    def _extract_raw_metrics_for_ai(
+        self,
+        data: Dict[str, Any],
+        scenario: str
+    ) -> Dict[str, Any]:
+        """从Skill结果中提取原始指标数据"""
+        metrics = {}
+
+        if scenario == "security":
+            # 完整审计结果
+            if "modules" in data:
+                metrics["modules"] = data["modules"]
+            if "overall_score" in data:
+                metrics["overall_score"] = data["overall_score"]
+            if "risk_summary" in data:
+                metrics["risk_summary"] = data["risk_summary"]
+
+        elif scenario == "sql_injection":
+            if "findings" in data:
+                metrics["findings"] = data["findings"]
+            if "risk_score" in data:
+                metrics["risk_score"] = data["risk_score"]
+
+        elif scenario == "sensitive_data":
+            if "sensitive_columns" in data:
+                metrics["sensitive_columns"] = data["sensitive_columns"]
+            if "total_findings" in data:
+                metrics["total_findings"] = data["total_findings"]
+
+        elif scenario in ("permissions", "login_security", "audit_log", "high_risk", "password_policy", "weak_passwords", "config_security"):
+            # 这些场景直接返回data中的关键字段
+            for key in ["risks", "violations", "findings", "issues", "failed_logins", "brute_force", "suspicious_ips", "weak_passwords"]:
+                if key in data:
+                    metrics[key] = data[key]
+
+        if not metrics:
+            metrics = data
+
+        return metrics
+
+    def _extract_rule_flags_for_ai(
+        self,
+        data: Dict[str, Any],
+        scenario: str
+    ) -> Dict[str, Any]:
+        """从Skill结果中提取规则初筛标记"""
+        flags = {}
+
+        # 提取风险标记
+        if "risk_summary" in data:
+            rs = data["risk_summary"]
+            for level in ["critical", "high", "medium", "low"]:
+                count = rs.get(level, 0)
+                if count > 0:
+                    flags[f"{level}_risk_count"] = {
+                        "flagged": True,
+                        "level": level,
+                        "reason": f"发现 {count} 个{level}级别风险",
+                        "count": count,
+                    }
+
+        # 提取模块级别的风险
+        if "modules" in data:
+            for module_name, module_data in data["modules"].items():
+                if isinstance(module_data, dict) and module_data.get("risks_found", 0) > 0:
+                    flags[f"{module_name}_risk"] = {
+                        "flagged": True,
+                        "level": "high" if module_data.get("risks_found", 0) > 5 else "medium",
+                        "reason": f"{module_name} 模块发现 {module_data.get('risks_found', 0)} 个风险",
+                    }
+
+        # 评分标记
+        if "overall_score" in data:
+            score = data["overall_score"]
+            if score < 60:
+                flags["low_security_score"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"安全评分过低: {score}/100",
+                }
+            elif score < 80:
+                flags["medium_security_score"] = {
+                    "flagged": True,
+                    "level": "medium",
+                    "reason": f"安全评分一般: {score}/100",
+                }
+
+        return {
+            "_disclaimer": "规则初筛结果仅供参考，请结合上下文判断是否为真正问题",
+            "flags": flags,
+        } if flags else {"_disclaimer": "规则初筛结果仅供参考", "flags": {}}
+
+    def _build_context_for_ai(
+        self,
+        builder: "AIContextBuilder",
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """构建业务上下文"""
+        ctx = builder.build_database_profile(self.connector)
+
+        # 安全特定的上下文
+        if "grade" in data:
+            ctx["security_grade"] = data["grade"]
+        if "audit_time" in data:
+            ctx["audit_time"] = data["audit_time"]
+
+        return ctx
+
+    def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
+        """构建参考基线"""
+        references = {
+            "security_score": {
+                "excellent": "90-100 (A级)",
+                "good": "80-89 (B级)",
+                "acceptable": "70-79 (C级)",
+                "poor": "60-69 (D级)",
+                "critical": "<60 (F级)",
+            },
+            "risk_levels": {
+                "critical": "必须立即处理",
+                "high": "需要尽快处理",
+                "medium": "建议处理",
+                "low": "可接受",
+            },
+        }
+
+        if scenario == "sql_injection":
+            references["injection_risk_threshold"] = {
+                "high": ">= 80",
+                "medium": "50-79",
+                "low": "< 50",
+            }
+
+        return references
+
+    def _build_ai_hints(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """构建AI分析提示"""
+        hints: Dict[str, Any] = {
+            "focus_areas": [],
+            "related_commands": [],
+        }
+
+        db_name = getattr(self.connector, 'database', '')
+
+        if scenario == "security":
+            hints["focus_areas"] = ["risk_distribution", "module_vulnerabilities", "compliance_gaps"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} security sql-injection '<sql>'",
+                f"dbskiter --database={db_name} security sensitive-data",
+                f"dbskiter --database={db_name} security permissions",
+            ]
+        elif scenario == "sql_injection":
+            hints["focus_areas"] = ["parameterized_queries", "input_validation", "orm_usage"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} audit sql '<sql>'",
+            ]
+        elif scenario == "sensitive_data":
+            hints["focus_areas"] = ["data_classification", "encryption_at_rest", "access_control"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} security permissions",
+            ]
+        elif scenario == "permissions":
+            hints["focus_areas"] = ["least_privilege", "role_separation", "privilege_escalation"]
+        elif scenario == "login_security":
+            hints["focus_areas"] = ["brute_force_protection", "account_lockout", "ip_whitelist"]
+
+        # 根据风险数量添加提示
+        risk_summary = data.get("risk_summary", {})
+        total_risks = risk_summary.get("total", 0)
+        if total_risks > 0:
+            hints["additional_notes"] = [
+                f"共发现 {total_risks} 个安全风险，建议优先处理 critical 和 high 级别的问题"
+            ]
+
+        return hints
 
     # ==================== 高级安全分析 API ====================
 
@@ -879,5 +1147,3 @@ class SecuritySkill:
         return self.advanced_analyzer.compliance_checker.get_supported_standards()
 
 
-# 版本兼容说明：
-# 本模块已统一为 SecuritySkill，不再区分V2/V3

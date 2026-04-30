@@ -245,7 +245,7 @@ class PasswordPolicyChecker:
                             "username": user.username,
                             "host": user.host,
                             "days_until_expiry": self.config.max_age_days - days_since_change,
-                            "last_changed": user.password_last_changed.isoformat()
+                            "last_changed": user.password_last_changed.isoformat() if hasattr(user.password_last_changed, 'isoformat') else str(user.password_last_changed)
                         })
 
             return create_success_response(
@@ -272,7 +272,7 @@ class PasswordPolicyChecker:
         try:
             if "mysql" in self.dialect:
                 policy = self._get_mysql_password_policy()
-            elif "postgres" in self.dialect:
+            elif "postgresql" in self.dialect:
                 policy = self._get_postgres_password_policy()
             elif "oracle" in self.dialect:
                 policy = self._get_oracle_password_policy()
@@ -363,7 +363,7 @@ class PasswordPolicyChecker:
         try:
             if "mysql" in self.dialect:
                 statuses = self._get_mysql_user_passwords()
-            elif "postgres" in self.dialect:
+            elif "postgresql" in self.dialect:
                 statuses = self._get_postgres_user_passwords()
             elif "oracle" in self.dialect:
                 statuses = self._get_oracle_user_passwords()
@@ -756,7 +756,7 @@ class PasswordPolicyChecker:
             "host": status.host,
             "password_expired": status.password_expired,
             "account_locked": status.account_locked,
-            "lock_time": status.lock_time.isoformat() if status.lock_time else None,
+            "lock_time": status.lock_time.isoformat() if hasattr(status.lock_time, 'isoformat') else str(status.lock_time) if status.lock_time else None,
             "failed_login_attempts": status.failed_login_attempts,
             "strength": status.strength.value,
             "issues": status.issues

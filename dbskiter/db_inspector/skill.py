@@ -172,12 +172,23 @@ class InspectorSkill:
                             items = self._inspector.inspect_replication()
                         else:
                             items = []
+                    elif insp_type == InspectionType.BACKUP:
+                        # 备份检查 - 检查binlog配置作为备份策略的一部分
+                        items = []
+                        if hasattr(self._inspector, 'inspect_configuration'):
+                            # 从配置检查中提取与备份相关的项
+                            config_items = self._inspector.inspect_configuration()
+                            for item in config_items:
+                                if item.name in ['log_bin', 'expire_logs_days', 'binlog_format']:
+                                    items.append(item)
                     else:
                         continue
 
                     report.items.extend(items)
                 except Exception as e:
                     logger.warning(f"巡检类型 {insp_type.value} 执行失败: {e}")
+                    import traceback
+                    logger.debug(f"巡检类型 {insp_type.value} 错误详情: {traceback.format_exc()}")
                     # 记录失败但不中断其他巡检
                     report.items.append(InspectionItem(
                         name=f"{insp_type.value}_inspection",
@@ -240,6 +251,7 @@ class InspectorSkill:
         report.high_count = sum(1 for item in report.items if item.risk_level == RiskLevel.HIGH)
         report.medium_count = sum(1 for item in report.items if item.risk_level == RiskLevel.MEDIUM)
         report.low_count = sum(1 for item in report.items if item.risk_level == RiskLevel.LOW)
+        report.info_count = sum(1 for item in report.items if item.risk_level == RiskLevel.INFO)
 
     def generate_html_report(self, report: InspectionReport) -> Dict[str, Any]:
         """
@@ -799,9 +811,11 @@ class InspectorSkill:
 
         # 转换巡检项
         for item_data in data.get('items', []):
+            # to_dict()返回的是'type'而不是'inspection_type'
+            type_value = item_data.get('type') or item_data.get('inspection_type', 'configuration')
             item = InspectionItem(
                 name=item_data.get('name', ''),
-                inspection_type=InspectionType(item_data.get('inspection_type', 'configuration')),
+                inspection_type=InspectionType(type_value),
                 risk_level=RiskLevel(item_data.get('risk_level', 'info')),
                 status=item_data.get('status', 'pass'),
                 description=item_data.get('description', ''),
@@ -818,6 +832,150 @@ class InspectorSkill:
         logger.info("关闭 InspectorSkill...")
         logger.info("InspectorSkill 已关闭")
 
+    # ==================== AI上下文构建 ====================
 
-# 版本兼容说明：
-# 本模块已统一为 InspectorSkill，不再区分V2/V3
+    def build_ai_context(
+        self,
+        skill_result: Dict[str, Any],
+        scenario: str = "inspection"
+    ) -> Dict[str, Any]:
+        """
+        构建AI分析上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            scenario: 场景标识 (inspection/intelligent/anomaly_detection/root_cause/risks)
+
+        返回:
+            Dict[str, Any]: AI上下文
+        """
+        from dbskiter.shared.ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(
+            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
+            database_name=getattr(self.connector, 'database', ''),
+        )
+        builder.detect_business_context(self.connector)
+
+        data = skill_result.get("data", {})
+
+        raw_metrics = self._extract_raw_metrics_for_ai(data, scenario)
+        rule_flags = self._extract_rule_flags_for_ai(data, scenario)
+        context = builder.build_database_profile(self.connector)
+        reference_values = self._build_reference_values(scenario)
+        ai_hints = self._build_ai_hints(scenario, data)
+
+        return {
+            "raw_metrics": raw_metrics,
+            "rule_flags": rule_flags,
+            "context": context,
+            "reference_values": reference_values,
+            "ai_hints": ai_hints,
+        }
+
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取原始指标"""
+        metrics = {}
+
+        # 提取健康评分和统计信息
+        if "health_score" in data:
+            metrics["health_score"] = data["health_score"]
+        if "statistics" in data:
+            metrics["statistics"] = data["statistics"]
+        if "summary" in data:
+            metrics["summary"] = data["summary"]
+
+        # 提取巡检项详情
+        if "items" in data:
+            metrics["items"] = data["items"]
+
+        # 提取各类问题
+        if "issues" in data:
+            metrics["issues"] = data["issues"]
+        if "anomalies" in data:
+            metrics["anomalies"] = data["anomalies"]
+        if "risks" in data:
+            metrics["risks"] = data["risks"]
+        if "recommendations" in data:
+            metrics["recommendations"] = data["recommendations"]
+
+        if not metrics:
+            metrics = data
+
+        return metrics
+
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取规则标记"""
+        flags = {}
+
+        if "issues" in data:
+            issues = data["issues"]
+            critical = [i for i in issues if i.get("severity") == "critical"]
+            high = [i for i in issues if i.get("severity") == "high"]
+            if critical:
+                flags["critical_issues"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical)} 个严重问题"}
+            if high:
+                flags["high_issues"] = {"flagged": True, "level": "high", "reason": f"发现 {len(high)} 个高危问题"}
+
+        return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
+
+    def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
+        """构建参考基线"""
+        return {"issue_severity": {"critical": "立即处理", "high": "尽快处理", "medium": "建议处理", "low": "可接受"}}
+
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """构建AI提示"""
+        hints = {"focus_areas": [], "related_commands": []}
+        db_name = getattr(self.connector, 'database', '')
+
+        # 获取健康评分
+        health_score = data.get("health_score", 100)
+        statistics = data.get("statistics", {})
+
+        if scenario == "inspection":
+            # 根据健康评分和统计信息动态生成关注重点
+            focus_areas = []
+
+            # 根据评分等级确定关注重点
+            if health_score >= 90:
+                focus_areas.append("overall_healthy")
+            elif health_score >= 80:
+                focus_areas.append("minor_issues_to_optimize")
+            elif health_score >= 60:
+                focus_areas.append("issues_need_attention")
+            else:
+                focus_areas.append("critical_issues_urgent")
+
+            # 根据统计信息添加具体关注点
+            critical_count = statistics.get("critical_count", 0)
+            high_count = statistics.get("high_count", 0)
+            warning_count = statistics.get("warning_count", 0)
+
+            if critical_count > 0:
+                focus_areas.append("critical_security_issues")
+            if high_count > 0:
+                focus_areas.append("high_risk_configurations")
+            if warning_count > 0:
+                focus_areas.append("warning_items_review")
+
+            # 如果没有特定问题，添加通用关注点
+            if not focus_areas or (critical_count == 0 and high_count == 0):
+                focus_areas.extend(["configuration_issues", "performance_bottlenecks", "security_gaps"])
+
+            hints["focus_areas"] = focus_areas
+
+            # 添加相关命令建议
+            related_commands = []
+            if critical_count > 0 or high_count > 0:
+                related_commands.append(f"dbskiter --database={db_name} inspector run --type security")
+            if warning_count > 0:
+                related_commands.append(f"dbskiter --database={db_name} inspector report --output report.html")
+
+            hints["related_commands"] = related_commands
+
+        elif scenario == "risks":
+            hints["focus_areas"] = ["risk_mitigation", "preventive_measures"]
+
+        return hints
+
+

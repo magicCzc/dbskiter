@@ -238,6 +238,8 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
         metrics = []
 
         try:
+            threshold = get_threshold("memory_usage")
+
             # 获取SGA使用率
             result = self._execute_with_timeout("""
                 SELECT
@@ -251,7 +253,6 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
 
             if result and result[0][0] is not None:
                 sga_usage = result[0][0]
-                threshold = get_threshold("memory_usage")
                 metrics.append(PerformanceMetric(
                     name="sga_usage",
                     value=sga_usage,
@@ -414,46 +415,54 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
         try:
             # 优先从AWR获取（如果有许可）
             if self._has_awr:
-                result = self._execute_with_timeout(f"""
-                    SELECT
-                        sql_id,
-                        sql_text,
-                        executions,
-                        elapsed_time_total / 1000000 as total_time_sec,
-                        elapsed_time_total / executions / 1000000 as avg_time_sec,
-                        cpu_time_total / 1000000 as cpu_time_sec,
-                        buffer_gets_total,
-                        disk_reads_total,
-                        rows_processed_total
-                    FROM (
+                try:
+                    result = self._execute_with_timeout(f"""
                         SELECT
-                            sql_id,
-                            sql_text,
-                            executions_total as executions,
-                            elapsed_time_total,
-                            cpu_time_total,
-                            buffer_gets_total,
-                            disk_reads_total,
-                            rows_processed_total,
-                            ROW_NUMBER() OVER (ORDER BY elapsed_time_total DESC) as rn
-                        FROM dba_hist_sqlstat s
-                        JOIN dba_hist_sqltext t ON s.sql_id = t.sql_id
-                        WHERE elapsed_time_total / executions_total / 1000000 >= :min_time_sec
-                        AND snap_id IN (SELECT MAX(snap_id) FROM dba_hist_snapshot)
-                    )
-                    WHERE rn <= :limit
-                """, (min_time_ms / 1000, limit))
+                            s.sql_id,
+                            t.sql_text,
+                            s.executions_total as executions,
+                            s.elapsed_time_total / 1000000 as total_time_sec,
+                            s.elapsed_time_total / s.executions_total / 1000000 as avg_time_sec,
+                            s.cpu_time_total / 1000000 as cpu_time_sec,
+                            s.buffer_gets_total,
+                            s.disk_reads_total,
+                            s.rows_processed_total
+                        FROM (
+                            SELECT
+                                sql_id,
+                                sql_text
+                            FROM dba_hist_sqltext
+                            WHERE sql_text IS NOT NULL
+                        ) t
+                        JOIN (
+                            SELECT
+                                sql_id,
+                                executions_total,
+                                elapsed_time_total,
+                                cpu_time_total,
+                                buffer_gets_total,
+                                disk_reads_total,
+                                rows_processed_total,
+                                ROW_NUMBER() OVER (ORDER BY elapsed_time_total DESC) as rn
+                            FROM dba_hist_sqlstat
+                            WHERE elapsed_time_total / executions_total / 1000000 >= {min_time_ms / 1000}
+                            AND snap_id IN (SELECT MAX(snap_id) FROM dba_hist_snapshot)
+                        ) s ON t.sql_id = s.sql_id
+                        WHERE s.rn <= {limit}
+                    """)
 
-                if result:
-                    for row in result:
-                        queries.append(SlowQueryInfo(
-                            sql_text=row[1],
-                            sql_id=row[0],
-                            execution_count=row[2],
-                            total_time_ms=row[3] * 1000,
-                            avg_time_ms=row[4] * 1000,
-                            rows_examined=row[7]
-                        ))
+                    if result:
+                        for row in result:
+                            queries.append(SlowQueryInfo(
+                                sql_text=row[1],
+                                sql_id=row[0],
+                                execution_count=row[2],
+                                total_time_ms=row[3] * 1000,
+                                avg_time_ms=row[4] * 1000,
+                                rows_examined=row[7]
+                            ))
+                except Exception as e:
+                    logger.warning(f"AWR慢查询采集失败，降级到v$sql: {e}")
 
             # 降级到V$SQL
             if not queries:
@@ -480,10 +489,10 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
                             ROW_NUMBER() OVER (ORDER BY elapsed_time / executions DESC) as rn
                         FROM v$sql
                         WHERE executions > 0
-                        AND elapsed_time / executions / 1000000 >= :min_time_sec
+                        AND elapsed_time / executions / 1000000 >= {min_time_ms / 1000}
                     )
-                    WHERE rn <= :limit
-                """, (min_time_ms / 1000, limit))
+                    WHERE rn <= {limit}
+                """)
 
                 if result:
                     for row in result:

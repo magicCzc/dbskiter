@@ -280,6 +280,101 @@ class MetricsStorage:
             logger.error(f"查询历史数据失败: {e}")
             return []
 
+    def query_metrics(
+        self,
+        metric_type: MetricType,
+        start_time: datetime,
+        end_time: datetime
+    ) -> List[MetricPoint]:
+        """
+        按时间范围查询指标数据
+
+        参数:
+            metric_type: 指标类型
+            start_time: 开始时间
+            end_time: 结束时间
+
+        返回:
+            List[MetricPoint]: 指标数据点列表
+        """
+        try:
+            with self._lock:
+                conn = self._get_connection()
+                cursor = conn.execute(
+                    """
+                    SELECT timestamp, metric_type, value, unit, source, tags
+                    FROM metrics
+                    WHERE metric_type = ? AND timestamp >= ? AND timestamp <= ?
+                    ORDER BY timestamp ASC
+                    """,
+                    (metric_type.value, start_time.isoformat(), end_time.isoformat())
+                )
+
+                results = []
+                for row in cursor.fetchall():
+                    try:
+                        point = MetricPoint(
+                            timestamp=datetime.fromisoformat(row[0]),
+                            metric_type=MetricType(row[1]),
+                            value=row[2],
+                            unit=row[3] or "",
+                            source=row[4] or "",
+                            tags=json.loads(row[5]) if row[5] else {}
+                        )
+                        results.append(point)
+                    except (ValueError, json.JSONDecodeError) as e:
+                        logger.warning(f"解析历史数据失败: {e}")
+                        continue
+
+                return results
+
+        except sqlite3.Error as e:
+            logger.error(f"查询指标数据失败: {e}")
+            return []
+
+    def get_earliest_metric(
+        self,
+        metric_type: MetricType
+    ) -> Optional[MetricPoint]:
+        """
+        获取指定指标类型的最早记录
+
+        参数:
+            metric_type: 指标类型
+
+        返回:
+            Optional[MetricPoint]: 最早的指标数据点，如果没有则返回None
+        """
+        try:
+            with self._lock:
+                conn = self._get_connection()
+                cursor = conn.execute(
+                    """
+                    SELECT timestamp, metric_type, value, unit, source, tags
+                    FROM metrics
+                    WHERE metric_type = ?
+                    ORDER BY timestamp ASC
+                    LIMIT 1
+                    """,
+                    (metric_type.value,)
+                )
+
+                row = cursor.fetchone()
+                if row:
+                    return MetricPoint(
+                        timestamp=datetime.fromisoformat(row[0]),
+                        metric_type=MetricType(row[1]),
+                        value=row[2],
+                        unit=row[3] or "",
+                        source=row[4] or "",
+                        tags=json.loads(row[5]) if row[5] else {}
+                    )
+                return None
+
+        except sqlite3.Error as e:
+            logger.error(f"获取最早指标记录失败: {e}")
+            return None
+
     def get_alerts(
         self,
         hours: int = 24,

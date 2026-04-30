@@ -123,20 +123,16 @@ class SchedulerCommand(BaseCommand):
             self.output.error("请指定操作: backup, task, logs, daemon, workflow")
             return 1
 
-        # daemon命令不需要数据库连接，单独处理
         if action == "daemon":
             try:
-                # daemon status可以在没有connector的情况下运行
                 daemon_action = getattr(self.args, 'daemon_action', None)
                 if daemon_action == "status":
-                    # 创建一个最小化的skill实例用于状态查询
                     skill = SchedulerSkill.__new__(SchedulerSkill)
                     skill._tasks = {}
                     skill._running = False
                     skill._scheduler_thread = None
                     return self._manage_daemon(skill)
 
-                # start/stop需要实际功能，需要connector
                 skill = SchedulerSkill(self.connector)
                 return self._manage_daemon(skill)
             except Exception as e:
@@ -151,6 +147,25 @@ class SchedulerCommand(BaseCommand):
 
         try:
             skill = SchedulerSkill(self.connector)
+
+            if self.output_mode != "rule":
+                method_map = {
+                    "backup": lambda: skill.backup(
+                        backup_type=getattr(self.args, 'type', 'full'),
+                        tables=getattr(self.args, 'tables', '').split(',') if getattr(self.args, 'tables', None) else None,
+                    ),
+                    "logs": lambda: skill.get_task_logs(
+                        task_name=getattr(self.args, 'task', None),
+                        limit=getattr(self.args, 'limit', 50),
+                        status=getattr(self.args, 'status', 'all'),
+                    ),
+                }
+                scenario_map = {
+                    "backup": "backup",
+                    "logs": "scheduler_logs",
+                }
+                if action in method_map:
+                    return self._execute_ai_mode(skill, action, method_map, scenario_map)
 
             if action == "backup":
                 return self._execute_backup(skill)
@@ -175,9 +190,7 @@ class SchedulerCommand(BaseCommand):
         """执行备份"""
         result = skill.backup(
             backup_type=self.args.type,
-            compress=self.args.compress,
             tables=self.args.tables.split(',') if self.args.tables else None,
-            output_dir=self.args.output_dir
         )
         
         success = result.get('success', False)
@@ -290,7 +303,7 @@ class SchedulerCommand(BaseCommand):
                 return 1
         
         # 添加任务
-        result = skill.add_task(
+        result = skill.schedule_task(
             name=name,
             schedule=schedule,
             task_type=task_type,
@@ -370,18 +383,25 @@ class SchedulerCommand(BaseCommand):
     
     def _view_logs(self, skill) -> int:
         """查看任务执行日志"""
-        logs = skill.get_task_logs(
+        response = skill.get_task_logs(
             task_name=self.args.task,
             limit=self.args.limit,
             status=self.args.status
         )
-        
+
+        if not response.get('success'):
+            self.output.error(f"获取日志失败: {response.get('message', '未知错误')}")
+            return 1
+
+        data = response.get('data', {})
+        logs = data.get('logs', [])
+
         summary = f"共{len(logs)}条日志记录"
         if self.args.task:
             summary += f" (任务: {self.args.task})"
         if self.args.status != "all":
             summary += f" (状态: {self.args.status})"
-        
+
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: {summary}")
         self.output.print(f"{'='*60}")
@@ -390,14 +410,13 @@ class SchedulerCommand(BaseCommand):
             self.output.print("\n暂无执行日志")
             return 0
 
-        self.output.print(f"\n{'时间':<20} {'任务':<20} {'状态':<8} {'耗时':<10} {'结果'}")
+        self.output.print(f"\n{'时间':<20} {'任务':<20} {'状态':<8} {'结果'}")
         self.output.print("-" * 90)
 
         for log in logs:
             time_str = log.get('start_time', '')[:19] if log.get('start_time') else ''
             task_name = log.get('task_name', '')[:18]
             status = log.get('status', '')[:6]
-            duration = f"{log.get('duration_ms', 0)/1000:.1f}s" if log.get('duration_ms') else '-'
             result = log.get('result', '')[:25] if log.get('result') else '-'
 
             if status == "success":
@@ -407,7 +426,7 @@ class SchedulerCommand(BaseCommand):
             else:
                 status_str = status
 
-            self.output.print(f"{time_str:<20} {task_name:<20} {status_str:<8} {duration:<10} {result}")
+            self.output.print(f"{time_str:<20} {task_name:<20} {status_str:<8} {result}")
 
         return 0
 

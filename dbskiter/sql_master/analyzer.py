@@ -22,16 +22,40 @@ class DataAnalyzer:
     - TOP N 分析
     """
 
-    def __init__(self, df: pd.DataFrame):
-        self.df = df
+    def __init__(self, connector=None):
+        self.connector = connector
+        self.df = None
 
-    @staticmethod
-    def from_query_result(result) -> "DataAnalyzer":
+    def from_query_result(self, result) -> "DataAnalyzer":
         """从 QueryResult 创建分析器"""
-        return DataAnalyzer(result.df)
+        self.df = result.df if hasattr(result, 'df') else pd.DataFrame(result)
+        return self
+
+    def analyze(self, rows: List[Dict], columns: List[str]) -> Dict[str, Any]:
+        """
+        分析查询结果数据
+
+        参数:
+            rows: 数据行列表
+            columns: 列名列表
+
+        返回:
+            Dict: 分析结果
+        """
+        if not rows:
+            return {"message": "无数据可供分析"}
+
+        # 创建DataFrame
+        self.df = pd.DataFrame(rows, columns=columns)
+
+        # 执行描述性统计
+        return self.describe()
 
     def describe(self) -> Dict[str, Any]:
         """描述性统计"""
+        if self.df is None or self.df.empty:
+            return {"message": "无数据可供分析"}
+
         desc = self.df.describe().to_dict()
         nulls = self.df.isnull().sum().to_dict()
         dtypes = self.df.dtypes.astype(str).to_dict()

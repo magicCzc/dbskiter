@@ -73,3 +73,12 @@ monitor_data/
 tests/
 
 docs/
+backup/
+
+# Runtime generated reports
+db_performance_report_*.md
+test_report.html
+*.png
+
+# Backup files
+backups/

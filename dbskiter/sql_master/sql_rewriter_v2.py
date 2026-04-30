@@ -329,12 +329,20 @@ class SQLRewriterV2:
                     ORDER BY ORDINAL_POSITION
                 """)
                 return [row[0] for row in result.rows]
-            elif self.dialect == "postgresql":
+            elif "postgresql" in self.dialect:
                 result = self.connector.execute(f"""
                     SELECT column_name
                     FROM information_schema.columns
                     WHERE table_name = '{table_name}'
                     ORDER BY ordinal_position
+                """)
+                return [row[0] for row in result.rows]
+            elif "oracle" in self.dialect:
+                result = self.connector.execute(f"""
+                    SELECT COLUMN_NAME
+                    FROM USER_TAB_COLUMNS
+                    WHERE TABLE_NAME = UPPER('{table_name}')
+                    ORDER BY COLUMN_ID
                 """)
                 return [row[0] for row in result.rows]
         except Exception as e:

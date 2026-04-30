@@ -48,6 +48,9 @@ class ErrorCode:
     SYNTAX_ERROR = "SQL100002"
     TIMEOUT_ERROR = "SQL100003"
     CONNECTION_ERROR = "SQL100004"
+    READ_ONLY_VIOLATION = "SQL100005"  # 只读模式违规
+    DANGEROUS_OPERATION = "SQL100006"  # 危险操作被拦截
+    FORCE_REQUIRED = "SQL100007"       # 需要force参数
 
     # 重写错误 (200)
     REWRITE_FAILED = "SQL200001"
@@ -75,6 +78,9 @@ class ErrorMessage:
         ErrorCode.SYNTAX_ERROR: "SQL语法错误",
         ErrorCode.TIMEOUT_ERROR: "执行超时",
         ErrorCode.CONNECTION_ERROR: "数据库连接错误",
+        ErrorCode.READ_ONLY_VIOLATION: "只读模式下不允许执行写操作",
+        ErrorCode.DANGEROUS_OPERATION: "危险操作被拦截",
+        ErrorCode.FORCE_REQUIRED: "此操作需要 --force 参数强制执行",
         ErrorCode.REWRITE_FAILED: "SQL重写失败",
         ErrorCode.UNSUPPORTED_SQL: "不支持的SQL类型",
         ErrorCode.ANALYSIS_FAILED: "数据分析失败",

@@ -205,31 +205,31 @@ class OracleJDBCConnector:
     def execute(self, sql: str, params: Optional[Tuple] = None) -> JDBCQueryResult:
         """
         执行 SQL 查询
-        
+
         参数:
             sql: SQL 语句(使用 ? 作为占位符)
             params: 查询参数元组
-            
+
         返回:
             JDBCQueryResult 对象
-            
+
         示例:
             >>> result = conn.execute("SELECT * FROM users WHERE id > ?", (1,))
             >>> for row in result.rows:
             ...     print(row)
         """
         import time
-        
+
         # 确保已连接
         if not self._conn:
             self.connect()
-        
+
         start_time = time.time()
         cursor = None
-        
+
         try:
             cursor = self._conn.cursor()
-            
+
             # 执行查询
             if params:
                 cursor.execute(sql, params)
@@ -249,8 +249,39 @@ class OracleJDBCConnector:
                 columns=columns,
                 execution_time_ms=execution_time
             )
-            
+
         except Exception as e:
+            error_msg = str(e)
+            # 连接断开时自动重连一次
+            if any(kw in error_msg.upper() for kw in
+                   ['CONNECTION', 'CLOSED', 'BROKEN', 'RESET', 'TIMEOUT',
+                    'NETWORK', 'COMMUNICATION', 'SESSION', 'ORA-03113',
+                    'ORA-03114', 'ORA-03135', 'ORA-12571']):
+                logger.warning(f"检测到连接异常，尝试重连: {e}")
+                try:
+                    self._conn = None
+                    self.connect()
+                    # 重连后重试查询
+                    cursor = self._conn.cursor()
+                    if params:
+                        cursor.execute(sql, params)
+                    else:
+                        cursor.execute(sql)
+                    columns = [desc[0] for desc in cursor.description] if cursor.description else []
+                    rows = cursor.fetchall()
+                    execution_time = (time.time() - start_time) * 1000
+                    if cursor:
+                        cursor.close()
+                    logger.info("重连后查询成功")
+                    return JDBCQueryResult(
+                        rows=rows,
+                        columns=columns,
+                        execution_time_ms=execution_time
+                    )
+                except Exception as retry_err:
+                    logger.error(f"重连后查询仍然失败: {retry_err}")
+                    raise
+
             logger.error(f"SQL 执行失败: {e}")
             raise
         finally:

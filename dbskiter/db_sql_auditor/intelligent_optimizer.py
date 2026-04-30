@@ -535,8 +535,7 @@ class IndexRecommender:
         return False
 
 
-# NOTE: ExecutionPlanAnalyzer 类已移除，使用 db_diagnose/analyzers/plan_analyzer.py 中的版本
-# 导入方式: from dbskiter.db_diagnose.analyzers.plan_analyzer import ExecutionPlanAnalyzer
+
 
 
 class CostEstimator:

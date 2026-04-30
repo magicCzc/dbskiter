@@ -112,6 +112,29 @@ def create_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="调试模式（显示详细错误信息）"
     )
+    parser.add_argument(
+        "--output-mode",
+        choices=["rule", "raw", "ai"],
+        default="rule",
+        help="输出模式: rule=规则结论(默认), raw=原始数据, ai=AI友好格式"
+    )
+    parser.add_argument(
+        "--ai-depth",
+        choices=["summary", "detail", "full"],
+        default="detail",
+        help="AI输出详细程度: summary=摘要, detail=详细(默认), full=完整"
+    )
+    parser.add_argument(
+        "--mask-sensitive",
+        action="store_true",
+        default=True,
+        help="脱敏敏感信息（默认开启）"
+    )
+    parser.add_argument(
+        "--no-mask",
+        action="store_true",
+        help="不脱敏敏感信息（仅限安全环境）"
+    )
     
     return parser
 
@@ -200,6 +223,8 @@ def main(args: Optional[List[str]] = None) -> int:
             config.prefix = "DB"
 
         # 用命令行参数覆盖（优先级最高）
+        # 注意：--database参数用于指定数据库别名/配置，不是直接设置数据库名
+        # 数据库名应该从配置中读取，只有在明确指定--database作为连接参数时才覆盖
         if hasattr(parsed_args, "dialect") and parsed_args.dialect:
             config.dialect = parsed_args.dialect
         if hasattr(parsed_args, "host") and parsed_args.host:
@@ -210,8 +235,12 @@ def main(args: Optional[List[str]] = None) -> int:
             config.username = parsed_args.user
         if hasattr(parsed_args, "password") and parsed_args.password:
             config.password = parsed_args.password
+        # 只有在没有通过别名找到配置时，才将--database作为数据库名使用
         if hasattr(parsed_args, "database") and parsed_args.database:
-            config.database = parsed_args.database
+            multi_config = MultiDBConfig()
+            if not multi_config.get_config_by_alias(parsed_args.database.lower()):
+                # 没有找到对应别名配置，才将参数作为数据库名
+                config.database = parsed_args.database
         
         config.validate()
         

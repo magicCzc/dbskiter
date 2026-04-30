@@ -14,6 +14,7 @@ db_security/utils.py
 创建时间: 2026-04-23
 """
 
+import logging
 import math
 import re
 from collections import Counter
@@ -22,6 +23,8 @@ from typing import Any, Dict, List, Optional, Tuple
 from dbskiter.db_security.models import (
     RiskLevel, SensitivityLevel, Risk, RiskReport
 )
+
+logger = logging.getLogger(__name__)
 
 
 class PatternMatcher:
@@ -379,10 +382,24 @@ class SecurityAuditor:
             connector: 数据库连接器
         """
         self.connector = connector
+        self.dialect = connector.dialect.lower() if hasattr(connector, 'dialect') else 'mysql'
 
     def audit_permissions(self) -> Dict[str, Any]:
         """
         审计权限 - 查询数据库用户权限
+
+        返回:
+            Dict: 审计结果
+        """
+        if 'oracle' in self.dialect:
+            return self._audit_oracle_permissions()
+        elif 'postgresql' in self.dialect:
+            return self._audit_postgresql_permissions()
+        return self._audit_mysql_permissions()
+
+    def _audit_mysql_permissions(self) -> Dict[str, Any]:
+        """
+        MySQL权限审计
 
         返回:
             Dict: 审计结果
@@ -424,24 +441,28 @@ class SecurityAuditor:
                             risks.append(Risk(
                                 severity="high" if priv_name in ['Super', 'Grant'] else "medium",
                                 description=f"非管理员用户 {user}@{host} 拥有 {priv_name} 权限",
-                                category="permission"
+                                category="permission",
+                                current_value=f"{user}@{host} -> {priv_name}=Y",
+                                recommended_value=f"撤销 {user}@{host} 的 {priv_name} 权限"
                             ))
 
                 # 检查通配符主机（root用户允许任意主机连接是风险）
                 if host == '%':
                     if is_root:
-                        # root允许任意主机连接是高风险
                         risks.append(Risk(
                             severity="high",
                             description=f"root用户允许从任意主机连接，存在安全风险",
-                            category="permission"
+                            category="permission",
+                            current_value="root@%",
+                            recommended_value="限制root只能从localhost或特定IP连接"
                         ))
                     else:
-                        # 其他用户允许任意主机连接是中风险
                         risks.append(Risk(
                             severity="medium",
                             description=f"用户 {user} 允许从任意主机连接",
-                            category="permission"
+                            category="permission",
+                            current_value=f"{user}@%",
+                            recommended_value=f"限制 {user} 只能从特定主机连接"
                         ))
 
         except Exception as e:
@@ -464,9 +485,124 @@ class SecurityAuditor:
             "risks": [r.to_dict() for r in risks[:20]]  # 最多返回20个
         }
 
+    def _audit_oracle_permissions(self) -> Dict[str, Any]:
+        """
+        Oracle权限审计
+
+        返回:
+            Dict: 审计结果
+        """
+        risks = []
+        total_users = 0
+        high_privilege_users = 0
+
+        try:
+            # 查询Oracle用户及DBA角色
+            result = self.connector.execute("""
+                SELECT
+                    u.username,
+                    u.account_status,
+                    u.created,
+                    NVL((SELECT COUNT(*) FROM dba_role_privs r
+                         WHERE r.grantee = u.username AND r.granted_role = 'DBA'), 0) AS is_dba
+                FROM dba_users u
+                WHERE u.username NOT IN ('SYS','SYSTEM','DBSNMP','SYSMAN','OUTLN',
+                    'MDSYS','ORDSYS','EXFSYS','DMSYS','WMSYS','CTXSYS','ANONYMOUS',
+                    'XDB','ORDPLUGINS','OLAPSYS','MDDATA','SI_INFORMTN_SCHEMA')
+                ORDER BY u.username
+            """)
+
+            total_users = len(result.rows)
+
+            for row in result.rows:
+                username = str(row[0])
+                account_status = str(row[1])
+                is_dba = int(str(row[3])) if row[3] else 0
+
+                if is_dba > 0:
+                    high_privilege_users += 1
+                    risks.append(Risk(
+                        severity="high",
+                        description=f"用户 {username} 拥有DBA角色",
+                        category="permission",
+                        current_value=f"{username} -> DBA",
+                        recommended_value="仅SYS/SYSTEM用户授予DBA角色"
+                    ))
+
+                if account_status == 'OPEN':
+                    pass
+                elif 'LOCKED' in account_status.upper() and 'EXPIRED' in account_status.upper():
+                    pass
+                elif 'EXPIRED' in account_status.upper():
+                    risks.append(Risk(
+                        severity="low",
+                        description=f"用户 {username} 密码已过期",
+                        category="permission",
+                        current_value=f"{username} 状态={account_status}",
+                        recommended_value="重置该用户密码"
+                    ))
+
+            # 检查拥有危险系统权限的用户
+            try:
+                result2 = self.connector.execute("""
+                    SELECT grantee, privilege, COUNT(*) AS cnt
+                    FROM dba_sys_privs
+                    WHERE privilege IN ('ALTER SYSTEM','ALTER USER','DROP ANY TABLE',
+                        'DROP USER','CREATE ANY PROCEDURE','EXECUTE ANY PROCEDURE',
+                        'GRANT ANY ROLE','GRANT ANY PRIVILEGE')
+                    AND grantee NOT IN ('SYS','SYSTEM','DBA')
+                    GROUP BY grantee, privilege
+                    ORDER BY cnt DESC
+                """)
+                for row in result2.rows:
+                    grantee = str(row[0])
+                    privilege = str(row[1])
+                    risks.append(Risk(
+                        severity="high",
+                        description=f"用户 {grantee} 拥有危险系统权限: {privilege}",
+                        category="permission",
+                        current_value=f"{grantee} -> {privilege}",
+                        recommended_value=f"撤销 {grantee} 的 {privilege} 权限"
+                    ))
+            except Exception as e2:
+                logger.debug(f"查询Oracle系统权限失败: {e2}")
+
+        except Exception as e:
+            logger.error(f"Oracle权限审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"权限审计失败: {str(e)}",
+                "total_checked": 0,
+                "risks_found": 0,
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_users": total_users,
+            "high_privilege_users": high_privilege_users,
+            "total_checked": total_users,
+            "risks_found": len(risks),
+            "message": f"审计了{total_users}个用户，发现{high_privilege_users}个高权限用户，{len(risks)}个风险",
+            "risks": [r.to_dict() for r in risks[:20]]
+        }
+
     def audit_config(self) -> Dict[str, Any]:
         """
         审计配置 - 查询数据库安全配置
+
+        返回:
+            Dict: 审计结果
+        """
+        if 'oracle' in self.dialect:
+            return self._audit_oracle_config()
+        elif 'postgresql' in self.dialect:
+            return self._audit_postgresql_config()
+        return self._audit_mysql_config()
+
+    def _audit_mysql_config(self) -> Dict[str, Any]:
+        """
+        MySQL配置审计
 
         返回:
             Dict: 审计结果
@@ -482,7 +618,9 @@ class SecurityAuditor:
                     risks.append(Risk(
                         severity="high",
                         description="SSL未启用，数据传输未加密",
-                        category="config"
+                        category="config",
+                        current_value=f"have_ssl={result.rows[0][1] if result.rows else 'UNKNOWN'}",
+                        recommended_value="have_ssl=YES"
                     ))
                 checks_performed += 1
             except Exception as e:
@@ -495,7 +633,9 @@ class SecurityAuditor:
                     risks.append(Risk(
                         severity="medium",
                         description="未启用密码强度验证插件",
-                        category="config"
+                        category="config",
+                        current_value="validate_password插件未安装",
+                        recommended_value="安装并启用validate_password插件"
                     ))
                 checks_performed += 1
             except Exception as e:
@@ -508,7 +648,9 @@ class SecurityAuditor:
                     risks.append(Risk(
                         severity="low",
                         description="通用查询日志未启用",
-                        category="config"
+                        category="config",
+                        current_value=f"general_log={result.rows[0][1] if result.rows else 'OFF'}",
+                        recommended_value="general_log=ON"
                     ))
                 checks_performed += 1
             except Exception as e:
@@ -517,14 +659,16 @@ class SecurityAuditor:
             # 检查4: 远程root访问
             try:
                 result = self.connector.execute("""
-                    SELECT COUNT(*) FROM mysql.user 
+                    SELECT COUNT(*) FROM mysql.user
                     WHERE user = 'root' AND host = '%'
                 """)
                 if result.rows and result.rows[0][0] > 0:
                     risks.append(Risk(
                         severity="high",
                         description="root用户允许远程访问",
-                        category="config"
+                        category="config",
+                        current_value="root@%",
+                        recommended_value="删除root@%或改为root@localhost"
                     ))
                 checks_performed += 1
             except Exception as e:
@@ -533,14 +677,16 @@ class SecurityAuditor:
             # 检查5: 匿名用户
             try:
                 result = self.connector.execute("""
-                    SELECT COUNT(*) FROM mysql.user 
+                    SELECT COUNT(*) FROM mysql.user
                     WHERE user = '' OR user IS NULL
                 """)
                 if result.rows and result.rows[0][0] > 0:
                     risks.append(Risk(
                         severity="medium",
                         description="存在匿名用户",
-                        category="config"
+                        category="config",
+                        current_value="存在匿名用户",
+                        recommended_value="删除所有匿名用户"
                     ))
                 checks_performed += 1
             except Exception as e:
@@ -548,6 +694,474 @@ class SecurityAuditor:
 
         except Exception as e:
             logger.error(f"配置审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"配置审计失败: {str(e)}",
+                "total_checked": checks_performed,
+                "risks_found": len(risks),
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_checks": checks_performed,
+            "failed_checks": len(risks),
+            "total_checked": checks_performed,
+            "risks_found": len(risks),
+            "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
+            "risks": [r.to_dict() for r in risks]
+        }
+
+    def _audit_oracle_config(self) -> Dict[str, Any]:
+        """
+        Oracle配置审计
+
+        返回:
+            Dict: 审计结果
+        """
+        risks = []
+        checks_performed = 0
+
+        try:
+            # 检查1: 审计是否启用
+            try:
+                result = self.connector.execute("""
+                    SELECT value FROM v$parameter WHERE name = 'audit_trail'
+                """)
+                if result.rows:
+                    audit_trail = str(result.rows[0][0]).upper()
+                    if audit_trail == 'NONE':
+                        risks.append(Risk(
+                            severity="high",
+                            description="数据库审计未启用 (audit_trail=NONE)",
+                            category="config",
+                            current_value="audit_trail=NONE",
+                            recommended_value="audit_trail=DB 或 OS"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查Oracle审计配置失败: {e}")
+
+            # 检查2: 密码策略（用户配置文件）
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        p.profile,
+                        p.resource_name,
+                        p.limit
+                    FROM dba_profiles p
+                    WHERE p.resource_type = 'PASSWORD'
+                    AND p.profile = 'DEFAULT'
+                    AND p.resource_name IN (
+                        'FAILED_LOGIN_ATTEMPTS','PASSWORD_LIFE_TIME',
+                        'PASSWORD_LOCK_TIME','PASSWORD_REUSE_MAX',
+                        'PASSWORD_REUSE_TIME','PASSWORD_VERIFY_FUNCTION'
+                    )
+                    ORDER BY p.resource_name
+                """)
+                profile_settings = {}
+                for row in result.rows:
+                    resource_name = str(row[1])
+                    limit_val = str(row[2])
+                    profile_settings[resource_name] = limit_val
+
+                if profile_settings.get('FAILED_LOGIN_ATTEMPTS', 'UNLIMITED') in ('UNLIMITED', '0'):
+                    risks.append(Risk(
+                        severity="medium",
+                        description="登录失败次数限制未设置 (FAILED_LOGIN_ATTEMPTS=UNLIMITED)",
+                        category="config",
+                        current_value="FAILED_LOGIN_ATTEMPTS=UNLIMITED",
+                        recommended_value="FAILED_LOGIN_ATTEMPTS=10"
+                    ))
+
+                if profile_settings.get('PASSWORD_LIFE_TIME', 'UNLIMITED') in ('UNLIMITED', '0'):
+                    risks.append(Risk(
+                        severity="medium",
+                        description="密码过期时间未设置 (PASSWORD_LIFE_TIME=UNLIMITED)",
+                        category="config",
+                        current_value="PASSWORD_LIFE_TIME=UNLIMITED",
+                        recommended_value="PASSWORD_LIFE_TIME=90"
+                    ))
+
+                if profile_settings.get('PASSWORD_VERIFY_FUNCTION', 'NULL') in ('NULL', 'NONE'):
+                    risks.append(Risk(
+                        severity="medium",
+                        description="密码复杂度验证函数未设置",
+                        category="config",
+                        current_value="PASSWORD_VERIFY_FUNCTION=NULL",
+                        recommended_value="设置密码验证函数，如 ORA12C_VERIFY_FUNCTION"
+                    ))
+
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查Oracle密码策略失败: {e}")
+
+            # 检查3: 远程登录配置
+            try:
+                result = self.connector.execute("""
+                    SELECT value FROM v$parameter
+                    WHERE name = 'remote_login_passwordfile'
+                """)
+                if result.rows:
+                    val = str(result.rows[0][0]).upper()
+                    if val == 'EXCLUSIVE':
+                        risks.append(Risk(
+                            severity="low",
+                            description="remote_login_passwordfile=EXCLUSIVE，允许远程SYSDBA登录",
+                            category="config",
+                            current_value="remote_login_passwordfile=EXCLUSIVE",
+                            recommended_value="remote_login_passwordfile=NONE 或 SHARED"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查Oracle远程登录配置失败: {e}")
+
+            # 检查4: 监听器密码
+            try:
+                result = self.connector.execute("""
+                    SELECT value FROM v$parameter
+                    WHERE name = 'local_listener'
+                """)
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查Oracle监听器配置失败: {e}")
+
+            # 检查5: OPEN_CURSOR数量
+            try:
+                result = self.connector.execute("""
+                    SELECT value FROM v$parameter
+                    WHERE name = 'open_cursors'
+                """)
+                if result.rows:
+                    open_cursors = int(str(result.rows[0][0]))
+                    if open_cursors > 1000:
+                        risks.append(Risk(
+                            severity="low",
+                            description=f"open_cursors={open_cursors}，设置过高可能影响内存",
+                            category="config",
+                            current_value=f"open_cursors={open_cursors}",
+                            recommended_value="open_cursors=300~1000"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查Oracle open_cursors失败: {e}")
+
+        except Exception as e:
+            logger.error(f"Oracle配置审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"配置审计失败: {str(e)}",
+                "total_checked": checks_performed,
+                "risks_found": len(risks),
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_checks": checks_performed,
+            "failed_checks": len(risks),
+            "total_checked": checks_performed,
+            "risks_found": len(risks),
+            "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
+            "risks": [r.to_dict() for r in risks]
+        }
+
+    def _audit_postgresql_permissions(self) -> Dict[str, Any]:
+        """
+        PostgreSQL权限审计
+
+        返回:
+            Dict: 审计结果
+        """
+        risks = []
+        total_users = 0
+        high_privilege_users = 0
+
+        try:
+            result = self.connector.execute("""
+                SELECT
+                    r.rolname,
+                    r.rolsuper,
+                    r.rolcreaterole,
+                    r.rolcreatedb,
+                    r.rolinherit,
+                    r.rolcanlogin
+                FROM pg_roles r
+                WHERE r.rolname NOT LIKE 'pg_%'
+                ORDER BY r.rolname
+            """)
+
+            total_users = len(result.rows)
+
+            for row in result.rows:
+                rolname = str(row[0])
+                is_super = str(row[1]).lower() == 'true'
+                can_create_role = str(row[2]).lower() == 'true'
+                can_create_db = str(row[3]).lower() == 'true'
+
+                if is_super:
+                    high_privilege_users += 1
+                    if rolname not in ('postgres',):
+                        risks.append(Risk(
+                            severity="high",
+                            description=f"非默认超级用户 {rolname} 拥有SUPERUSER权限",
+                            category="permission",
+                            current_value=f"{rolname} -> SUPERUSER",
+                            recommended_value=f"撤销 {rolname} 的SUPERUSER权限，按需授予具体权限"
+                        ))
+
+                if can_create_role:
+                    high_privilege_users += 1
+                    if rolname not in ('postgres',):
+                        risks.append(Risk(
+                            severity="medium",
+                            description=f"用户 {rolname} 可以创建其他角色",
+                            category="permission",
+                            current_value=f"{rolname} -> CREATEROLE",
+                            recommended_value=f"仅必要用户授予CREATEROLE权限"
+                        ))
+
+                if can_create_db and rolname not in ('postgres',):
+                    risks.append(Risk(
+                        severity="low",
+                        description=f"用户 {rolname} 可以创建数据库",
+                        category="permission",
+                        current_value=f"{rolname} -> CREATEDB",
+                        recommended_value=f"按需限制 {rolname} 的CREATEDB权限"
+                    ))
+
+            try:
+                result2 = self.connector.execute("""
+                    SELECT
+                        grantee,
+                        table_name,
+                        privilege_type
+                    FROM information_schema.role_table_grants
+                    WHERE grantee NOT LIKE 'pg_%'
+                    AND privilege_type IN ('DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER')
+                    AND grantee NOT IN ('postgres', 'PUBLIC')
+                    LIMIT 50
+                """)
+                for row in result2.rows:
+                    grantee = str(row[0])
+                    table_name = str(row[1])
+                    priv = str(row[2])
+                    if priv in ('DELETE', 'TRUNCATE'):
+                        risks.append(Risk(
+                            severity="medium",
+                            description=f"用户 {grantee} 对表 {table_name} 有 {priv} 权限",
+                            category="permission",
+                            current_value=f"{grantee} -> {table_name}:{priv}",
+                            recommended_value=f"审查 {grantee} 是否确实需要 {priv} 权限"
+                        ))
+            except Exception as e2:
+                logger.debug(f"查询PostgreSQL表权限失败: {e2}")
+
+            try:
+                result3 = self.connector.execute("""
+                    SELECT
+                        grantee,
+                        routine_name,
+                        privilege_type
+                    FROM information_schema.role_routine_grants
+                    WHERE grantee NOT LIKE 'pg_%'
+                    AND grantee NOT IN ('postgres', 'PUBLIC')
+                    AND privilege_type = 'EXECUTE'
+                    LIMIT 30
+                """)
+                for row in result3.rows:
+                    grantee = str(row[0])
+                    routine = str(row[1])
+                    if routine.startswith('pg_') or routine.startswith('_'):
+                        risks.append(Risk(
+                            severity="high",
+                            description=f"用户 {grantee} 有系统函数 {routine} 的执行权限",
+                            category="permission",
+                            current_value=f"{grantee} -> EXECUTE on {routine}",
+                            recommended_value=f"撤销 {grantee} 对系统函数的执行权限"
+                        ))
+            except Exception as e3:
+                logger.debug(f"查询PostgreSQL函数权限失败: {e3}")
+
+        except Exception as e:
+            logger.error(f"PostgreSQL权限审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"权限审计失败: {str(e)}",
+                "total_checked": 0,
+                "risks_found": 0,
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_users": total_users,
+            "high_privilege_users": high_privilege_users,
+            "total_checked": total_users,
+            "risks_found": len(risks),
+            "message": f"审计了{total_users}个用户，发现{high_privilege_users}个高权限用户，{len(risks)}个风险",
+            "risks": [r.to_dict() for r in risks[:20]]
+        }
+
+    def _audit_postgresql_config(self) -> Dict[str, Any]:
+        """
+        PostgreSQL配置审计
+
+        返回:
+            Dict: 审计结果
+        """
+        risks = []
+        checks_performed = 0
+
+        try:
+            try:
+                result = self.connector.execute("""
+                    SELECT name, setting, short_desc
+                    FROM pg_settings
+                    WHERE name = 'ssl'
+                """)
+                if result.rows:
+                    ssl_val = str(result.rows[0][1]).lower()
+                    if ssl_val != 'on':
+                        risks.append(Risk(
+                            severity="high",
+                            description="SSL未启用，数据传输未加密",
+                            category="config",
+                            current_value=f"ssl={ssl_val}",
+                            recommended_value="ssl=on"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查PostgreSQL SSL配置失败: {e}")
+
+            try:
+                result = self.connector.execute("""
+                    SELECT name, setting, short_desc
+                    FROM pg_settings
+                    WHERE name = 'log_connections'
+                """)
+                if result.rows:
+                    log_conn = str(result.rows[0][1]).lower()
+                    if log_conn != 'on':
+                        risks.append(Risk(
+                            severity="medium",
+                            description="连接日志未启用 (log_connections=off)",
+                            category="config",
+                            current_value=f"log_connections={log_conn}",
+                            recommended_value="log_connections=on"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查PostgreSQL连接日志失败: {e}")
+
+            try:
+                result = self.connector.execute("""
+                    SELECT name, setting, short_desc
+                    FROM pg_settings
+                    WHERE name IN (
+                        'log_disconnections', 'log_duration',
+                        'log_statement', 'log_line_prefix'
+                    )
+                    ORDER BY name
+                """)
+                log_settings = {}
+                for row in result.rows:
+                    log_settings[str(row[0])] = str(row[1])
+
+                if log_settings.get('log_statement', 'none') == 'none':
+                    risks.append(Risk(
+                        severity="medium",
+                        description="SQL语句日志未启用 (log_statement=none)",
+                        category="config",
+                        current_value="log_statement=none",
+                        recommended_value="log_statement=ddl 或 all"
+                    ))
+
+                if log_settings.get('log_disconnections', 'off') != 'on':
+                    risks.append(Risk(
+                        severity="low",
+                        description="断开连接日志未启用",
+                        category="config",
+                        current_value=f"log_disconnections={log_settings.get('log_disconnections', 'off')}",
+                        recommended_value="log_disconnections=on"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查PostgreSQL日志配置失败: {e}")
+
+            try:
+                result = self.connector.execute("""
+                    SELECT setting::int FROM pg_settings
+                    WHERE name = 'max_connections'
+                """)
+                if result.rows:
+                    max_conn = int(str(result.rows[0][0]))
+                    if max_conn > 500:
+                        risks.append(Risk(
+                            severity="low",
+                            description=f"max_connections={max_conn}，设置过高可能影响内存",
+                            category="config",
+                            current_value=f"max_connections={max_conn}",
+                            recommended_value="max_connections=100~300"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查PostgreSQL max_connections失败: {e}")
+
+            try:
+                has_pgaudit = False
+                result = self.connector.execute("""
+                    SELECT COUNT(*) FROM pg_extension WHERE extname = 'pgaudit'
+                """)
+                if result.rows and result.rows[0][0] > 0:
+                    has_pgaudit = True
+                if not has_pgaudit:
+                    risks.append(Risk(
+                        severity="medium",
+                        description="pgAudit审计扩展未安装",
+                        category="config",
+                        current_value="pgaudit扩展未安装",
+                        recommended_value="安装并启用pgaudit扩展以增强审计能力"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查PostgreSQL pgaudit失败: {e}")
+
+            try:
+                result = self.connector.execute("""
+                    SELECT name, setting
+                    FROM pg_settings
+                    WHERE name = 'password_encryption'
+                """)
+                if result.rows:
+                    enc = str(result.rows[0][1]).lower()
+                    if enc == 'md5':
+                        risks.append(Risk(
+                            severity="medium",
+                            description="密码加密方式使用MD5，安全性不足",
+                            category="config",
+                            current_value="password_encryption=md5",
+                            recommended_value="password_encryption=scram-sha-256"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查PostgreSQL密码加密失败: {e}")
+
+            try:
+                result = self.connector.execute("""
+                    SELECT COUNT(*)
+                    FROM pg_roles
+                    WHERE rolpassword IS NOT NULL
+                    AND rolname NOT LIKE 'pg_%'
+                """)
+                if result.rows and result.rows[0][0] > 0:
+                    pass
+                checks_performed += 1
+            except Exception as e:
+                logger.debug(f"检查PostgreSQL用户密码失败: {e}")
+
+        except Exception as e:
+            logger.error(f"PostgreSQL配置审计失败: {e}")
             return {
                 "status": "error",
                 "message": f"配置审计失败: {str(e)}",

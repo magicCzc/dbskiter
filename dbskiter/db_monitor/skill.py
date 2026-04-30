@@ -54,6 +54,7 @@ from dbskiter.db_monitor.utils import (
 )
 from dbskiter.db_monitor.storage import MetricsStorage
 from dbskiter.db_monitor.collectors import get_collector
+from dbskiter.db_monitor.health_scorer import get_health_scorer
 
 # 导入高级预测器和趋势分析器（新增）
 try:
@@ -420,14 +421,16 @@ class MonitorSkill:
             # 如果 Prometheus 成功，直接返回；否则回退到 internal
             if result.get('success'):
                 return result
-            logger.warning(f"Prometheus 预测失败，回退到 internal: {result.get('message')}")
+            # 仅在debug模式下记录详细信息
+            logger.debug(f"Prometheus 预测不可用，使用 internal: {result.get('message')}")
 
         if source in ("auto", "zabbix") and self.zabbix_client:
             result = self._predict_from_zabbix(metric_name, days)
             # 如果 Zabbix 成功，直接返回；否则回退到 internal
             if result.get('success'):
                 return result
-            logger.warning(f"Zabbix 预测失败，回退到 internal: {result.get('message')}")
+            # 仅在debug模式下记录详细信息
+            logger.debug(f"Zabbix 预测不可用，使用 internal: {result.get('message')}")
 
         # 使用内部存储的数据（或直接从数据库采集）
         return self._predict_from_internal(metric_name, days)
@@ -652,7 +655,14 @@ class MonitorSkill:
             )
 
     def _predict_from_internal(self, metric: str, days: int) -> Dict[str, Any]:
-        """从内部存储获取数据进行容量预测，如果没有存储则直接采集当前值"""
+        """
+        从内部存储获取数据进行容量预测，如果没有存储则直接采集当前值
+
+        逻辑：
+            1. 优先从历史存储获取数据
+            2. 如果没有历史数据，直接采集当前值
+            3. 返回当前值和预测结果（如果有足够历史数据）
+        """
         try:
             # 获取历史数据
             historical_data = []
@@ -664,34 +674,16 @@ class MonitorSkill:
                 except (ValueError, Exception) as e:
                     logger.warning(f"从存储获取历史数据失败: {e}")
 
-            # 如果没有足够历史数据，尝试直接采集当前值
-            if len(historical_data) < 3 and self.collector:
+            # 尝试采集当前值
+            current_value = None
+            if self.collector:
                 try:
-                    # 直接采集当前指标
                     metric_enum = MetricType(metric)
                     metric_point = self.collector.collect_metric(metric_enum)
                     if metric_point:
                         current_value = metric_point.value
-                        # 返回当前值，但标记为不可预测
-                        from dbskiter.db_monitor.models import CapacityPrediction
-                        prediction = CapacityPrediction(
-                            metric=metric,
-                            current_value=current_value,
-                            current_time=datetime.now(),
-                            predictions={},
-                            days_to_threshold=None,
-                            threshold=self.predictor.thresholds.get(metric, 90.0),
-                            growth_rate_daily=0.0,
-                            trend_direction="unknown",
-                            confidence=0.0,
-                            recommendation="当前值已采集，但历史数据不足，无法进行趋势预测",
-                            urgency="low",
-                            predictable=False
-                        )
-                        return create_success_response(
-                            message="容量预测完成（仅当前值，无历史趋势）",
-                            data=prediction.to_dict()
-                        )
+                        # 将当前值加入历史数据
+                        historical_data.append((metric_point.timestamp, metric_point.value))
                 except Exception as e:
                     logger.warning(f"直接采集指标失败: {e}")
 
@@ -700,6 +692,32 @@ class MonitorSkill:
                 prediction = self.predictor.predict(metric, historical_data, days)
                 return create_success_response(
                     message="容量预测完成（数据来源：内部存储）",
+                    data=prediction.to_dict()
+                )
+
+            # 如果没有足够历史数据，但采集到了当前值，返回当前值
+            if current_value is not None:
+                from dbskiter.db_monitor.models import CapacityPrediction
+                prediction = CapacityPrediction(
+                    metric=metric,
+                    current_value=current_value,
+                    current_time=datetime.now(),
+                    predictions={
+                        "current": current_value,
+                        "7d": current_value,
+                        "30d": current_value
+                    },
+                    days_to_threshold=999,
+                    threshold=self.predictor.thresholds.get(metric, 90.0),
+                    growth_rate_daily=0.0,
+                    trend_direction="unknown",
+                    confidence=0.0,
+                    recommendation=f"当前{metric}使用率: {current_value:.2f}%（历史数据不足，无法预测趋势）",
+                    urgency="low",
+                    predictable=False
+                )
+                return create_success_response(
+                    message="容量查询完成（仅当前值，无历史趋势）",
                     data=prediction.to_dict()
                 )
 
@@ -906,9 +924,7 @@ class MonitorSkill:
         """
         评估数据库健康状况
 
-        支持两种模式：
-        1. 直连数据库：使用 collector 采集指标
-        2. 外部监控（Zabbix）：从 Zabbix 获取指标
+        使用基于权重的评分算法，支持不同数据库类型的差异化评分
 
         返回:
             Dict: 健康评估结果
@@ -938,52 +954,30 @@ class MonitorSkill:
                     data=assessment.to_dict()
                 )
 
-            # 计算健康评分
-            score = 100
-            issues = []
-            metrics_summary = {}
-
+            # 构建指标字典
+            metrics_dict: Dict[MetricType, float] = {}
+            metrics_summary: Dict[str, float] = {}
+            max_connections = 2000.0
+            
             for metric in metrics:
+                metrics_dict[metric.metric_type] = metric.value
                 metrics_summary[metric.metric_type.value] = round(metric.value, 2)
+                
+                # 记录最大连接数
+                if metric.metric_type == MetricType.CONNECTIONS_MAX:
+                    max_connections = metric.value
 
-                # 连接数检查
-                if metric.metric_type == MetricType.CONNECTIONS_ACTIVE:
-                    if metric.value > 100:
-                        score -= 20
-                        issues.append(f"活跃连接数过高: {metric.value}")
-                    elif metric.value > 50:
-                        score -= 10
-                        issues.append(f"活跃连接数较高: {metric.value}")
-
-                # 慢查询检查
-                elif metric.metric_type == MetricType.SLOW_QUERIES:
-                    if metric.value > 100:
-                        score -= 15
-                        issues.append(f"慢查询数量较多: {metric.value}")
-
-                # 缓冲命中率检查
-                elif metric.metric_type == MetricType.BUFFER_HIT_RATIO:
-                    if metric.value < 95:
-                        score -= 10
-                        issues.append(f"缓冲命中率低: {metric.value:.1f}%")
-
-                # 锁等待检查
-                elif metric.metric_type == MetricType.LOCK_WAITS:
-                    if metric.value > 10:
-                        score -= 15
-                        issues.append(f"锁等待过多: {metric.value}")
-
-            # 确定状态
-            if score >= 90:
-                status = HealthStatus.HEALTHY
-            elif score >= 70:
-                status = HealthStatus.WARNING
-            else:
-                status = HealthStatus.CRITICAL
+            # 使用健康评分器计算分数
+            scorer = get_health_scorer()
+            score, status, issues = scorer.calculate_score(
+                metrics=metrics_dict,
+                db_type=self.dialect or "unknown",
+                max_connections=max_connections
+            )
 
             assessment = HealthAssessment(
                 status=status,
-                score=max(0, score),
+                score=score,
                 issues=issues,
                 metrics_summary=metrics_summary
             )
@@ -994,7 +988,7 @@ class MonitorSkill:
             )
 
         except Exception as e:
-            logger.error(f"健康评估失败: {e}")
+            logger.error(f"健康评估失败: {e}", exc_info=True)
             return create_error_response(
                 "健康评估失败",
                 error_code=ErrorCode.UNKNOWN_ERROR,
@@ -1593,6 +1587,202 @@ class MonitorSkill:
                 details={"error": str(e)}
             )
 
+    # ==================== AI上下文构建 ====================
 
-# 版本兼容说明：
-# 本模块已统一为 MonitorSkill，不再区分V2/V3
+    def build_ai_context(
+        self,
+        skill_result: Dict[str, Any],
+        scenario: str = "monitor"
+    ) -> Dict[str, Any]:
+        """
+        构建AI分析上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            scenario: 场景标识 (monitor/anomaly_detection/capacity/metrics_collection/metrics_history/capacity_advanced/trend_analysis/baseline_comparison)
+
+        返回:
+            Dict[str, Any]: AI上下文
+        """
+        from dbskiter.shared.ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(
+            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
+            database_name=getattr(self.connector, 'database', ''),
+        )
+        builder.detect_business_context(self.connector)
+
+        data = skill_result.get("data", {})
+
+        raw_metrics = self._extract_raw_metrics_for_ai(data, scenario)
+        rule_flags = self._extract_rule_flags_for_ai(data, scenario)
+        context = builder.build_database_profile(self.connector)
+        reference_values = self._build_reference_values(scenario)
+        ai_hints = self._build_ai_hints(scenario, data)
+
+        return {
+            "raw_metrics": raw_metrics,
+            "rule_flags": rule_flags,
+            "context": context,
+            "reference_values": reference_values,
+            "ai_hints": ai_hints,
+        }
+
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取原始指标"""
+        metrics = {}
+
+        # 提取关键字段
+        key_fields = ["health", "anomalies", "predictions", "trends", "recommendations", "history", "metrics", "summary"]
+        for key in key_fields:
+            if key in data:
+                metrics[key] = data[key]
+
+        # 场景特定提取
+        if scenario == "monitor":
+            for key in ["health", "score", "status", "metrics", "timestamp"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "anomaly_detection":
+            for key in ["anomalies", "anomaly_count", "affected_metrics", "detection_time"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario in ("capacity", "capacity_advanced"):
+            for key in ["predictions", "trends", "recommendations", "current_usage", "forecast_date", "days_until_full"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "metrics_history":
+            for key in ["history", "metric_name", "time_range", "data_points", "statistics"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "trend_analysis":
+            for key in ["trends", "trend_direction", "growth_rate", "seasonality", "forecast"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "baseline_compare":
+            for key in ["comparison", "deviations", "baseline_date", "current_values"]:
+                if key in data:
+                    metrics[key] = data[key]
+
+        if not metrics:
+            metrics = data
+
+        return metrics
+
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取规则标记"""
+        flags = {}
+
+        # 健康评分标记
+        health = data.get("health", {})
+        if isinstance(health, dict):
+            score = health.get("score", 100)
+            if isinstance(score, (int, float)):
+                if score < 60:
+                    flags["poor_health"] = {"flagged": True, "level": "critical", "reason": f"健康评分过低: {score}"}
+                elif score < 80:
+                    flags["fair_health"] = {"flagged": True, "level": "medium", "reason": f"健康评分一般: {score}"}
+
+        # 异常标记
+        anomalies = data.get("anomalies", [])
+        if isinstance(anomalies, list) and len(anomalies) > 0:
+            critical_anomalies = [a for a in anomalies if a.get("severity") == "critical"]
+            if critical_anomalies:
+                flags["critical_anomalies"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical_anomalies)} 个严重异常"}
+            else:
+                flags["has_anomalies"] = {"flagged": True, "level": "high", "reason": f"发现 {len(anomalies)} 个异常"}
+
+        # 容量预警标记
+        predictions = data.get("predictions", [])
+        if isinstance(predictions, list):
+            for pred in predictions:
+                if isinstance(pred, dict):
+                    risk_level = pred.get("risk_level", "")
+                    if risk_level == "critical":
+                        flags["critical_capacity"] = {"flagged": True, "level": "critical", "reason": "容量即将耗尽"}
+                    elif risk_level == "high":
+                        flags["high_capacity"] = {"flagged": True, "level": "high", "reason": "容量紧张"}
+
+        # 趋势偏离标记
+        trends = data.get("trends", [])
+        if isinstance(trends, list):
+            for trend in trends:
+                if isinstance(trend, dict) and trend.get("deviation") == "significant":
+                    flags["significant_deviation"] = {"flagged": True, "level": "high", "reason": "指标显著偏离正常范围"}
+
+        return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
+
+    def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
+        """构建参考基线"""
+        refs = {
+            "health_score": {"excellent": "90-100", "good": "80-89", "fair": "60-79", "poor": "<60"},
+            "capacity_threshold": {"normal": "<70%", "warning": "70-85%", "critical": ">85%"},
+            "anomaly_severity": {"info": "信息", "warning": "警告", "critical": "严重"},
+            "trend_deviation": {"normal": "<10%", "warning": "10-30%", "critical": ">30%"},
+        }
+        return refs
+
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """构建AI提示"""
+        hints = {"focus_areas": [], "related_commands": []}
+        db_name = getattr(self.connector, 'database', '')
+
+        health = data.get("health", {})
+        anomalies = data.get("anomalies", [])
+        score = health.get("score", 100) if isinstance(health, dict) else 100
+
+        if scenario == "monitor":
+            hints["focus_areas"] = ["health_trends", "resource_utilization", "performance_metrics"]
+
+            if isinstance(score, (int, float)):
+                if score >= 90:
+                    hints["focus_areas"].append("maintain_excellent_health")
+                elif score >= 80:
+                    hints["focus_areas"].append("minor_optimizations")
+                elif score >= 60:
+                    hints["focus_areas"].append("performance_improvements")
+                else:
+                    hints["focus_areas"].append("urgent_attention_required")
+
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} monitor anomalies",
+                f"dbskiter --database={db_name} diagnose realtime",
+            ]
+
+        elif scenario == "anomaly_detection":
+            hints["focus_areas"] = ["anomaly_patterns", "root_cause_analysis", "correlation_analysis"]
+
+            if isinstance(anomalies, list) and anomalies:
+                hints["focus_areas"].append("immediate_investigation")
+
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} inspector root-cause --issue='性能异常'",
+                f"dbskiter --database={db_name} diagnose top",
+            ]
+
+        elif scenario == "capacity":
+            hints["focus_areas"] = ["growth_trends", "resource_planning", "scaling_needs"]
+
+            predictions = data.get("predictions", [])
+            if isinstance(predictions, list):
+                for pred in predictions:
+                    if isinstance(pred, dict) and pred.get("days_until_full", 999) < 30:
+                        hints["focus_areas"].append("urgent_capacity_planning")
+
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} monitor capacity-advanced",
+                f"dbskiter --database={db_name} inspector run --type capacity",
+            ]
+
+        elif scenario == "trend_analysis":
+            hints["focus_areas"] = ["trend_patterns", "seasonality", "forecast_accuracy"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} monitor compare",
+            ]
+
+        elif scenario == "baseline_compare":
+            hints["focus_areas"] = ["performance_deviation", "configuration_drift", "workload_changes"]
+
+        return hints
+
+

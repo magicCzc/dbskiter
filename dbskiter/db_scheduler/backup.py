@@ -36,6 +36,17 @@ class BackupResult:
     duration_ms: int
     error: Optional[str] = None
 
+    def to_dict(self) -> Dict[str, Any]:
+        """转换为字典"""
+        return {
+            "success": self.success,
+            "backup_id": self.backup_id,
+            "file_path": self.file_path,
+            "file_size": self.file_size,
+            "duration_ms": self.duration_ms,
+            "error": self.error
+        }
+
 
 class BackupManager:
     """
@@ -83,7 +94,7 @@ class BackupManager:
 
         if self.dialect in ("mysql", "mysql+pymysql"):
             return self._mysql_full_backup(output_dir, backup_id, timestamp, compress, include_schema)
-        elif self.dialect == "postgresql":
+        elif "postgresql" in self.dialect:
             return self._postgresql_full_backup(output_dir, backup_id, timestamp, compress)
         elif self.dialect in ("sqlite", "sqlite3"):
             return self._sqlite_full_backup(output_dir, backup_id, timestamp, compress)
@@ -107,7 +118,7 @@ class BackupManager:
 
         if self.dialect in ("mysql", "mysql+pymysql"):
             return self._mysql_table_backup(table, output_dir, backup_id, timestamp, include_schema)
-        elif self.dialect == "postgresql":
+        elif "postgresql" in self.dialect:
             return self._postgresql_table_backup(table, output_dir, backup_id, timestamp)
         elif self.dialect in ("sqlite", "sqlite3"):
             return self._sqlite_table_backup(table, output_dir, backup_id, timestamp)
@@ -172,7 +183,7 @@ class BackupManager:
 
         if self.dialect in ("mysql", "mysql+pymysql"):
             return self._mysql_restore(backup_file, target_database, backup_id, start_time)
-        elif self.dialect == "postgresql":
+        elif "postgresql" in self.dialect:
             return self._postgresql_restore(backup_file, target_database, backup_id, start_time)
         elif self.dialect in ("sqlite", "sqlite3"):
             return self._sqlite_restore(backup_file, backup_id, start_time)

@@ -275,7 +275,7 @@ class AuditLogAnalyzer:
         try:
             if "mysql" in self.dialect:
                 events = self._get_mysql_audit_events(hours, users)
-            elif "postgres" in self.dialect:
+            elif "postgresql" in self.dialect:
                 events = self._get_postgres_audit_events(hours, users)
             elif "oracle" in self.dialect:
                 events = self._get_oracle_audit_events(hours, users)
@@ -527,35 +527,42 @@ class AuditLogAnalyzer:
         events = []
 
         try:
-            # Oracle需要查询审计表
-            result = self.connector.execute("""
-                SELECT 
-                    timestamp# as event_time,
-                    userid as user,
-                    terminal as host,
-                    action# as action,
-                    obj$name as object_name
-                FROM sys.aud$
-                WHERE timestamp# > SYSDATE - :hours/24
-                ORDER BY timestamp# DESC
-                LIMIT 10000
-            """, {"hours": hours})
+            result = self.connector.execute(f"""
+                SELECT * FROM (
+                    SELECT
+                        timestamp# AS event_time,
+                        userid AS user_name,
+                        terminal AS host,
+                        action# AS action,
+                        obj$name AS object_name
+                    FROM sys.aud$
+                    WHERE timestamp# > SYSDATE - {hours}/24
+                    ORDER BY timestamp# DESC
+                )
+                WHERE ROWNUM <= 10000
+            """)
 
             for row in result.rows:
-                user = row[1] or "unknown"
+                user = str(row[1] or "unknown")
                 if users and user not in users:
                     continue
 
+                event_time = row[0]
+                if event_time and hasattr(event_time, 'isoformat'):
+                    pass
+                else:
+                    event_time = datetime.now()
+
                 events.append(AuditEvent(
-                    event_time=row[0] if row[0] else datetime.now(),
+                    event_time=event_time,
                     user=user,
-                    host=row[2] or "localhost",
-                    action=self._map_oracle_action(row[3]),
-                    object_name=row[4]
+                    host=str(row[2] or "localhost"),
+                    action=self._map_oracle_action(int(str(row[3])) if row[3] else 0),
+                    object_name=str(row[4] or "")
                 ))
 
         except Exception as e:
-            logger.warning(f"无法获取Oracle审计日志: {e}")
+            logger.debug(f"无法获取Oracle审计日志（审计可能未启用）: {e}")
 
         return events
 

@@ -302,6 +302,7 @@ class LockAnalyzerSkill:
         locks = []
 
         try:
+            # 使用兼容的查询，不依赖pg_locks_blocked视图
             result = self.connector.execute("""
                 SELECT
                     l.locktype,
@@ -318,8 +319,12 @@ class LockAnalyzerSkill:
                 JOIN pg_stat_activity a ON l.pid = a.pid
                 WHERE l.granted = false
                 OR l.pid IN (
-                    SELECT DISTINCT blocking_pid
-                    FROM pg_locks_blocked
+                    SELECT DISTINCT l1.pid
+                    FROM pg_locks l1
+                    JOIN pg_locks l2 ON l1.locktype = l2.locktype
+                        AND l1.relation = l2.relation
+                        AND l1.granted = false
+                        AND l2.granted = true
                 )
                 ORDER BY a.query_start
             """)
@@ -361,6 +366,7 @@ class LockAnalyzerSkill:
         locks = []
 
         try:
+            # 使用双引号包裹包含特殊字符的列名，避免JDBC解析问题
             result = self.connector.execute("""
                 SELECT
                     l.sid,
@@ -369,7 +375,7 @@ class LockAnalyzerSkill:
                     l.id2,
                     l.lmode,
                     l.request,
-                    s.serial#,
+                    s."SERIAL#",
                     s.username,
                     s.machine,
                     s.program,
@@ -382,10 +388,10 @@ class LockAnalyzerSkill:
                     s.seconds_in_wait,
                     o.object_name,
                     o.owner,
-                    s.row_wait_obj#,
-                    s.row_wait_file#,
-                    s.row_wait_block#,
-                    s.row_wait_row#,
+                    s."ROW_WAIT_OBJ#",
+                    s."ROW_WAIT_FILE#",
+                    s."ROW_WAIT_BLOCK#",
+                    s."ROW_WAIT_ROW#",
                     q.sql_text,
                     q.sql_fulltext
                 FROM v$lock l
@@ -529,7 +535,7 @@ class LockAnalyzerSkill:
             result = self.connector.execute("""
                 SELECT
                     s.sid,
-                    s.serial#,
+                    s."SERIAL#",
                     s.username,
                     s.machine,
                     s.program,
@@ -766,6 +772,15 @@ class LockAnalyzerSkill:
                 error_code=ErrorCode.CHAIN_ANALYSIS_FAILED
             )
 
+    def trace_lock_chains(self) -> Dict[str, Any]:
+        """
+        追踪锁等待链（兼容方法，与trace_lock_wait_chain功能相同）
+
+        返回:
+            Dict: 标准响应格式，包含锁等待链列表
+        """
+        return self.trace_lock_wait_chain()
+
     def get_lock_statistics(self) -> Dict[str, Any]:
         """
         获取锁统计信息
@@ -866,6 +881,29 @@ class LockAnalyzerSkill:
                         message=f"未找到事务 {transaction_id}",
                         error_code=ErrorCode.NOT_FOUND
                     )
+            elif 'oracle' in self.dialect:
+                result = self.connector.execute("""
+                    SELECT sid, serial#
+                    FROM v$session
+                    WHERE audsid = %s OR sid = %s
+                """, (transaction_id, transaction_id))
+
+                if result.rows:
+                    sid = int(result.rows[0][0])
+                    serial = int(result.rows[0][1])
+                    self.connector.execute("""
+                        ALTER SYSTEM KILL SESSION '%s,%s' IMMEDIATE
+                    """ % (sid, serial))
+                    logger.info(f"已终止Oracle会话 {sid},{serial}")
+
+                    return create_success_response(
+                        message=f"Oracle会话 {sid},{serial} 已终止"
+                    )
+                else:
+                    return create_error_response(
+                        message=f"未找到Oracle会话 {transaction_id}",
+                        error_code=ErrorCode.NOT_FOUND
+                    )
 
             return create_error_response(
                 message=f"数据库类型 {self.dialect} 不支持终止事务",
@@ -890,6 +928,156 @@ class LockAnalyzerSkill:
         logger.info("关闭 LockAnalyzerSkill...")
         logger.info("LockAnalyzerSkill 已关闭")
 
+    # ==================== AI上下文构建 ====================
 
-# 版本兼容说明：
-# 本模块已统一为 LockAnalyzerSkill，不再区分V2/V3
+    def build_ai_context(
+        self,
+        skill_result: Dict[str, Any],
+        scenario: str = "lock_analysis"
+    ) -> Dict[str, Any]:
+        """
+        构建AI分析上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            scenario: 场景标识 (lock_analysis/deadlock_detection/lock_chains)
+
+        返回:
+            Dict[str, Any]: AI上下文
+        """
+        from dbskiter.shared.ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(
+            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
+            database_name=getattr(self.connector, 'database', ''),
+        )
+        builder.detect_business_context(self.connector)
+
+        data = skill_result.get("data", {})
+
+        raw_metrics = self._extract_raw_metrics_for_ai(data, scenario)
+        rule_flags = self._extract_rule_flags_for_ai(data, scenario)
+        context = builder.build_database_profile(self.connector)
+        reference_values = self._build_reference_values(scenario)
+        ai_hints = self._build_ai_hints(scenario, data)
+
+        return {
+            "raw_metrics": raw_metrics,
+            "rule_flags": rule_flags,
+            "context": context,
+            "reference_values": reference_values,
+            "ai_hints": ai_hints,
+        }
+
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取原始指标"""
+        metrics = {}
+
+        # 提取关键字段
+        key_fields = ["locks", "deadlocks", "chains", "wait_chains", "statistics", "summary"]
+        for key in key_fields:
+            if key in data:
+                metrics[key] = data[key]
+
+        # 场景特定提取
+        if scenario == "lock_analysis":
+            for key in ["total_locks", "blocking_locks", "waiting_transactions", "lock_types"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "deadlock_detection":
+            for key in ["deadlock_count", "deadlock_history", "affected_tables", "affected_queries"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "wait_chains":
+            for key in ["chain_length", "root_blocker", "waiting_sessions", "chain_duration"]:
+                if key in data:
+                    metrics[key] = data[key]
+
+        if not metrics:
+            metrics = data
+
+        return metrics
+
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取规则标记"""
+        flags = {}
+
+        # 死锁标记
+        deadlocks = data.get("deadlocks", [])
+        if isinstance(deadlocks, list) and len(deadlocks) > 0:
+            flags["active_deadlocks"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(deadlocks)} 个死锁"}
+
+        # 锁等待链标记
+        chains = data.get("chains", [])
+        wait_chains = data.get("wait_chains", [])
+        total_chains = len(chains) if isinstance(chains, list) else 0
+        total_chains += len(wait_chains) if isinstance(wait_chains, list) else 0
+        if total_chains > 0:
+            flags["lock_chains"] = {"flagged": True, "level": "high", "reason": f"发现 {total_chains} 条锁等待链"}
+
+        # 锁数量标记
+        locks = data.get("locks", [])
+        if isinstance(locks, list):
+            if len(locks) > 50:
+                flags["excessive_locks"] = {"flagged": True, "level": "critical", "reason": f"锁数量过多: {len(locks)}"}
+            elif len(locks) > 20:
+                flags["many_locks"] = {"flagged": True, "level": "high", "reason": f"锁数量较多: {len(locks)}"}
+            elif len(locks) > 10:
+                flags["moderate_locks"] = {"flagged": True, "level": "medium", "reason": f"锁数量中等: {len(locks)}"}
+
+        # 长时间等待标记
+        statistics = data.get("statistics", {})
+        if isinstance(statistics, dict):
+            max_wait_time = statistics.get("max_wait_time", 0)
+            if max_wait_time > 300:  # 5分钟
+                flags["long_wait"] = {"flagged": True, "level": "critical", "reason": f"最大等待时间过长: {max_wait_time}秒"}
+            elif max_wait_time > 60:  # 1分钟
+                flags["moderate_wait"] = {"flagged": True, "level": "high", "reason": f"最大等待时间较长: {max_wait_time}秒"}
+
+        return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
+
+    def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
+        """构建参考基线"""
+        refs = {
+            "lock_wait_threshold": {"normal": "<1s", "warning": "1-5s", "critical": ">5s"},
+            "lock_count": {"normal": "<10", "warning": "10-20", "high": "20-50", "critical": ">50"},
+            "transaction_duration": {"normal": "<1s", "warning": "1-10s", "critical": ">10s"},
+        }
+        return refs
+
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """构建AI提示"""
+        hints = {"focus_areas": [], "related_commands": []}
+        db_name = getattr(self.connector, 'database', '')
+
+        # 获取统计数据
+        statistics = data.get("statistics", {})
+        deadlocks = data.get("deadlocks", [])
+        chains = data.get("chains", [])
+
+        if scenario == "lock_analysis":
+            hints["focus_areas"] = ["lock_contention", "transaction_duration", "isolation_level"]
+            if isinstance(chains, list) and len(chains) > 0:
+                hints["focus_areas"].append("wait_chain_analysis")
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} lock chains",
+                f"dbskiter --database={db_name} diagnose top",
+            ]
+        elif scenario == "deadlock_detection":
+            hints["focus_areas"] = ["deadlock_patterns", "retry_logic", "transaction_ordering"]
+            if isinstance(deadlocks, list) and len(deadlocks) > 0:
+                hints["focus_areas"].append("immediate_deadlock_resolution")
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} lock analyze",
+                f"dbskiter --database={db_name} diagnose realtime",
+            ]
+        elif scenario == "wait_chains":
+            hints["focus_areas"] = ["blocking_source", "cascade_kills", "transaction_optimization"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} lock analyze",
+                f"dbskiter --database={db_name} diagnose locks",
+            ]
+
+        return hints
+
+

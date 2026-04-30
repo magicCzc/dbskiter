@@ -270,6 +270,8 @@ class ExecutionPlanAnalyzer:
             return self._get_mysql_execution_plan(sql, params)
         elif 'postgresql' in self.dialect:
             return self._get_postgresql_execution_plan(sql, params)
+        elif 'oracle' in self.dialect:
+            return self._get_oracle_execution_plan(sql, params)
         else:
             logger.warning(f"数据库类型 {self.dialect} 的执行计划获取未完全实现")
             return []
@@ -295,6 +297,165 @@ class ExecutionPlanAnalyzer:
             logger.error(f"获取PostgreSQL执行计划失败: {e}")
             return []
 
+    def _get_oracle_execution_plan(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Tuple]:
+        """
+        获取Oracle执行计划
+
+        使用DBMS_XPLAN获取格式化的执行计划
+
+        参数:
+            sql: SQL语句
+            params: 查询参数
+
+        返回:
+            List[Tuple]: 执行计划行数据
+        """
+        try:
+            # 替换绑定变量为字面值（EXPLAIN PLAN不支持绑定变量）
+            explain_sql = sql
+            import re
+            explain_sql = re.sub(r':\d+', "'X'", explain_sql)
+            explain_sql = re.sub(r':[a-zA-Z_]\w*', "'X'", explain_sql)
+
+            # 1. 生成执行计划
+            plan_sql = f"EXPLAIN PLAN FOR {explain_sql}"
+
+            # 直接使用底层连接执行，避免自动提交问题
+            raw_connector = None
+            if hasattr(self.connector, '_connector'):
+                raw_connector = self.connector._connector
+            else:
+                raw_connector = self.connector
+
+            # 获取JDBC连接并直接执行
+            if hasattr(raw_connector, '_conn'):
+                conn = raw_connector._conn
+                cursor = conn.cursor()
+                try:
+                    if params:
+                        cursor.execute(plan_sql, params)
+                    else:
+                        cursor.execute(plan_sql)
+                finally:
+                    cursor.close()
+            else:
+                # 回退到普通execute
+                try:
+                    self.connector.execute(plan_sql, params)
+                except Exception:
+                    pass
+
+            # 2. 获取格式化的执行计划
+            result = self.connector.execute("""
+                SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(
+                    table_name => 'PLAN_TABLE',
+                    format => 'TYPICAL'
+                ))
+            """)
+
+            if result and result.rows:
+                # 解析DBMS_XPLAN输出为结构化数据
+                return self._parse_oracle_plan_output(result.rows)
+            return []
+
+        except Exception as e:
+            logger.debug(f"获取Oracle执行计划失败（非致命）: {e}")
+            return []
+
+    def _parse_oracle_plan_output(self, plan_rows: List[Tuple]) -> List[Tuple]:
+        """
+        解析Oracle DBMS_XPLAN输出
+
+        参数:
+            plan_rows: DBMS_XPLAN输出行
+
+        返回:
+            List[Tuple]: 解析后的执行计划数据
+        """
+        parsed_rows = []
+
+        for row in plan_rows:
+            plan_line = row[0] if row else ""
+
+            # 跳过标题行和分隔线
+            if not plan_line or plan_line.startswith('-') or 'Plan hash value' in plan_line:
+                continue
+
+            # 跳过空行和说明文字
+            if not plan_line.startswith('|'):
+                continue
+
+            # 跳过列标题行（包含"Id"、"Operation"、"Name"等）
+            if 'Id' in plan_line and 'Operation' in plan_line and 'Name' in plan_line:
+                continue
+
+            # 解析执行计划行
+            # 格式示例: |   0 | SELECT STATEMENT  |      |       |       |            |          |
+            # 或者: |*  1 |  TABLE ACCESS FULL| EMP  |     1 |    37 |     3   (0)| 00:00:01 |
+            if '|' in plan_line:
+                parts = [p.strip() for p in plan_line.split('|')]
+                parts = [p for p in parts if p]  # 移除空字符串
+
+                if len(parts) >= 2:
+                    try:
+                        # 提取ID（可能带有*表示谓词）
+                        id_part = parts[0].replace('*', '').strip()
+                        try:
+                            plan_id = int(id_part)
+                        except ValueError:
+                            # 如果ID不是数字，可能是标题行，跳过
+                            continue
+
+                        # 提取操作信息
+                        operation = parts[1] if len(parts) > 1 else ""
+
+                        # 提取对象名
+                        object_name = parts[2] if len(parts) > 2 else ""
+
+                        # 提取行数估算
+                        rows_est = parts[3] if len(parts) > 3 else "0"
+                        try:
+                            rows = int(rows_est.replace(',', ''))
+                        except:
+                            rows = 0
+
+                        # 提取成本
+                        cost_str = parts[5] if len(parts) > 5 else "0"
+                        try:
+                            cost = int(cost_str.split()[0].replace(',', ''))
+                        except:
+                            cost = 0
+
+                        # 提取访问方式
+                        access_type = AccessType.ALL
+                        if 'INDEX' in operation.upper():
+                            if 'UNIQUE' in operation.upper():
+                                access_type = AccessType.INDEX_UNIQUE
+                            else:
+                                access_type = AccessType.INDEX_SCAN
+                        elif 'FULL' in operation.upper():
+                            access_type = AccessType.FULL_TABLE_SCAN
+
+                        parsed_rows.append((
+                            plan_id,           # id
+                            'SIMPLE',          # select_type
+                            object_name,       # table
+                            None,              # partitions
+                            access_type.value, # type
+                            [],                # possible_keys
+                            None,              # key
+                            None,              # key_len
+                            None,              # ref
+                            rows,              # rows
+                            100.0,             # filtered
+                            operation          # Extra
+                        ))
+                    except Exception as e:
+                        logger.debug(f"解析执行计划行失败: {e}, line={plan_line}")
+                        continue
+
+        return parsed_rows
+
     def _parse_plan_nodes(self, plan_rows: List[Tuple]) -> List[PlanNode]:
         """
         解析执行计划节点
@@ -316,6 +477,30 @@ class ExecutionPlanAnalyzer:
                 try:
                     # MySQL EXPLAIN返回列：
                     # id, select_type, table, partitions, type, possible_keys, key, key_len, ref, rows, filtered, Extra
+                    node = PlanNode(
+                        id=row[0] if len(row) > 0 else idx,
+                        select_type=row[1] if len(row) > 1 else "SIMPLE",
+                        table=row[2] if len(row) > 2 else "",
+                        partitions=row[3] if len(row) > 3 else None,
+                        access_type=self._parse_access_type(row[4] if len(row) > 4 else "ALL"),
+                        possible_keys=self._parse_keys(row[5] if len(row) > 5 else None),
+                        key=row[6] if len(row) > 6 else None,
+                        key_len=row[7] if len(row) > 7 else None,
+                        ref=row[8] if len(row) > 8 else None,
+                        rows=row[9] if len(row) > 9 else 0,
+                        filtered=row[10] if len(row) > 10 else 100.0,
+                        extra=row[11] if len(row) > 11 else ""
+                    )
+                    nodes.append(node)
+                except Exception as e:
+                    logger.warning(f"解析执行计划行失败: {e}, row={row}")
+                    continue
+
+        # Oracle执行计划解析（已由_parse_oracle_plan_output预处理）
+        elif 'oracle' in self.dialect:
+            for idx, row in enumerate(plan_rows):
+                try:
+                    # row格式: (id, select_type, table, partitions, type, possible_keys, key, key_len, ref, rows, filtered, extra)
                     node = PlanNode(
                         id=row[0] if len(row) > 0 else idx,
                         select_type=row[1] if len(row) > 1 else "SIMPLE",

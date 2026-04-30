@@ -391,7 +391,7 @@ class PostgreSQLMetadataProvider(BaseMetadataProvider):
 
         try:
             result = self.connector.execute("""
-                SELECT ROUND(pg_total_relation_size(c.oid) / 1024.0 / 1024.0, 2)
+                SELECT ROUND((pg_total_relation_size(c.oid) / 1024.0 / 1024.0)::numeric, 2)
                 FROM pg_class c
                 JOIN pg_namespace n ON n.oid = c.relnamespace
                 WHERE c.relname = :table_name
@@ -525,7 +525,7 @@ class DBMetadataService:
             return MySQLMetadataProvider(self.connector)
         elif 'oracle' in self.dialect:
             return OracleMetadataProvider(self.connector)
-        elif 'postgresql' in self.dialect or 'postgres' in self.dialect:
+        elif 'postgresql' in self.dialect:
             return PostgreSQLMetadataProvider(self.connector)
         else:
             raise ValueError(f"不支持的数据库方言: {self.dialect}")

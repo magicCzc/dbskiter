@@ -18,6 +18,8 @@ from enum import Enum
 from typing import Dict, Any, List, Optional
 import logging
 
+from sqlalchemy.exc import SQLAlchemyError
+
 logger = logging.getLogger(__name__)
 
 
@@ -177,6 +179,10 @@ class BaseMetricsCollector(ABC):
                 logger.warning(f"采集指标 {metric_type.value} 时权限不足: {e}")
             except ValueError as e:
                 logger.warning(f"采集指标 {metric_type.value} 时数据解析错误: {e}")
+            except SQLAlchemyError as e:
+                logger.warning(f"采集指标 {metric_type.value} 时SQL错误: {e}")
+            except Exception as e:
+                logger.warning(f"采集指标 {metric_type.value} 时未知错误: {e}")
 
         logger.info(f"成功采集 {len(metrics)} 个指标")
         return metrics

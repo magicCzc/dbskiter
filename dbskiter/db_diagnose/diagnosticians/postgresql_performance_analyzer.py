@@ -252,31 +252,43 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
         metrics = []
 
         try:
-            # 获取共享内存使用情况
+            # 获取共享内存使用情况（兼容PostgreSQL 15及以下版本）
+            # pg_total_memory_usage()是PostgreSQL 14+的函数，使用替代方案
             result = self._execute_with_timeout("""
                 SELECT
-                    pg_size_pretty(pg_total_memory_usage()) as total_used,
-                    pg_size_pretty(pg_backend_memory_contexts()) as backend_used
+                    pg_size_pretty(
+                        (SELECT setting::bigint * 8192 FROM pg_settings WHERE name = 'shared_buffers') +
+                        (SELECT count(*) * 4096 FROM pg_stat_activity)
+                    ) as total_used,
+                    pg_size_pretty(
+                        (SELECT setting::bigint * 8192 FROM pg_settings WHERE name = 'work_mem') * 
+                        (SELECT count(*) FROM pg_stat_activity WHERE state = 'active')
+                    ) as backend_used
             """)
 
-            # 获取连接使用的内存（如果版本支持）
-            result = self._execute_with_timeout("""
-                SELECT
-                    count(*) as connection_count,
-                    sum(backend_memory_usage) as total_backend_memory
-                FROM pg_stat_activity
-                WHERE backend_memory_usage IS NOT NULL
-            """)
+            # 获取连接使用的内存（如果版本支持backend_memory_usage列）
+            # backend_memory_usage是PostgreSQL 17+的列
+            try:
+                result = self._execute_with_timeout("""
+                    SELECT
+                        count(*) as connection_count,
+                        sum(backend_memory_usage) as total_backend_memory
+                    FROM pg_stat_activity
+                    WHERE backend_memory_usage IS NOT NULL
+                """)
 
-            if result and result[0][1] is not None:
-                total_memory = result[0][1]
-                metrics.append(PerformanceMetric(
-                    name="backend_memory",
-                    value=total_memory,
-                    unit="bytes",
-                    category=MetricCategory.MEMORY,
-                    source="pg_stat_activity"
-                ))
+                if result and result[0][1] is not None:
+                    total_memory = result[0][1]
+                    metrics.append(PerformanceMetric(
+                        name="backend_memory",
+                        value=total_memory,
+                        unit="bytes",
+                        category=MetricCategory.MEMORY,
+                        source="pg_stat_activity"
+                    ))
+            except Exception:
+                # 列不存在，跳过此指标
+                pass
 
         except Exception as e:
             logger.warning(f"内存指标采集失败: {e}")

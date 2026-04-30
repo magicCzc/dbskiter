@@ -217,7 +217,12 @@ class PerformanceAnalyzer(ABC):
     def _check_permissions(self):
         """检查必要权限"""
         try:
-            self._execute_with_timeout("SELECT 1", timeout=5)
+            # 根据数据库类型使用不同的测试SQL
+            if 'oracle' in self.dialect:
+                test_sql = "SELECT 1 FROM DUAL"
+            else:
+                test_sql = "SELECT 1"
+            self._execute_with_timeout(test_sql, timeout=5)
             logger.info(f"权限检查通过: {self.dialect}")
         except Exception as e:
             logger.warning(f"权限检查失败: {e}")

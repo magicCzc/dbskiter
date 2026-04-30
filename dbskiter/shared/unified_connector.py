@@ -232,6 +232,9 @@ class UnifiedConnector:
         if "oracle" in self.dialect:
             result = self.execute("SELECT table_name FROM user_tables ORDER BY table_name")
             return [row[0] for row in result.rows]
+        elif "postgresql" in self.dialect:
+            result = self.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            return [row[0] for row in result.rows]
         else:
             result = self.execute("SHOW TABLES")
             return [row[0] for row in result.rows]

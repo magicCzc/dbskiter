@@ -63,6 +63,7 @@ from .cache_manager import SQLCacheManager
 from .cache_invalidator import SmartCachedExecutor
 from .sql_validator import SQLSyntaxValidator, SQLPreChecker
 from .data_transfer import DataExporter, DataImporter
+from .audit_storage import SQLAuditStorage, SQLAuditRecord
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +169,20 @@ class SQLMasterSkill:
         self.data_exporter = DataExporter(connector)
         self.data_importer = DataImporter(connector)
 
+        # 初始化审计日志存储
+        self.audit_storage = SQLAuditStorage()
+
         logger.info(f"SQLMasterSkill 初始化完成 (dialect={connector.dialect})")
+
+    def close(self):
+        """
+        关闭资源
+        
+        关闭所有数据库连接和存储资源
+        """
+        if hasattr(self, 'audit_storage') and self.audit_storage:
+            self.audit_storage.close()
+            logger.info("SQLMasterSkill 资源已关闭")
 
     # ==================== SQL执行 ====================
 
@@ -177,7 +191,9 @@ class SQLMasterSkill:
         self,
         sql: str,
         params: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
+        allow_write: bool = True,
+        force: bool = False
     ) -> Dict[str, Any]:
         """
         执行SQL语句
@@ -186,21 +202,43 @@ class SQLMasterSkill:
             sql: SQL语句
             params: SQL参数
             limit: 返回行数限制
+            allow_write: 是否允许写操作（默认True，设为False开启只读模式）
+            force: 是否强制执行危险操作（默认False，设为True可执行CRITICAL级别操作）
 
         返回:
             Dict: 执行结果
+            
+        示例:
+            >>> # 普通查询
+            >>> result = skill.execute("SELECT * FROM users")
+            >>> # 只读模式
+            >>> result = skill.execute("SELECT * FROM users", allow_write=False)
+            >>> # 强制执行危险操作
+            >>> result = skill.execute("DROP TABLE temp_table", force=True)
         """
         sanitized_sql = sanitize_sql(sql)
         logger.info(f"执行SQL: {sanitized_sql}")
 
-        # SQL语法预检查
-        check_result = self.sql_prechecker.check(sql, allow_write=True)
+        # SQL语法预检查（包含危险操作检测）
+        check_result = self.sql_prechecker.check(sql, allow_write=allow_write, force=force)
+        
+        # 处理检查结果
         if not check_result["can_execute"]:
             logger.warning(f"SQL预检查失败: {check_result['error']}")
             return create_error_response(
                 check_result["error"],
-                ErrorCode.SYNTAX_ERROR
+                ErrorCode.SYNTAX_ERROR,
+                {
+                    "risk_level": check_result.get("risk_level"),
+                    "risk_description": check_result.get("risk_description"),
+                    "requires_confirmation": check_result.get("requires_confirmation"),
+                    "requires_force": check_result.get("requires_force"),
+                }
             )
+        
+        # 高风险操作警告（不阻止执行，但返回警告信息）
+        if check_result.get("requires_confirmation") and not force:
+            logger.warning(f"高风险操作: {check_result.get('warning')}")
 
         try:
             # 添加LIMIT限制
@@ -208,6 +246,9 @@ class SQLMasterSkill:
                 sql = self._add_limit(sql, limit)
             elif self.config.max_rows > 0:
                 sql = self._add_limit(sql, self.config.max_rows)
+
+            # 记录审计日志（危险操作）
+            risk_level = check_result.get("risk_level", "SAFE")
 
             # 执行SQL - 将 dict 参数转换为 tuple
             with PerformanceTimer() as timer:
@@ -222,35 +263,249 @@ class SQLMasterSkill:
                         tuple_params = params
                     result = self.executor.execute(sql, tuple_params)
 
+            # 计算执行时间和行数
+            execution_time_ms = timer.elapsed * 1000
+            row_count = len(result.rows) if hasattr(result, 'rows') else 0
+
+            # 记录审计日志（所有操作都记录，危险操作额外标记）
+            if risk_level in ("CRITICAL", "HIGH", "MEDIUM"):
+                self._log_audit(
+                    operation="SQL_EXECUTE",
+                    sql=sanitized_sql,
+                    risk_level=risk_level,
+                    risk_description=check_result.get("risk_description"),
+                    force_used=force,
+                    read_only_mode=not allow_write,
+                    execution_time_ms=execution_time_ms,
+                    row_count=row_count,
+                    success=True
+                )
+
+            # 记录成功执行
+            logger.info(
+                f"SQL执行成功: {sanitized_sql[:50]}... "
+                f"风险等级={risk_level}, "
+                f"影响行数={row_count}"
+            )
+
             return create_success_response({
                 "sql": sanitized_sql,
-                "row_count": len(result.rows) if hasattr(result, 'rows') else 0,
+                "row_count": row_count,
                 "columns": result.columns if hasattr(result, 'columns') else [],
                 "rows": result.rows if hasattr(result, 'rows') else [],
                 "execution_time": timer.elapsed,
+                "risk_level": risk_level,
             }, "SQL执行成功")
 
         except Exception as e:
             logger.error(f"SQL执行失败: {e}")
+            # 记录失败审计
+            if risk_level in ("CRITICAL", "HIGH", "MEDIUM"):
+                self._log_audit(
+                    operation="SQL_EXECUTE_FAILED",
+                    sql=sanitized_sql,
+                    risk_level=risk_level,
+                    risk_description=check_result.get("risk_description"),
+                    force_used=force,
+                    read_only_mode=not allow_write,
+                    error=str(e),
+                    success=False
+                )
             return create_error_response(
                 str(e),
                 ErrorCode.EXECUTION_FAILED,
                 {"sql": sanitized_sql}
             )
 
+    def _log_audit(
+        self,
+        operation: str,
+        sql: str,
+        risk_level: str = "SAFE",
+        risk_description: Optional[str] = None,
+        force_used: bool = False,
+        read_only_mode: bool = False,
+        error: Optional[str] = None,
+        execution_time_ms: Optional[float] = None,
+        row_count: Optional[int] = None,
+        success: bool = True
+    ) -> None:
+        """
+        记录审计日志
+
+        参数:
+            operation: 操作类型
+            sql: SQL语句
+            risk_level: 风险等级
+            risk_description: 风险描述
+            force_used: 是否使用了force参数
+            read_only_mode: 是否为只读模式
+            error: 错误信息（如果有）
+            execution_time_ms: 执行耗时（毫秒）
+            row_count: 影响行数
+            success: 是否执行成功
+        """
+        import hashlib
+        from datetime import datetime
+
+        # 生成SQL指纹（用于标识相同的SQL）
+        sql_fingerprint = hashlib.md5(sql.encode()).hexdigest()[:16]
+
+        # 创建审计记录
+        record = SQLAuditRecord(
+            timestamp=datetime.now().isoformat(),
+            operation=operation,
+            sql_fingerprint=sql_fingerprint,
+            sql_preview=sql[:100] + "..." if len(sql) > 100 else sql,
+            risk_level=risk_level,
+            risk_description=risk_description,
+            force_used=force_used,
+            read_only_mode=read_only_mode,
+            dialect=getattr(self.connector, 'dialect', 'unknown'),
+            success=success,
+            error=error,
+            execution_time_ms=execution_time_ms,
+            row_count=row_count
+        )
+
+        # 持久化到数据库
+        try:
+            if hasattr(self, 'audit_storage') and self.audit_storage:
+                self.audit_storage.save_record(record)
+        except Exception as e:
+            logger.error(f"审计日志保存失败: {e}")
+
+        # 同时输出到日志
+        log_message = (
+            f"审计日志: {record.operation} | "
+            f"风险={record.risk_level} | "
+            f"SQL={record.sql_preview[:50]}"
+        )
+        if risk_level in ("CRITICAL", "HIGH"):
+            logger.warning(log_message)
+        else:
+            logger.info(log_message)
+
     @validate_params(sqls=Validator.not_empty_list)
     def execute_batch(
         self,
         sqls: List[str],
-        params_list: Optional[List[Dict[str, Any]]] = None
+        params_list: Optional[List[Dict[str, Any]]] = None,
+        allow_write: bool = True,
+        force: bool = False,
+        stop_on_error: bool = True
     ) -> List[Dict[str, Any]]:
-        """批量执行SQL"""
+        """
+        批量执行SQL
+
+        参数:
+            sqls: SQL语句列表
+            params_list: 参数列表（与sqls一一对应）
+            allow_write: 是否允许写操作（默认True）
+            force: 是否强制执行危险操作（默认False）
+            stop_on_error: 遇到错误时是否停止（默认True）
+
+        返回:
+            List[Dict[str, Any]]: 执行结果列表
+
+        示例:
+            >>> sqls = ["SELECT * FROM users", "UPDATE users SET status=1 WHERE id=1"]
+            >>> results = skill.execute_batch(sqls, allow_write=True)
+            >>> for result in results:
+            ...     print(result['success'])
+        """
         results = []
         for i, sql in enumerate(sqls):
             params = params_list[i] if params_list and i < len(params_list) else None
-            result = self.execute(sql, params)
+            result = self.execute(sql, params, allow_write=allow_write, force=force)
             results.append(result)
+
+            # 如果遇到错误且设置了stop_on_error，则停止执行
+            if stop_on_error and not result.get("success"):
+                logger.warning(f"批量执行在第{i+1}条SQL处停止: {result.get('error')}")
+                break
+
         return results
+
+    # ==================== 审计日志查询 ====================
+
+    def get_audit_records(
+        self,
+        risk_level: Optional[str] = None,
+        hours: Optional[int] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        查询审计日志记录
+
+        参数:
+            risk_level: 风险等级筛选（CRITICAL/HIGH/MEDIUM/SAFE）
+            hours: 最近多少小时
+            limit: 返回数量限制
+
+        返回:
+            List[Dict]: 审计记录列表
+
+        示例:
+            >>> records = skill.get_audit_records(risk_level="HIGH", hours=24)
+            >>> for record in records:
+            ...     print(f"{record['timestamp']}: {record['sql_preview']}")
+        """
+        if not hasattr(self, 'audit_storage') or not self.audit_storage:
+            return []
+
+        records = self.audit_storage.query_records(
+            risk_level=risk_level,
+            hours=hours,
+            limit=limit
+        )
+        return [r.to_dict() for r in records]
+
+    def get_audit_statistics(self, days: int = 7) -> Dict[str, Any]:
+        """
+        获取审计统计信息
+
+        参数:
+            days: 统计最近多少天
+
+        返回:
+            Dict: 统计信息
+
+        示例:
+            >>> stats = skill.get_audit_statistics(days=7)
+            >>> print(f"总操作数: {stats['total_records']}")
+            >>> print(f"成功率: {stats['success_rate']}%")
+        """
+        if not hasattr(self, 'audit_storage') or not self.audit_storage:
+            return {
+                "period_days": days,
+                "total_records": 0,
+                "risk_level_distribution": {},
+                "operation_distribution": {},
+                "success_rate": 0.0,
+                "force_used_count": 0,
+            }
+
+        return self.audit_storage.get_statistics(days=days)
+
+    def cleanup_audit_logs(self, days: int = 30) -> int:
+        """
+        清理过期审计日志
+
+        参数:
+            days: 保留最近多少天的记录
+
+        返回:
+            int: 删除的记录数
+
+        示例:
+            >>> deleted = skill.cleanup_audit_logs(days=30)
+            >>> print(f"清理了 {deleted} 条过期记录")
+        """
+        if not hasattr(self, 'audit_storage') or not self.audit_storage:
+            return 0
+
+        return self.audit_storage.cleanup_old_records(days=days)
 
     def _add_limit(self, sql: str, limit: int) -> str:
         """为SQL添加LIMIT限制"""
@@ -258,9 +513,9 @@ class SQLMasterSkill:
         if sql_upper.startswith("SELECT") and "LIMIT" not in sql_upper:
             if self.connector.dialect in ("mysql", "mysql+pymysql"):
                 return f"{sql} LIMIT {limit}"
-            elif self.connector.dialect == "postgresql":
+            elif "postgresql" in self.connector.dialect:
                 return f"{sql} LIMIT {limit}"
-            elif self.connector.dialect == "oracle":
+            elif "oracle" in self.connector.dialect:
                 return f"SELECT * FROM ({sql}) WHERE ROWNUM <= {limit}"
         return sql
 
@@ -729,6 +984,182 @@ class SQLMasterSkill:
 
         logger.info("SQLMasterSkill 已关闭")
 
+    # ==================== AI上下文构建 ====================
 
-# 版本兼容说明：
-# 本模块已统一为 SQLMasterSkill，不再区分V2/V3
+    def build_ai_context(
+        self,
+        skill_result: Dict[str, Any],
+        scenario: str = "sql_execute"
+    ) -> Dict[str, Any]:
+        """
+        构建AI分析上下文
+
+        参数:
+            skill_result: Skill返回的原始结果
+            scenario: 场景标识 (sql_execute/sql_rewrite/sql_analyze/data_analysis/sql_complete/schema_query)
+
+        返回:
+            Dict[str, Any]: AI上下文
+        """
+        from dbskiter.shared.ai_context import AIContextBuilder
+
+        builder = AIContextBuilder(
+            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
+            database_name=getattr(self.connector, 'database', ''),
+        )
+        builder.detect_business_context(self.connector)
+
+        data = skill_result.get("data", {})
+
+        raw_metrics = self._extract_raw_metrics_for_ai(data, scenario)
+        rule_flags = self._extract_rule_flags_for_ai(data, scenario)
+        context = builder.build_database_profile(self.connector)
+        reference_values = self._build_reference_values(scenario)
+        ai_hints = self._build_ai_hints(scenario, data)
+
+        return {
+            "raw_metrics": raw_metrics,
+            "rule_flags": rule_flags,
+            "context": context,
+            "reference_values": reference_values,
+            "ai_hints": ai_hints,
+        }
+
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取原始指标"""
+        metrics = {}
+
+        # 提取关键字段
+        key_fields = ["execution_time", "rows_affected", "rows_returned", "sql", "result", "error", "status"]
+        for key in key_fields:
+            if key in data:
+                metrics[key] = data[key]
+
+        # 场景特定提取
+        if scenario == "sql_execute":
+            for key in ["execution_time", "rows_affected", "rows_returned", "sql", "result", "error_message"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "sql_rewrite":
+            for key in ["original_sql", "rewritten_sql", "improvements", "estimated_gain", "optimization_type"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "sql_analyze":
+            for key in ["issues", "suggestions", "complexity_score", "quality_score", "risk_level"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "schema_query":
+            for key in ["schema", "tables", "columns", "indexes"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "data_export":
+            for key in ["export_size", "row_count", "file_path", "format"]:
+                if key in data:
+                    metrics[key] = data[key]
+        elif scenario == "data_import":
+            for key in ["import_size", "row_count", "success_count", "error_count", "file_path"]:
+                if key in data:
+                    metrics[key] = data[key]
+
+        if not metrics:
+            metrics = data
+
+        return metrics
+
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
+        """提取规则标记"""
+        flags = {}
+
+        # SQL执行时间标记
+        execution_time = data.get("execution_time", 0)
+        if isinstance(execution_time, (int, float)):
+            if execution_time > 10000:  # 10秒
+                flags["very_slow_execution"] = {"flagged": True, "level": "critical", "reason": f"执行时间过长: {execution_time}ms"}
+            elif execution_time > 1000:  # 1秒
+                flags["slow_execution"] = {"flagged": True, "level": "high", "reason": f"执行时间较长: {execution_time}ms"}
+            elif execution_time > 100:
+                flags["moderate_execution"] = {"flagged": True, "level": "medium", "reason": f"执行时间中等: {execution_time}ms"}
+
+        # SQL问题标记
+        issues = data.get("issues", [])
+        if isinstance(issues, list):
+            critical_issues = [i for i in issues if i.get("severity") == "critical"]
+            high_issues = [i for i in issues if i.get("severity") == "high"]
+            if critical_issues:
+                flags["critical_sql_issues"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical_issues)} 个严重问题"}
+            if high_issues:
+                flags["high_sql_issues"] = {"flagged": True, "level": "high", "reason": f"发现 {len(high_issues)} 个高危问题"}
+
+        # 错误标记
+        if data.get("status") == "error" or data.get("error"):
+            flags["execution_error"] = {"flagged": True, "level": "critical", "reason": "SQL执行出错"}
+
+        # 大数据量标记
+        rows_affected = data.get("rows_affected", 0)
+        if isinstance(rows_affected, int) and rows_affected > 100000:
+            flags["large_operation"] = {"flagged": True, "level": "warning", "reason": f"影响行数过多: {rows_affected}"}
+
+        return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
+
+    def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
+        """构建参考基线"""
+        refs = {
+            "execution_time": {"excellent": "<100ms", "good": "100-500ms", "moderate": "500-1000ms", "slow": ">1000ms"},
+            "complexity_score": {"simple": "<10", "moderate": "10-30", "complex": ">30"},
+            "rows_affected": {"small": "<1000", "medium": "1000-10000", "large": ">10000"},
+        }
+        return refs
+
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """构建AI提示"""
+        hints = {"focus_areas": [], "related_commands": []}
+        db_name = getattr(self.connector, 'database', '')
+
+        execution_time = data.get("execution_time", 0)
+        issues = data.get("issues", [])
+
+        if scenario == "sql_execute":
+            hints["focus_areas"] = ["execution_plan", "index_usage", "lock_wait"]
+
+            if isinstance(execution_time, (int, float)) and execution_time > 1000:
+                hints["focus_areas"].append("performance_optimization")
+
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} sql analyze '<sql>'",
+                f"dbskiter --database={db_name} diagnose sql '<sql>'",
+            ]
+
+        elif scenario == "sql_rewrite":
+            hints["focus_areas"] = ["performance_optimization", "index_recommendation", "query_structure"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} diagnose recommend-indexes '<sql>'",
+            ]
+
+        elif scenario == "sql_analyze":
+            hints["focus_areas"] = ["query_optimization", "anti_patterns", "best_practices"]
+
+            if isinstance(issues, list) and issues:
+                performance_issues = [i for i in issues if "performance" in i.get("category", "").lower()]
+                if performance_issues:
+                    hints["focus_areas"].append("performance_tuning")
+
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} sql rewrite '<sql>'",
+                f"dbskiter --database={db_name} audit sql '<sql>'",
+            ]
+
+        elif scenario == "schema_query":
+            hints["focus_areas"] = ["table_structure", "index_design", "data_types"]
+            hints["related_commands"] = [
+                f"dbskiter --database={db_name} diagnose table <table_name>",
+            ]
+
+        elif scenario == "data_export":
+            hints["focus_areas"] = ["export_performance", "data_integrity", "file_format"]
+
+        elif scenario == "data_import":
+            hints["focus_areas"] = ["import_performance", "data_validation", "error_handling"]
+
+        return hints
+
+

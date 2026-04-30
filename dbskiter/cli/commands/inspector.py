@@ -117,17 +117,44 @@ class InspectorCommand(BaseCommand):
         from dbskiter.db_inspector.skill import InspectorSkill
 
         try:
-            # 确保数据库连接可用
             self.require_connector()
         except Exception as e:
             self.output.error(str(e))
             return 1
 
         try:
-            # 初始化 Skill
             skill = InspectorSkill(self.connector)
 
             action = getattr(self.args, 'inspector_action', None)
+
+            if self.output_mode != "rule":
+                method_map = {
+                    "run": lambda: skill.inspect(None),
+                    "intelligent": lambda: skill.intelligent_inspect(metrics_history={}),
+                    "anomalies": lambda: skill.detect_anomalies(
+                        metrics={},
+                    ),
+                    "root-cause": lambda: skill.analyze_root_causes(
+                        anomaly_events=[],
+                        inspection_results={},
+                    ),
+                    "risks": lambda: skill.predict_risks(
+                        metrics_history={},
+                        time_horizon=f"{getattr(self.args, 'days', 7)}d",
+                    ),
+                }
+                scenario_map = {
+                    "run": "inspection",
+                    "intelligent": "intelligent_inspection",
+                    "anomalies": "anomaly_detection",
+                    "root-cause": "root_cause",
+                    "risks": "risk_prediction",
+                }
+                if action in method_map:
+                    return self._execute_ai_mode(skill, action, method_map, scenario_map)
+                if action not in ("report", "baseline"):
+                    self.output.error(f"不支持的操作: {action}")
+                    return 1
 
             if action == "run":
                 return self._run_inspection(skill)
@@ -229,7 +256,7 @@ class InspectorCommand(BaseCommand):
             db_type_display = 'MySQL'
         elif 'oracle' in db_type.lower():
             db_type_display = 'Oracle'
-        elif 'postgres' in db_type.lower():
+        elif 'postgresql' in db_type.lower():
             db_type_display = 'PostgreSQL'
         else:
             db_type_display = db_type
@@ -387,7 +414,7 @@ class InspectorCommand(BaseCommand):
             return 1
 
         # 读取指标数据
-        metrics_history = None
+        metrics_history = {}
         if self.args.metrics_file:
             try:
                 with open(self.args.metrics_file, 'r', encoding='utf-8') as f:

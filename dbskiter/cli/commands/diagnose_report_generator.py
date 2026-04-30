@@ -519,12 +519,19 @@ class DiagnoseReportGenerator:
         total_space = data.get('total_space', {})
         tables = data.get('large_tables', [])
 
-        # 总体空间
+        # 总体空间 - 支持MB和GB两种单位
+        # MySQL返回的是GB单位，PostgreSQL返回的是MB单位
         total_gb = total_space.get('total_gb', 0)
         data_gb = total_space.get('data_gb', 0)
         index_gb = total_space.get('index_gb', 0)
 
-        lines.append("### 总体空间（仅统计InnoDB表）")
+        # 如果没有GB单位的数据，尝试从MB转换
+        if total_gb == 0 and 'total_mb' in total_space:
+            total_gb = total_space.get('total_mb', 0) / 1024
+            data_gb = total_space.get('data_mb', 0) / 1024
+            index_gb = total_space.get('index_mb', 0) / 1024
+
+        lines.append("### 总体空间")
         lines.append("")
 
         if total_gb > 0:
@@ -543,13 +550,18 @@ class DiagnoseReportGenerator:
         if tables:
             lines.append("### 大表 TOP 5")
             lines.append("")
-            lines.append("| 表名 | 行数(估算) | 数据空间 | 索引空间 | 建议操作 |")
+            lines.append("| 表名 | 行数(估算) | 数据大小 | 索引大小 | 建议操作 |")
             lines.append("|------|------------|----------|----------|----------|")
 
             for t in tables[:5]:
                 table_name = t.get('table', 'N/A')
                 rows = t.get('rows', 0)
+                # 支持GB和MB两种单位
                 size_gb = t.get('size_gb', 0)
+                if size_gb == 0 and 'size_mb' in t:
+                    size_gb = t.get('size_mb', 0) / 1024
+                data_mb = t.get('data_mb', 0)
+                index_mb = t.get('index_mb', 0)
                 engine = t.get('engine', 'N/A')
 
                 # 生成建议
@@ -560,7 +572,8 @@ class DiagnoseReportGenerator:
                 else:
                     suggestion = "定期监控增长趋势"
 
-                lines.append(f"| {table_name} | {rows:,} | {size_gb:.2f} GB | {engine} | {suggestion} |")
+                # 显示数据空间和索引空间
+                lines.append(f"| {table_name} | {rows:,} | {data_mb:.0f} MB | {index_mb:.0f} MB | {suggestion} |")
 
             lines.append("")
 

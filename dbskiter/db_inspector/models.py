@@ -206,6 +206,7 @@ class InspectionReport:
     high_count: int = 0                  # 高危风险数
     medium_count: int = 0                # 中危风险数
     low_count: int = 0                   # 低危风险数
+    info_count: int = 0                  # 信息项数
 
     # 巡检项
     items: List[InspectionItem] = field(default_factory=list)
@@ -232,15 +233,72 @@ class InspectionReport:
                 "critical_count": self.critical_count,
                 "high_count": self.high_count,
                 "medium_count": self.medium_count,
-                "low_count": self.low_count
+                "low_count": self.low_count,
+                "info_count": self.info_count
             },
             "health_score": self.health_score,
             "summary": self.summary,
             "items": [item.to_dict() for item in self.items]
         }
 
+    def get_health_grade(self) -> str:
+        """
+        获取健康等级
+
+        等级定义：
+            - healthy: >= 90分 (健康)
+            - subhealthy: 80-89分 (亚健康)
+            - risk: 60-79分 (风险)
+            - danger: < 60分 (高危)
+
+        返回:
+            str: 健康等级标识
+        """
+        if self.health_score >= 90:
+            return "healthy"
+        elif self.health_score >= 80:
+            return "subhealthy"
+        elif self.health_score >= 60:
+            return "risk"
+        else:
+            return "danger"
+
+    def get_health_grade_label(self) -> str:
+        """
+        获取健康等级中文标签
+
+        返回:
+            str: 健康等级中文标签
+        """
+        grade_labels = {
+            'healthy': '健康',
+            'subhealthy': '亚健康',
+            'risk': '风险',
+            'danger': '高危'
+        }
+        return grade_labels.get(self.get_health_grade(), '未知')
+
+    def get_pass_rate(self) -> float:
+        """
+        获取通过率
+
+        返回:
+            float: 通过率(0-1)
+        """
+        if self.total_items == 0:
+            return 1.0
+        return self.pass_count / self.total_items
+
     def generate_summary(self) -> str:
-        """生成报告摘要"""
+        """
+        生成报告摘要
+
+        返回:
+            str: 格式化的报告摘要
+        """
+        grade_label = self.get_health_grade_label()
+        pass_rate = self.get_pass_rate() * 100
+
         lines = [
             f"数据库巡检报告 - {self.instance_name}",
             f"巡检时间: {self.inspection_time.strftime('%Y-%m-%d %H:%M:%S')}",
@@ -248,7 +306,7 @@ class InspectionReport:
             f"",
             f"巡检统计:",
             f"  总巡检项: {self.total_items}",
-            f"  通过: {self.pass_count}",
+            f"  通过: {self.pass_count} ({pass_rate:.1f}%)",
             f"  警告: {self.warning_count}",
             f"  失败: {self.fail_count}",
             f"",
@@ -257,8 +315,9 @@ class InspectionReport:
             f"  高危: {self.high_count}",
             f"  中危: {self.medium_count}",
             f"  低危: {self.low_count}",
+            f"  信息: {self.info_count}",
             f"",
-            f"健康评分: {self.health_score:.1f}/100",
+            f"健康评分: {self.health_score:.1f}/100 ({grade_label})",
         ]
 
         if self.critical_count > 0:

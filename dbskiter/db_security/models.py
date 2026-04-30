@@ -133,14 +133,21 @@ class Risk:
     severity: str
     description: str
     category: str = ""
+    current_value: str = ""
+    recommended_value: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
-        return {
+        result = {
             "severity": self.severity,
             "description": self.description,
             "category": self.category
         }
+        if self.current_value:
+            result["current_value"] = self.current_value
+        if self.recommended_value:
+            result["recommended_value"] = self.recommended_value
+        return result
 
 
 @dataclass

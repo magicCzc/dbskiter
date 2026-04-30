@@ -541,3 +541,84 @@ class QueryExtractor:
                         })
 
         return conditions
+
+
+class TypeConverter:
+    """
+    类型转换器
+
+    功能:
+        - 安全地将数据库返回值转换为Python类型
+        - 处理None值和类型不一致的情况
+    """
+
+    @staticmethod
+    def safe_int(value: Any, default: int = 0) -> int:
+        """
+        安全转换为整数
+
+        参数:
+            value: 待转换的值
+            default: 默认值
+
+        返回:
+            int: 转换后的整数
+
+        示例:
+            >>> TypeConverter.safe_int("123")
+            123
+            >>> TypeConverter.safe_int(None, 0)
+            0
+            >>> TypeConverter.safe_int("abc", 0)
+            0
+        """
+        if value is None:
+            return default
+        try:
+            return int(str(value))
+        except (ValueError, TypeError):
+            return default
+
+    @staticmethod
+    def safe_float(value: Any, default: float = 0.0) -> float:
+        """
+        安全转换为浮点数
+
+        参数:
+            value: 待转换的值
+            default: 默认值
+
+        返回:
+            float: 转换后的浮点数
+
+        示例:
+            >>> TypeConverter.safe_float("123.45")
+            123.45
+            >>> TypeConverter.safe_float(None, 0.0)
+            0.0
+        """
+        if value is None:
+            return default
+        try:
+            return float(str(value))
+        except (ValueError, TypeError):
+            return default
+
+    @staticmethod
+    def safe_str(value: Any, default: str = "") -> str:
+        """
+        安全转换为字符串
+
+        参数:
+            value: 待转换的值
+            default: 默认值
+
+        返回:
+            str: 转换后的字符串
+        """
+        if value is None:
+            return default
+        try:
+            return str(value)
+        except (ValueError, TypeError):
+            return default

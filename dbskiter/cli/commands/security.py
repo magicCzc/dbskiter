@@ -78,11 +78,49 @@ class SecurityCommand(BaseCommand):
             return 1
 
         try:
-            # 初始化 Skill
             skill = SecuritySkill(self.connector)
-            
+
             action = getattr(self.args, 'security_action', None)
-            
+
+            if self.output_mode != "rule":
+                method_map = {
+                    "audit": lambda: skill.full_audit(),
+                    "sql-injection": lambda: skill.detect_sql_injection(self.args.sql),
+                    "sensitive-data": lambda: skill.scan_sensitive_data(
+                        tables=self.args.tables.split(',') if getattr(self.args, 'tables', None) else None,
+                        sample_size=getattr(self.args, 'sample_size', 100),
+                    ),
+                    "score": lambda: {"success": True, "data": skill.calculate_security_score(), "message": "安全评分完成"},
+                    "permissions": lambda: skill.audit_permissions(),
+                    "login-security": lambda: skill.check_login_security(
+                        hours=getattr(self.args, 'hours', 24),
+                    ),
+                    "audit-log": lambda: skill.analyze_audit_log(
+                        hours=getattr(self.args, 'hours', 24),
+                        users=getattr(self.args, 'users', '').split(',') if getattr(self.args, 'users', None) else None,
+                    ),
+                    "high-risk": lambda: skill.detect_high_risk_operations(
+                        hours=getattr(self.args, 'hours', 24),
+                    ),
+                    "password-policy": lambda: skill.check_password_policy(),
+                    "weak-passwords": lambda: skill.find_weak_passwords(),
+                    "config": lambda: skill.audit_config(),
+                }
+                scenario_map = {
+                    "audit": "security",
+                    "sql-injection": "sql_injection",
+                    "sensitive-data": "sensitive_data",
+                    "score": "security_score",
+                    "permissions": "permissions",
+                    "login-security": "login_security",
+                    "audit-log": "audit_log",
+                    "high-risk": "high_risk",
+                    "password-policy": "password_policy",
+                    "weak-passwords": "weak_passwords",
+                    "config": "config_security",
+                }
+                return self._execute_ai_mode(skill, action, method_map, scenario_map)
+
             # 安全命令路由
             if action == "audit":
                 return self._full_audit(skill)
@@ -396,24 +434,29 @@ class SecurityCommand(BaseCommand):
         """权限审计"""
         perm_result = skill.audit_permissions()
 
-        user_count = len(perm_result.get('users', []))
-        warning_count = len(perm_result.get('warnings', []))
+        data = perm_result.get('data', {})
+        total_users = data.get('total_users', 0)
+        risks = data.get('risks', [])
+        high_privilege_users = data.get('high_privilege_users', 0)
+        message = data.get('message', perm_result.get('message', ''))
 
-        summary = f"审计{user_count}个用户，发现{warning_count}个警告"
+        summary = message if message else f"审计{total_users}个用户，发现{len(risks)}个风险"
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: {summary}")
         self.output.print(f"{'='*60}")
 
         self.output.print(f"\n权限审计结果")
-        self.output.print(f"用户数: {user_count}")
+        self.output.print(f"用户数: {total_users}")
+        if high_privilege_users > 0:
+            self.output.print(f"高权限用户: {high_privilege_users}")
 
-        # 警告
-        warnings = perm_result.get('warnings', [])
-        if warnings:
-            self.output.warning(f"\n发现 {len(warnings)} 个警告:")
-            for i, warn in enumerate(warnings, 1):
-                self.output.warning(f"  [{i}] {warn}")
+        if risks:
+            self.output.warning(f"\n发现 {len(risks)} 个风险:")
+            for i, risk in enumerate(risks, 1):
+                severity = risk.get('severity', 'unknown')
+                desc = risk.get('description', '')
+                self.output.warning(f"  [{i}] [{severity.upper()}] {desc}")
 
         return 0
 
@@ -779,14 +822,24 @@ class SecurityCommand(BaseCommand):
             return 1
 
         data = result.get('data', {})
-        summary_data = data.get('summary', {})
-        total = summary_data.get('total_issues', 0)
-        critical = summary_data.get('critical_issues', 0)
-        high = summary_data.get('high_issues', 0)
-        medium = summary_data.get('medium_issues', 0)
-        low = summary_data.get('low_issues', 0)
 
-        summary = f"发现{total}个配置问题（严重:{critical}, 高:{high}, 中:{medium}, 低:{low}）"
+        # 兼容两种返回格式：MySQL返回summary+issues，Oracle返回risks
+        if data.get('summary'):
+            summary_data = data.get('summary', {})
+            total = summary_data.get('total_issues', 0)
+            critical = summary_data.get('critical_issues', 0)
+            high = summary_data.get('high_issues', 0)
+            medium = summary_data.get('medium_issues', 0)
+            low = summary_data.get('low_issues', 0)
+            summary = f"发现{total}个配置问题（严重:{critical}, 高:{high}, 中:{medium}, 低:{low}）"
+        else:
+            risks = data.get('risks', [])
+            total_checks = data.get('total_checks', data.get('total_checked', 0))
+            risks_found = len(risks)
+            high = sum(1 for r in risks if r.get('severity') == 'high')
+            medium = sum(1 for r in risks if r.get('severity') == 'medium')
+            low = sum(1 for r in risks if r.get('severity') == 'low')
+            summary = f"检查了{total_checks}项配置，发现{risks_found}个问题（高:{high}, 中:{medium}, 低:{low}）"
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: {summary}")
@@ -794,23 +847,24 @@ class SecurityCommand(BaseCommand):
 
         # 详细问题列表
         issues = data.get('issues', [])
-        if issues:
-            self.output.print(f"\n详细问题列表:")
-            for issue in issues[:20]:  # 最多显示20个
-                level = issue.get('level', 'unknown')
-                parameter = issue.get('parameter', 'unknown')
-                current = issue.get('current_value', 'N/A')
-                recommended = issue.get('recommended_value', 'N/A')
-                description = issue.get('description', '')
+        risks = data.get('risks', [])
+        all_items = issues if issues else risks
 
-                if level == 'critical':
-                    self.output.error(f"\n[严重] {parameter}")
-                elif level == 'high':
-                    self.output.warning(f"\n[高] {parameter}")
+        if all_items:
+            self.output.print(f"\n详细问题列表:")
+            for item in all_items[:20]:
+                level = item.get('level', item.get('severity', 'unknown'))
+                parameter = item.get('parameter', item.get('category', ''))
+                current = item.get('current_value', '')
+                recommended = item.get('recommended_value', item.get('suggestion', ''))
+                description = item.get('description', '')
+
+                if level in ('critical', 'high'):
+                    self.output.warning(f"\n[{level.upper()}] {description}")
                 elif level == 'medium':
-                    self.output.print(f"\n[中] {parameter}")
+                    self.output.print(f"\n[MEDIUM] {description}")
                 else:
-                    self.output.print(f"\n[低] {parameter}")
+                    self.output.print(f"\n[LOW] {description}")
 
                 self.output.print(f"  当前值: {current}")
                 self.output.print(f"  推荐值: {recommended}")

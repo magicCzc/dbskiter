@@ -525,13 +525,16 @@ class SQLFingerprinter:
         
         # 3. 基本结构检查
         first_word = sql.split()[0].upper()
-        valid_starts = {'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH', 
+        valid_starts = {'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'WITH',
                        'CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'REPLACE',
-                       'SHOW', 'DESCRIBE', 'EXPLAIN', 'CALL'}
-        
+                       'SHOW', 'DESCRIBE', 'EXPLAIN', 'CALL',
+                       # Oracle PL/SQL
+                       'BEGIN', 'DECLARE', 'FOR', 'IF', 'LOOP', 'WHILE',
+                       'MERGE', 'GRANT', 'REVOKE', 'ANALYZE'}
+
         if first_word not in valid_starts:
             return False, f"无效的SQL起始关键字: {first_word}"
-        
+
         return True, ""
     
     def fingerprint(self, sql: str, dialect: str = 'mysql') -> FingerprintResult:
@@ -615,7 +618,7 @@ class SQLFingerprinter:
         sql = self._replace_complex_patterns(sql)
         
         # 9. 替换LIMIT/ROWNUM（使用安全替换）
-        if dialect.lower() == 'oracle':
+        if 'oracle' in dialect.lower():
             sql = self._safe_regex_replace('rownum', sql, 'ROWNUM <= ?')
         else:
             sql = self._safe_regex_replace('limit', sql, 'LIMIT ?')
@@ -663,11 +666,11 @@ class SQLFingerprinter:
         sql = self.RE_PATTERNS['whitespace'].sub(' ', sql)
         
         # 方言特定处理
-        if dialect.lower() == 'mysql':
+        if 'mysql' in dialect.lower():
             sql = self._preprocess_mysql(sql)
-        elif dialect.lower() == 'oracle':
+        elif 'oracle' in dialect.lower():
             sql = self._preprocess_oracle(sql)
-        elif dialect.lower() == 'postgres':
+        elif 'postgresql' in dialect.lower():
             sql = self._preprocess_postgres(sql)
         
         return sql.strip()
@@ -788,7 +791,7 @@ class SQLFingerprinter:
     
     def _replace_limit_clause(self, sql: str, dialect: str) -> str:
         """替换LIMIT/ROWNUM子句"""
-        if dialect.lower() == 'oracle':
+        if 'oracle' in dialect.lower():
             # Oracle ROWNUM
             sql = self.RE_PATTERNS['rownum'].sub('ROWNUM <= ?', sql)
         else:
@@ -913,13 +916,22 @@ class SQLFingerprinter:
         """最终规范化"""
         # 统一为大写（可选，根据需求）
         # sql = sql.upper()
-        
-        # 移除多余空白
+
+        # 规范化空白：多个空格替换为单个，但保留换行用于可读性
+        sql = self.RE_PATTERNS['whitespace'].sub(' ', sql)
+
+        # 移除操作符周围的额外空格（保留一个）
+        sql = re.sub(r'\s*([(),=<>!+\-*/])\s*', r'\1', sql)
+
+        # 在关键字后保留空格
+        sql = re.sub(r'\b(SELECT|FROM|WHERE|AND|OR|ORDER|GROUP|HAVING|LIMIT|JOIN|ON|IN|EXISTS)\b', r' \1 ', sql, flags=re.IGNORECASE)
+
+        # 再次规范化多余空格
         sql = ' '.join(sql.split())
-        
+
         # 确保结尾没有分号（统一）
         sql = sql.rstrip(';')
-        
+
         return sql.strip()
     
     def aggregate(self, queries: List[Dict[str, Any]], 

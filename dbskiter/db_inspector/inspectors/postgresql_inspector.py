@@ -151,8 +151,8 @@ class PostgreSQLInspector(BaseInspector):
         try:
             # 检查缓存命中率
             result = self._execute_query("""
-                SELECT 
-                    ROUND(100.0 * sum(heap_blks_hit) / NULLIF(sum(heap_blks_hit) + sum(heap_blks_read), 0), 2)
+                SELECT
+                    ROUND((100.0 * sum(heap_blks_hit) / NULLIF(sum(heap_blks_hit) + sum(heap_blks_read), 0))::numeric, 2)
                 FROM pg_statio_user_tables
             """)
             hit_ratio = float(result[0][0]) if result and result[0][0] else 0
@@ -259,9 +259,9 @@ class PostgreSQLInspector(BaseInspector):
         try:
             # 检查数据库大小
             result = self._execute_query("""
-                SELECT 
+                SELECT
                     datname,
-                    ROUND(pg_database_size(datname) / 1024.0 / 1024 / 1024, 2) AS size_gb
+                    ROUND((pg_database_size(datname) / 1024.0 / 1024 / 1024)::numeric, 2) AS size_gb
                 FROM pg_database
                 WHERE datallowconn = true
                 ORDER BY pg_database_size(datname) DESC
@@ -280,10 +280,10 @@ class PostgreSQLInspector(BaseInspector):
 
             # 检查大表
             result = self._execute_query("""
-                SELECT 
+                SELECT
                     schemaname,
                     relname,
-                    ROUND(pg_total_relation_size(relid) / 1024.0 / 1024, 2) AS size_mb
+                    ROUND((pg_total_relation_size(relid) / 1024.0 / 1024)::numeric, 2) AS size_mb
                 FROM pg_stat_user_tables
                 WHERE pg_total_relation_size(relid) > %s * 1024 * 1024
                 ORDER BY pg_total_relation_size(relid) DESC
@@ -305,10 +305,10 @@ class PostgreSQLInspector(BaseInspector):
 
             # 检查膨胀表
             result = self._execute_query("""
-                SELECT 
+                SELECT
                     schemaname,
                     relname,
-                    ROUND(100 * (n_dead_tup::float / NULLIF(n_live_tup + n_dead_tup, 0)), 2) AS dead_pct
+                    ROUND((100 * (n_dead_tup::float / NULLIF(n_live_tup + n_dead_tup, 0)))::numeric, 2) AS dead_pct
                 FROM pg_stat_user_tables
                 WHERE n_dead_tup > 1000
                 AND (n_dead_tup::float / NULLIF(n_live_tup + n_dead_tup, 0)) > 0.2

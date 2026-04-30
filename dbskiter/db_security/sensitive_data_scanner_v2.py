@@ -356,7 +356,8 @@ class SensitiveDataScannerV2:
                         name_match=True,
                         content_confidence=content_confidence,
                         entropy=entropy,
-                        stats=stats
+                        stats=stats,
+                        column_name=col_name
                     )
 
                     # 8. 生成建议（包含加密信息）
@@ -439,8 +440,12 @@ class SensitiveDataScannerV2:
             # 获取总行数
             if "oracle" in self.dialect:
                 count_sql = f"SELECT COUNT(*) FROM {table_name.upper()}"
-            else:
+            elif "postgresql" in self.dialect:
+                count_sql = f'SELECT COUNT(*) FROM "{table_name}"'
+            elif self.dialect in ("mysql", "mysql+pymysql"):
                 count_sql = f"SELECT COUNT(*) FROM `{table_name}`"
+            else:
+                count_sql = f"SELECT COUNT(*) FROM {table_name}"
             count_result = self.connector.execute(count_sql)
             total_rows = int(count_result.rows[0][0]) if count_result.rows else 0
             stats["row_count"] = total_rows
@@ -448,7 +453,7 @@ class SensitiveDataScannerV2:
             # 采样查询
             if self.dialect in ("mysql", "mysql+pymysql"):
                 sql = f"SELECT `{column_name}` FROM `{table_name}` WHERE `{column_name}` IS NOT NULL LIMIT {sample_size}"
-            elif self.dialect == "postgresql":
+            elif "postgresql" in self.dialect:
                 sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
             elif self.dialect in ("sqlite", "sqlite3"):
                 sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
@@ -604,29 +609,48 @@ class SensitiveDataScannerV2:
             return level, "数据已加密存储"
 
     def _calculate_confidence(self, name_match: bool, content_confidence: float,
-                             entropy: float, stats: Dict) -> float:
+                             entropy: float, stats: Dict, column_name: str = "") -> float:
         """计算综合置信度"""
         confidence = 0.0
-        
-        # 字段名匹配权重
+
+        # 字段名匹配权重 - 根据字段名确定性调整
         if name_match:
-            confidence += 0.5
-        
+            col_lower = column_name.lower()
+
+            # 高确定性字段名（完全匹配敏感关键词）
+            high_confidence_keywords = [
+                "password", "passwd", "pwd", "secret", "token",
+                "api_key", "credit_card", "ssn", "social_security"
+            ]
+            # 中等确定性字段名（常见敏感字段）
+            medium_confidence_keywords = [
+                "name", "email", "phone", "address", "birth",
+                "gender", "salary", "income"
+            ]
+
+            if any(kw == col_lower for kw in high_confidence_keywords):
+                confidence += 0.7
+            elif any(kw in col_lower for kw in medium_confidence_keywords):
+                confidence += 0.6
+            else:
+                confidence += 0.5
+
         # 内容验证权重
-        confidence += content_confidence * 0.3
-        
+        if content_confidence > 0:
+            confidence += content_confidence * 0.2
+
         # 熵分析（高熵可能是加密数据）
-        if entropy > 4.0:  # 高熵阈值
-            confidence += 0.1
-        
+        if entropy > 4.5:  # 高熵阈值
+            confidence += 0.05
+
         # 唯一值比例（敏感数据通常唯一性高）
         row_count = stats.get("row_count", 0)
         unique_count = stats.get("unique_count", 0)
         if row_count > 0:
             unique_ratio = unique_count / row_count
-            if unique_ratio > 0.8:  # 高唯一性
-                confidence += 0.1
-        
+            if unique_ratio > 0.9:  # 高唯一性
+                confidence += 0.05
+
         return min(1.0, confidence)
     
     def _generate_recommendation(self, category: DataCategory, level: SensitivityLevel,

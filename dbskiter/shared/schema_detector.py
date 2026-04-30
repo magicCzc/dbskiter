@@ -102,7 +102,7 @@ class SchemaDetector:
                 return self._check_column_mysql(table, column, schema)
             elif "oracle" in self.dialect:
                 return self._check_column_oracle(table, column, schema)
-            elif "postgres" in self.dialect:
+            elif "postgresql" in self.dialect:
                 return self._check_column_postgres(table, column, schema)
             else:
                 # 通用方法：尝试查询
@@ -193,7 +193,7 @@ class SchemaDetector:
                 tables = self._get_tables_mysql(schema)
             elif "oracle" in self.dialect:
                 tables = self._get_tables_oracle(schema)
-            elif "postgres" in self.dialect:
+            elif "postgresql" in self.dialect:
                 tables = self._get_tables_postgres(schema)
 
         except Exception as e:

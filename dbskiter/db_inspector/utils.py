@@ -34,49 +34,103 @@ logger = logging.getLogger(__name__)
 
 class HealthScoreCalculator:
     """
-    健康评分计算器
+    健康评分计算器 - 扣分制算法
 
     功能：
-        - 基于风险等级计算健康评分
-        - 支持自定义权重配置
-        - 提供评分趋势分析
+        - 基于风险等级和分类维度的扣分制评分
+        - 支持分类权重配置和单项扣分上限控制
+        - 符合行业主流云厂商评分标准
+
+    算法说明：
+        1. 起始分数100分，逐项扣分
+        2. 不同风险等级有不同基准扣分值
+        3. 按巡检类型分类，各分类有权重系数
+        4. 设置分类扣分上限防止过度扣分
+        5. 保留最低10分基础分
+
+    参考标准：
+        - 阿里云DAS：分类加权扣分制
+        - 腾讯云DBbrain：复合扣分公式
+        - 火山引擎DBW：权重占比分配
     """
 
-    # 默认风险权重配置 - 使用加权平均算法
-    # 每个风险等级的问题有不同的权重分数
-    DEFAULT_WEIGHTS = {
-        RiskLevel.CRITICAL: 100,  # 严重问题权重100
-        RiskLevel.HIGH: 50,       # 高风险问题权重50
-        RiskLevel.MEDIUM: 20,     # 中风险问题权重20
-        RiskLevel.LOW: 5,         # 低风险问题权重5
-        RiskLevel.INFO: 0         # 信息项权重0
+    # 分类维度配置
+    # 权重总和为1.0，用于分配扣分额度
+    CATEGORY_CONFIG = {
+        InspectionType.CONFIGURATION: {
+            'weight': 0.20,
+            'label': '配置规范',
+            'max_deduction_ratio': 0.90  # 该分类最高扣分类权重的90%
+        },
+        InspectionType.PERFORMANCE: {
+            'weight': 0.30,
+            'label': '性能指标',
+            'max_deduction_ratio': 0.90
+        },
+        InspectionType.SECURITY: {
+            'weight': 0.25,
+            'label': '安全配置',
+            'max_deduction_ratio': 0.95  # 安全类问题更严重，允许扣更多
+        },
+        InspectionType.STORAGE: {
+            'weight': 0.15,
+            'label': '存储空间',
+            'max_deduction_ratio': 0.90
+        },
+        InspectionType.CAPACITY: {
+            'weight': 0.10,
+            'label': '容量规划',
+            'max_deduction_ratio': 0.90
+        },
     }
 
-    # 状态权重倍数
-    STATUS_MULTIPLIERS = {
-        'pass': 1.0,      # 通过得满分
-        'warning': 0.5,   # 警告得50%
-        'fail': 0.0,      # 失败得0分
-        'skip': 0         # 跳过的项不计算
+    # 风险等级基准扣分值
+    # 参考行业实践：严重问题扣分适中，避免单项过度影响
+    BASE_DEDUCTION = {
+        RiskLevel.CRITICAL: 12,   # 严重问题扣12分
+        RiskLevel.HIGH: 6,        # 高危问题扣6分
+        RiskLevel.MEDIUM: 2,      # 中等问题扣2分
+        RiskLevel.LOW: 0.5,       # 低危问题扣0.5分
+        RiskLevel.INFO: 0         # 信息项不扣分
     }
 
-    def __init__(self, weights: Optional[Dict[RiskLevel, int]] = None):
+    # 状态调整系数
+    # 警告状态按一定比例扣分，而非直接打对折
+    STATUS_FACTOR = {
+        'pass': 0.0,      # 通过不扣分
+        'warning': 0.7,   # 警告扣70%（比原来的50%更合理）
+        'fail': 1.0,      # 失败扣100%
+        'skip': 0.0       # 跳过不计算
+    }
+
+    # 总扣分上限（保留最低10分）
+    MAX_TOTAL_DEDUCTION = 90
+
+    # 最低保留分数
+    MIN_SCORE = 10
+
+    def __init__(self, category_config: Optional[Dict] = None,
+                 base_deduction: Optional[Dict] = None):
         """
         初始化评分计算器
 
         参数:
-            weights: 自定义风险权重，None使用默认权重
+            category_config: 自定义分类配置
+            base_deduction: 自定义风险等级扣分值
         """
-        self.weights = weights or self.DEFAULT_WEIGHTS.copy()
+        self.category_config = category_config or self.CATEGORY_CONFIG.copy()
+        self.base_deduction = base_deduction or self.BASE_DEDUCTION.copy()
 
     def calculate_score(self, items: List[InspectionItem]) -> float:
         """
-        计算健康评分 - 使用加权平均算法
+        计算健康评分 - 扣分制算法
 
-        算法说明:
-            - 每个检查项根据其风险等级有不同的权重
-            - 通过状态得满分，警告得50%，失败得0分
-            - 最终得分为加权平均分
+        计算步骤：
+            1. 按巡检类型分组统计
+            2. 计算各分类的扣分
+            3. 应用分类扣分上限
+            4. 汇总总扣分并应用总上限
+            5. 计算最终得分
 
         参数:
             items: 巡检项列表
@@ -87,52 +141,111 @@ class HealthScoreCalculator:
         if not items:
             return 100.0
 
-        # 过滤掉跳过的项和INFO级别的项
-        valid_items = [
-            item for item in items
-            if item.status != 'skip' and item.risk_level != RiskLevel.INFO
-        ]
+        # 过滤掉跳过的项
+        valid_items = [item for item in items if item.status != 'skip']
 
         if not valid_items:
             return 100.0
 
-        total_score = 0.0
-        total_weight = 0.0
+        # 按巡检类型分组
+        category_items = self._group_by_category(valid_items)
 
-        for item in valid_items:
-            # 处理 risk_level 可能是字符串或枚举的情况
+        # 计算各分类扣分
+        category_deductions = {}
+        for category, cat_items in category_items.items():
+            deduction = self._calculate_category_deduction(category, cat_items)
+            category_deductions[category] = deduction
+
+        # 汇总总扣分
+        total_deduction = sum(category_deductions.values())
+
+        # 应用总扣分上限
+        final_deduction = min(total_deduction, self.MAX_TOTAL_DEDUCTION)
+
+        # 计算最终得分
+        final_score = 100 - final_deduction
+
+        return max(self.MIN_SCORE, final_score)
+
+    def _group_by_category(self, items: List[InspectionItem]) -> Dict[InspectionType, List[InspectionItem]]:
+        """
+        按巡检类型分组
+
+        参数:
+            items: 巡检项列表
+
+        返回:
+            Dict: 按类型分组的字典
+        """
+        groups = {}
+        for item in items:
+            category = item.inspection_type
+            if isinstance(category, str):
+                try:
+                    category = InspectionType(category)
+                except ValueError:
+                    continue
+
+            if category not in groups:
+                groups[category] = []
+            groups[category].append(item)
+
+        return groups
+
+    def _calculate_category_deduction(self, category: InspectionType,
+                                       items: List[InspectionItem]) -> float:
+        """
+        计算单个分类的扣分
+
+        参数:
+            category: 巡检类型
+            items: 该类型的巡检项列表
+
+        返回:
+            float: 分类扣分值
+        """
+        # 获取分类配置
+        config = self.category_config.get(category, {
+            'weight': 0.20,
+            'max_deduction_ratio': 0.90
+        })
+
+        category_weight = config['weight']
+        max_ratio = config['max_deduction_ratio']
+
+        # 计算该分类的原始扣分
+        raw_deduction = 0.0
+        for item in items:
+            if item.status == 'pass':
+                continue
+
+            # 处理风险等级
             risk_level = item.risk_level
             if isinstance(risk_level, str):
                 try:
                     risk_level = RiskLevel(risk_level)
                 except ValueError:
-                    risk_level = RiskLevel.INFO
+                    continue
 
-            # 获取权重
-            weight = self.weights.get(risk_level, 0)
-            if weight == 0:
-                continue
+            # 获取基准扣分和状态系数
+            base = self.base_deduction.get(risk_level, 0)
+            status_factor = self.STATUS_FACTOR.get(item.status, 0.5)
 
-            # 根据状态计算得分
-            status_multiplier = self.STATUS_MULTIPLIERS.get(item.status, 0.5)
-            item_score = 100.0 * status_multiplier
+            # 计算单项扣分
+            item_deduction = base * status_factor
+            raw_deduction += item_deduction
 
-            total_score += item_score * weight
-            total_weight += weight
+        # 分类扣分上限 = 分类权重 * 100 * 最大扣分比例
+        # 例如：安全配置权重0.25，最多扣 0.25 * 100 * 0.95 = 23.75分
+        max_category_deduction = category_weight * 100 * max_ratio
 
-        if total_weight == 0:
-            return 100.0
+        # 应用分类扣分上限
+        actual_deduction = min(raw_deduction, max_category_deduction)
 
-        # 计算加权平均分
-        final_score = total_score / total_weight
+        return actual_deduction
 
-        return max(0.0, min(100.0, final_score))
-
-    def calculate_category_score(
-        self,
-        items: List[InspectionItem],
-        inspection_type: InspectionType
-    ) -> float:
+    def calculate_category_score(self, items: List[InspectionItem],
+                                  inspection_type: InspectionType) -> float:
         """
         计算特定类别的健康评分
 
@@ -151,28 +264,102 @@ class HealthScoreCalculator:
         if not category_items:
             return 100.0
 
-        return self.calculate_score(category_items)
+        deduction = self._calculate_category_deduction(inspection_type, category_items)
+        return max(self.MIN_SCORE, 100 - deduction)
 
     def get_score_grade(self, score: float) -> str:
         """
-        获取评分等级
+        获取评分等级 - 符合行业标准分级
+
+        等级定义：
+            - healthy(健康): >= 90分
+            - subhealthy(亚健康): 80-89分
+            - risk(风险): 60-79分
+            - danger(高危): < 60分
 
         参数:
             score: 健康评分
 
         返回:
-            str: 评分等级(excellent/good/warning/poor/critical)
+            str: 评分等级(healthy/subhealthy/risk/danger)
         """
         if score >= 90:
-            return "excellent"
+            return "healthy"
         elif score >= 80:
-            return "good"
+            return "subhealthy"
         elif score >= 60:
-            return "warning"
-        elif score >= 40:
-            return "poor"
+            return "risk"
         else:
-            return "critical"
+            return "danger"
+
+    def get_score_grade_label(self, score: float) -> str:
+        """
+        获取评分等级的中文标签
+
+        参数:
+            score: 健康评分
+
+        返回:
+            str: 等级中文标签
+        """
+        grade = self.get_score_grade(score)
+        labels = {
+            'healthy': '健康',
+            'subhealthy': '亚健康',
+            'risk': '风险',
+            'danger': '高危'
+        }
+        return labels.get(grade, '未知')
+
+    def get_score_details(self, items: List[InspectionItem]) -> Dict[str, Any]:
+        """
+        获取详细的评分计算信息
+
+        参数:
+            items: 巡检项列表
+
+        返回:
+            Dict: 评分详情，包含各分类扣分明细
+        """
+        if not items:
+            return {
+                'total_score': 100.0,
+                'total_deduction': 0.0,
+                'category_details': {},
+                'grade': 'healthy',
+                'grade_label': '健康'
+            }
+
+        valid_items = [item for item in items if item.status != 'skip']
+        category_items = self._group_by_category(valid_items)
+
+        category_details = {}
+        for category, cat_items in category_items.items():
+            config = self.category_config.get(category, {
+                'weight': 0.20,
+                'label': '未分类'
+            })
+
+            deduction = self._calculate_category_deduction(category, cat_items)
+            category_details[category.value] = {
+                'label': config['label'],
+                'weight': config['weight'],
+                'deduction': round(deduction, 2),
+                'item_count': len(cat_items),
+                'score': round(max(self.MIN_SCORE, 100 - deduction), 1)
+            }
+
+        total_deduction = sum(d['deduction'] for d in category_details.values())
+        final_deduction = min(total_deduction, self.MAX_TOTAL_DEDUCTION)
+        final_score = max(self.MIN_SCORE, 100 - final_deduction)
+
+        return {
+            'total_score': round(final_score, 1),
+            'total_deduction': round(final_deduction, 2),
+            'category_details': category_details,
+            'grade': self.get_score_grade(final_score),
+            'grade_label': self.get_score_grade_label(final_score)
+        }
 
 
 class ReportFormatter:
@@ -183,53 +370,13 @@ class ReportFormatter:
         - 生成多种格式的巡检报告
         - 支持HTML/Markdown/JSON格式
         - 提供报告模板定制
+        - 集成增强型报告生成器（可视化图表、风险优先级排序）
     """
-
-    # HTML报告模板
-    HTML_TEMPLATE = """
-<!DOCTYPE html>
-<html>
-<head>
-    <title>数据库巡检报告 - {instance_name}</title>
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }}
-        .container {{ max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }}
-        h1 {{ color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }}
-        h2 {{ color: #555; margin-top: 30px; }}
-        .summary {{ background: #f8f9fa; padding: 15px; border-radius: 5px; margin: 20px 0; }}
-        .score {{ font-size: 24px; font-weight: bold; }}
-        .score-good {{ color: #28a745; }}
-        .score-warning {{ color: #ffc107; }}
-        .score-danger {{ color: #dc3545; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-        th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }}
-        th {{ background: #007bff; color: white; }}
-        tr:hover {{ background: #f5f5f5; }}
-        .badge {{ padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }}
-        .badge-pass {{ background: #d4edda; color: #155724; }}
-        .badge-warning {{ background: #fff3cd; color: #856404; }}
-        .badge-fail {{ background: #f8d7da; color: #721c24; }}
-        .badge-critical {{ background: #dc3545; color: white; }}
-        .badge-high {{ background: #fd7e14; color: white; }}
-        .badge-medium {{ background: #ffc107; color: black; }}
-        .badge-low {{ background: #17a2b8; color: white; }}
-        .badge-info {{ background: #6c757d; color: white; }}
-        .suggestion {{ color: #666; font-style: italic; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>数据库巡检报告</h1>
-        {content}
-    </div>
-</body>
-</html>
-"""
 
     @staticmethod
     def format_html(report: InspectionReport) -> str:
         """
-        格式化为HTML报告
+        格式化为HTML报告（使用增强型报告生成器）
 
         参数:
             report: 巡检报告
@@ -237,101 +384,14 @@ class ReportFormatter:
         返回:
             str: HTML格式报告
         """
-        score_class = (
-            "score-good" if report.health_score >= 80
-            else "score-warning" if report.health_score >= 60
-            else "score-danger"
-        )
-
-        # 格式化数据库类型显示
-        db_type = report.database_type
-        if 'mysql' in db_type.lower():
-            db_type_display = 'MySQL'
-        elif 'oracle' in db_type.lower():
-            db_type_display = 'Oracle'
-        elif 'postgres' in db_type.lower():
-            db_type_display = 'PostgreSQL'
-        else:
-            db_type_display = db_type
-
-        summary_html = f"""
-        <div class="summary">
-            <h2>报告概览</h2>
-            <p><strong>实例标识:</strong> {report.instance_name}</p>
-            <p><strong>数据库类型:</strong> {db_type_display}</p>
-            <p><strong>数据库版本:</strong> {report.database_version}</p>
-            <p><strong>巡检时间:</strong> {report.inspection_time.strftime('%Y-%m-%d %H:%M:%S')}</p>
-            <p><strong>耗时:</strong> {report.duration_seconds}秒</p>
-            <p><strong>健康评分:</strong>
-                <span class="score {score_class}">{report.health_score:.1f}</span>
-            </p>
-            <p><strong>统计:</strong>
-                总计 {report.total_items} 项 |
-                通过 {report.pass_count} 项 |
-                警告 {report.warning_count} 项 |
-                失败 {report.fail_count} 项
-            </p>
-        </div>
-        """
-
-        items_html = ReportFormatter._format_items_html(report.items)
-
-        content = summary_html + items_html
-
-        return ReportFormatter.HTML_TEMPLATE.format(
-            instance_name=report.instance_name,
-            content=content
-        )
-
-    @staticmethod
-    def _format_items_html(items: List[InspectionItem]) -> str:
-        """格式化巡检项为HTML表格"""
-        html = """
-        <h2>详细检查结果</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>检查项</th>
-                    <th>类型</th>
-                    <th>风险等级</th>
-                    <th>状态</th>
-                    <th>描述</th>
-                    <th>实际值</th>
-                    <th>参考值</th>
-                    <th>建议</th>
-                </tr>
-            </thead>
-            <tbody>
-        """
-
-        for item in items:
-            status_class = f"badge-{item.status}"
-            risk_class = f"badge-{item.risk_level.value}"
-
-            html += f"""
-                <tr>
-                    <td>{item.name}</td>
-                    <td>{item.inspection_type.value}</td>
-                    <td><span class="badge {risk_class}">{item.risk_level.value.upper()}</span></td>
-                    <td><span class="badge {status_class}">{item.status.upper()}</span></td>
-                    <td>{item.description}</td>
-                    <td>{item.actual_value or '-'}</td>
-                    <td>{item.reference or '-'}</td>
-                    <td class="suggestion">{item.suggestion or '-'}</td>
-                </tr>
-            """
-
-        html += """
-            </tbody>
-        </table>
-        """
-
-        return html
+        # 使用增强型报告生成器
+        from .report_generator import EnhancedReportGenerator
+        return EnhancedReportGenerator.generate_html_report(report)
 
     @staticmethod
     def format_markdown(report: InspectionReport) -> str:
         """
-        格式化为Markdown报告
+        格式化为Markdown报告（使用增强型报告生成器）
 
         参数:
             report: 巡检报告
@@ -339,51 +399,9 @@ class ReportFormatter:
         返回:
             str: Markdown格式报告
         """
-        # 格式化数据库类型显示
-        db_type = report.database_type
-        if 'mysql' in db_type.lower():
-            db_type_display = 'MySQL'
-        elif 'oracle' in db_type.lower():
-            db_type_display = 'Oracle'
-        elif 'postgres' in db_type.lower():
-            db_type_display = 'PostgreSQL'
-        else:
-            db_type_display = db_type
-
-        md = f"""# 数据库巡检报告
-
-## 报告概览
-
-| 项目 | 值 |
-|------|-----|
-| 实例标识 | {report.instance_name} |
-| 数据库类型 | {db_type_display} |
-| 数据库版本 | {report.database_version} |
-| 巡检时间 | {report.inspection_time.strftime('%Y-%m-%d %H:%M:%S')} |
-| 耗时 | {report.duration_seconds}秒 |
-| 健康评分 | {report.health_score:.1f}/100 |
-
-## 统计信息
-
-- 总计: {report.total_items} 项
-- 通过: {report.pass_count} 项
-- 警告: {report.warning_count} 项
-- 失败: {report.fail_count} 项
-- 严重: {report.critical_count} 项
-- 高危: {report.high_count} 项
-- 中危: {report.medium_count} 项
-- 低危: {report.low_count} 项
-
-## 详细检查结果
-
-| 检查项 | 类型 | 风险等级 | 状态 | 描述 | 实际值 | 参考值 | 建议 |
-|--------|------|----------|------|------|--------|--------|------|
-"""
-
-        for item in report.items:
-            md += f"| {item.name} | {item.inspection_type.value} | {item.risk_level.value} | {item.status} | {item.description} | {item.actual_value or '-'} | {item.reference or '-'} | {item.suggestion or '-'} |\n"
-
-        return md
+        # 使用增强型报告生成器
+        from .report_generator import EnhancedReportGenerator
+        return EnhancedReportGenerator.generate_markdown_report(report)
 
     @staticmethod
     def format_json(report: InspectionReport) -> str:

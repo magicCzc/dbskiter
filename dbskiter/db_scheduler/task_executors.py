@@ -517,7 +517,7 @@ class AnalyzeExecutor(BaseTaskExecutor):
         """分析单个表"""
         if dialect in ("mysql", "mysql+pymysql"):
             sql = f"ANALYZE TABLE `{table}`"
-        elif dialect == "postgresql":
+        elif "postgresql" in dialect:
             sql = f"ANALYZE {table}"
         elif dialect in ("sqlite", "sqlite3"):
             sql = f"ANALYZE {table}"
@@ -625,7 +625,7 @@ class VacuumExecutor(BaseTaskExecutor):
     
     def _vacuum_table(self, dialect: str, table: str, full: bool):
         """清理单个表"""
-        if dialect == "postgresql":
+        if "postgresql" in dialect:
             vacuum_type = "FULL" if full else ""
             sql = f"VACUUM {vacuum_type} {table}"
         elif dialect in ("mysql", "mysql+pymysql"):
@@ -634,27 +634,26 @@ class VacuumExecutor(BaseTaskExecutor):
             sql = "VACUUM"
         else:
             raise ValueError(f"不支持的数据库类型: {dialect}")
-        
+
         self.connector.execute(sql)
-    
+
     def _vacuum_database(self, dialect: str, full: bool):
         """清理整个数据库"""
-        if dialect == "postgresql":
+        if "postgresql" in dialect:
             vacuum_type = "FULL" if full else ""
             sql = f"VACUUM {vacuum_type}"
         elif dialect in ("sqlite", "sqlite3"):
             sql = "VACUUM"
         elif dialect in ("mysql", "mysql+pymysql"):
-            # MySQL不支持全局VACUUM
             raise NotImplementedError("MySQL不支持全局VACUUM，请指定表名")
         else:
             raise ValueError(f"不支持的数据库类型: {dialect}")
-        
+
         self.connector.execute(sql)
-    
+
     def _analyze_after_vacuum(self, dialect: str, tables: Optional[List[str]]):
         """清理后分析"""
-        if dialect == "postgresql":
+        if "postgresql" in dialect:
             if tables:
                 for table in tables:
                     self.connector.execute(f"ANALYZE {table}")
@@ -773,7 +772,7 @@ class ReindexExecutor(BaseTaskExecutor):
     def _reindex(self, dialect: str, table: Optional[str] = None, 
                 index: Optional[str] = None, concurrently: bool = True):
         """重建索引"""
-        if dialect == "postgresql":
+        if "postgresql" in dialect:
             concurrent_flag = "CONCURRENTLY" if concurrently else ""
             if index:
                 sql = f"REINDEX INDEX {concurrent_flag} {index}"
@@ -914,10 +913,8 @@ class CheckExecutor(BaseTaskExecutor):
                 if not index_result.rows:
                     result["issues"].append("表没有索引")
         
-        elif dialect == "postgresql":
-            # PostgreSQL检查
+        elif "postgresql" in dialect:
             if check_type in ("integrity", "all"):
-                # 使用pg_check工具或系统表检查
                 pass
         
         return result
