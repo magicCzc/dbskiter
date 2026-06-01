@@ -10,9 +10,11 @@ CLI 主入口
 """
 
 import sys
+import logging
 import argparse
 from typing import List, Optional
 
+from .. import __version__
 from .config import Config, MultiDBConfig
 from .output import OutputFormatter
 from .exceptions import CLIError, ConfigError
@@ -52,7 +54,7 @@ def create_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--version",
         action="version",
-        version="%(prog)s 2.0.0"
+        version=f"%(prog)s {__version__}"
     )
     parser.add_argument(
         "--json",
@@ -111,6 +113,12 @@ def create_parser() -> argparse.ArgumentParser:
         "--debug",
         action="store_true",
         help="调试模式（显示详细错误信息）"
+    )
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="WARNING",
+        help="日志级别（默认WARNING）"
     )
     parser.add_argument(
         "--output-mode",
@@ -183,6 +191,16 @@ def main(args: Optional[List[str]] = None) -> int:
     
     # 解析参数
     parsed_args = parser.parse_args(args)
+    
+    # 配置日志
+    log_level_name = getattr(parsed_args, 'log_level', 'WARNING')
+    if getattr(parsed_args, 'debug', False):
+        log_level_name = 'DEBUG'
+    logging.basicConfig(
+        level=getattr(logging, log_level_name, logging.WARNING),
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
     
     # 如果没有子命令，显示帮助
     if not parsed_args.command:

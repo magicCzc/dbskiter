@@ -12,15 +12,27 @@ description: |
   - 用户说"推荐索引" -> 执行 recommend-indexes "<SQL>"
 
   用法：
-  - dbskiter --output-mode=ai --database=<name> audit sql "SELECT * FROM users"
-  - dbskiter --output-mode=ai --database=<name> audit file queries.sql
-  - dbskiter --output-mode=ai --database=<name> audit ddl "ALTER TABLE users ADD COLUMN age INT"
-  - dbskiter --output-mode=ai --database=<name> audit rules
-  - dbskiter --output-mode=ai --database=<name> audit optimize "SELECT * FROM users WHERE age > 18"
-  - dbskiter --output-mode=ai --database=<name> audit recommend-indexes "SELECT * FROM orders WHERE user_id = 1"
+  - python -m dbskiter --output-mode=ai --database=<name> audit sql "SELECT * FROM users"
+  - python -m dbskiter --output-mode=ai --database=<name> audit file queries.sql
+  - python -m dbskiter --output-mode=ai --database=<name> audit ddl "ALTER TABLE users ADD COLUMN age INT"
+  - python -m dbskiter --output-mode=ai --database=<name> audit rules
+  - python -m dbskiter --output-mode=ai --database=<name> audit optimize "SELECT * FROM users WHERE age > 18"
+  - python -m dbskiter --output-mode=ai --database=<name> audit recommend-indexes "SELECT * FROM orders WHERE user_id = 1"
 ---
 
 # SQL审核 Skill
+
+## 安全原则
+
+本Skill的所有操作均为只读分析和建议，不会修改任何数据：
+
+| 规则 | 说明 |
+|------|------|
+| 只读操作 | 审核命令只分析SQL语法和性能，不执行SQL |
+| 禁止执行被审核的SQL | audit sql只审核，不执行被审核的SQL语句 |
+| 优化建议仅供参考 | optimize只提供重写建议，不自动执行优化后的SQL |
+| 索引推荐仅供参考 | recommend-indexes只提供CREATE INDEX建议，不自动执行 |
+| DDL影响分析只评估 | audit ddl只评估影响，不执行DDL语句 |
 
 ## 何时使用
 
@@ -28,19 +40,19 @@ description: |
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "审核SQL" | `dbskiter --output-mode=ai --database=<name> audit sql "<SQL>"` | 审核单条SQL |
-| "检查规范" | `dbskiter --output-mode=ai --database=<name> audit sql "<SQL>"` | 检查SQL规范 |
-| "DDL影响" | `dbskiter --output-mode=ai --database=<name> audit ddl "<DDL>"` | 分析DDL影响 |
-| "审核文件" | `dbskiter --output-mode=ai --database=<name> audit file <path>` | 审核SQL文件 |
-| "查看规则" | `dbskiter --output-mode=ai --database=<name> audit rules` | 查看审核规则 |
-| "优化SQL" | `dbskiter --output-mode=ai --database=<name> audit optimize "<SQL>"` | SQL智能优化 |
-| "推荐索引" | `dbskiter --output-mode=ai --database=<name> audit recommend-indexes "<SQL>"` | 索引推荐 |
+| "审核SQL" | `python -m dbskiter --output-mode=ai --database=<name> audit sql "<SQL>"` | 审核单条SQL |
+| "检查规范" | `python -m dbskiter --output-mode=ai --database=<name> audit sql "<SQL>"` | 检查SQL规范 |
+| "DDL影响" | `python -m dbskiter --output-mode=ai --database=<name> audit ddl "<DDL>"` | 分析DDL影响 |
+| "审核文件" | `python -m dbskiter --output-mode=ai --database=<name> audit file <path>` | 审核SQL文件 |
+| "查看规则" | `python -m dbskiter --output-mode=ai --database=<name> audit rules` | 查看审核规则 |
+| "优化SQL" | `python -m dbskiter --output-mode=ai --database=<name> audit optimize "<SQL>"` | SQL智能优化 |
+| "推荐索引" | `python -m dbskiter --output-mode=ai --database=<name> audit recommend-indexes "<SQL>"` | 索引推荐 |
 
 ## 核心命令
 
 ### 1. 审核SQL
 ```bash
-dbskiter --database=<数据库名> audit sql "SELECT * FROM users WHERE id = 1"
+python -m dbskiter --database=<数据库名> audit sql "SELECT * FROM users WHERE id = 1"
 ```
 **输出**：审核评分、问题列表、修复建议
 
@@ -54,7 +66,7 @@ dbskiter --database=<数据库名> audit sql "SELECT * FROM users WHERE id = 1"
 
 ### 2. DDL影响分析
 ```bash
-dbskiter --database=<数据库名> audit ddl "ALTER TABLE users ADD COLUMN age INT"
+python -m dbskiter --database=<数据库名> audit ddl "ALTER TABLE users ADD COLUMN age INT"
 ```
 **输出**：预估执行时间、风险点、建议
 
@@ -63,7 +75,7 @@ dbskiter --database=<数据库名> audit ddl "ALTER TABLE users ADD COLUMN age I
 
 ### 3. 审核SQL文件
 ```bash
-dbskiter --database=<数据库名> audit file queries.sql
+python -m dbskiter --database=<数据库名> audit file queries.sql
 ```
 **用途**：批量审核多个SQL语句
 
@@ -75,7 +87,7 @@ dbskiter --database=<数据库名> audit file queries.sql
 
 ### 4. 查看审核规则
 ```bash
-dbskiter --database=<数据库名> audit rules
+python -m dbskiter --database=<数据库名> audit rules
 ```
 **输出**：所有审核规则列表
 

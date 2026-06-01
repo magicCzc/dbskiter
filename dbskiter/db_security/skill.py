@@ -27,18 +27,15 @@ import logging
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
 
-from dbskiter.shared.unified_connector import UnifiedConnector, detect_connector_type
+from dbskiter.shared.unified_connector import UnifiedConnector
 
 # 导入子模块
 from .models import (
-    ErrorCode, ErrorMessage,
-    RiskLevel, InjectionType, SensitivityLevel, DataCategory,
-    Risk, RiskReport, SecurityConfig,
-    SQLInjectionResult, SensitiveDataResult,
+    ErrorCode,
+    Risk, SecurityConfig,
     create_success_response, create_error_response
 )
 from .utils import (
-    PatternMatcher, EntropyCalculator,
     RiskScorer, ReportFormatter, SecurityAuditor
 )
 from .sql_injection_detector_v2 import SQLInjectionDetectorV2
@@ -48,9 +45,6 @@ from .audit_log_analyzer import AuditLogAnalyzer
 from .password_policy_checker import PasswordPolicyChecker
 from .advanced_security_analyzer import (
     AdvancedSecurityAnalyzer,
-    BehaviorAnalyzer,
-    DataFlowAnalyzer,
-    ComplianceChecker,
     ThreatLevel
 )
 
@@ -571,7 +565,7 @@ class SecuritySkill:
                             "findings_count": len(findings)
                         })
                 except Exception as e:
-                    logger.debug(f"分析SQL样本失败: {e}")
+                    logger.warning(f"分析SQL样本失败: {e}")
                     continue
 
             return {
@@ -630,7 +624,7 @@ class SecuritySkill:
                         if row[0]:
                             samples.append(row[0])
                 except Exception as e:
-                    logger.debug(f"无法从performance_schema获取SQL: {e}")
+                    logger.warning(f"无法从performance_schema获取SQL: {e}")
 
                 # 尝试从慢查询日志表获取
                 try:
@@ -645,7 +639,7 @@ class SecuritySkill:
                         if row[0]:
                             samples.append(row[0])
                 except Exception as e:
-                    logger.debug(f"无法从slow_log获取SQL: {e}")
+                    logger.warning(f"无法从slow_log获取SQL: {e}")
 
             elif db_type == 'postgresql':
                 # 从pg_stat_statements获取
@@ -661,7 +655,7 @@ class SecuritySkill:
                         if row[0]:
                             samples.append(row[0])
                 except Exception as e:
-                    logger.debug(f"无法从pg_stat_statements获取SQL: {e}")
+                    logger.warning(f"无法从pg_stat_statements获取SQL: {e}")
 
             elif db_type == 'oracle':
                 # 从v$sql获取当前SQL缓存
@@ -684,7 +678,7 @@ class SecuritySkill:
                         if row[0]:
                             samples.append(row[0])
                 except Exception as e:
-                    logger.debug(f"无法从v$sql获取SQL: {e}")
+                    logger.warning(f"无法从v$sql获取SQL: {e}")
 
                 # 尝试从AWR历史数据获取（需要DBA权限）
                 try:
@@ -706,7 +700,7 @@ class SecuritySkill:
                         if row[0]:
                             samples.append(row[0])
                 except Exception as e:
-                    logger.debug(f"无法从AWR获取SQL: {e}")
+                    logger.warning(f"无法从AWR获取SQL: {e}")
 
             # 去重并返回
             return list(set(samples))
@@ -787,10 +781,26 @@ class SecuritySkill:
                 metrics["risk_score"] = data["risk_score"]
 
         elif scenario == "sensitive_data":
-            if "sensitive_columns" in data:
-                metrics["sensitive_columns"] = data["sensitive_columns"]
+            # 提取敏感数据扫描的完整结果
             if "total_findings" in data:
                 metrics["total_findings"] = data["total_findings"]
+            if "total_tables" in data:
+                metrics["total_tables"] = data["total_tables"]
+            if "tables_scanned" in data:
+                metrics["tables_scanned"] = data["tables_scanned"]
+            if "by_level" in data:
+                metrics["by_level"] = data["by_level"]
+            if "by_category" in data:
+                metrics["by_category"] = data["by_category"]
+            # 包含详细的敏感字段发现
+            if "all_findings" in data:
+                metrics["all_findings"] = data["all_findings"]
+            if "critical_findings" in data:
+                metrics["critical_findings"] = data["critical_findings"]
+            if "high_findings" in data:
+                metrics["high_findings"] = data["high_findings"]
+            if "sampling_info" in data:
+                metrics["sampling_info"] = data["sampling_info"]
 
         elif scenario in ("permissions", "login_security", "audit_log", "high_risk", "password_policy", "weak_passwords", "config_security"):
             # 这些场景直接返回data中的关键字段

@@ -44,7 +44,7 @@ import time
 import threading
 import json
 import shutil
-from typing import Dict, List, Optional, Set, Any, Callable
+from typing import Dict, List, Optional, Set, Any
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path

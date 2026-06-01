@@ -17,6 +17,7 @@
         return handle_exception(e, context="执行操作")
 """
 
+import builtins
 from typing import Dict, Any, Optional, Type
 from datetime import datetime
 from enum import Enum
@@ -167,8 +168,8 @@ class ConfigError(SkillError):
         super().__init__(ErrorCode.CONFIG_INVALID, message, details, cause)
 
 
-class PermissionError(SkillError):
-    """权限错误"""
+class DBPermissionError(SkillError):
+    """数据库权限错误"""
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None, cause: Optional[Exception] = None):
         super().__init__(ErrorCode.PERMISSION_DENIED, message, details, cause)
 
@@ -179,8 +180,8 @@ class ValidationError(SkillError):
         super().__init__(ErrorCode.CONFIG_INVALID, message, details, cause)
 
 
-class TimeoutError(SkillError):
-    """超时错误"""
+class DBTimeoutError(SkillError):
+    """数据库超时错误"""
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None, cause: Optional[Exception] = None):
         super().__init__(ErrorCode.CONNECTION_TIMEOUT, message, details, cause)
 
@@ -195,50 +196,49 @@ def create_error_response(
     error: Any,
     context: Optional[Any] = None,
     include_traceback: bool = False,
-    error_code: Optional[ErrorCode] = None,
+    error_code: Optional[Any] = None,
     details: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """
     创建标准错误响应
-    
+
     统一的错误响应格式，所有 Skill 都应该使用此函数创建错误响应
-    
+
     支持多种调用方式：
     方式1（异常对象）：create_error_response(exception, context="操作")
-    方式2（消息+错误码）：create_error_response("错误消息", ErrorCode.XXX)
-    方式3（消息+error_code参数）：create_error_response("错误消息", error_code=ErrorCode.XXX)
-    
+    方式2（消息+错误码字符串）：create_error_response("错误消息", "MON000001")
+    方式3（消息+error_code参数+details）：create_error_response("错误消息", error_code="MON000001", details={...})
+
     参数:
         error: Exception 或 str - 异常对象或错误消息
-        context: Optional[str] 或 ErrorCode - 错误上下文或错误码
+        context: Optional[str] 或 str - 错误上下文或错误码字符串
         include_traceback: bool - 是否包含堆栈跟踪，默认为False
-        error_code: Optional[ErrorCode] - 错误码（方式3使用）
+        error_code: Optional[str] - 错误码字符串（方式3使用）
         details: Optional[Dict] - 详细错误信息
-    
+
     返回:
         Dict[str, Any] - 标准格式的错误响应字典
-    
+
     使用示例：
         >>> # 方式1：异常对象
         >>> try:
         ...     result = execute_query(sql)
         ... except Exception as e:
         ...     return create_error_response(e, context="执行SQL查询")
-        
-        >>> # 方式2：消息+错误码
-        >>> return create_error_response("参数错误", ErrorCode.INVALID_PARAM)
-        
+
+        >>> # 方式2：消息+错误码字符串
+        >>> return create_error_response("参数错误", "DIA000002")
+
         >>> # 方式3：消息+error_code参数+details
-        >>> return create_error_response("连接失败", error_code=ErrorCode.CONNECTION_FAILED, details={"host": "localhost"})
+        >>> return create_error_response("连接失败", error_code="MON100003", details={"host": "localhost"})
     """
     timestamp = datetime.now().isoformat()
-    
-    # 判断调用方式
+
     if isinstance(error, Exception):
-        # 方式1：异常对象
         if isinstance(error, SkillError):
+            code_str = error.code.value if hasattr(error.code, 'value') else str(error.code)
             error_info = {
-                "code": error.code.value,
+                "code": code_str,
                 "type": type(error).__name__,
                 "message": error.message,
                 "context": context if isinstance(context, str) else None,
@@ -246,7 +246,6 @@ def create_error_response(
                 "timestamp": error.timestamp
             }
         else:
-            # 普通异常
             mapped_code = _map_exception_to_code(error)
             error_info = {
                 "code": mapped_code.value,
@@ -256,38 +255,34 @@ def create_error_response(
                 "details": details or {},
                 "timestamp": timestamp
             }
-        
-        # 可选：添加堆栈跟踪
+
         if include_traceback:
             error_info["traceback"] = traceback.format_exc()
-        
+
         response = {
             "success": False,
             "error": error_info,
             "timestamp": timestamp
         }
-        
-        # 记录错误日志
-        log_level = logging.ERROR if error_info["code"].startswith("5") else logging.WARNING
+
+        log_level = logging.ERROR if str(error_info.get("code", "")).startswith("5") else logging.WARNING
         logger.log(log_level, f"[{error_info['code']}] {context}: {error_info['message']}")
-        
+
         return response
     else:
-        # 方式2或3：消息+错误码
         message = str(error)
-        
-        # 优先使用 error_code 参数，其次使用 context 参数
+
         if error_code is not None:
-            final_error_code = error_code
-        elif isinstance(context, ErrorCode):
-            final_error_code = context
+            final_error_code = error_code.value if hasattr(error_code, 'value') else str(error_code)
+        elif isinstance(context, str) and not context.startswith("DB_"):
+            final_error_code = str(context) if context else "9999"
         else:
-            final_error_code = ErrorCode.UNKNOWN_ERROR
-        
+            final_error_code = "9999"
+
         return {
             "success": False,
             "error": {
-                "code": final_error_code.value if hasattr(final_error_code, 'value') else str(final_error_code),
+                "code": final_error_code,
                 "message": message,
                 "context": context if isinstance(context, str) else None,
                 "details": details or {},
@@ -353,14 +348,14 @@ def _map_exception_to_code(error: Exception) -> ErrorCode:
         # 连接错误
         ConnectionRefusedError: ErrorCode.CONNECTION_FAILED,
         ConnectionResetError: ErrorCode.CONNECTION_CLOSED,
-        TimeoutError: ErrorCode.CONNECTION_TIMEOUT,
-        
+        builtins.TimeoutError: ErrorCode.CONNECTION_TIMEOUT,
+
         # 查询错误
         SyntaxError: ErrorCode.INVALID_SQL,
         KeyError: ErrorCode.COLUMN_NOT_FOUND,
-        
+
         # 权限错误
-        PermissionError: ErrorCode.PERMISSION_DENIED,
+        builtins.PermissionError: ErrorCode.PERMISSION_DENIED,
     }
     
     error_type = type(error)

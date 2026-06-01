@@ -19,17 +19,27 @@ description: |
   - 用户说"基线对比" -> 执行 compare
 
   用法：
-  - dbskiter --output-mode=ai --database=<name> monitor health
-  - dbskiter --output-mode=ai --database=<name> monitor anomalies
-  - dbskiter --output-mode=ai --database=<name> monitor capacity --resource=disk
-  - dbskiter --output-mode=ai --database=<name> monitor collect
-  - dbskiter --output-mode=ai --database=<name> monitor history <metric>
-  - dbskiter --output-mode=ai --database=<name> monitor capacity-advanced --resource=disk
-  - dbskiter --output-mode=ai --database=<name> monitor trend --metric=cpu_usage
-  - dbskiter --output-mode=ai --database=<name> monitor compare --metric=qps --value=1250 --baseline=2026-04-01
+  - python -m dbskiter --output-mode=ai --database=<name> monitor health
+  - python -m dbskiter --output-mode=ai --database=<name> monitor anomalies
+  - python -m dbskiter --output-mode=ai --database=<name> monitor capacity --resource=disk
+  - python -m dbskiter --output-mode=ai --database=<name> monitor collect
+  - python -m dbskiter --output-mode=ai --database=<name> monitor history <metric>
+  - python -m dbskiter --output-mode=ai --database=<name> monitor capacity-advanced --resource=disk
+  - python -m dbskiter --output-mode=ai --database=<name> monitor trend --metric=cpu_usage
+  - python -m dbskiter --output-mode=ai --database=<name> monitor compare --metric=qps --value=1250 --baseline=2026-04-01
 ---
 
 # 数据库监控 Skill
+
+## 安全原则
+
+本Skill的所有操作均为只读查询，不会修改任何数据：
+
+| 规则 | 说明 |
+|------|------|
+| 只读操作 | 监控命令只执行SELECT/SHOW等查询操作 |
+| 禁止写操作 | 不得通过监控命令执行DELETE/UPDATE/INSERT/DROP等写操作 |
+| 容量预测仅供参考 | capacity预测结果不自动触发扩容操作 |
 
 ## 智能数据源选择
 
@@ -43,12 +53,12 @@ description: |
 **示例**:
 ```bash
 # Oracle 数据库（自动使用 Zabbix）
-dbskiter --output-mode=ai --database=Z18 monitor health
-dbskiter --output-mode=ai --database=Z5 monitor capacity --resource=disk
+python -m dbskiter --output-mode=ai --database=Z18 monitor health
+python -m dbskiter --output-mode=ai --database=Z5 monitor capacity --resource=disk
 
 # MySQL 数据库（优先直连，其次 Prometheus）
-dbskiter --output-mode=ai --database=jump monitor health
-dbskiter --output-mode=ai --database=prod monitor anomalies
+python -m dbskiter --output-mode=ai --database=jump monitor health
+python -m dbskiter --output-mode=ai --database=prod monitor anomalies
 ```
 
 ## 何时使用
@@ -57,33 +67,33 @@ dbskiter --output-mode=ai --database=prod monitor anomalies
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "检查健康" | `dbskiter --output-mode=ai --database=<name> monitor health` | 整体健康评分 |
-| "批量检查健康" | `dbskiter --output-mode=ai monitor health-all` | 检查所有数据库 |
-| "有异常吗" | `dbskiter --output-mode=ai --database=<name> monitor anomalies` | 检测异常指标 |
-| "容量够吗" | `dbskiter --output-mode=ai --database=<name> monitor capacity` | 容量预测 |
-| "采集数据" | `dbskiter --output-mode=ai --database=<name> monitor collect` | 采集当前指标 |
-| "看历史" | `dbskiter --output-mode=ai --database=<name> monitor history <指标>` | 查看指标历史 |
-| "高级容量预测" | `dbskiter --output-mode=ai --database=<name> monitor capacity-advanced` | 多算法容量预测 |
-| "趋势分析" | `dbskiter --output-mode=ai --database=<name> monitor trend` | 指标趋势分析 |
-| "基线对比" | `dbskiter --output-mode=ai --database=<name> monitor compare` | 与历史基线对比 |
+| "检查健康" | `python -m dbskiter --output-mode=ai --database=<name> monitor health` | 整体健康评分 |
+| "批量检查健康" | `python -m dbskiter --output-mode=ai monitor health-all` | 检查所有数据库 |
+| "有异常吗" | `python -m dbskiter --output-mode=ai --database=<name> monitor anomalies` | 检测异常指标 |
+| "容量够吗" | `python -m dbskiter --output-mode=ai --database=<name> monitor capacity` | 容量预测 |
+| "采集数据" | `python -m dbskiter --output-mode=ai --database=<name> monitor collect` | 采集当前指标 |
+| "看历史" | `python -m dbskiter --output-mode=ai --database=<name> monitor history <指标>` | 查看指标历史 |
+| "高级容量预测" | `python -m dbskiter --output-mode=ai --database=<name> monitor capacity-advanced` | 多算法容量预测 |
+| "趋势分析" | `python -m dbskiter --output-mode=ai --database=<name> monitor trend` | 指标趋势分析 |
+| "基线对比" | `python -m dbskiter --output-mode=ai --database=<name> monitor compare` | 与历史基线对比 |
 
 ## 核心命令
 
 ### 1. 健康检查
 ```bash
-dbskiter --database=<数据库名> monitor health
+python -m dbskiter --database=<数据库名> monitor health
 ```
 **功能**：整体健康评分和状态检查
 
 ### 2. 批量健康检查
 ```bash
-dbskiter monitor health-all
+python -m dbskiter monitor health-all
 ```
 **功能**：批量检查所有配置的数据库健康状态
 
 ### 3. 异常检测
 ```bash
-dbskiter --database=<数据库名> monitor anomalies
+python -m dbskiter --database=<数据库名> monitor anomalies
 ```
 **功能**：检测异常指标
 
@@ -92,7 +102,7 @@ dbskiter --database=<数据库名> monitor anomalies
 
 ### 4. 容量预测
 ```bash
-dbskiter --database=<数据库名> monitor capacity --resource=disk
+python -m dbskiter --database=<数据库名> monitor capacity --resource=disk
 ```
 **功能**：预测资源容量使用情况
 
@@ -103,7 +113,7 @@ dbskiter --database=<数据库名> monitor capacity --resource=disk
 
 ### 5. 指标采集
 ```bash
-dbskiter --database=<数据库名> monitor collect
+python -m dbskiter --database=<数据库名> monitor collect
 ```
 **功能**：采集当前指标数据
 
@@ -113,7 +123,7 @@ dbskiter --database=<数据库名> monitor collect
 
 ### 6. 历史查询
 ```bash
-dbskiter --database=<数据库名> monitor history cpu_usage
+python -m dbskiter --database=<数据库名> monitor history cpu_usage
 ```
 **功能**：查看指标历史数据
 
@@ -125,7 +135,7 @@ dbskiter --database=<数据库名> monitor history cpu_usage
 
 ### 7. 高级容量预测
 ```bash
-dbskiter --database=<数据库名> monitor capacity-advanced --resource=disk
+python -m dbskiter --database=<数据库名> monitor capacity-advanced --resource=disk
 ```
 **功能**：使用多算法进行更精确的容量预测
 
@@ -150,7 +160,7 @@ dbskiter --database=<数据库名> monitor capacity-advanced --resource=disk
 
 ### 8. 趋势分析
 ```bash
-dbskiter --database=<数据库名> monitor trend --metric=cpu_usage
+python -m dbskiter --database=<数据库名> monitor trend --metric=cpu_usage
 ```
 **功能**：分析指标变化趋势
 
@@ -173,7 +183,7 @@ dbskiter --database=<数据库名> monitor trend --metric=cpu_usage
 
 ### 9. 基线对比
 ```bash
-dbskiter --database=<数据库名> monitor compare --metric=qps --value=1250 --baseline=2026-04-01
+python -m dbskiter --database=<数据库名> monitor compare --metric=qps --value=1250 --baseline=2026-04-01
 ```
 **功能**：对比当前性能与历史基线
 
@@ -198,7 +208,7 @@ dbskiter --database=<数据库名> monitor compare --metric=qps --value=1250 --b
 ### 场景1：用户说"检查数据库健康"
 
 ```
-步骤1：执行 dbskiter --database=<name> monitor health
+步骤1：执行 python -m dbskiter --database=<name> monitor health
 步骤2：解读健康评分和各项指标
 步骤3：如果有异常，建议执行 diagnose realtime 进一步诊断
 ```
@@ -206,7 +216,7 @@ dbskiter --database=<数据库名> monitor compare --metric=qps --value=1250 --b
 ### 场景2：用户说"容量够吗"
 
 ```
-步骤1：执行 dbskiter --database=<name> monitor capacity
+步骤1：执行 python -m dbskiter --database=<name> monitor capacity
 步骤2：查看容量预测结果
 步骤3：如果预测短期内将满，建议扩容
 ```
@@ -214,7 +224,7 @@ dbskiter --database=<数据库名> monitor compare --metric=qps --value=1250 --b
 ### 场景3：用户说"看看CPU趋势"
 
 ```
-步骤1：执行 dbskiter --database=<name> monitor trend --metric=cpu_usage --days=7
+步骤1：执行 python -m dbskiter --database=<name> monitor trend --metric=cpu_usage --days=7
 步骤2：分析趋势方向和变化幅度
 步骤3：给出趋势解读和建议
 ```

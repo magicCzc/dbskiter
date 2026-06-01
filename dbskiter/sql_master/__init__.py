@@ -57,10 +57,10 @@ from .models import (
     SQLAnalysisResult,
     CacheStats,
     ExecutionResult,
-    RewriteSuggestion,
-    create_success_response,
-    create_error_response,
-)
+    RewriteSuggestion,)
+
+# 响应函数（从shared模块导入）
+from dbskiter.shared.error_handler import create_success_response, create_error_response
 
 # 工具类
 from .utils import (
@@ -81,6 +81,33 @@ from .analyzer import DataAnalyzer
 from .sql_rewriter_v2 import SQLRewriterV2, RewriteResult, RewriteSuggestion as RewriteResultSuggestion
 from .cache_manager import SQLCacheManager
 from .cache_invalidator import SmartCachedExecutor
+
+# 安全执行组件
+from .security_executor_v2 import SecurityExecutorV2, ExecutionContext, SecurityCheckResult
+from .security_checker import (
+    SecurityChecker,
+    SQLInjectionDetector,
+    InjectionCheckResult,
+    RateLimiter,
+    RateLimitStatus,
+    check_sql,
+)
+from .sql_parser import (
+    SQLType,
+    SQLDialect,
+    ParsedSQL,
+    SQLParser,
+    parse_sql,
+    is_read_only,
+    is_dangerous_without_where
+)
+from .audit_logger import (
+    StorageBackend,
+    OperationStatus,
+    AuditLogEntry,
+    AuditLogger,
+    AuditLogQuery
+)
 
 __all__ = [
     # 数据模型
@@ -113,6 +140,29 @@ __all__ = [
     "RewriteResultSuggestion",
     "SQLCacheManager",
     "SmartCachedExecutor",
+    # 安全执行组件
+    "SecurityExecutorV2",
+    "ExecutionContext",
+    "SecurityCheckResult",
+    "SecurityChecker",
+    "SQLInjectionDetector",
+    "InjectionCheckResult",
+    "RateLimiter",
+    "RateLimitStatus",
+    "check_sql",
+    # SQL解析器
+    "SQLDialect",
+    "ParsedSQL",
+    "SQLParser",
+    "parse_sql",
+    "is_read_only",
+    "is_dangerous_without_where",
+    # 审计日志
+    "StorageBackend",
+    "OperationStatus",
+    "AuditLogEntry",
+    "AuditLogger",
+    "AuditLogQuery",
 ]
 
 __version__ = "3.0.0"

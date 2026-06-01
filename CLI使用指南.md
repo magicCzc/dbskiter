@@ -113,20 +113,61 @@ dbskiter --database=jump monitor trend --metric=cpu_usage
 ### 2. 诊断命令 (diagnose)
 
 ```bash
+# 实时诊断（数据库有点慢）
+dbskiter --database=jump diagnose realtime
+
+# TOP SQL分析
+dbskiter --database=jump diagnose top
+
+# 锁分析（有死锁/阻塞）
+dbskiter --database=jump diagnose locks
+
+# SQL深度诊断
+dbskiter --database=jump diagnose sql "SELECT * FROM users"
+
+# 空间诊断
+dbskiter --database=jump diagnose space
+
+# 连接分析
+dbskiter --database=jump diagnose connections
+
+# 复制诊断（主从延迟）
+dbskiter --database=jump diagnose replication
+
 # 慢查询分析
 dbskiter --database=jump diagnose slow-queries
 
-# SQL诊断
-dbskiter --database=jump diagnose sql "SELECT * FROM users"
-
 # 索引推荐
 dbskiter --database=jump diagnose recommend-indexes
+
+# 综合诊断报告
+dbskiter --database=jump diagnose report
+
+# 单表诊断
+dbskiter --database=jump diagnose table users
 
 # 性能快照
 dbskiter --database=jump diagnose performance-snapshot
 
 # 瓶颈分析
 dbskiter --database=jump diagnose bottleneck
+```
+
+#### 数据库特有诊断
+
+```bash
+# VACUUM状态分析（PostgreSQL）
+dbskiter --database=jump diagnose vacuum
+
+# 表膨胀/碎片分析（PostgreSQL膨胀/MySQL碎片/Oracle表空间碎片）
+dbskiter --database=jump diagnose bloat
+dbskiter --database=jump diagnose bloat --threshold=50
+
+# 索引使用分析（MySQL/Oracle/PostgreSQL）
+dbskiter --database=jump diagnose index-usage
+
+# 表空间碎片分析（Oracle）
+dbskiter --database=jump diagnose tablespace-fragmentation
 ```
 
 ### 3. 安全命令 (security)

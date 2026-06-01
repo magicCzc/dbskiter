@@ -21,13 +21,10 @@
 版本: 1.0.0
 """
 
-import re
-import json
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import Dict, List, Optional, Any, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
-from datetime import datetime, timedelta
-from collections import defaultdict
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -170,7 +167,7 @@ class AnomalyPatternDetector:
                     if event:
                         events.append(event)
                 except Exception as e:
-                    logger.debug(f"检测模式 {pattern_type} 失败: {e}")
+                    logger.warning(f"检测模式 {pattern_type} 失败: {e}")
 
         return events
 
@@ -357,7 +354,7 @@ class RootCauseAnalyzer:
                 if cause:
                     causes.append(cause)
             except Exception as e:
-                logger.debug(f"根因规则 {rule.__name__} 失败: {e}")
+                logger.warning(f"根因规则 {rule.__name__} 失败: {e}")
 
         return causes
 

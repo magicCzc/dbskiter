@@ -17,20 +17,32 @@ description: |
   - 用户说"配置安全" -> 执行 config
 
   用法：
-  - dbskiter --output-mode=ai --database=<name> security audit
-  - dbskiter --output-mode=ai --database=<name> security sql-injection "<SQL>"
-  - dbskiter --output-mode=ai --database=<name> security sensitive-data
-  - dbskiter --output-mode=ai --database=<name> security score
-  - dbskiter --output-mode=ai --database=<name> security permissions
-  - dbskiter --output-mode=ai --database=<name> security login-security
-  - dbskiter --output-mode=ai --database=<name> security audit-log
-  - dbskiter --output-mode=ai --database=<name> security high-risk
-  - dbskiter --output-mode=ai --database=<name> security password-policy
-  - dbskiter --output-mode=ai --database=<name> security weak-passwords
-  - dbskiter --output-mode=ai --database=<name> security config
+  - python -m dbskiter --output-mode=ai --database=<name> security audit
+  - python -m dbskiter --output-mode=ai --database=<name> security sql-injection "<SQL>"
+  - python -m dbskiter --output-mode=ai --database=<name> security sensitive-data
+  - python -m dbskiter --output-mode=ai --database=<name> security score
+  - python -m dbskiter --output-mode=ai --database=<name> security permissions
+  - python -m dbskiter --output-mode=ai --database=<name> security login-security
+  - python -m dbskiter --output-mode=ai --database=<name> security audit-log
+  - python -m dbskiter --output-mode=ai --database=<name> security high-risk
+  - python -m dbskiter --output-mode=ai --database=<name> security password-policy
+  - python -m dbskiter --output-mode=ai --database=<name> security weak-passwords
+  - python -m dbskiter --output-mode=ai --database=<name> security config
 ---
 
 # 数据库安全 Skill
+
+## 安全原则
+
+本Skill的大部分操作为只读查询和检测，但部分命令涉及安全评估：
+
+| 规则 | 说明 |
+|------|------|
+| 只读检测 | audit/score/permissions等命令均为只读查询 |
+| 注入检测不执行SQL | sql-injection只分析SQL文本，不执行被检测的SQL |
+| 敏感数据扫描只读 | sensitive-data只采样查询，不修改数据 |
+| 密码策略只检查 | password-policy/weak-passwords只检查策略，不修改密码 |
+| 配置审计只读 | config命令只读取配置，不修改配置 |
 
 ## 何时使用
 
@@ -38,14 +50,14 @@ description: |
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "安全检查" | `dbskiter --output-mode=ai --database=<name> security audit` | 完整安全审计 |
-| "有注入风险吗" | `dbskiter --output-mode=ai --database=<name> security sql-injection "<SQL>"` | SQL注入检测 |
-| "有敏感数据吗" | `dbskiter --output-mode=ai --database=<name> security sensitive-data` | 敏感数据扫描 |
-| "安全评分多少" | `dbskiter --output-mode=ai --database=<name> security score` | 安全评分 |
-| "检查权限" | `dbskiter --output-mode=ai --database=<name> security permissions` | 权限审计 |
-| "登录安全" | `dbskiter --output-mode=ai --database=<name> security login-security` | 登录安全监控 |
-| "审计日志" | `dbskiter --output-mode=ai --database=<name> security audit-log` | 审计日志分析 |
-| "高危操作" | `dbskiter --output-mode=ai --database=<name> security high-risk` | 高危操作检测 |
+| "安全检查" | `python -m dbskiter --output-mode=ai --database=<name> security audit` | 完整安全审计 |
+| "有注入风险吗" | `python -m dbskiter --output-mode=ai --database=<name> security sql-injection "<SQL>"` | SQL注入检测 |
+| "有敏感数据吗" | `python -m dbskiter --output-mode=ai --database=<name> security sensitive-data` | 敏感数据扫描 |
+| "安全评分多少" | `python -m dbskiter --output-mode=ai --database=<name> security score` | 安全评分 |
+| "检查权限" | `python -m dbskiter --output-mode=ai --database=<name> security permissions` | 权限审计 |
+| "登录安全" | `python -m dbskiter --output-mode=ai --database=<name> security login-security` | 登录安全监控 |
+| "审计日志" | `python -m dbskiter --output-mode=ai --database=<name> security audit-log` | 审计日志分析 |
+| "高危操作" | `python -m dbskiter --output-mode=ai --database=<name> security high-risk` | 高危操作检测 |
 | "密码策略" | `dbskiter --output-mode=ai --database=<name> security password-policy` | 密码策略检查 |
 | "弱密码" | `dbskiter --output-mode=ai --database=<name> security weak-passwords` | 弱密码检查 |
 | "配置安全" | `dbskiter --output-mode=ai --database=<name> security config` | 配置安全审计 |
@@ -54,15 +66,20 @@ description: |
 
 ### 1. 完整安全审计
 ```bash
-dbskiter --database=<数据库名> security audit
+python -m dbskiter --database=<数据库名> security audit
 ```
 **输出**：安全评分 + 所有风险项 + 修复建议
 
 ### 2. SQL注入检测
 ```bash
-dbskiter --database=<数据库名> security sql-injection "SELECT * FROM users WHERE id = %s" --params='{"id": "1 OR 1=1"}'
+python -m dbskiter --database=<数据库名> security sql-injection "SELECT * FROM users WHERE id = %s" --params='{"id": "1 OR 1=1"}'
 ```
 **输出**：风险评分、注入类型、修复建议
+
+**检测原理**：
+- 静态分析SQL语句中的用户输入痕迹（注释符、引号不平衡、字符串截断等）
+- 参数值中的多语句（分号+SQL关键字）、UNION注入、时间盲注检测
+- 正常业务逻辑中的OR条件、UNION查询不会产生误报
 
 **参数**：
 - `sql`（必需）：SQL语句
@@ -72,7 +89,7 @@ dbskiter --database=<数据库名> security sql-injection "SELECT * FROM users W
 
 ### 3. 敏感数据扫描
 ```bash
-dbskiter --database=<数据库名> security sensitive-data
+python -m dbskiter --database=<数据库名> security sensitive-data
 ```
 **功能**：扫描所有表，识别身份证、手机号、邮箱等敏感数据
 
@@ -82,13 +99,13 @@ dbskiter --database=<数据库名> security sensitive-data
 
 ### 4. 安全评分
 ```bash
-dbskiter --database=<数据库名> security score
+python -m dbskiter --database=<数据库名> security score
 ```
 **输出**：总体评分、各维度得分、扣分项
 
 ### 5. 权限审计
 ```bash
-dbskiter --database=<数据库名> security permissions
+python -m dbskiter --database=<数据库名> security permissions
 ```
 **输出**：用户权限列表、过度授权警告
 

@@ -3,7 +3,7 @@ sql_master/executor.py
 SQL 执行器 - 核心执行能力
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Any, List
 
 from dbskiter.shared.unified_connector import UnifiedConnector
 from dbskiter.shared.database_connector import DatabaseConnector, QueryResult

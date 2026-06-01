@@ -337,10 +337,48 @@ dbskiter/
 
 ## AI集成
 
-dbskiter 支持 AI IDE（如 Trae、Cursor）集成，通过 Skill 文档让 AI 学会使用工具。
+dbskiter 支持多种AI集成方式，包括MCP Server和Skill文档。
 
-### 配置方法
+### MCP Server（推荐）
 
+通过Model Context Protocol与Claude、Cursor等AI助手集成。
+
+**安装MCP Server：**
+```bash
+pip install dbskiter-mcp-server
+```
+
+**配置Claude Desktop：**
+编辑 `claude_desktop_config.json`：
+```json
+{
+  "mcpServers": {
+    "dbskiter": {
+      "command": "dbskiter-mcp",
+      "env": {
+        "DB_DIALECT": "mysql",
+        "DB_HOST": "localhost",
+        "DB_PORT": "3306",
+        "DB_USER": "root",
+        "DB_PASSWORD": "your_password",
+        "DB_NAME": "your_database"
+      }
+    }
+  }
+}
+```
+
+**使用示例：**
+用户可以直接问Claude：
+- "检查我的数据库健康状态"
+- "分析这个SQL语句的性能"
+- "找出最慢的10个查询"
+
+### Skill文档
+
+通过Skill文档让AI IDE（如Trae、Cursor）学会使用工具。
+
+**配置方法：**
 ```bash
 # Trae IDE
 cp -r .trae/skills/* ~/.trae/skills/
@@ -349,7 +387,7 @@ cp -r .trae/skills/* ~/.trae/skills/
 cp -r .trae/skills/* .cursor/skills/
 ```
 
-### AI使用示例
+**AI使用示例：**
 
 **用户**：帮我检查数据库健康状态
 
@@ -365,6 +403,10 @@ dbskiter --database=<数据库名> monitor health --json
 CPU使用率：35%
 建议：系统运行良好，无需处理
 ```
+
+### 相关项目
+
+- [dbskiter-mcp-server](https://github.com/magicCzc/dbskiter-mcp-server) - MCP Server实现
 
 ---
 
@@ -427,8 +469,9 @@ dbskiter 是**诊断工具**，不是实时监控系统。
 ## 文档
 
 - [CLI命令参考](docs/CLI_COMMAND_REFERENCE.md)
-- [架构设计文档](docs/ARCHITECTURE.md)
-- [Skill开发指南](docs/SKILL_DEVELOPMENT.md)
+- [AI集成指南](AI集成指南.md)
+- [Skill系统介绍](.trae/skills/README.md)
+- [数据采集方案](docs/DATA_COLLECTION_PLAN.md)
 
 ---
 

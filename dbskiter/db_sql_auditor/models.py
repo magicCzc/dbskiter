@@ -73,7 +73,7 @@ class ErrorCode:
 class ErrorMessage:
     """错误消息管理"""
 
-    MESSAGES = {
+    _messages = {
         ErrorCode.SUCCESS: "操作成功",
         ErrorCode.UNKNOWN_ERROR: "未知错误",
         ErrorCode.INVALID_PARAM: "参数无效",
@@ -92,65 +92,14 @@ class ErrorMessage:
         ErrorCode.PARTIAL_SUCCESS: "部分成功",
     }
 
-    @staticmethod
-    def get_message(code: str) -> str:
+    @classmethod
+    def get_message(cls, code: str) -> str:
         """获取错误消息"""
-        return ErrorMessage.MESSAGES.get(code, f"未知错误码: {code}")
+        return cls._messages.get(code, f"未知错误码: {code}")
 
 
 # =============================================================================
 # 响应函数
-# =============================================================================
-
-def create_success_response(
-    data: Any = None,
-    message: str = "操作成功"
-) -> Dict[str, Any]:
-    """
-    创建成功响应
-
-    参数:
-        data: 响应数据
-        message: 成功消息
-
-    返回:
-        Dict: 标准成功响应格式
-    """
-    return {
-        "success": True,
-        "error_code": ErrorCode.SUCCESS,
-        "message": message,
-        "data": data or {}
-    }
-
-
-def create_error_response(
-    message: str,
-    error_code: str = ErrorCode.UNKNOWN_ERROR,
-    details: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """
-    创建错误响应
-
-    参数:
-        message: 错误消息
-        error_code: 错误码
-        details: 详细错误信息
-
-    返回:
-        Dict: 标准错误响应格式
-    """
-    return {
-        "success": False,
-        "error_code": error_code,
-        "message": message,
-        "error": ErrorMessage.get_message(error_code),
-        "details": details or {}
-    }
-
-
-# =============================================================================
-# 枚举定义
 # =============================================================================
 
 class AuditLevel(str, Enum):

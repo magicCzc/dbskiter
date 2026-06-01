@@ -4,12 +4,11 @@
 文件功能：提供 SQLite 持久化存储
 主要类：PersistentTaskStorage - SQLite 任务存储
 """
-from typing import Dict, List, Optional
+from typing import List, Optional
 from datetime import datetime
 import sqlite3
 import json
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

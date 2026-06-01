@@ -394,20 +394,60 @@ class SQLAnalyzer:
     @staticmethod
     def analyze_complexity(sql: str) -> Dict[str, Any]:
         """
-        分析SQL复杂度
+        分析SQL复杂度和规范问题
 
         参数:
             sql: SQL语句
 
         返回:
-            Dict[str, Any]: 复杂度分析结果
+            Dict[str, Any]: 复杂度和规范分析结果
         """
         if not sql:
-            return {"level": "unknown", "score": 0}
+            return {"level": "unknown", "score": 0, "issues": [], "suggestions": []}
 
         sql_upper = sql.upper()
         score = 0
         factors = []
+        issues = []
+        suggestions = []
+
+        # ========== 规范检查（与db_sql_auditor标准对齐）==========
+
+        # SELECT *
+        if re.search(r'SELECT\s+\*', sql_upper):
+            score += 15
+            issues.append("禁止使用SELECT *")
+            suggestions.append("明确指定需要的列名")
+
+        # 缺少LIMIT
+        is_select = re.search(r'^\s*SELECT\b', sql_upper) is not None
+        has_limit = 'LIMIT' in sql_upper
+        if is_select and not has_limit:
+            score += 10
+            issues.append("建议添加LIMIT限制")
+            suggestions.append("添加LIMIT限制返回行数")
+
+        # NOT IN
+        if re.search(r'NOT\s+IN\b', sql_upper):
+            score += 10
+            issues.append("避免使用NOT IN")
+            suggestions.append("使用NOT EXISTS替代NOT IN")
+
+        # 无WHERE的DELETE/UPDATE
+        sql_type_match = re.search(r'^\s*(DELETE|UPDATE)\b', sql_upper)
+        has_where = 'WHERE' in sql_upper
+        if sql_type_match and not has_where:
+            score += 50
+            issues.append("禁止无WHERE条件的DELETE/UPDATE")
+            suggestions.append("添加WHERE条件限制影响范围")
+
+        # DROP/TRUNCATE
+        if re.search(r'^\s*(DROP|TRUNCATE)\b', sql_upper):
+            score += 50
+            issues.append("禁止DROP/TRUNCATE操作")
+            suggestions.append("确认操作必要性并备份数据")
+
+        # ========== 复杂度分析 ==========
 
         # JOIN复杂度
         join_count = sql_upper.count(' JOIN ')
@@ -448,7 +488,9 @@ class SQLAnalyzer:
         return {
             "level": level,
             "score": score,
-            "factors": factors
+            "factors": factors,
+            "issues": issues,
+            "suggestions": suggestions
         }
 
     @staticmethod

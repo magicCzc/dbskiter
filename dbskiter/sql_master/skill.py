@@ -25,13 +25,13 @@ SQL Master Skill 统一入口
 创建时间: 2026-04-23
 """
 
-import warnings
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
 
-from dbskiter.shared.unified_connector import UnifiedConnector, detect_connector_type
+from dbskiter.shared.unified_connector import UnifiedConnector
 from dbskiter.shared.validators import validate_params, Validator, sanitize_sql
+from dbskiter.shared.error_handler import create_success_response, create_error_response
 
 # 导入数据模型
 from .models import (
@@ -39,8 +39,6 @@ from .models import (
     SQLMasterConfig,
     SQLOptimizationReport,
     SQLAnalysisResult,
-    create_success_response,
-    create_error_response,
 )
 
 # 导入工具类
@@ -61,7 +59,7 @@ from .intelligent_intellisense import SQLIntelliSense
 from .schema_aware import SchemaAwareOptimizer
 from .cache_manager import SQLCacheManager
 from .cache_invalidator import SmartCachedExecutor
-from .sql_validator import SQLSyntaxValidator, SQLPreChecker
+from .security_checker import SecurityChecker
 from .data_transfer import DataExporter, DataImporter
 from .audit_storage import SQLAuditStorage, SQLAuditRecord
 
@@ -141,9 +139,8 @@ class SQLMasterSkill:
         self.schema_optimizer = SchemaAwareOptimizer(connector)
         self.intellisense = SQLIntelliSense(self.schema_optimizer.schema_cache) if self.config.enable_intellisense else None
 
-        # SQL预检查器
-        self.sql_validator = SQLSyntaxValidator()
-        self.sql_prechecker = SQLPreChecker(self.sql_validator)
+        # 安全检查器（从环境变量读取注入检测和速率限制开关）
+        self.security_checker = SecurityChecker()
 
         # 缓存管理器
         if self.config.enable_cache:
@@ -219,26 +216,60 @@ class SQLMasterSkill:
         sanitized_sql = sanitize_sql(sql)
         logger.info(f"执行SQL: {sanitized_sql}")
 
-        # SQL语法预检查（包含危险操作检测）
-        check_result = self.sql_prechecker.check(sql, allow_write=allow_write, force=force)
+        # SQL安全检查（包含危险操作检测）
+        check_result = self.security_checker.check(sql)
         
         # 处理检查结果
-        if not check_result["can_execute"]:
-            logger.warning(f"SQL预检查失败: {check_result['error']}")
+        if not check_result["passed"]:
+            logger.warning(f"SQL安全检查失败: {check_result['reason']}")
             return create_error_response(
-                check_result["error"],
+                check_result["reason"],
                 ErrorCode.SYNTAX_ERROR,
                 {
                     "risk_level": check_result.get("risk_level"),
                     "risk_description": check_result.get("risk_description"),
-                    "requires_confirmation": check_result.get("requires_confirmation"),
-                    "requires_force": check_result.get("requires_force"),
                 }
             )
         
-        # 高风险操作警告（不阻止执行，但返回警告信息）
-        if check_result.get("requires_confirmation") and not force:
-            logger.warning(f"高风险操作: {check_result.get('warning')}")
+        # 检查是否为写操作，如果只读模式则阻止
+        parsed_sql = check_result.get("parsed_sql")
+        if not allow_write and parsed_sql and not parsed_sql.is_read_only:
+            return create_error_response(
+                "只读模式下禁止执行写操作",
+                ErrorCode.PERMISSION_DENIED,
+                {"risk_level": "HIGH"}
+            )
+        
+        # 高风险操作检查
+        risk_level = check_result.get("risk_level")
+        risk_description = check_result.get("risk_description", "")
+        
+        # 如果被系统安全策略禁止，直接拒绝执行
+        if "被系统安全策略禁止" in risk_description:
+            return create_error_response(
+                f"执行被拒绝: {risk_description}",
+                ErrorCode.PERMISSION_DENIED,
+                {
+                    "risk_level": risk_level,
+                    "risk_description": risk_description,
+                }
+            )
+        
+        # CRITICAL 级别操作需要 --force 参数
+        if risk_level == "CRITICAL" and not force:
+            return create_error_response(
+                f"执行被拒绝: {risk_description}。这是一个极高风险操作，如需执行请添加 --force 参数",
+                ErrorCode.PERMISSION_DENIED,
+                {
+                    "risk_level": risk_level,
+                    "risk_description": risk_description,
+                    "requires_force": True,
+                }
+            )
+        
+        # HIGH 级别操作警告
+        if risk_level == "HIGH":
+            logger.warning(f"高风险操作: {risk_description}")
 
         try:
             # 添加LIMIT限制
@@ -511,11 +542,10 @@ class SQLMasterSkill:
         """为SQL添加LIMIT限制"""
         sql_upper = sql.strip().upper()
         if sql_upper.startswith("SELECT") and "LIMIT" not in sql_upper:
-            if self.connector.dialect in ("mysql", "mysql+pymysql"):
+            dialect = self.connector.dialect.lower() if self.connector.dialect else ""
+            if dialect in ("mysql", "mysql+pymysql", "postgresql", "postgres", "sqlite", "sqlite3"):
                 return f"{sql} LIMIT {limit}"
-            elif "postgresql" in self.connector.dialect:
-                return f"{sql} LIMIT {limit}"
-            elif "oracle" in self.connector.dialect:
+            elif "oracle" in dialect:
                 return f"SELECT * FROM ({sql}) WHERE ROWNUM <= {limit}"
         return sql
 
@@ -585,12 +615,12 @@ class SQLMasterSkill:
                 sql=sql,
                 sql_type=self.sql_detector.detect(sql),
                 score=score,
-                issues=[],
-                suggestions=[],
+                issues=complexity.get("issues", []),
+                suggestions=complexity.get("suggestions", []),
                 complexity=complexity["level"]
             )
 
-            # 添加建议
+            # 添加复杂度相关建议
             if complexity["level"] == "high":
                 result.issues.append("SQL复杂度过高")
                 result.suggestions.append("考虑简化查询或拆分为多个简单查询")

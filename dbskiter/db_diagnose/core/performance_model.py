@@ -250,7 +250,8 @@ class PerformanceAnalyzer(ABC):
                 result = self.connector.execute(sql, params)
                 return result.rows if result else None
             except Exception as e:
-                logger.error(f"SQL执行失败: {e}, SQL: {sql[:100]}")
+                err_msg = str(e).split('\n')[0][:120]
+                logger.warning(f"SQL执行失败 [{type(e).__name__}]: {err_msg}, SQL: {sql[:100]}")
                 raise
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -258,7 +259,7 @@ class PerformanceAnalyzer(ABC):
             try:
                 return future.result(timeout=timeout)
             except concurrent.futures.TimeoutError:
-                logger.error(f"SQL执行超时({timeout}秒): {sql[:100]}")
+                logger.warning(f"SQL执行超时({timeout}秒): {sql[:100]}")
                 raise TimeoutError(f"查询执行超时({timeout}秒)")
 
     @abstractmethod

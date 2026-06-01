@@ -6,9 +6,11 @@ SQL Master 命令 - SQL执行、重写、分析、智能提示
 """
 
 import json
+import os
 from argparse import ArgumentParser
 
 from .base import BaseCommand
+from dbskiter.cli.readonly_middleware import ReadOnlyEnforcer, is_readonly_mode
 
 
 class SQLCommand(BaseCommand):
@@ -137,6 +139,7 @@ class SQLCommand(BaseCommand):
                         direct_sql or getattr(self.args, 'sql', ''),
                         json.loads(self.args.params) if getattr(self.args, 'params', None) else None,
                         getattr(self.args, 'limit', 100),
+                        allow_write=False,
                     ),
                     "rewrite": lambda: skill.rewrite_sql(getattr(self.args, 'sql', '')),
                     "analyze": lambda: skill.analyze_sql_quality(getattr(self.args, 'sql', '')),
@@ -158,11 +161,25 @@ class SQLCommand(BaseCommand):
                     return self._execute_ai_mode(skill, effective_action, method_map, scenario_map)
 
             if not action and direct_sql:
+                # 检查全局只读模式
+                global_readonly = is_readonly_mode()
+                arg_readonly = getattr(self.args, 'read_only', False)
+                read_only = global_readonly or arg_readonly
+                
+                if global_readonly and not arg_readonly:
+                    self.output.warning("系统处于全局只读模式（DBSKITER_READ_ONLY=true）")
+                
+                # 使用ReadOnlyEnforcer进行额外检查
+                enforcer = ReadOnlyEnforcer(enabled=read_only)
+                allowed, reason = enforcer.check(direct_sql)
+                if not allowed:
+                    self.output.error(f"执行被拒绝: {reason}")
+                    return 1
+                
                 params = getattr(self.args, 'params', None)
                 if params:
                     params = json.loads(params)
                 limit = getattr(self.args, 'limit', 100)
-                read_only = getattr(self.args, 'read_only', False)
                 force = getattr(self.args, 'force', False)
                 result = skill.execute(
                     direct_sql,
@@ -210,16 +227,30 @@ class SQLCommand(BaseCommand):
         """直接执行SQL（简化用法）"""
         sql = self.args.sql
         
+        # 检查全局只读模式
+        global_readonly = is_readonly_mode()
+        arg_readonly = getattr(self.args, 'read_only', False)
+        read_only = global_readonly or arg_readonly
+        
+        if global_readonly and not arg_readonly:
+            self.output.warning("系统处于全局只读模式（DBSKITER_READ_ONLY=true）")
+        
+        # 使用ReadOnlyEnforcer进行额外检查
+        enforcer = ReadOnlyEnforcer(enabled=read_only)
+        allowed, reason = enforcer.check(sql)
+        if not allowed:
+            self.output.error(f"执行被拒绝: {reason}")
+            return 1
+        
         # 获取安全控制参数
-        read_only = getattr(self.args, 'read_only', False)
         force = getattr(self.args, 'force', False)
 
-        result = skill.execute(sql, allow_write=not read_only, force=force)
+        result = skill.execute(sql, params=None, limit=getattr(self.args, 'limit', 100), allow_write=not read_only, force=force)
 
         if not result.get("success"):
             error_msg = result.get('error', '未知错误')
             extra = result.get('extra', {})
-            
+
             # 处理危险操作错误
             if extra.get('requires_force'):
                 self.output.error(f"执行失败: {error_msg}")
@@ -233,21 +264,23 @@ class SQLCommand(BaseCommand):
                 self.output.error(f"执行失败: {error_msg}")
             return 1
 
-        summary = f"执行成功，返回{result.get('row_count', 0)}行"
+        # 从标准响应格式的 data 字段获取数据
+        data = result.get("data", {})
+        summary = f"执行成功，返回{data.get('row_count', 0)}行"
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: {summary}")
         self.output.print(f"{'='*60}")
 
-        self.output.print(f"\nSQL: {result.get('sql', '')}")
-        self.output.print(f"行数: {result.get('row_count', 0)}")
+        self.output.print(f"\nSQL: {data.get('sql', '')}")
+        self.output.print(f"行数: {data.get('row_count', 0)}")
 
-        if result.get("execution_time"):
-            self.output.print(f"耗时: {result['execution_time']:.3f}s")
+        if data.get("execution_time"):
+            self.output.print(f"耗时: {data['execution_time']:.3f}s")
 
         # 输出结果表格
-        columns = result.get("columns", [])
-        rows = result.get("rows", [])
+        columns = data.get("columns", [])
+        rows = data.get("rows", [])
 
         if columns and rows:
             self.output.print(f"\n结果:")
@@ -271,8 +304,22 @@ class SQLCommand(BaseCommand):
         if self.args.params:
             params = json.loads(self.args.params)
         
+        # 检查全局只读模式
+        global_readonly = is_readonly_mode()
+        arg_readonly = getattr(self.args, 'read_only', False)
+        read_only = global_readonly or arg_readonly
+        
+        if global_readonly and not arg_readonly:
+            self.output.warning("系统处于全局只读模式（DBSKITER_READ_ONLY=true）")
+        
+        # 使用ReadOnlyEnforcer进行额外检查
+        enforcer = ReadOnlyEnforcer(enabled=read_only)
+        allowed, reason = enforcer.check(self.args.sql)
+        if not allowed:
+            self.output.error(f"执行被拒绝: {reason}")
+            return 1
+        
         # 获取安全控制参数
-        read_only = getattr(self.args, 'read_only', False)
         force = getattr(self.args, 'force', False)
 
         try:
@@ -451,7 +498,7 @@ class SQLCommand(BaseCommand):
         if self.args.params:
             params = json.loads(self.args.params)
 
-        result = skill.analyze_data(self.args.sql, params)
+        result = skill.analyze_data(self.args.sql)
 
         if result.get("success") == "disabled":
             self.output.warning(result.get("message", "数据分析已禁用"))
@@ -461,33 +508,47 @@ class SQLCommand(BaseCommand):
             self.output.error(f"分析失败: {result.get('error', '未知错误')}")
             return 1
 
-        row_count = result.get("row_count", 0)
-        col_count = result.get("column_count", 0)
+        # 从标准响应格式的 data 字段获取数据
+        data = result.get("data", {})
+        row_count = data.get("row_count", 0)
+        col_count = len(data.get("columns", []))
         summary = f"分析了{row_count}行{col_count}列数据"
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: {summary}")
         self.output.print(f"{'='*60}")
 
-        self.output.print(f"\nSQL: {result.get('sql', '')}")
+        self.output.print(f"\nSQL: {self.args.sql}")
         self.output.print(f"行数: {row_count}")
         self.output.print(f"列数: {col_count}")
 
-        # 列分析
-        column_analysis = result.get("column_analysis", [])
-        if column_analysis:
-            self.output.print(f"\n列分析:")
-            for col in column_analysis:
-                self.output.print(f"\n  列名: {col.get('column', '')}")
-                self.output.print(f"  类型: {col.get('type', '')}")
-                self.output.print(f"  空值数: {col.get('null_count', 0)}")
-                self.output.print(f"  唯一值: {col.get('unique_count', 0)}")
-                if "min" in col:
-                    self.output.print(f"  最小值: {col['min']}")
-                    self.output.print(f"  最大值: {col['max']}")
-                    self.output.print(f"  平均值: {col['avg']:.2f}")
-                if col.get("sample_values"):
-                    self.output.print(f"  示例值: {col['sample_values']}")
+        # 数据分析
+        analysis = data.get("analysis", {})
+        if analysis and isinstance(analysis, dict):
+            data_types = analysis.get("data_types", {})
+            null_counts = analysis.get("null_counts", {})
+            statistics = analysis.get("statistics", {})
+
+            if data_types:
+                self.output.print(f"\n数据类型:")
+                for col_name, col_type in data_types.items():
+                    null_count = null_counts.get(col_name, 0)
+                    null_info = f" (空值: {null_count})" if null_count > 0 else ""
+                    self.output.print(f"  {col_name}: {col_type}{null_info}")
+
+            if statistics and isinstance(statistics, dict):
+                self.output.print(f"\n统计信息:")
+                for col_name, stats in statistics.items():
+                    if isinstance(stats, dict):
+                        stat_parts = []
+                        if "min" in stats:
+                            stat_parts.append(f"min={stats['min']}")
+                        if "max" in stats:
+                            stat_parts.append(f"max={stats['max']}")
+                        if "mean" in stats and stats["mean"] is not None:
+                            stat_parts.append(f"mean={stats['mean']}")
+                        if stat_parts:
+                            self.output.print(f"  {col_name}: {', '.join(stat_parts)}")
 
         return 0
 
@@ -580,6 +641,13 @@ class SQLCommand(BaseCommand):
     def _execute_batch(self, skill) -> int:
         """批量执行SQL文件"""
         import os
+        from dbskiter.cli.readonly_middleware import is_readonly_mode
+
+        # 只读模式下禁止批量执行（可能包含写操作）
+        if is_readonly_mode():
+            self.output.error("只读模式下禁止批量执行SQL文件（可能包含写操作）")
+            self.output.info("如需执行此操作，请关闭只读模式（设置DBSKITER_READ_ONLY=false）")
+            return 1
 
         file_path = self.args.file
         if not os.path.exists(file_path):
@@ -675,6 +743,14 @@ class SQLCommand(BaseCommand):
 
     def _import_data(self, skill) -> int:
         """导入数据"""
+        from dbskiter.cli.readonly_middleware import is_readonly_mode
+
+        # 只读模式下禁止导入数据（写操作）
+        if is_readonly_mode():
+            self.output.error("只读模式下禁止导入数据（import属于写操作）")
+            self.output.info("如需执行此操作，请关闭只读模式（设置DBSKITER_READ_ONLY=false）")
+            return 1
+
         file_path = self.args.file
         table = self.args.table
         format = self.args.format
@@ -869,21 +945,23 @@ class SQLCommand(BaseCommand):
             self.output.error(f"执行失败: {result.get('error', '未知错误')}")
             return 1
 
-        summary = f"执行成功，返回{result.get('row_count', 0)}行"
+        # 从标准响应格式的 data 字段获取数据
+        data = result.get("data", {})
+        summary = f"执行成功，返回{data.get('row_count', 0)}行"
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: {summary}")
         self.output.print(f"{'='*60}")
 
-        self.output.print(f"\nSQL: {result.get('sql', '')}")
-        self.output.print(f"行数: {result.get('row_count', 0)}")
+        self.output.print(f"\nSQL: {data.get('sql', '')}")
+        self.output.print(f"行数: {data.get('row_count', 0)}")
 
-        if result.get("execution_time"):
-            self.output.print(f"耗时: {result['execution_time']:.3f}s")
+        if data.get("execution_time"):
+            self.output.print(f"耗时: {data['execution_time']:.3f}s")
 
         # 输出结果表格
-        columns = result.get("columns", [])
-        rows = result.get("rows", [])
+        columns = data.get("columns", [])
+        rows = data.get("rows", [])
 
         if columns and rows:
             self.output.print(f"\n结果:")

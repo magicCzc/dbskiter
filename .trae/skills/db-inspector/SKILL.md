@@ -14,16 +14,27 @@ description: |
   - 用户说"风险预测" -> 执行 risks
 
   用法：
-  - dbskiter --output-mode=ai --database=<name> inspector run
-  - dbskiter --output-mode=ai --database=<name> inspector report --output report.html
-  - dbskiter --output-mode=ai --database=<name> inspector baseline --create
-  - dbskiter --output-mode=ai --database=<name> inspector intelligent
-  - dbskiter --output-mode=ai --database=<name> inspector anomalies --metric=cpu_usage
-  - dbskiter --output-mode=ai --database=<name> inspector root-cause --issue="CPU飙升"
-  - dbskiter --output-mode=ai --database=<name> inspector risks --days=7
+  - python -m dbskiter --output-mode=ai --database=<name> inspector run
+  - python -m dbskiter --output-mode=ai --database=<name> inspector report --output report.html
+  - python -m dbskiter --output-mode=ai --database=<name> inspector baseline --create
+  - python -m dbskiter --output-mode=ai --database=<name> inspector intelligent
+  - python -m dbskiter --output-mode=ai --database=<name> inspector anomalies --metric=cpu_usage
+  - python -m dbskiter --output-mode=ai --database=<name> inspector root-cause --issue="CPU飙升"
+  - python -m dbskiter --output-mode=ai --database=<name> inspector risks --days=7
 ---
 
 # 数据库巡检 Skill
+
+## 安全原则
+
+本Skill的所有操作均为只读查询，不会修改任何数据：
+
+| 规则 | 说明 |
+|------|------|
+| 只读操作 | 巡检命令只执行SELECT/SHOW/DESCRIBE等查询操作 |
+| 禁止写操作 | 不得通过巡检命令执行DELETE/UPDATE/INSERT/DROP等写操作 |
+| 基线创建只记录快照 | baseline --create只记录当前配置快照，不修改数据库 |
+| 报告生成只读 | report命令只生成报告文件，不修改数据库 |
 
 ## 何时使用
 
@@ -31,21 +42,21 @@ description: |
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "巡检" | `dbskiter --output-mode=ai --database=<name> inspector run` | 执行完整巡检 |
-| "生成报告" | `dbskiter --output-mode=ai --database=<name> inspector report` | 生成巡检报告 |
-| "检查配置" | `dbskiter --output-mode=ai --database=<name> inspector run --type configuration` | 仅检查配置 |
-| "检查安全" | `dbskiter --output-mode=ai --database=<name> inspector run --type security` | 仅安全检查 |
-| "建立基线" | `dbskiter --output-mode=ai --database=<name> inspector baseline --create` | 创建性能基线 |
-| "智能巡检" | `dbskiter --output-mode=ai --database=<name> inspector intelligent` | 智能巡检分析 |
-| "异常检测" | `dbskiter --output-mode=ai --database=<name> inspector anomalies` | 检测指标异常 |
-| "根因分析" | `dbskiter --output-mode=ai --database=<name> inspector root-cause` | 分析问题根因 |
-| "风险预测" | `dbskiter --output-mode=ai --database=<name> inspector risks` | 预测未来风险 |
+| "巡检" | `python -m dbskiter --output-mode=ai --database=<name> inspector run` | 执行完整巡检 |
+| "生成报告" | `python -m dbskiter --output-mode=ai --database=<name> inspector report` | 生成巡检报告 |
+| "检查配置" | `python -m dbskiter --output-mode=ai --database=<name> inspector run --type configuration` | 仅检查配置 |
+| "检查安全" | `python -m dbskiter --output-mode=ai --database=<name> inspector run --type security` | 仅安全检查 |
+| "建立基线" | `python -m dbskiter --output-mode=ai --database=<name> inspector baseline --create` | 创建性能基线 |
+| "智能巡检" | `python -m dbskiter --output-mode=ai --database=<name> inspector intelligent` | 智能巡检分析 |
+| "异常检测" | `python -m dbskiter --output-mode=ai --database=<name> inspector anomalies` | 检测指标异常 |
+| "根因分析" | `python -m dbskiter --output-mode=ai --database=<name> inspector root-cause` | 分析问题根因 |
+| "风险预测" | `python -m dbskiter --output-mode=ai --database=<name> inspector risks` | 预测未来风险 |
 
 ## 核心命令
 
 ### 1. 执行完整巡检
 ```bash
-dbskiter --database=<数据库名> inspector run
+python -m dbskiter --database=<数据库名> inspector run
 ```
 **输出**：健康评分、风险统计、巡检项详情
 
@@ -61,7 +72,7 @@ dbskiter --database=<数据库名> inspector run
 
 ### 2. 生成报告
 ```bash
-dbskiter --database=<数据库名> inspector report --output report.html
+python -m dbskiter --database=<数据库名> inspector report --output report.html
 ```
 **支持格式**：HTML、Markdown、JSON
 

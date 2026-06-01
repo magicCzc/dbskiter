@@ -31,19 +31,17 @@ db_diagnose/skill.py
 """
 
 import logging
-import warnings
 from typing import List, Dict, Any, Optional
 
 from dbskiter.shared.unified_connector import UnifiedConnector, detect_connector_type
 from dbskiter.shared.validators import validate_params, Validator
 
+from dbskiter.shared.error_handler import create_success_response, create_error_response
+
 # 导入数据模型
 from .models import (
     ErrorCode,
     DiagnoseConfig,
-    DiagnoseResult,
-    create_success_response,
-    create_error_response,
 )
 
 # 导入工具类
@@ -1651,7 +1649,7 @@ class DiagnoseSkill:
                         data["status"]["protection_mode"] = str(row[3] or "UNKNOWN")
                         data["status"]["switchover_status"] = str(row[4] or "UNKNOWN")
                 except Exception as e:
-                    logger.debug(f"查询v$database失败: {e}")
+                    logger.warning(f"查询v$database失败: {e}")
 
                 try:
                     result = self.connector.execute("""
@@ -1676,7 +1674,7 @@ class DiagnoseSkill:
                         })
                     data["archive_destinations"] = destinations
                 except Exception as e:
-                    logger.debug(f"查询v$archive_dest_status失败: {e}")
+                    logger.warning(f"查询v$archive_dest_status失败: {e}")
 
                 try:
                     result = self.connector.execute("""
@@ -1711,7 +1709,7 @@ class DiagnoseSkill:
                     elif transport_lag_sec > 60:
                         data["warning"] = f"传输延迟过高: {transport_lag_sec}秒"
                 except Exception as e:
-                    logger.debug(f"查询v$dataguard_stats失败: {e}")
+                    logger.warning(f"查询v$dataguard_stats失败: {e}")
             else:
                 data["status"]["database_role"] = "PRIMARY"
                 data["message"] = "未配置Data Guard"
@@ -1950,7 +1948,7 @@ class DiagnoseSkill:
                     data["replicas"] = replicas
                     data["status"]["replica_count"] = len(replicas)
                 except Exception as e:
-                    logger.debug(f"查询pg_stat_replication失败: {e}")
+                    logger.warning(f"查询pg_stat_replication失败: {e}")
                     data["status"]["replica_count"] = 0
             else:
                 data["status"]["database_role"] = "STANDBY"
@@ -1974,7 +1972,7 @@ class DiagnoseSkill:
                             "latest_end_lsn": str(row[4]) if row[4] else ""
                         }
                 except Exception as e:
-                    logger.debug(f"查询pg_stat_wal_receiver失败: {e}")
+                    logger.warning(f"查询pg_stat_wal_receiver失败: {e}")
 
             return create_success_response(
                 message="PostgreSQL复制分析完成",
@@ -3241,5 +3239,170 @@ class DiagnoseSkill:
             return False
 
         return True
+
+    # ==================== PostgreSQL特有诊断方法 ====================
+
+    def analyze_vacuum(self) -> Dict[str, Any]:
+        """
+        分析PostgreSQL VACUUM状态
+
+        检查表的自动清理状态和死元组情况
+
+        返回:
+            Dict: VACUUM状态分析结果
+        """
+        try:
+            if 'postgresql' not in self.dialect:
+                return create_error_response(
+                    f"VACUUM分析仅支持PostgreSQL，当前数据库: {self.dialect}",
+                    ErrorCode.UNSUPPORTED_SQL
+                )
+
+            if self._diagnostician:
+                result = self._diagnostician.analyze_vacuum_status()
+                return self._convert_diagnostician_result(result)
+            else:
+                return create_error_response(
+                    "VACUUM分析需要PostgreSQL诊断器",
+                    ErrorCode.UNKNOWN_ERROR
+                )
+        except Exception as e:
+            logger.error(f"VACUUM分析失败: {e}")
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def analyze_bloat(self, threshold: int = 30) -> Dict[str, Any]:
+        """
+        分析表膨胀/碎片情况
+
+        PostgreSQL: 检测MVCC导致的表膨胀
+        MySQL: 检测InnoDB表碎片
+        Oracle: 检测表空间碎片
+
+        参数:
+            threshold: 膨胀率阈值（百分比，默认30）
+
+        返回:
+            Dict: 表膨胀/碎片分析结果，统一包含以下字段:
+                - tables: 需要关注的表/表空间列表（标准化格式）
+                - health_score: 健康评分(0-100)
+                - total_wasted_space_mb: 总浪费空间
+                - suggestions: 优化建议
+                - actionable_commands: 可执行的维护命令
+                - db_type: 数据库类型标签
+        """
+        try:
+            if self._diagnostician:
+                if 'postgresql' in self.dialect:
+                    result = self._diagnostician.analyze_table_bloat(threshold=threshold)
+                    db_label = "PostgreSQL"
+                elif 'mysql' in self.dialect:
+                    result = self._diagnostician.analyze_table_fragmentation()
+                    db_label = "MySQL"
+                elif 'oracle' in self.dialect:
+                    result = self._diagnostician.analyze_tablespace_fragmentation()
+                    db_label = "Oracle"
+                else:
+                    return create_error_response(
+                        f"膨胀/碎片分析暂不支持 {self.dialect}",
+                        ErrorCode.UNSUPPORTED_SQL
+                    )
+
+                standardized = self._convert_diagnostician_result(result)
+
+                # 标准化数据字段名，统一为CLI可解析的格式
+                if standardized.get("success") and standardized.get("data"):
+                    data = standardized["data"]
+                    data["db_type"] = db_label
+
+                    # 将不同数据库的字段名统一为 bloated_tables
+                    if "fragmented_tables" in data and "bloated_tables" not in data:
+                        data["bloated_tables"] = data["fragmented_tables"]
+                    if "fragmented_tablespaces" in data and "bloated_tables" not in data:
+                        data["bloated_tables"] = data["fragmented_tablespaces"]
+
+                    # 统一 total_wasted_space 字段
+                    if "total_wasted_space_mb" in data and "total_wasted_space" not in data:
+                        wasted_mb = data["total_wasted_space_mb"]
+                        if isinstance(wasted_mb, (int, float)):
+                            if wasted_mb >= 1024:
+                                data["total_wasted_space"] = f"{wasted_mb / 1024:.2f} GB"
+                            else:
+                                data["total_wasted_space"] = f"{wasted_mb:.2f} MB"
+                        else:
+                            data["total_wasted_space"] = str(wasted_mb)
+
+                    # 统一 severely_bloated_count
+                    if "severely_bloated_count" not in data:
+                        data["severely_bloated_count"] = sum(
+                            1 for t in data.get("bloated_tables", [])
+                            if t.get("priority") == "high"
+                        )
+
+                return standardized
+            else:
+                return create_error_response(
+                    "膨胀/碎片分析需要诊断器",
+                    ErrorCode.UNKNOWN_ERROR
+                )
+        except Exception as e:
+            logger.error(f"膨胀/碎片分析失败: {e}")
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def analyze_index_usage(self) -> Dict[str, Any]:
+        """
+        分析索引使用情况
+
+        识别未使用或低效的索引，以及可能缺少索引的表
+
+        返回:
+            Dict: 索引使用分析结果
+        """
+        try:
+            if self._diagnostician:
+                result = self._diagnostician.analyze_index_usage()
+                standardized = self._convert_diagnostician_result(result)
+
+                # 添加数据库类型标签
+                if standardized.get("success") and standardized.get("data"):
+                    db_label = self.dialect.split('+')[0].title()
+                    standardized["data"]["db_type"] = db_label
+
+                return standardized
+            else:
+                return create_error_response(
+                    "索引使用分析需要诊断器",
+                    ErrorCode.UNKNOWN_ERROR
+                )
+        except Exception as e:
+            logger.error(f"索引使用分析失败: {e}")
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def analyze_tablespace_fragmentation(self) -> Dict[str, Any]:
+        """
+        分析Oracle表空间碎片情况
+
+        仅支持Oracle数据库
+
+        返回:
+            Dict: 表空间碎片分析结果
+        """
+        try:
+            if 'oracle' not in self.dialect:
+                return create_error_response(
+                    f"表空间碎片分析仅支持Oracle，当前数据库: {self.dialect}",
+                    ErrorCode.UNSUPPORTED_SQL
+                )
+
+            if self._diagnostician:
+                result = self._diagnostician.analyze_tablespace_fragmentation()
+                return self._convert_diagnostician_result(result)
+            else:
+                return create_error_response(
+                    "表空间碎片分析需要Oracle诊断器",
+                    ErrorCode.UNKNOWN_ERROR
+                )
+        except Exception as e:
+            logger.error(f"表空间碎片分析失败: {e}")
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
 

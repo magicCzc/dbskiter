@@ -10,13 +10,24 @@ description: |
   - 用户说"终止事务" -> 执行 kill <事务ID>
 
   用法：
-  - dbskiter --output-mode=ai --database=<name> lock analyze
-  - dbskiter --output-mode=ai --database=<name> lock deadlocks
-  - dbskiter --output-mode=ai --database=<name> lock chains
-  - dbskiter --output-mode=ai --database=<name> lock kill <transaction_id>
+  - python -m dbskiter --output-mode=ai --database=<name> lock analyze
+  - python -m dbskiter --output-mode=ai --database=<name> lock deadlocks
+  - python -m dbskiter --output-mode=ai --database=<name> lock chains
+  - python -m dbskiter --output-mode=ai --database=<name> lock kill <transaction_id>
 ---
 
 # 锁分析 Skill
+
+## 安全原则
+
+本Skill的大部分操作为只读查询，但kill命令除外：
+
+| 规则 | 说明 |
+|------|------|
+| 只读操作 | analyze/deadlocks/chains/report命令均为只读查询 |
+| kill命令需谨慎 | lock kill会终止事务，属于写操作，需用户明确确认 |
+| 禁止其他写操作 | 不得通过锁分析命令执行DELETE/UPDATE/INSERT/DROP等写操作 |
+| kill不自动执行 | AI不得主动建议执行kill，需用户明确要求 |
 
 ## 何时使用
 
@@ -24,17 +35,17 @@ description: |
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "看锁" | `dbskiter --output-mode=ai --database=<name> lock analyze` | 分析当前锁情况 |
-| "死锁" | `dbskiter --output-mode=ai --database=<name> lock deadlocks` | 检测死锁 |
-| "阻塞" | `dbskiter --output-mode=ai --database=<name> lock chains` | 追踪锁等待链 |
-| "锁报告" | `dbskiter --output-mode=ai --database=<name> lock report` | 生成锁分析报告 |
-| "终止事务" | `dbskiter --output-mode=ai --database=<name> lock kill <id>` | 终止阻塞事务 |
+| "看锁" | `python -m dbskiter --output-mode=ai --database=<name> lock analyze` | 分析当前锁情况 |
+| "死锁" | `python -m dbskiter --output-mode=ai --database=<name> lock deadlocks` | 检测死锁 |
+| "阻塞" | `python -m dbskiter --output-mode=ai --database=<name> lock chains` | 追踪锁等待链 |
+| "锁报告" | `python -m dbskiter --output-mode=ai --database=<name> lock report` | 生成锁分析报告 |
+| "终止事务" | `python -m dbskiter --output-mode=ai --database=<name> lock kill <id>` | 终止阻塞事务 |
 
 ## 核心命令
 
 ### 1. 分析当前锁
 ```bash
-dbskiter --database=<数据库名> lock analyze
+python -m dbskiter --database=<数据库名> lock analyze
 ```
 **输出**：总锁数、等待中锁数、已授予锁数
 
@@ -43,7 +54,7 @@ dbskiter --database=<数据库名> lock analyze
 
 ### 2. 检测死锁
 ```bash
-dbskiter --database=<数据库名> lock deadlocks
+python -m dbskiter --database=<数据库名> lock deadlocks
 ```
 **输出**：死锁数量、涉及事务、解决建议
 
@@ -52,7 +63,7 @@ dbskiter --database=<数据库名> lock deadlocks
 
 ### 3. 追踪锁等待链
 ```bash
-dbskiter --database=<数据库名> lock chains
+python -m dbskiter --database=<数据库名> lock chains
 ```
 **输出**：锁等待链数量、链深度、阻塞源头
 
@@ -61,7 +72,7 @@ dbskiter --database=<数据库名> lock chains
 
 ### 4. 生成锁报告
 ```bash
-dbskiter --database=<数据库名> lock report
+python -m dbskiter --database=<数据库名> lock report
 ```
 **输出**：完整的锁分析报告
 
@@ -70,7 +81,7 @@ dbskiter --database=<数据库名> lock report
 
 ### 5. 终止事务
 ```bash
-dbskiter --database=<数据库名> lock kill <transaction_id>
+python -m dbskiter --database=<数据库名> lock kill <transaction_id>
 ```
 **注意**：谨慎使用，会强制终止事务
 
@@ -87,9 +98,31 @@ dbskiter --database=<数据库名> lock kill <transaction_id>
 
 | 数据库 | 锁分析 | 死锁检测 | 锁等待链 | 说明 |
 |--------|--------|----------|----------|------|
-| MySQL | 完整支持 | 支持 | 支持 | 完全可用 |
+| MySQL | 完整支持 | 支持 | 支持 | 需要 PROCESS 权限访问 information_schema.innodb_locks |
 | PostgreSQL | 完整支持 | 支持 | 支持 | 完全可用 |
-| Oracle | 完整支持 | 支持 | 支持 | 完全可用 |
+| Oracle | 完整支持 | 支持 | 支持 | 需要 SELECT ANY DICTIONARY 权限访问 v$lock、v$session |
+
+## 权限要求
+
+### MySQL
+- 锁分析需要 `PROCESS` 权限，用于访问以下系统视图：
+  - `information_schema.innodb_trx`
+  - `information_schema.innodb_locks`
+  - `information_schema.innodb_lock_waits`
+  - `performance_schema.data_locks` (MySQL 8.0+)
+  - `performance_schema.data_lock_waits` (MySQL 8.0+)
+- 如果权限不足，锁分析将返回空结果，并在响应中提示权限不足
+
+### PostgreSQL
+- 需要 `pg_read_all_stats` 角色或超级用户权限
+- 用于访问 `pg_locks`、`pg_stat_activity` 等系统视图
+
+### Oracle
+- 需要 `SELECT ANY DICTIONARY` 权限或单独授予以下视图查询权限：
+  - `v$lock`
+  - `v$session`
+  - `dba_objects`
+  - `v$sql`
 
 ## AI决策流程
 

@@ -18,7 +18,7 @@ SQL审核工具类
 
 import re
 import hashlib
-from typing import Dict, Any, List, Optional, Tuple, Pattern
+from typing import Dict, Any, List, Optional, Pattern
 
 from dbskiter.db_sql_auditor.models import (
     AuditLevel,

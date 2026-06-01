@@ -71,11 +71,6 @@ class Validator:
         return isinstance(value, list) and len(value) > 0
 
     @staticmethod
-    def valid_limit(value: Any) -> bool:
-        """验证有效的LIMIT值"""
-        return isinstance(value, int) and 0 < value <= 10000
-
-    @staticmethod
     def valid_table_name(value: Any) -> bool:
         """验证有效的表名"""
         if not isinstance(value, str):
@@ -130,9 +125,9 @@ class Validator:
     
     @staticmethod
     def list_not_empty(value: Any) -> bool:
-        """验证非空列表"""
+        """验证非空列表，等同于not_empty_list"""
         return isinstance(value, list) and len(value) > 0
-    
+
     @staticmethod
     def valid_limit(value: Any) -> bool:
         """验证有效的LIMIT值（1-10000），None表示不验证"""

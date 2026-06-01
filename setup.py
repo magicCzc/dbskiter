@@ -6,20 +6,32 @@
 - 支持 pip install 安装
 - 提供统一的 Skill API
 
-作者：Trae AI
+作者：MagiCzc
 创建时间：2026-04-16
+最后修改：2026-05-25
 """
 
+import os
 from setuptools import setup, find_packages
+
+# 统一版本号管理 - 从包内读取版本
+# 避免多处硬编码导致版本不一致
+_version_file = os.path.join("dbskiter", "__init__.py")
+with open(_version_file, "r", encoding="utf-8") as f:
+    for line in f:
+        if line.startswith("__version__"):
+            # 提取版本号: __version__ = "x.y.z"
+            version = line.split("=")[1].strip().strip('"').strip("'")
+            break
 
 with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
     name="dbskiter",
-    version="2.0.0",
-    author="Database Skills Team",
-    author_email="skills@example.com",
+    version=version,
+    author="MagiCzc",
+    author_email="magiczc@139.com",
     description="数据库 Skills 集合 - 监控、诊断、安全、调度、SQL执行",
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -45,6 +57,8 @@ setup(
         "psycopg2-binary>=2.9.0",
         "python-dotenv>=1.0.0",
         "pandas>=2.0.0",
+        "numpy>=1.21.0",
+        "requests>=2.28.0",
         "jinja2>=3.0.0",
         "pydantic>=2.0.0",
     ],
@@ -59,6 +73,10 @@ setup(
             "pytest-asyncio>=0.21.0",
             "black>=23.0.0",
             "flake8>=6.0.0",
+        ],
+        "oracle": [
+            "oracledb>=1.4.0",
+            "JayDeBeApi>=1.2.0",
         ],
         "report": [
             "weasyprint>=59.0",

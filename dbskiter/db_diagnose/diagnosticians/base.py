@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Optional
 from abc import ABC, abstractmethod
 
 from dbskiter.shared.unified_connector import UnifiedConnector
+from dbskiter.shared.utils import format_bytes
 
 logger = logging.getLogger(__name__)
 
@@ -133,3 +134,64 @@ class BaseDiagnostician(ABC):
         if error:
             result["error"] = error
         return result
+
+    def _calculate_health_score(
+        self,
+        items: List[Dict],
+        rules: List[Dict[str, Any]]
+    ) -> int:
+        """
+        通用健康评分计算
+
+        统一的评分框架，避免各子类重复实现评分逻辑。
+        所有评分方法最终都调用此方法。
+
+        参数:
+            items: 待评分的项目列表
+            rules: 评分规则列表，每条规则格式:
+                {
+                    "name": "规则名称",
+                    "filter": lambda item: bool,  # 匹配条件
+                    "deduction": int,             # 每个匹配项扣分
+                    "max_deduction": int           # 最大扣分上限，0表示不限制
+                }
+
+        返回:
+            int: 健康评分(0-100)
+
+        使用示例:
+            >>> rules = [
+            ...     {"name": "高优先级", "filter": lambda x: x.get("priority") == "high", "deduction": 10, "max_deduction": 30},
+            ...     {"name": "中优先级", "filter": lambda x: x.get("priority") == "medium", "deduction": 5, "max_deduction": 20},
+            ... ]
+            >>> score = self._calculate_health_score(items, rules)
+        """
+        score = 100
+
+        for rule in rules:
+            matching_count = sum(1 for item in items if rule["filter"](item))
+            total_deduction = matching_count * rule["deduction"]
+
+            max_ded = rule.get("max_deduction", 0)
+            if max_ded > 0:
+                total_deduction = min(total_deduction, max_ded)
+
+            score -= total_deduction
+
+        return max(0, score)
+
+    def _format_bytes(self, size_bytes: int) -> str:
+        """
+        格式化字节数为人类可读格式
+
+        委托给 shared.utils.format_bytes 统一实现。
+
+        参数:
+            size_bytes: 字节数
+
+        返回:
+            str: 格式化后的字符串，如 "1.50 GB", "256.30 MB"
+        """
+        if size_bytes is None or size_bytes < 0:
+            return "0 B"
+        return format_bytes(size_bytes)

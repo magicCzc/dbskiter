@@ -63,7 +63,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 )
                 self._extension_cache[ext_name] = len(result) > 0
             except Exception as e:
-                logger.debug(f"检查扩展 {ext_name} 失败: {e}")
+                logger.warning(f"检查扩展 {ext_name} 失败: {e}")
                 self._extension_cache[ext_name] = False
         return self._extension_cache[ext_name]
 

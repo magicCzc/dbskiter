@@ -87,6 +87,7 @@ class SchedulerSkill:
         """
         self.connector = connector
         self.backup_dir = Path(backup_dir)
+        self.storage_path = storage_path
         self.max_workers = max_workers
 
         # 初始化组件
@@ -148,12 +149,13 @@ class SchedulerSkill:
         self._load_tasks_from_db()
 
     def _load_tasks_from_db(self):
-        """从数据库加载任务到内存"""
+        """从数据库加载任务到内存, 过期任务重新计算 next_run"""
         try:
-            with sqlite3.connect("./runtime_data/scheduler/scheduler.db") as conn:
+            with sqlite3.connect(self.storage_path) as conn:
                 cursor = conn.execute("SELECT * FROM tasks")
                 rows = cursor.fetchall()
 
+                now = datetime.now()
                 for row in rows:
                     task = ScheduledTask(
                         task_id=row[0],
@@ -170,6 +172,11 @@ class SchedulerSkill:
                         created_at=datetime.fromisoformat(row[12]) if row[12] else datetime.now(),
                         updated_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now()
                     )
+                    # 如果 next_run 已过期, 重新计算
+                    if task.next_run is None or task.next_run <= now:
+                        task.next_run = CronParser.get_next_run(task.schedule, now)
+                        if task.next_run:
+                            self._save_task_to_db(task)
                     self._tasks[row[0]] = task
 
                 if self._tasks:
@@ -181,14 +188,22 @@ class SchedulerSkill:
     # 备份功能
     # =====================================================================
 
-    @validate_params(backup_type=Validator.one_of(["full", "incremental", "tables"]))
-    def backup(self, backup_type: str = "full", tables: Optional[List[str]] = None) -> Dict[str, Any]:
+    @validate_params(backup_type=Validator.one_of(["full", "incremental", "table"]))
+    def backup(
+        self,
+        backup_type: str = "full",
+        tables: Optional[List[str]] = None,
+        output_dir: Optional[str] = None,
+        compress: bool = True,
+    ) -> Dict[str, Any]:
         """
         执行数据库备份
 
         参数:
             backup_type: 备份类型 (full/incremental/tables)
             tables: 指定备份的表（仅tables类型需要）
+            output_dir: 输出目录
+            compress: 是否压缩
 
         返回:
             Dict: 备份结果
@@ -201,11 +216,33 @@ class SchedulerSkill:
 
         try:
             if backup_type == "incremental":
-                result = self.backup_manager.backup_incremental(tables)
-            elif backup_type == "tables" and tables:
-                result = self.backup_manager.backup_tables(tables)
+                result = self.backup_manager.backup_incremental(
+                    tables, output_dir=output_dir
+                )
+            elif backup_type == "table" and tables:
+                results = self.backup_manager.backup_tables(
+                    tables, output_dir=output_dir
+                )
+                # 多表备份返回列表, 汇总结果
+                all_success = all(r.success for r in results)
+                if all_success:
+                    self.circuit_breaker.record_success()
+                    return create_success_response({
+                        "results": [r.to_dict() for r in results],
+                        "total": len(results),
+                        "success_count": sum(1 for r in results if r.success),
+                    })
+                else:
+                    self.circuit_breaker.record_failure()
+                    errors = [r.error for r in results if not r.success and r.error]
+                    return create_error_response(
+                        "; ".join(errors) if errors else "部分表备份失败",
+                        code=ErrorCode.BACKUP_FAILED
+                    )
             else:
-                result = self.backup_manager.backup_full()
+                result = self.backup_manager.backup_full(
+                    output_dir=output_dir, compress=compress
+                )
 
             if result.success:
                 self.circuit_breaker.record_success()
@@ -231,11 +268,25 @@ class SchedulerSkill:
 
     def verify_backup(self, backup_file: str) -> Dict[str, Any]:
         """验证备份文件"""
-        return self.backup_manager.verify_backup(backup_file)
+        result = self.backup_manager.verify_backup(backup_file)
+        if result.success:
+            return create_success_response(result.to_dict())
+        else:
+            return create_error_response(
+                result.error or "验证失败",
+                code=ErrorCode.BACKUP_FILE_CORRUPTED
+            )
 
     def restore_backup(self, backup_file: str, target_db: Optional[str] = None) -> Dict[str, Any]:
         """从备份恢复"""
-        return self.backup_manager.restore_backup(backup_file, target_db)
+        result = self.backup_manager.restore_backup(backup_file, target_db)
+        if result.success:
+            return create_success_response(result.to_dict())
+        else:
+            return create_error_response(
+                result.error or "恢复失败",
+                code=ErrorCode.BACKUP_FAILED
+            )
 
     # =====================================================================
     # 定时任务功能
@@ -306,7 +357,7 @@ class SchedulerSkill:
 
     def _save_task_to_db(self, task: ScheduledTask):
         """保存任务到数据库"""
-        with sqlite3.connect("./runtime_data/scheduler/scheduler.db") as conn:
+        with sqlite3.connect(self.storage_path) as conn:
             conn.execute(
                 """
                 INSERT OR REPLACE INTO tasks
@@ -369,7 +420,7 @@ class SchedulerSkill:
             actual_task_id = task.task_id
             del self._tasks[actual_task_id]
 
-        with sqlite3.connect("./runtime_data/scheduler/scheduler.db") as conn:
+        with sqlite3.connect(self.storage_path) as conn:
             conn.execute("DELETE FROM tasks WHERE task_id = ?", (actual_task_id,))
             conn.commit()
 
@@ -523,21 +574,35 @@ class SchedulerSkill:
         })
 
     def _scheduler_loop(self):
-        """调度器主循环"""
+        """调度器主循环
+
+        注意事项:
+        - 不在持有锁的情况下执行耗时任务
+        - 每30秒检查一次, Cron 精度为分钟级
+        """
         while self._running:
             try:
                 now = datetime.now()
+                tasks_to_run = []
 
+                # 收集需要执行的任务, 释放锁后再执行
                 with self._lock:
                     for task in self._tasks.values():
                         if not task.enabled:
                             continue
-
                         if task.next_run and task.next_run <= now:
-                            self._execute_task(task)
-                            task.last_run = now
+                            tasks_to_run.append(task)
+                            # 先更新 next_run 避免重复执行
                             task.next_run = CronParser.get_next_run(task.schedule, now)
-                            self._save_task_to_db(task)
+                            task.last_run = now
+
+                for task in tasks_to_run:
+                    try:
+                        self._execute_task(task)
+                    except Exception as e:
+                        logger.error(f"调度执行任务失败 {task.name}: {e}")
+                    # 执行完成后保存状态
+                    self._save_task_to_db(task)
 
                 time.sleep(30)
 
@@ -562,25 +627,29 @@ class SchedulerSkill:
             else:
                 result = do_execute()
 
+            # result 是 ExecutionResult 对象, 判断状态
+            from .task_executors import ExecutionStatus
+            is_success = result.status == ExecutionStatus.SUCCESS
+
             # 保存执行记录
             task_result = TaskResult(
                 task_id=task.task_id,
                 task_name=task.name,
-                status=TaskStatus.SUCCESS if result.get("success") else TaskStatus.FAILED,
+                status=TaskStatus.SUCCESS if is_success else TaskStatus.FAILED,
                 start_time=datetime.now(),
                 end_time=datetime.now(),
-                result=result
+                result=result.to_dict() if hasattr(result, 'to_dict') else result
             )
             self._save_execution(task_result)
 
             # 发送通知
-            if result.get("success"):
+            if is_success:
                 self.notification.notify(
                     f"任务执行成功: {task.name}",
                     {"task_id": task.task_id}
                 )
             else:
-                raise Exception(result.get("error", "Unknown error"))
+                raise Exception(result.error or "任务执行失败")
 
         except TimeoutError:
             logger.error(f"任务执行超时: {task.name}")
@@ -605,7 +674,7 @@ class SchedulerSkill:
 
     def _save_execution(self, result: TaskResult):
         """保存执行记录"""
-        with sqlite3.connect("./runtime_data/scheduler/scheduler.db") as conn:
+        with sqlite3.connect(self.storage_path) as conn:
             conn.execute(
                 """
                 INSERT INTO execution_history
@@ -661,7 +730,7 @@ class SchedulerSkill:
             Dict: 标准响应格式，包含执行日志列表
         """
         try:
-            db_path = "./runtime_data/scheduler/scheduler.db"
+            db_path = self.storage_path
             import os
             if not os.path.exists(db_path):
                 return create_success_response(

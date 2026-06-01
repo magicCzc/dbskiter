@@ -20,8 +20,7 @@
 """
 
 import re
-import json
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
@@ -157,7 +156,7 @@ class QueryRewriter:
                     optimized_sql = result['sql']
                     suggestions.append(result['suggestion'])
             except Exception as e:
-                logger.debug(f"重写规则 {rule.__name__} 失败: {e}")
+                logger.warning(f"重写规则 {rule.__name__} 失败: {e}")
 
         return {
             "changed": optimized_sql != original_sql,

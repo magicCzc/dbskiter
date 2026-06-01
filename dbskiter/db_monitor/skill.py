@@ -44,11 +44,11 @@ except ImportError:
 
 # 导入子模块
 from dbskiter.db_monitor.models import (
-    ErrorCode, ErrorMessage,
-    HealthStatus, AnomalyType, Severity, MetricType,
-    MetricPoint, AnomalyAlert, MonitorConfig, HealthAssessment,
-    create_success_response, create_error_response
+    ErrorCode,
+    HealthStatus, MetricType,
+    AnomalyAlert, MonitorConfig, HealthAssessment,
 )
+from dbskiter.shared.error_handler import create_success_response, create_error_response
 from dbskiter.db_monitor.utils import (
     AnomalyDetector, CapacityPredictor, AlertManager
 )
@@ -60,7 +60,7 @@ from dbskiter.db_monitor.health_scorer import get_health_scorer
 try:
     from dbskiter.db_monitor.advanced_predictor import AdvancedCapacityPredictor
     from dbskiter.db_monitor.trend_analyzer import (
-        TrendAnalyzer, StorageBasedDataProvider, create_trend_analyzer_with_storage
+        TrendAnalyzer, StorageBasedDataProvider,
     )
     ADVANCED_FEATURES_AVAILABLE = True
 except ImportError as e:

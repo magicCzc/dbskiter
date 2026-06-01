@@ -26,7 +26,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 # 从shared模块导入标准响应函数
-from dbskiter.shared.error_handler import create_success_response, create_error_response, ErrorCode as SharedErrorCode
+from dbskiter.shared.error_handler import create_success_response, create_error_response
 
 
 class ErrorCode:

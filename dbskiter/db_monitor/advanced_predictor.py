@@ -22,15 +22,11 @@ import logging
 import statistics
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from dbskiter.db_monitor.models import (
-    CapacityPrediction, Severity,
-    create_success_response, create_error_response
-)
 
 logger = logging.getLogger(__name__)
 
@@ -372,7 +368,7 @@ class AdvancedCapacityPredictor:
                     best_result = (algorithm.get_name(), predictions, confidence)
 
             except Exception as e:
-                logger.debug(f"算法 {algorithm.get_name()} 预测失败: {e}")
+                logger.warning(f"算法 {algorithm.get_name()} 预测失败: {e}")
                 continue
 
         if not best_result:

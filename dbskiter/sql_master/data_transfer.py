@@ -26,8 +26,7 @@ import json
 import logging
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from dbskiter.shared.unified_connector import UnifiedConnector
 

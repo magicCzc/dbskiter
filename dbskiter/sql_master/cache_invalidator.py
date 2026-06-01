@@ -4,7 +4,7 @@ SQL缓存失效管理模块
 文件功能：提供表级缓存失效机制，数据变更时自动清除相关缓存
 主要类：CacheInvalidator - 缓存失效管理器
 """
-from typing import Dict, Any, List, Optional, Set
+from typing import Dict, Any, Optional, Set
 import re
 import logging
 

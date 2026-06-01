@@ -46,8 +46,6 @@ import time
 import os
 import shutil
 import threading
-import psutil
-import json
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, Callable, List, Union
 from dataclasses import dataclass, field
@@ -55,8 +53,19 @@ from datetime import datetime
 from pathlib import Path
 from enum import Enum
 
+# psutil 为可选依赖, 未安装时跳过资源监控
+try:
+    import psutil
+    _PSUTIL_AVAILABLE = True
+except ImportError:
+    psutil = None
+    _PSUTIL_AVAILABLE = False
+
 # 导入连接池
-from dbskiter.db_scheduler.connection_pool import ConnectionPool, PooledConnection
+try:
+    from dbskiter.db_scheduler.connection_pool import ConnectionPool
+except ImportError:
+    ConnectionPool = None
 
 logger = logging.getLogger(__name__)
 
@@ -145,11 +154,11 @@ class BaseTaskExecutor(ABC):
             connector: 数据库连接器或连接池
         """
         self.connector = connector
-        self._pool = connector if isinstance(connector, ConnectionPool) else None
+        self._pool = connector if (ConnectionPool is not None and isinstance(connector, ConnectionPool)) else None
         self._cancelled = False
         self._lock = threading.Lock()
         self._start_time: Optional[datetime] = None
-        self._process = psutil.Process()
+        self._process = psutil.Process() if _PSUTIL_AVAILABLE else None
     
     def _get_connection(self):
         """
@@ -225,10 +234,12 @@ class BaseTaskExecutor(ABC):
     
     def _get_resource_usage(self) -> Dict[str, float]:
         """获取当前资源使用情况"""
+        if not _PSUTIL_AVAILABLE or self._process is None:
+            return {}
         try:
             memory_info = self._process.memory_info()
             cpu_percent = self._process.cpu_percent(interval=0.1)
-            
+
             return {
                 "memory_mb": memory_info.rss / 1024 / 1024,
                 "cpu_percent": cpu_percent,
@@ -269,137 +280,90 @@ class BaseTaskExecutor(ABC):
 class BackupExecutor(BaseTaskExecutor):
     """
     数据库备份执行器
-    
-    支持：
+
+    委托 BackupManager 执行真正的备份, 保留进度回调和取消检查功能。
+
+    支持:
     - 全库备份
     - 指定表备份
-    - 增量备份（基于时间戳）
-    - 压缩备份
     """
-    
+
     def execute(self, params: Dict[str, Any],
                 progress_callback: Optional[Callable[[ExecutionProgress], None]] = None,
                 timeout_seconds: int = 3600) -> ExecutionResult:
         """
         执行备份任务
-        
+
         参数:
             params:
                 - tables: 要备份的表列表（None表示全库）
-                - backup_path: 备份文件保存路径
+                - output_dir: 备份文件保存目录
                 - compress: 是否压缩（默认True）
-                - incremental: 是否增量备份（默认False）
+                - include_schema: 是否包含表结构（默认True）
         """
+        # 延迟导入避免循环依赖
+        from .backup import BackupManager
+
         start_time = datetime.now()
         tables = params.get("tables")
-        backup_path = params.get("backup_path", "./backups")
+        output_dir = params.get("output_dir") or params.get("backup_path", "./backups")
         compress = params.get("compress", True)
-        incremental = params.get("incremental", False)
-        
+
         try:
             self._report_progress(progress_callback, "初始化", 0, "开始备份任务")
-            
+
             if not self._check_cancelled():
                 return self._create_cancelled_result(start_time)
-            
-            # 创建备份目录
-            backup_dir = Path(backup_path)
-            backup_dir.mkdir(parents=True, exist_ok=True)
-            
-            self._report_progress(progress_callback, "准备", 10, "创建备份目录")
-            
-            if not self._check_cancelled():
-                return self._create_cancelled_result(start_time)
-            
-            # 获取数据库类型
-            dialect = getattr(self.connector, 'dialect', 'mysql').lower()
-            
-            # 生成备份文件名
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+            self._report_progress(progress_callback, "准备", 10, "连接数据库")
+
+            backup_manager = BackupManager(self.connector)
+            backup_manager.default_output_dir = output_dir
+
+            self._report_progress(progress_callback, "执行", 30, "正在备份...")
+
             if tables:
-                backup_file = backup_dir / f"backup_{dialect}_{'_'.join(tables)}_{timestamp}.sql"
+                results = backup_manager.backup_tables(tables)
+                all_success = all(r.success for r in results)
+                if not all_success:
+                    errors = [r.error for r in results if not r.success and r.error]
+                    raise RuntimeError("; ".join(errors) if errors else "部分表备份失败")
+                result_obj = results[0] if results else None
+                result_data = {
+                    "results": [r.to_dict() for r in results],
+                    "total": len(results),
+                    "success_count": sum(1 for r in results if r.success),
+                }
             else:
-                backup_file = backup_dir / f"backup_{dialect}_full_{timestamp}.sql"
-            
-            self._report_progress(progress_callback, "执行", 30, f"备份到: {backup_file}")
-            
-            # 执行备份（模拟实际备份逻辑）
-            result_data = self._perform_backup(dialect, tables, backup_file, incremental)
-            
+                result_obj = backup_manager.backup_full(
+                    output_dir=output_dir,
+                    compress=compress,
+                    include_schema=params.get("include_schema", True),
+                )
+                if not result_obj.success:
+                    raise RuntimeError(result_obj.error or "备份失败")
+                result_data = result_obj.to_dict()
+
             if not self._check_cancelled():
                 return self._create_cancelled_result(start_time)
-            
-            self._report_progress(progress_callback, "压缩", 80, "压缩备份文件")
-            
-            # 压缩备份文件
-            if compress and backup_file.exists():
-                compressed_file = self._compress_file(backup_file)
-                result_data["compressed_file"] = str(compressed_file)
-                result_data["compressed_size"] = compressed_file.stat().st_size
-            
-            if not self._check_cancelled():
-                return self._create_cancelled_result(start_time)
-            
+
             self._report_progress(progress_callback, "完成", 100, "备份完成")
-            
+
             end_time = datetime.now()
             return ExecutionResult(
                 status=ExecutionStatus.SUCCESS,
                 start_time=start_time,
                 end_time=end_time,
-                message=f"备份成功: {backup_file}",
+                message=f"备份成功: {result_obj.file_path if result_obj else 'N/A'}",
                 data=result_data,
                 resource_usage=self._get_resource_usage()
             )
-        
+
         except TimeoutError as e:
             return self._create_error_result(start_time, str(e), ExecutionStatus.TIMEOUT)
         except Exception as e:
             logger.error(f"备份失败: {e}")
             return self._create_error_result(start_time, str(e))
-    
-    def _perform_backup(self, dialect: str, tables: Optional[List[str]], 
-                       backup_file: Path, incremental: bool) -> Dict[str, Any]:
-        """执行实际备份"""
-        # 这里应该调用实际的备份命令（如mysqldump, pg_dump等）
-        # 目前使用模拟数据
-        
-        result = {
-            "dialect": dialect,
-            "tables": tables or "all",
-            "backup_file": str(backup_file),
-            "incremental": incremental,
-            "size": 0
-        }
-        
-        # 模拟备份过程
-        time.sleep(1)
-        
-        # 创建模拟备份文件
-        with open(backup_file, 'w') as f:
-            f.write(f"-- Backup generated at {datetime.now()}\n")
-            f.write(f"-- Database: {dialect}\n")
-            if tables:
-                f.write(f"-- Tables: {', '.join(tables)}\n")
-            f.write("-- This is a simulated backup file\n")
-        
-        result["size"] = backup_file.stat().st_size
-        return result
-    
-    def _compress_file(self, file_path: Path) -> Path:
-        """压缩文件"""
-        import gzip
-        
-        compressed_path = file_path.with_suffix(file_path.suffix + '.gz')
-        
-        with open(file_path, 'rb') as f_in:
-            with gzip.open(compressed_path, 'wb') as f_out:
-                shutil.copyfileobj(f_in, f_out)
-        
-        # 删除原文件
-        file_path.unlink()
-        
-        return compressed_path
     
     def _create_cancelled_result(self, start_time: datetime) -> ExecutionResult:
         """创建取消结果"""

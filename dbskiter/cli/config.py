@@ -130,9 +130,31 @@ class Config:
             if jdbc_driver:
                 extra["jdbc_driver_path"] = jdbc_driver
         
-        # 如果没有找到配置，尝试默认 DB_ 前缀
+        # 如果没有找到配置，尝试默认 DB_ 前缀（但不递归回退）
         if not kwargs and prefix != "DB":
-            return cls.from_env(env_file, prefix="DB")
+            # 尝试默认 DB_ 前缀
+            env_mapping_default = {
+                "dialect": "DB_DIALECT",
+                "host": "DB_HOST",
+                "port": "DB_PORT",
+                "username": "DB_USER",
+                "password": "DB_PASSWORD",
+                "database": "DB_NAME",
+            }
+            
+            for key, env_var in env_mapping_default.items():
+                value = os.getenv(env_var)
+                if value is not None:
+                    if key == "port":
+                        try:
+                            value = int(value)
+                        except ValueError:
+                            raise ValidationError(f"环境变量 {env_var} 必须是整数")
+                    kwargs[key] = value
+        
+        # 如果仍然没有找到任何配置，抛出错误
+        if not kwargs:
+            raise ConfigError(f"未找到数据库配置，请设置 {prefix}_* 环境变量，或使用 --database 参数指定已配置的数据库")
         
         # 添加 extra 和 prefix
         kwargs["extra"] = extra

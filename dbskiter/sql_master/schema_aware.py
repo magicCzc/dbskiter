@@ -17,7 +17,6 @@ import time
 from typing import Dict, List, Any, Optional, Tuple, Set
 from dataclasses import dataclass, field
 from collections import defaultdict
-from functools import lru_cache
 
 
 @dataclass
@@ -794,8 +793,6 @@ class ResultExplainer:
         返回：
             Dict: 解释结果
         """
-        import pandas as pd
-        
         if hasattr(result, 'df'):
             df = result.df
         else:

@@ -21,7 +21,7 @@ from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
 from dbskiter.db_security.models import (
-    RiskLevel, SensitivityLevel, Risk, RiskReport
+    RiskLevel, Risk, RiskReport
 )
 
 logger = logging.getLogger(__name__)
@@ -565,7 +565,7 @@ class SecurityAuditor:
                         recommended_value=f"撤销 {grantee} 的 {privilege} 权限"
                     ))
             except Exception as e2:
-                logger.debug(f"查询Oracle系统权限失败: {e2}")
+                logger.warning(f"查询Oracle系统权限失败: {e2}")
 
         except Exception as e:
             logger.error(f"Oracle权限审计失败: {e}")
@@ -624,7 +624,7 @@ class SecurityAuditor:
                     ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查SSL配置失败: {e}")
+                logger.warning(f"检查SSL配置失败: {e}")
 
             # 检查2: 密码策略
             try:
@@ -639,7 +639,7 @@ class SecurityAuditor:
                     ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查密码策略失败: {e}")
+                logger.warning(f"检查密码策略失败: {e}")
 
             # 检查3: 审计日志
             try:
@@ -654,7 +654,7 @@ class SecurityAuditor:
                     ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查审计日志失败: {e}")
+                logger.warning(f"检查审计日志失败: {e}")
 
             # 检查4: 远程root访问
             try:
@@ -672,7 +672,7 @@ class SecurityAuditor:
                     ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查root远程访问失败: {e}")
+                logger.warning(f"检查root远程访问失败: {e}")
 
             # 检查5: 匿名用户
             try:
@@ -690,7 +690,7 @@ class SecurityAuditor:
                     ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查匿名用户失败: {e}")
+                logger.warning(f"检查匿名用户失败: {e}")
 
         except Exception as e:
             logger.error(f"配置审计失败: {e}")
@@ -740,7 +740,7 @@ class SecurityAuditor:
                         ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查Oracle审计配置失败: {e}")
+                logger.warning(f"检查Oracle审计配置失败: {e}")
 
             # 检查2: 密码策略（用户配置文件）
             try:
@@ -794,7 +794,7 @@ class SecurityAuditor:
 
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查Oracle密码策略失败: {e}")
+                logger.warning(f"检查Oracle密码策略失败: {e}")
 
             # 检查3: 远程登录配置
             try:
@@ -814,7 +814,7 @@ class SecurityAuditor:
                         ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查Oracle远程登录配置失败: {e}")
+                logger.warning(f"检查Oracle远程登录配置失败: {e}")
 
             # 检查4: 监听器密码
             try:
@@ -824,7 +824,7 @@ class SecurityAuditor:
                 """)
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查Oracle监听器配置失败: {e}")
+                logger.warning(f"检查Oracle监听器配置失败: {e}")
 
             # 检查5: OPEN_CURSOR数量
             try:
@@ -844,7 +844,7 @@ class SecurityAuditor:
                         ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查Oracle open_cursors失败: {e}")
+                logger.warning(f"检查Oracle open_cursors失败: {e}")
 
         except Exception as e:
             logger.error(f"Oracle配置审计失败: {e}")
@@ -955,7 +955,7 @@ class SecurityAuditor:
                             recommended_value=f"审查 {grantee} 是否确实需要 {priv} 权限"
                         ))
             except Exception as e2:
-                logger.debug(f"查询PostgreSQL表权限失败: {e2}")
+                logger.warning(f"查询PostgreSQL表权限失败: {e2}")
 
             try:
                 result3 = self.connector.execute("""
@@ -981,7 +981,7 @@ class SecurityAuditor:
                             recommended_value=f"撤销 {grantee} 对系统函数的执行权限"
                         ))
             except Exception as e3:
-                logger.debug(f"查询PostgreSQL函数权限失败: {e3}")
+                logger.warning(f"查询PostgreSQL函数权限失败: {e3}")
 
         except Exception as e:
             logger.error(f"PostgreSQL权限审计失败: {e}")
@@ -1032,7 +1032,7 @@ class SecurityAuditor:
                         ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查PostgreSQL SSL配置失败: {e}")
+                logger.warning(f"检查PostgreSQL SSL配置失败: {e}")
 
             try:
                 result = self.connector.execute("""
@@ -1052,7 +1052,7 @@ class SecurityAuditor:
                         ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查PostgreSQL连接日志失败: {e}")
+                logger.warning(f"检查PostgreSQL连接日志失败: {e}")
 
             try:
                 result = self.connector.execute("""
@@ -1087,7 +1087,7 @@ class SecurityAuditor:
                     ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查PostgreSQL日志配置失败: {e}")
+                logger.warning(f"检查PostgreSQL日志配置失败: {e}")
 
             try:
                 result = self.connector.execute("""
@@ -1106,7 +1106,7 @@ class SecurityAuditor:
                         ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查PostgreSQL max_connections失败: {e}")
+                logger.warning(f"检查PostgreSQL max_connections失败: {e}")
 
             try:
                 has_pgaudit = False
@@ -1125,7 +1125,7 @@ class SecurityAuditor:
                     ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查PostgreSQL pgaudit失败: {e}")
+                logger.warning(f"检查PostgreSQL pgaudit失败: {e}")
 
             try:
                 result = self.connector.execute("""
@@ -1145,7 +1145,7 @@ class SecurityAuditor:
                         ))
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查PostgreSQL密码加密失败: {e}")
+                logger.warning(f"检查PostgreSQL密码加密失败: {e}")
 
             try:
                 result = self.connector.execute("""
@@ -1158,7 +1158,7 @@ class SecurityAuditor:
                     pass
                 checks_performed += 1
             except Exception as e:
-                logger.debug(f"检查PostgreSQL用户密码失败: {e}")
+                logger.warning(f"检查PostgreSQL用户密码失败: {e}")
 
         except Exception as e:
             logger.error(f"PostgreSQL配置审计失败: {e}")

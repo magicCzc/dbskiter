@@ -22,8 +22,8 @@ db_security/audit_log_analyzer.py
 import logging
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from collections import defaultdict
 
 from dbskiter.shared.unified_connector import UnifiedConnector
@@ -381,7 +381,7 @@ class AuditLogAnalyzer:
                     logger.warning(f"解析performance_schema事件失败: {e}")
                     
         except Exception as e:
-            logger.debug(f"无法从performance_schema获取事件: {e}")
+            logger.warning(f"无法从performance_schema获取事件: {e}")
         
         return events
     
@@ -440,7 +440,7 @@ class AuditLogAnalyzer:
                     logger.warning(f"解析general_log事件失败: {e}")
 
         except Exception as e:
-            logger.debug(f"无法从general_log获取事件: {e}")
+            logger.warning(f"无法从general_log获取事件: {e}")
 
         return events
     
@@ -562,7 +562,7 @@ class AuditLogAnalyzer:
                 ))
 
         except Exception as e:
-            logger.debug(f"无法获取Oracle审计日志（审计可能未启用）: {e}")
+            logger.warning(f"无法获取Oracle审计日志（审计可能未启用）: {e}")
 
         return events
 

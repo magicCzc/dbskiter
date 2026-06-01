@@ -17,7 +17,7 @@ db_diagnose/utils.py
 
 import hashlib
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List
 
 from dbskiter.db_diagnose.models import DiagnoseLevel
 

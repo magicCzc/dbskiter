@@ -120,7 +120,8 @@ class AuditCommand(BaseCommand):
                     "ddl": lambda: skill.analyze_ddl_impact(self.args.ddl),
                     "optimize": lambda: skill.optimize_sql(getattr(self.args, 'sql', '')),
                     "recommend-indexes": lambda: skill.recommend_indexes(
-                        table=getattr(self.args, 'table', None),
+                        getattr(self.args, 'sql', ''),
+                        {},
                     ),
                 }
                 scenario_map = {
@@ -420,14 +421,17 @@ class AuditCommand(BaseCommand):
         self.output.print("索引推荐结果")
         self.output.print(f"{'='*60}")
 
-        indexes = result.get('recommended_indexes', [])
+        indexes = result.get('recommendations', [])
         if indexes:
             self.output.print(f"\n推荐索引 ({len(indexes)}个):")
             for i, idx in enumerate(indexes, 1):
                 self.output.print(f"\n  {i}. 表: {idx.get('table', 'unknown')}")
+                self.output.print(f"     索引名: {idx.get('index_name', 'auto_idx')}")
                 self.output.print(f"     列: {', '.join(idx.get('columns', []))}")
                 self.output.print(f"     类型: {idx.get('index_type', 'BTREE')}")
                 self.output.print(f"     理由: {idx.get('reason', '无说明')}")
+                if idx.get('priority'):
+                    self.output.print(f"     优先级: {idx.get('priority', 'medium')}")
         else:
             self.output.print("\n无需添加新索引")
 

@@ -17,12 +17,11 @@ SQL审计日志存储模块
 """
 
 import sqlite3
-import json
 import logging
 import threading
+from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 

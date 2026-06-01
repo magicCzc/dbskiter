@@ -15,14 +15,14 @@ import re
 import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Set, Tuple
+from typing import List, Dict, Any, Optional, Set
 from enum import Enum
 import logging
 
 try:
     import sqlparse
-    from sqlparse.sql import Statement, Token, Where, Comparison
-    from sqlparse.tokens import Keyword, DML, Wildcard
+    from sqlparse.sql import Statement
+    from sqlparse.tokens import Keyword
     SQLPARSE_AVAILABLE = True
 except ImportError:
     SQLPARSE_AVAILABLE = False
@@ -150,20 +150,33 @@ class SQLInjectionDetectorV2:
         sql_hash = self._hash_sql(sql)
         sql_preview = self._get_sql_preview(sql)
         
+        # 0. 多语句检测 (sqlparse 之前的原始字符串)
+        if re.search(r";\s*(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|TRUNCATE)\b", sql, re.IGNORECASE):
+            findings.append(SQLInjectionFinding(
+                sql_hash=sql_hash,
+                sql_preview=sql_preview,
+                injection_type=InjectionType.STACKED_QUERY,
+                risk_level=RiskLevel.CRITICAL,
+                confidence=0.95,
+                description="检测到堆叠查询注入 (多条SQL语句)",
+                vulnerable_clause=sql[:100],
+                suggestion="禁止多语句执行，使用参数化查询，严格输入验证"
+            ))
+
         # 1. AST 结构分析（如果可用）
         if self._ast_available:
             ast_findings = self._analyze_ast(sql, sql_hash, sql_preview)
             findings.extend(ast_findings)
-        
+
         # 2. 参数污染检测
         if params:
             param_findings = self._analyze_params(sql, params, sql_hash, sql_preview)
             findings.extend(param_findings)
-        
+
         # 3. 语义模式检测（正则辅助）
         pattern_findings = self._analyze_patterns(sql, sql_hash, sql_preview, dialect)
         findings.extend(pattern_findings)
-        
+
         # 4. 字符串拼接检测
         concat_findings = self._detect_string_concatenation(sql, sql_hash, sql_preview)
         findings.extend(concat_findings)
@@ -230,54 +243,154 @@ class SQLInjectionDetectorV2:
                 findings.extend(stacked_findings)
                 
         except Exception as e:
-            logger.debug(f"AST 分析失败: {e}")
+            logger.warning(f"AST 分析失败: {e}")
         
         return findings
     
     def _extract_where_clause(self, statement: Statement) -> Optional[str]:
-        """提取 WHERE 子句"""
+        """提取 WHERE 子句
+
+        使用递归方式遍历所有token，处理sqlparse的嵌套结构
+        """
         where_tokens = []
         in_where = False
-        
-        for token in statement.tokens:
-            if token.ttype is Keyword and token.value.upper() == 'WHERE':
-                in_where = True
-                continue
-            if in_where:
-                if token.ttype in (Keyword,) and token.value.upper() in ('ORDER', 'GROUP', 'LIMIT', 'UNION'):
-                    break
-                where_tokens.append(str(token))
-        
+
+        def _is_keyword(token, keyword: str) -> bool:
+            """判断token是否为指定关键词（兼容sqlparse的子类型系统）"""
+            if token.ttype is None:
+                return False
+            # 使用 in 判断，兼容 Token.Keyword.DML 等子类型
+            try:
+                return token.ttype in Keyword and token.value.upper() == keyword
+            except TypeError:
+                return False
+
+        def _is_terminator(token) -> bool:
+            """判断token是否为WHERE子句的终止关键词"""
+            if token.ttype is None:
+                return False
+            try:
+                if token.ttype not in Keyword:
+                    return False
+                val = token.value.upper().strip()
+                # 支持复合关键词如 ORDER BY、GROUP BY
+                return any(val == t or val.startswith(t + ' ') for t in ('ORDER', 'GROUP', 'LIMIT', 'UNION', 'HAVING'))
+            except TypeError:
+                return False
+
+        def _traverse(tokens):
+            nonlocal in_where
+            for token in tokens:
+                if _is_keyword(token, 'WHERE'):
+                    in_where = True
+                    continue
+                if in_where and _is_terminator(token):
+                    in_where = False
+                    continue
+                # 如果token有子token，递归处理子token，不收集父token的文本
+                # 避免父节点和子节点文本重复收集
+                if hasattr(token, 'tokens') and len(token.tokens) > 1:
+                    _traverse(token.tokens)
+                elif in_where:
+                    where_tokens.append(str(token))
+
+        _traverse(statement.tokens)
         return ' '.join(where_tokens) if where_tokens else None
     
     def _detect_or_tautology(self, where_clause: str, sql_hash: str, sql_preview: str) -> List[SQLInjectionFinding]:
-        """检测 OR 恒真条件"""
+        """检测 OR 恒真条件
+
+        关键判断: 恒真条件本身不一定是注入(如 WHERE status='a' OR status='b'),
+        只有在有用户输入痕迹时才报高风险。
+        """
         findings = []
-        
-        # 匹配 OR 1=1, OR 'a'='a', OR TRUE 等模式
+        where_upper = where_clause.upper()
+
+        # 先检查是否有明显的用户输入痕迹
+        has_input_trace = self._has_user_input_trace(where_clause)
+
+        # 匹配 OR 恒真模式
         tautology_patterns = [
             (r"\bOR\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+['\"]?", "OR 数字恒真"),
-            (r"\bOR\s+['\"][^'\"]*['\"]\s*=\s*['\"][^'\"]*['\"]", "OR 字符串恒真"),
+            (r"\bOR\s+['\"].*?['\"]\s*=\s*['\"].*?['\"]", "OR 字符串恒真"),
             (r"\bOR\s+TRUE\b", "OR TRUE"),
             (r"\bOR\s+1\s*=\s*1\b", "OR 1=1"),
-            (r"\bOR\s*\(?\s*['\"]?\w+['\"]?\s*=\s*['\"]?\w+['\"]?\s*\)?", "OR 变量恒真"),
         ]
-        
+
+        matched = False
         for pattern, desc in tautology_patterns:
             if re.search(pattern, where_clause, re.IGNORECASE):
+                matched = True
+                break
+
+        if matched:
+            if has_input_trace:
+                # 有用户输入痕迹 + 恒真条件 = 高风险
                 findings.append(SQLInjectionFinding(
                     sql_hash=sql_hash,
                     sql_preview=sql_preview,
                     injection_type=InjectionType.BOOLEAN_BASED,
                     risk_level=RiskLevel.CRITICAL,
-                    confidence=0.95,
-                    description=f"检测到布尔盲注: {desc}",
+                    confidence=0.85,
+                    description="WHERE 子句中存在恒真条件且检测到用户输入痕迹",
                     vulnerable_clause=where_clause[:100],
                     suggestion="使用参数化查询，避免直接拼接用户输入到 WHERE 条件"
                 ))
-                break  # 只报告一次
-        
+            else:
+                # 没有用户输入痕迹, 可能是正常业务逻辑, 只报低风险
+                findings.append(SQLInjectionFinding(
+                    sql_hash=sql_hash,
+                    sql_preview=sql_preview,
+                    injection_type=InjectionType.BOOLEAN_BASED,
+                    risk_level=RiskLevel.LOW,
+                    confidence=0.30,
+                    description="WHERE 子句中存在恒真条件, 但未检测到用户输入痕迹, 可能是正常逻辑",
+                    vulnerable_clause=where_clause[:100],
+                    suggestion="请确认此 OR 条件是否为业务逻辑所需, 避免直接拼接用户输入"
+                ))
+
         return findings
+
+    def _has_user_input_trace(self, clause: str) -> bool:
+        """检测 SQL 片段中是否有用户输入的痕迹
+
+        判断依据:
+        - 存在注释符 (-- , /* , #)
+        - 单引号/双引号不平衡
+        - 存在明显的字符串截断痕迹 (如 'value' 后面直接跟 OR)
+        - 存在 ASCII/CHR 编码函数
+        - 存在十六进制编码字符串
+        """
+        clause_upper = clause.upper()
+
+        # 注释符
+        if re.search(r"(--\s*$|--\s+[^'\"]|/\*|#\s*$)", clause, re.IGNORECASE):
+            return True
+
+        # 引号不平衡 (奇数个单引号或双引号)
+        single_quotes = clause.count("'")
+        double_quotes = clause.count('"')
+        if single_quotes % 2 != 0 or double_quotes % 2 != 0:
+            return True
+
+        # ASCII/CHR 编码
+        if re.search(r"\b(CHR\s*\(|ASCII\s*\(|CHAR\s*\()", clause_upper):
+            return True
+
+        # 十六进制字符串 (如 0x414243)
+        if re.search(r"\b0x[0-9A-F]{4,}\b", clause, re.IGNORECASE):
+            return True
+
+        # 字符串后跟 OR/AND 且中间无运算符 (如 'admin' OR)
+        if re.search(r"['\"]\s*\bOR\b", clause, re.IGNORECASE) or \
+           re.search(r"['\"]\s*\bAND\b", clause, re.IGNORECASE):
+            return True
+
+        # 连续多个空格或制表符 (可能是手动构造的 payload)
+        if re.search(r"  +|\t", clause):
+            return True
+
+        return False
     
     def _detect_comment_injection(self, where_clause: str, sql_hash: str, sql_preview: str) -> List[SQLInjectionFinding]:
         """检测注释注入"""
@@ -307,31 +420,46 @@ class SQLInjectionDetectorV2:
         return findings
     
     def _detect_union_injection(self, statement: Statement, sql_hash: str, sql_preview: str) -> List[SQLInjectionFinding]:
-        """检测 UNION 注入"""
+        """检测 UNION 注入
+
+        正常的 UNION ALL 查询(如报表合并)不应误报,
+        只有在有用户输入痕迹时才报高风险。
+        """
         findings = []
-        sql_str = str(statement).upper()
-        
-        # 检测 UNION SELECT
-        if re.search(r"\bUNION\s+(ALL\s+)?SELECT\b", sql_str):
+        sql_str = str(statement)
+        sql_upper = sql_str.upper()
+
+        if not re.search(r"\bUNION\s+(ALL\s+)?SELECT\b", sql_upper):
+            return findings
+
+        # 有 UNION SELECT, 进一步判断是否有注入风险
+        has_trace = self._has_user_input_trace(sql_str)
+
+        # 检查 UNION 是否在 WHERE 子句之后(异常位置)
+        where_pos = sql_upper.find("WHERE")
+        union_pos = sql_upper.find("UNION")
+        union_after_where = where_pos != -1 and union_pos > where_pos
+
+        if has_trace or union_after_where:
             findings.append(SQLInjectionFinding(
                 sql_hash=sql_hash,
                 sql_preview=sql_preview,
                 injection_type=InjectionType.UNION_BASED,
-                risk_level=RiskLevel.CRITICAL,
-                confidence=0.90,
-                description="检测到 UNION 注入攻击",
+                risk_level=RiskLevel.HIGH,
+                confidence=0.85 if has_trace else 0.75,
+                description="UNION SELECT 出现在 WHERE 子句之后或检测到用户输入痕迹",
                 vulnerable_clause="UNION SELECT",
                 suggestion="使用参数化查询，限制查询列数，避免直接拼接用户输入"
             ))
-        
+
         return findings
     
     def _detect_stacked_queries(self, statement: Statement, sql_hash: str, sql_preview: str) -> List[SQLInjectionFinding]:
-        """检测堆叠查询"""
+        """检测堆叠查询 (对单个 statement 检测, 多 statement 在 analyze_sql 中检测)"""
         findings = []
         sql_str = str(statement)
-        
-        # 检测分号分隔的多语句
+
+        # 单条 statement 内部不应有分号+其他语句
         if re.search(r";\s*(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|EXEC|TRUNCATE)\b", sql_str, re.IGNORECASE):
             findings.append(SQLInjectionFinding(
                 sql_hash=sql_hash,
@@ -343,65 +471,125 @@ class SQLInjectionDetectorV2:
                 vulnerable_clause="; followed by SQL statement",
                 suggestion="禁止多语句执行，使用参数化查询，严格输入验证"
             ))
-        
+
         return findings
     
     def _analyze_params(self, sql: str, params: Dict, sql_hash: str, sql_preview: str) -> List[SQLInjectionFinding]:
-        """分析参数是否包含注入 payload"""
+        """分析参数是否包含注入 payload
+
+        重点检测参数值中是否存在多语句、UNION、注释等明确的注入特征,
+        而不是简单的关键词匹配。
+        """
         findings = []
-        
-        dangerous_keywords = [
-            'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE',
-            'ALTER', 'EXEC', 'UNION', 'OR', 'AND', '--', '/*', '*/',
-            'SLEEP', 'BENCHMARK', 'PG_SLEEP', 'WAITFOR'
-        ]
-        
+
         for key, value in params.items():
             if not isinstance(value, str):
                 continue
-            
+
+            # 只检测明确的注入 payload
+            if not self._is_suspicious_payload(value):
+                continue
+
+            # 根据 payload 类型确定风险等级
             value_upper = value.upper()
-            
-            # 检测参数中包含 SQL 关键字
-            for keyword in dangerous_keywords:
-                if keyword in value_upper:
-                    # 检查是否是注入 payload
-                    if self._is_suspicious_payload(value):
-                        findings.append(SQLInjectionFinding(
-                            sql_hash=sql_hash,
-                            sql_preview=sql_preview,
-                            injection_type=InjectionType.SECOND_ORDER,
-                            risk_level=RiskLevel.HIGH,
-                            confidence=0.80,
-                            description=f"参数 '{key}' 包含可疑 SQL 关键字: {keyword}",
-                            vulnerable_clause=f"{key}={value[:50]}",
-                            suggestion="对参数值进行严格验证和清理，使用白名单机制"
-                        ))
-                        break
-        
+
+            # CRITICAL: 多语句注入
+            if re.search(r";\s*(SELECT|INSERT|UPDATE|DELETE|DROP|EXEC|TRUNCATE)", value_upper):
+                findings.append(SQLInjectionFinding(
+                    sql_hash=sql_hash,
+                    sql_preview=sql_preview,
+                    injection_type=InjectionType.STACKED_QUERY,
+                    risk_level=RiskLevel.CRITICAL,
+                    confidence=0.95,
+                    description=f"参数 '{key}' 包含堆叠查询注入",
+                    vulnerable_clause=f"{key}={value[:50]}",
+                    suggestion="禁止在参数中传递多条SQL语句，使用参数化查询"
+                ))
+                continue
+
+            # HIGH: UNION 注入
+            if re.search(r"\bUNION\s+(ALL\s+)?SELECT\b", value_upper):
+                findings.append(SQLInjectionFinding(
+                    sql_hash=sql_hash,
+                    sql_preview=sql_preview,
+                    injection_type=InjectionType.UNION_BASED,
+                    risk_level=RiskLevel.HIGH,
+                    confidence=0.90,
+                    description=f"参数 '{key}' 包含 UNION 注入",
+                    vulnerable_clause=f"{key}={value[:50]}",
+                    suggestion="使用参数化查询，限制查询列数"
+                ))
+                continue
+
+            # HIGH: 时间盲注
+            if any(func in value_upper for func in ['SLEEP(', 'BENCHMARK(', 'PG_SLEEP(', 'WAITFOR']):
+                findings.append(SQLInjectionFinding(
+                    sql_hash=sql_hash,
+                    sql_preview=sql_preview,
+                    injection_type=InjectionType.TIME_BASED,
+                    risk_level=RiskLevel.HIGH,
+                    confidence=0.85,
+                    description=f"参数 '{key}' 包含时间延迟函数",
+                    vulnerable_clause=f"{key}={value[:50]}",
+                    suggestion="禁止在参数中使用时间延迟函数"
+                ))
+                continue
+
+            # MEDIUM: 布尔盲注 (OR 1=1 + 注释)
+            if self._has_user_input_trace(value) and re.search(r"\bOR\s+\d+\s*=\s*\d+", value_upper):
+                findings.append(SQLInjectionFinding(
+                    sql_hash=sql_hash,
+                    sql_preview=sql_preview,
+                    injection_type=InjectionType.BOOLEAN_BASED,
+                    risk_level=RiskLevel.HIGH,
+                    confidence=0.75,
+                    description=f"参数 '{key}' 包含布尔盲注特征",
+                    vulnerable_clause=f"{key}={value[:50]}",
+                    suggestion="使用参数化查询"
+                ))
+                continue
+
+            # LOW: 包含 SQL 关键字但无明确注入特征
+            if re.search(r"\b(SELECT|INSERT|UPDATE|DELETE|DROP)\b", value_upper):
+                findings.append(SQLInjectionFinding(
+                    sql_hash=sql_hash,
+                    sql_preview=sql_preview,
+                    injection_type=InjectionType.SECOND_ORDER,
+                    risk_level=RiskLevel.LOW,
+                    confidence=0.40,
+                    description=f"参数 '{key}' 包含SQL关键字, 但无明显注入特征",
+                    vulnerable_clause=f"{key}={value[:50]}",
+                    suggestion="建议验证参数值, 使用白名单机制"
+                ))
+
         return findings
     
     def _is_suspicious_payload(self, value: str) -> bool:
         """判断是否是可疑的注入 payload"""
         value_upper = value.upper()
-        
-        # 多个 SQL 关键字组合
-        keyword_count = sum(1 for kw in ['SELECT', 'UNION', 'OR', 'AND', 'INSERT', 'DELETE'] if kw in value_upper)
+
+        # 多个 SQL 关键字组合 (含 DROP/TRUNCATE)
+        keywords = ['SELECT', 'UNION', 'OR', 'AND', 'INSERT', 'DELETE', 'DROP', 'TRUNCATE']
+        keyword_count = sum(1 for kw in keywords if kw in value_upper)
         if keyword_count >= 2:
             return True
-        
+
+        # 包含分号 + SQL 关键字 (堆叠查询)
+        if re.search(r";\s*(SELECT|INSERT|UPDATE|DELETE|DROP|EXEC|TRUNCATE)", value_upper):
+            return True
+
         # 包含运算符和关键字
         if re.search(r"(=|<|>|!|\|\||&&)", value) and any(kw in value_upper for kw in ['OR', 'AND']):
             return True
-        
+
         # 包含注释
         if '--' in value or '/*' in value or '#' in value:
             return True
-        
+
         # 包含时间函数
         if any(func in value_upper for func in ['SLEEP(', 'BENCHMARK(', 'PG_SLEEP(']):
             return True
-        
+
         return False
     
     def _analyze_patterns(self, sql: str, sql_hash: str, sql_preview: str, dialect: str) -> List[SQLInjectionFinding]:
@@ -438,7 +626,48 @@ class SQLInjectionDetectorV2:
                     vulnerable_clause=func,
                     suggestion=f"避免使用 {func}，限制数据库权限"
                 ))
-        
+
+        # 布尔盲注兜底检测（仅当检测到用户输入痕迹时）
+        if self._has_user_input_trace(sql):
+            tautology_patterns = [
+                (r"\bOR\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+['\"]?", "OR 数字恒真"),
+                (r"\bOR\s+['\"].*?['\"]\s*=\s*['\"].*?['\"]", "OR 字符串恒真"),
+                (r"\bOR\s+TRUE\b", "OR TRUE"),
+                (r"\bOR\s+1\s*=\s*1\b", "OR 1=1"),
+            ]
+            for pattern, desc in tautology_patterns:
+                if re.search(pattern, sql, re.IGNORECASE):
+                    findings.append(SQLInjectionFinding(
+                        sql_hash=sql_hash,
+                        sql_preview=sql_preview,
+                        injection_type=InjectionType.BOOLEAN_BASED,
+                        risk_level=RiskLevel.HIGH,
+                        confidence=0.70,
+                        description=f"SQL中存在恒真条件且检测到用户输入痕迹: {desc}",
+                        vulnerable_clause=sql[:100],
+                        suggestion="使用参数化查询，避免直接拼接用户输入到 WHERE 条件"
+                    ))
+                    break
+
+        # 注释注入兜底检测
+        comment_patterns = [
+            (r";\s*--", "分号+注释", RiskLevel.CRITICAL),
+            (r"\b\d+\s+OR\s+['\"]?\d+['\"]?\s*=\s*['\"]?\d+['\"]?.*--", "数字条件+注释绕过", RiskLevel.CRITICAL),
+        ]
+        for pattern, desc, risk in comment_patterns:
+            if re.search(pattern, sql, re.IGNORECASE):
+                findings.append(SQLInjectionFinding(
+                    sql_hash=sql_hash,
+                    sql_preview=sql_preview,
+                    injection_type=InjectionType.COMMENT_BASED,
+                    risk_level=risk,
+                    confidence=0.85,
+                    description=f"检测到注释注入: {desc}",
+                    vulnerable_clause=sql[:100],
+                    suggestion="过滤或转义注释字符，使用参数化查询"
+                ))
+                break
+
         return findings
     
     def _detect_string_concatenation(self, sql: str, sql_hash: str, sql_preview: str) -> List[SQLInjectionFinding]:

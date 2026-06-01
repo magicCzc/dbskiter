@@ -98,7 +98,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 logger.info("InnoDB表检测失败，假设不可用")
 
         except Exception as e:
-            logger.warning(f"能力检测失败: {e}")
+            logger.warning(f"能力检测失败: {str(e).split(chr(10))[0][:120]}")
 
     def collect_metrics(self) -> List[PerformanceMetric]:
         """
@@ -160,7 +160,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
             ))
 
         except Exception as e:
-            logger.warning(f"CPU指标采集失败: {e}")
+            logger.warning(f"CPU指标采集失败: {str(e).split(chr(10))[0][:120]}")
 
         return metrics
 
@@ -205,7 +205,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                     ))
 
         except Exception as e:
-            logger.warning(f"IO指标采集失败: {e}")
+            logger.warning(f"IO指标采集失败: {str(e).split(chr(10))[0][:120]}")
 
         return metrics
 
@@ -246,7 +246,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                     ))
 
         except Exception as e:
-            logger.warning(f"内存指标采集失败: {e}")
+            logger.warning(f"内存指标采集失败: {str(e).split(chr(10))[0][:120]}")
 
         return metrics
 
@@ -290,7 +290,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 ))
 
         except Exception as e:
-            logger.warning(f"并发指标采集失败: {e}")
+            logger.warning(f"并发指标采集失败: {str(e).split(chr(10))[0][:120]}")
 
         return metrics
 
@@ -338,7 +338,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 ))
 
         except Exception as e:
-            logger.warning(f"锁指标采集失败: {e}")
+            logger.warning(f"锁指标采集失败: {str(e).split(chr(10))[0][:120]}")
 
         return metrics
 
@@ -372,7 +372,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 return column
 
         except Exception as e:
-            logger.warning(f"列名检测失败: {e}")
+            logger.warning(f"列名检测失败: {str(e).split(chr(10))[0][:120]}")
 
         # 默认回退到 DIGEST_TEXT（MySQL 5.7+ 标准）
         logger.warning("无法检测列名，默认使用 DIGEST_TEXT")
@@ -393,7 +393,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 else:
                     logger.warning("无法确定数据库名称")
             except Exception as e:
-                logger.warning(f"获取数据库名称失败: {e}")
+                logger.warning(f"获取数据库名称失败: {str(e).split(chr(10))[0][:120]}")
                 # 出错时使用连接配置的数据库
                 if self.connector.database:
                     self._database_name = self.connector.database

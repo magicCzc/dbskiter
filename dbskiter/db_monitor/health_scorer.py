@@ -19,7 +19,7 @@
 创建时间：2026-04-29
 """
 
-from typing import Dict, List, Optional, Callable, Any
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 import logging

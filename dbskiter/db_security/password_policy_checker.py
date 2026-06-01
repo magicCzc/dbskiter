@@ -20,15 +20,14 @@ db_security/password_policy_checker.py
 """
 
 import logging
-import re
 import hashlib
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Set
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from enum import Enum
 
 from dbskiter.shared.unified_connector import UnifiedConnector
-from .models import RiskLevel, create_success_response, create_error_response, ErrorCode
+from .models import create_success_response, create_error_response, ErrorCode
 
 logger = logging.getLogger(__name__)
 

@@ -204,6 +204,24 @@ class BaseCommand(metaclass=CommandMeta):
             return False
         return getattr(self.args, 'mask_sensitive', True)
 
+    def _extract_error_message(self, result: Dict[str, Any]) -> str:
+        """
+        从Skill返回结果中提取错误消息
+
+        兼容两种错误响应格式:
+        - 格式1: {"success": False, "message": "错误消息"}（diagnostician格式）
+        - 格式2: {"success": False, "error": {"message": "错误消息"}}（create_error_response格式）
+
+        参数:
+            result: Skill返回的结果字典
+
+        返回:
+            str: 错误消息
+        """
+        if isinstance(result.get('error'), dict):
+            return result['error'].get('message', '未知错误')
+        return result.get('message', '未知错误')
+
     def format_ai_output(
         self,
         skill_result: Dict[str, Any],
@@ -294,7 +312,7 @@ class BaseCommand(metaclass=CommandMeta):
             return 1
 
         if not result.get("success"):
-            self.output.error(f"操作失败: {result.get('message', '未知错误')}")
+            self.output.error(f"操作失败: {self._extract_error_message(result)}")
             return 1
 
         if self.output_mode == "raw":

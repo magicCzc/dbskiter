@@ -10,6 +10,7 @@ from argparse import ArgumentParser
 from datetime import datetime
 
 from .base import BaseCommand
+from dbskiter.shared.utils import format_bytes
 
 
 class SchedulerCommand(BaseCommand):
@@ -28,11 +29,20 @@ class SchedulerCommand(BaseCommand):
         
         # backup 子命令 - 执行备份
         backup_parser = subparsers.add_parser("backup", help="执行备份")
-        backup_parser.add_argument("--type", choices=["full", "incremental"],
+        backup_parser.add_argument("--type", choices=["full", "table", "incremental"],
                                   default="full", help="备份类型")
         backup_parser.add_argument("--compress", action="store_true", help="压缩备份")
         backup_parser.add_argument("--tables", help="指定表（逗号分隔）")
         backup_parser.add_argument("--output-dir", help="输出目录")
+        
+        # backup-verify 子命令 - 验证备份
+        verify_parser = subparsers.add_parser("backup-verify", help="验证备份文件完整性")
+        verify_parser.add_argument("file", help="备份文件路径")
+        
+        # backup-restore 子命令 - 恢复备份
+        restore_parser = subparsers.add_parser("backup-restore", help="从备份文件恢复数据库")
+        restore_parser.add_argument("file", help="备份文件路径")
+        restore_parser.add_argument("--target-db", help="目标数据库名")
         
         # task 子命令 - 定时任务管理
         task_parser = subparsers.add_parser("task", help="定时任务管理")
@@ -169,6 +179,10 @@ class SchedulerCommand(BaseCommand):
 
             if action == "backup":
                 return self._execute_backup(skill)
+            elif action == "backup-verify":
+                return self._execute_verify(skill)
+            elif action == "backup-restore":
+                return self._execute_restore(skill)
             elif action == "task":
                 return self._manage_tasks(skill)
             elif action == "logs":
@@ -188,33 +202,110 @@ class SchedulerCommand(BaseCommand):
     
     def _execute_backup(self, skill) -> int:
         """执行备份"""
+        tables = self.args.tables.split(',') if self.args.tables else None
+        backup_type = self.args.type
+        # 如果指定了表但未指定table类型, 自动切换
+        if tables and backup_type == "full":
+            backup_type = "table"
+
         result = skill.backup(
-            backup_type=self.args.type,
-            tables=self.args.tables.split(',') if self.args.tables else None,
+            backup_type=backup_type,
+            tables=tables,
+            output_dir=self.args.output_dir,
         )
-        
+
+        # skill.backup() 返回 create_success_response/create_error_response 格式
+        # 成功: {'success': True, 'data': {...}, 'message': '...'}
+        # 失败: {'success': False, 'error': '...', 'code': '...'}
         success = result.get('success', False)
-        summary = "备份成功" if success else f"备份失败: {result.get('error', '未知错误')}"
-        
-        self.output.print(f"\n{'='*60}")
-        self.output.print(f"摘要: {summary}")
-        self.output.print(f"{'='*60}")
-        
+
         if success:
+            data = result.get('data', {})
+
+            # 多表备份返回汇总格式
+            if "results" in data:
+                summary = f"备份成功 [{data.get('success_count', 0)}/{data.get('total', 0)}]"
+                self.output.print(f"\n{'='*60}")
+                self.output.print(f"摘要: {summary}")
+                self.output.print(f"{'='*60}")
+                self.output.success(f"\n备份完成")
+                for item in data.get('results', []):
+                    self.output.print(f"  表: {', '.join(item.get('tables', []))}")
+                    self.output.print(f"  文件: {item.get('file_path', 'N/A')}")
+                    self.output.print(f"  大小: {self._format_bytes(item.get('file_size', 0))}")
+                    self.output.print(f"  耗时: {item.get('duration_ms', 0) / 1000:.1f}秒")
+                    self.output.print(f"  {'-'*40}")
+                return 0
+
+            # 单表/全量备份返回单个结果
+            file_path = data.get('file_path', 'N/A')
+            file_size = data.get('file_size', 0)
+            duration_ms = data.get('duration_ms', 0)
+            backup_id = data.get('backup_id', 'N/A')
+            backup_type = data.get('backup_type', 'unknown')
+            tables = data.get('tables', [])
+
+            summary = f"备份成功 [{backup_id}]"
+            self.output.print(f"\n{'='*60}")
+            self.output.print(f"摘要: {summary}")
+            self.output.print(f"{'='*60}")
             self.output.success(f"\n备份完成")
-            self.output.print(f"备份文件: {result.get('backup_file', 'N/A')}")
-            self.output.print(f"文件大小: {self._format_bytes(result.get('file_size', 0))}")
-            self.output.print(f"耗时: {result.get('duration_seconds', 0):.1f}秒")
-            if result.get('compressed'):
-                self.output.print(f"压缩: 是")
+            self.output.print(f"备份文件: {file_path}")
+            self.output.print(f"文件大小: {self._format_bytes(file_size)}")
+            self.output.print(f"耗时: {duration_ms / 1000:.1f}秒")
+            self.output.print(f"类型: {backup_type}")
+            if tables:
+                self.output.print(f"表: {', '.join(tables)}")
+            return 0
         else:
+            error_msg = result.get('error', '未知错误')
+            summary = f"备份失败: {error_msg}"
+            self.output.print(f"\n{'='*60}")
+            self.output.print(f"摘要: {summary}")
+            self.output.print(f"{'='*60}")
             self.output.error(f"\n备份失败")
-            self.output.error(f"错误: {result.get('error', '未知错误')}")
-            if result.get('suggestion'):
-                self.output.print(f"建议: {result['suggestion']}")
-        
-        return 0 if success else 1
+            self.output.error(f"错误: {error_msg}")
+            code = result.get('code')
+            if code:
+                self.output.print(f"错误码: {code}")
+            return 1
     
+    def _execute_verify(self, skill) -> int:
+        """执行备份验证"""
+        file_path = self.args.file
+        result = skill.verify_backup(file_path)
+
+        success = result.get('success', False)
+        if success:
+            self.output.success(f"\n备份文件验证通过")
+            self.output.print(f"文件: {file_path}")
+            return 0
+        else:
+            self.output.error(f"\n备份文件验证失败")
+            self.output.error(f"错误: {result.get('error', '未知错误')}")
+            return 1
+
+    def _execute_restore(self, skill) -> int:
+        """执行备份恢复"""
+        file_path = self.args.file
+        target_db = getattr(self.args, 'target_db', None)
+
+        self.output.print(f"\n{'='*60}")
+        self.output.print("警告: 恢复操作将覆盖目标数据库中的数据")
+        self.output.print(f"{'='*60}")
+
+        result = skill.restore_backup(file_path, target_db)
+
+        success = result.get('success', False)
+        if success:
+            self.output.success(f"\n恢复完成")
+            self.output.print(f"备份文件: {file_path}")
+            return 0
+        else:
+            self.output.error(f"\n恢复失败")
+            self.output.error(f"错误: {result.get('error', '未知错误')}")
+            return 1
+
     def _manage_tasks(self, skill) -> int:
         """管理定时任务"""
         task_action = getattr(self.args, 'task_action', None)
@@ -362,6 +453,14 @@ class SchedulerCommand(BaseCommand):
     
     def _run_task_now(self, skill) -> int:
         """立即执行任务"""
+        from dbskiter.cli.readonly_middleware import is_readonly_mode
+
+        # 只读模式下禁止立即执行任务（可能触发写操作）
+        if is_readonly_mode():
+            self.output.error("只读模式下禁止立即执行任务（任务可能包含写操作）")
+            self.output.info("如需执行此操作，请关闭只读模式（设置DBSKITER_READ_ONLY=false）")
+            return 1
+
         name = self.args.name
         
         self.output.print(f"\n正在执行任务 '{name}'...")
@@ -595,6 +694,14 @@ class SchedulerCommand(BaseCommand):
 
     def _submit_workflow(self, skill) -> int:
         """提交执行工作流"""
+        from dbskiter.cli.readonly_middleware import is_readonly_mode
+
+        # 只读模式下禁止提交工作流（可能触发写操作）
+        if is_readonly_mode():
+            self.output.error("只读模式下禁止提交工作流（工作流可能包含写操作）")
+            self.output.info("如需执行此操作，请关闭只读模式（设置DBSKITER_READ_ONLY=false）")
+            return 1
+
         name = self.args.name
 
         self.output.print(f"\n正在执行工作流 '{name}'...")
@@ -692,9 +799,5 @@ class SchedulerCommand(BaseCommand):
         return 0
 
     def _format_bytes(self, size: int) -> str:
-        """格式化字节大小"""
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if size < 1024:
-                return f"{size:.2f} {unit}"
-            size /= 1024
-        return f"{size:.2f} PB"
+        """格式化字节大小 - 委托给shared.utils.format_bytes"""
+        return format_bytes(size)

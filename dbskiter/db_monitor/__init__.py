@@ -53,10 +53,10 @@ from .models import (
     AnomalyAlert,
     MonitorConfig,
     HealthAssessment,
-    CapacityPrediction,
-    create_success_response,
-    create_error_response,
-)
+    CapacityPrediction,)
+
+# 响应函数（从shared模块导入）
+from dbskiter.shared.error_handler import create_success_response, create_error_response
 
 # 工具类
 from .utils import (

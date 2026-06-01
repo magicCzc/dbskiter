@@ -22,13 +22,7 @@ db_diagnose/models.py
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
-
-# 从shared模块导入标准响应函数
-try:
-    from dbskiter.shared.error_handler import create_success_response, create_error_response
-except ImportError:
-    from shared.error_handler import create_success_response, create_error_response
+from typing import Any, Dict, List
 
 
 class ErrorCode:

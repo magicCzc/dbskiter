@@ -383,10 +383,14 @@ class DatabaseConnector:
                 )
                 
         except SQLAlchemyError as e:
-            logger.error(f"SQL 执行失败: {e}\nSQL: {sql[:200]}")
+            # 使用warning而非error，因为调用方会根据业务场景自行处理
+            # 例如锁分析查询系统视图时权限不足是预期内的
+            # 只记录错误类型和简短信息，不记录完整SQL（由调用方处理）
+            err_msg = str(e).split('\n')[0][:120]
+            logger.warning(f"SQL 执行失败 [{type(e).__name__}]: {err_msg}")
             raise
         except Exception as e:
-            logger.error(f"执行异常: {e}\nSQL: {sql[:200]}")
+            logger.error(f"执行异常 [{type(e).__name__}]: {e}")
             raise
 
     def execute_many(self, sql: str, params_list: List[Union[tuple, dict]]) -> int:

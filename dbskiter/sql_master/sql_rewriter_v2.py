@@ -15,8 +15,7 @@ SQL 重写器 V2 - 真正的 SQL 优化重写
 """
 
 import re
-import sqlparse
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -318,33 +317,39 @@ class SQLRewriterV2:
         )
     
     def _get_table_columns(self, table_name: str) -> List[str]:
-        """获取表字段列表"""
+        """获取表字段列表（使用参数化查询防止注入）"""
         try:
             if self.dialect in ("mysql", "mysql+pymysql"):
-                result = self.connector.execute(f"""
+                result = self.connector.execute("""
                     SELECT COLUMN_NAME
                     FROM INFORMATION_SCHEMA.COLUMNS
                     WHERE TABLE_SCHEMA = DATABASE()
-                    AND TABLE_NAME = '{table_name}'
+                    AND TABLE_NAME = %s
                     ORDER BY ORDINAL_POSITION
-                """)
+                """, (table_name,))
                 return [row[0] for row in result.rows]
             elif "postgresql" in self.dialect:
-                result = self.connector.execute(f"""
+                result = self.connector.execute("""
                     SELECT column_name
                     FROM information_schema.columns
-                    WHERE table_name = '{table_name}'
+                    WHERE table_name = %s
                     ORDER BY ordinal_position
-                """)
+                """, (table_name,))
                 return [row[0] for row in result.rows]
             elif "oracle" in self.dialect:
-                result = self.connector.execute(f"""
+                result = self.connector.execute("""
                     SELECT COLUMN_NAME
                     FROM USER_TAB_COLUMNS
-                    WHERE TABLE_NAME = UPPER('{table_name}')
+                    WHERE TABLE_NAME = UPPER(:param1)
                     ORDER BY COLUMN_ID
-                """)
+                """, {"param1": table_name})
                 return [row[0] for row in result.rows]
+            elif "sqlite" in self.dialect:
+                # PRAGMA 不支持参数化，需验证表名安全性
+                if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+                    return []
+                result = self.connector.execute(f"PRAGMA table_info({table_name})")
+                return [row[1] for row in result.rows]
         except Exception as e:
             print(f"获取表字段失败: {e}")
         return []

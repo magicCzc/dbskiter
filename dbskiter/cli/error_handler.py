@@ -13,6 +13,7 @@ from functools import wraps
 
 from .exceptions import CLIError, ConfigError, CommandError, DatabaseError
 from .output import OutputFormatter
+from dbskiter.shared.error_handler import DBPermissionError, DBTimeoutError
 
 
 class ErrorHandler:
@@ -111,12 +112,18 @@ class ErrorHandler:
         
         if isinstance(error, PermissionError):
             return 13, f"权限不足: {error.filename or str(error)}"
-        
+
+        if isinstance(error, DBPermissionError):
+            return 13, f"数据库权限不足: {error.message}"
+
         if isinstance(error, ConnectionError):
             return 5, f"连接失败: {error}"
-        
+
         if isinstance(error, TimeoutError):
             return 124, f"操作超时: {error}"
+
+        if isinstance(error, DBTimeoutError):
+            return 124, f"数据库操作超时: {error.message}"
         
         # 未知异常
         if self.debug:

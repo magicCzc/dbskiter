@@ -1,333 +1,270 @@
 ---
-name: sql-master
-description: |
-  SQL智能助手，支持SQL执行、重写优化、质量分析、数据分析、智能补全、Schema查询、批量执行、数据导入导出、审计日志查询。
+skill:
+  id: sql-master
+  name: SQL智能助手
+  version: "3.0.0"
+  cli_min_version: "3.0.0"
+  category: database_ops
+  tags: [sql, execute, rewrite, analyze, mysql, oracle, postgresql]
 
-  使用场景：
-  - 用户说"执行这个SQL" -> 执行 execute 或直接 dbskiter sql "SELECT..."
-  - 用户说"优化这个SQL" -> 执行 rewrite
-  - 用户说"分析SQL质量" -> 执行 analyze
-  - 用户说"分析数据" -> 执行 data
-  - 用户说"SQL补全" -> 执行 complete
-  - 用户说"查看表结构" -> 执行 schema
-  - 用户说"批量执行SQL文件" -> 执行 batch
-  - 用户说"导出数据" -> 执行 export
-  - 用户说"导入数据" -> 执行 import
-  - 用户说"查看审计日志" -> 执行 audit
+security:
+  read_only: false
+  risk_level: medium
+  blocked_operations:
+    - DELETE
+    - UPDATE
+    - INSERT
+    - DROP
+    - TRUNCATE
+    - ALTER
+    - CREATE
+    - REPLACE
+  note: AI助手绝对禁止执行任何写操作，也不得使用--force参数
 
-  用法：
-  - dbskiter --output-mode=ai --database=<name> sql "SELECT * FROM users"
-  - dbskiter --output-mode=ai --database=<name> sql execute "SELECT * FROM users"
-  - dbskiter --output-mode=ai --database=<name> sql rewrite "SELECT * FROM users WHERE id = 1"
-  - dbskiter --output-mode=ai --database=<name> sql analyze "SELECT * FROM orders"
-  - dbskiter --output-mode=ai --database=<name> sql data "SELECT * FROM sales"
-  - dbskiter --output-mode=ai --database=<name> sql complete "SELECT * FROM "
-  - dbskiter --output-mode=ai --database=<name> sql schema --table=users
-  - dbskiter --output-mode=ai --database=<name> sql batch queries.sql
-  - dbskiter --output-mode=ai --database=<name> sql export --table=users --output=users.csv
-  - dbskiter --output-mode=ai --database=<name> sql import data.csv --table=users
-  - dbskiter --output-mode=ai --database=<name> sql audit
+cli:
+  entry_prefix: "dbskiter --output-mode=ai --database={database}"
+  subcommand_group: "sql"
+
+output:
+  format: ai_envelope
+  schema_version: "1.0"
 ---
 
 # SQL Master Skill
 
-## 目标
+## 安全声明
 
-帮助用户执行SQL、优化SQL、分析SQL质量、理解数据结构。
+**风险等级**: medium
 
-## 何时使用
+**操作性质**: 包含读写操作，AI助手仅限只读
 
-当用户提到以下关键词时使用此skill：
+**AI约束**: AI助手执行SQL时，仅限SELECT/EXPLAIN/SHOW/DESCRIBE操作。任何写操作（DELETE/UPDATE/INSERT/DROP等）必须拒绝执行。AI助手不得使用--force参数，该参数仅保留给人类用户在明确知情的情况下使用。
 
-| 用户说法 | 执行命令 | 说明 |
-|---------|---------|------|
-| "执行SQL" / "跑一下这个SQL" | `dbskiter --output-mode=ai --database=<name> sql "<SQL>"` 或 `dbskiter --output-mode=ai --database=<name> sql execute "<SQL>"` | 执行SQL语句 |
-| "优化SQL" / "重写SQL" | `dbskiter --output-mode=ai --database=<name> sql rewrite "<SQL>"` | 重写SQL优化性能 |
-| "分析SQL" / "SQL质量" | `dbskiter --output-mode=ai --database=<name> sql analyze "<SQL>"` | 分析SQL质量评分 |
-| "分析数据" / "数据统计" | `dbskiter --output-mode=ai --database=<name> sql data "<SQL>"` | 分析查询结果数据特征 |
-| "SQL补全" / "自动完成" | `dbskiter --output-mode=ai --database=<name> sql complete "<部分SQL>"` | 智能补全建议 |
-| "表结构" / "Schema" | `dbskiter --output-mode=ai --database=<name> sql schema --table=<表名>` | 查看表结构 |
-| "有哪些表" | `dbskiter --output-mode=ai --database=<name> sql schema` | 列出所有表 |
-| "批量执行SQL文件" | `dbskiter --output-mode=ai --database=<name> sql batch <文件>` | 批量执行文件中的SQL |
-| "导出数据" | `dbskiter --output-mode=ai --database=<name> sql export --table=<表名> --output=<文件>` | 导出表数据 |
-| "导入数据" | `dbskiter --output-mode=ai --database=<name> sql import <文件> --table=<表名>` | 导入数据到表 |
-| "流式导出" | `dbskiter --output-mode=ai --database=<name> sql export-stream --table=<表名> --output=<文件>` | 流式导出大表 |
-| "查看审计日志" | `dbskiter --output-mode=ai --database=<name> sql audit` | 查询SQL审计日志 |
+### 禁止操作清单
 
-## 核心命令
+| 操作类型 | 危险等级 | 说明 | 示例 |
+|---------|---------|------|------|
+| DELETE | CRITICAL | 删除数据 | DELETE FROM users WHERE id=1 |
+| UPDATE | CRITICAL | 修改数据 | UPDATE users SET name='test' |
+| INSERT | CRITICAL | 插入数据 | INSERT INTO users VALUES (...) |
+| DROP | CRITICAL | 删除对象 | DROP TABLE users |
+| TRUNCATE | CRITICAL | 清空表 | TRUNCATE TABLE users |
+| ALTER | HIGH | 修改结构 | ALTER TABLE users DROP COLUMN |
+| CREATE | HIGH | 创建对象 | CREATE TABLE test (...) |
+| REPLACE | HIGH | 替换数据 | REPLACE INTO users (...) |
 
-### 1. 执行SQL
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql execute "<SQL语句>"
-```
-**参数**：
-- `--params`：SQL参数（JSON格式）
-- `--limit`：限制返回行数（默认100）
-- `--read-only`：只读模式，禁止执行写操作
-- `--force`：强制执行危险操作
+### 允许操作清单
 
-**示例**：
-```bash
-# 基础查询
-dbskiter --output-mode=ai --database=prod sql execute "SELECT * FROM users LIMIT 10"
+| 操作类型 | 说明 | 示例 |
+|---------|------|------|
+| SELECT | 查询数据 | SELECT * FROM users |
+| EXPLAIN | 执行计划 | EXPLAIN SELECT * FROM users |
+| SHOW | 显示信息 | SHOW TABLES |
+| DESCRIBE | 查看结构 | DESCRIBE users |
+| DESC | 查看结构 | DESC users |
 
-# 带参数
-dbskiter --output-mode=ai --database=prod sql execute "SELECT * FROM users WHERE age > %(age)s" --params='{"age": 18}'
+## 意图映射
 
-# 限制返回行数
-dbskiter --output-mode=ai --database=prod sql execute "SELECT * FROM orders" --limit=50
-```
+### intent: sql_execute
 
-### 2. 重写SQL优化
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql rewrite "<SQL语句>"
-```
-**功能**：
-- 展开 `SELECT *` 为具体字段
-- 优化 WHERE 条件
-- 推荐索引
-- 重写低效JOIN
+**触发语料**:
+- "执行这个SQL"
+- "跑一下这个SQL"
+- "查询一下数据"
 
-**示例**：
-```bash
-# 优化SELECT *
-dbskiter --output-mode=ai --database=prod sql rewrite "SELECT * FROM users WHERE id = 1"
+**对应命令**: `dbskiter --output-mode=ai --database={database} sql execute "{sql}"`
 
-# 优化复杂查询
-dbskiter --output-mode=ai --database=prod sql rewrite "SELECT * FROM orders o JOIN users u ON o.user_id = u.id WHERE u.status = 'active'"
-```
+**参数**:
+| 显示名称 | 变量名 | 类型 | 必需 | 默认值 | CLI参数 |
+|---------|--------|------|------|--------|---------|
+| SQL语句 | sql | string | 是 | - | 位置参数 |
+| 返回行数限制 | limit | int | 否 | 100 | --limit |
 
-### 3. 分析SQL质量
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql analyze "<SQL语句>"
-```
-**输出**：
-- 质量评分（0-100分）
-- 等级（A/B/C/D/F）
-- 问题列表
-- 优化建议
+**安全规则**:
+1. 执行前必须识别SQL类型
+2. 只读操作（SELECT/EXPLAIN/SHOW/DESCRIBE）可以执行
+3. 写操作（DELETE/UPDATE/INSERT/DROP等）必须拒绝，返回拒绝响应模板
+4. AI不得使用--force参数
 
-**评分标准**：
-- 90-100分：A级（优秀）
-- 80-89分：B级（良好）
-- 70-79分：C级（一般）
-- 60-69分：D级（较差）
-- <60分：F级（危险）
+### intent: sql_rewrite
 
-**示例**：
-```bash
-dbskiter --output-mode=ai --database=prod sql analyze "SELECT * FROM users WHERE email = 'test@test.com'"
-```
+**触发语料**:
+- "优化这个SQL"
+- "重写SQL"
+- "怎么优化这条查询"
 
-### 4. 数据分析
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql data "<查询SQL>"
-```
-**功能**：分析查询结果的数据特征
-- 每列的数据类型
-- 空值数量
-- 唯一值数量
-- 数值列的统计（最小/最大/平均值）
-- 示例值
+**对应命令**: `dbskiter --output-mode=ai --database={database} sql rewrite "{sql}"`
 
-**示例**：
-```bash
-# 分析订单数据
-dbskiter --output-mode=ai --database=prod sql data "SELECT * FROM orders WHERE created_at > '2024-01-01'"
+**参数**:
+| 显示名称 | 变量名 | 类型 | 必需 | 默认值 | CLI参数 |
+|---------|--------|------|------|--------|---------|
+| SQL语句 | sql | string | 是 | - | 位置参数 |
 
-# 分析用户数据
-dbskiter --output-mode=ai --database=prod sql data "SELECT age, city, status FROM users"
-```
+### intent: sql_analyze
 
-### 5. SQL智能补全
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql complete "<部分SQL>"
-```
-**功能**：根据部分SQL提供补全建议
-- 表名补全
-- 字段名补全
-- SQL关键字补全
-- 函数补全
+**触发语料**:
+- "分析SQL质量"
+- "这个SQL有问题吗"
+- "SQL评分"
 
-**示例**：
-```bash
-# 补全表名
-dbskiter --output-mode=ai --database=prod sql complete "SELECT * FROM "
+**对应命令**: `dbskiter --output-mode=ai --database={database} sql analyze "{sql}"`
 
-# 补全字段
-dbskiter --output-mode=ai --database=prod sql complete "SELECT id, name, "
+**参数**:
+| 显示名称 | 变量名 | 类型 | 必需 | 默认值 | CLI参数 |
+|---------|--------|------|------|--------|---------|
+| SQL语句 | sql | string | 是 | - | 位置参数 |
 
-# 补全WHERE条件
-dbskiter --output-mode=ai --database=prod sql complete "SELECT * FROM users WHERE "
-```
+### intent: sql_data
 
-### 6. Schema查询
-```bash
-# 列出所有表
-dbskiter --output-mode=ai --database=<数据库名> sql schema
+**触发语料**:
+- "分析数据"
+- "数据统计"
+- "看看数据分布"
 
-# 查看指定表结构
-dbskiter --output-mode=ai --database=<数据库名> sql schema --table=<表名>
-```
-**输出**：
-- 所有表名列表
-- 表字段详情（名称、类型、是否可空、默认值）
-- 索引信息
+**对应命令**: `dbskiter --output-mode=ai --database={database} sql data "{sql}"`
 
-**示例**：
-```bash
-# 列出所有表
-dbskiter --output-mode=ai --database=prod sql schema
+### intent: sql_schema
 
-# 查看users表结构
-dbskiter --output-mode=ai --database=prod sql schema --table=users
-```
+**触发语料**:
+- "查看表结构"
+- "Schema信息"
+- "有哪些表"
+- "这个表什么结构"
 
-### 7. 导出数据
-```bash
-# 导出表数据
-dbskiter --output-mode=ai --database=<数据库名> sql export --table=<表名> --output=<文件路径> --format=<格式>
+**对应命令**:
+- 列出所有表: `dbskiter --output-mode=ai --database={database} sql schema`
+- 查看表结构: `dbskiter --output-mode=ai --database={database} sql schema --table={table_name}`
 
-# 导出查询结果
-dbskiter --output-mode=ai --database=<数据库名> sql export --query="<SQL>" --output=<文件路径> --format=<格式>
-```
-**参数**：
-- `--table`：表名（与--query二选一）
-- `--query`：SQL查询语句（与--table二选一）
-- `--output, -o`：输出文件路径（必需）
-- `--format, -f`：导出格式（csv/json/sql/excel，默认csv）
-- `--where`：WHERE条件（仅table模式）
-- `--limit`：限制导出行数
+### intent: sql_export
 
-**示例**：
-```bash
-# 导出users表为CSV
-dbskiter --output-mode=ai --database=prod sql export --table=users --output=users.csv
+**触发语料**:
+- "导出数据"
+- "把数据导出来"
+- "导出表"
 
-# 导出为JSON格式
-dbskiter --output-mode=ai --database=prod sql export --table=users --output=users.json --format=json
+**对应命令**: `dbskiter --output-mode=ai --database={database} sql export --table={table_name} --output={file_path}`
 
-# 导出查询结果
-dbskiter --output-mode=ai --database=prod sql export --query="SELECT * FROM orders WHERE status='pending'" --output=pending_orders.csv
-```
+### intent: sql_audit
 
-### 8. 导入数据
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql import <文件路径> --table=<表名> --format=<格式>
-```
-**参数**：
-- `--table, -t`：目标表名（必需）
-- `--format, -f`：文件格式（csv/json/sql，默认csv）
-- `--columns`：指定列名（逗号分隔，CSV格式用）
-- `--batch-size`：批量插入大小（默认1000）
+**触发语料**:
+- "查看审计日志"
+- "操作记录"
+- "最近执行了什么SQL"
 
-**示例**：
-```bash
-# 从CSV导入
-dbskiter --output-mode=ai --database=prod sql import users.csv --table=users
+**对应命令**: `dbskiter --output-mode=ai --database={database} sql audit`
 
-# 从JSON导入
-dbskiter --output-mode=ai --database=prod sql import users.json --table=users --format=json
+## 拒绝响应模板
 
-# 指定列名导入
-dbskiter --output-mode=ai --database=prod sql import data.csv --table=users --columns=id,name,email
-```
+当用户要求执行写操作时，使用以下模板响应：
 
-### 9. 批量执行SQL文件
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql batch <文件路径>
-```
-**功能**：批量执行文件中的SQL语句
+抱歉，我无法执行 [操作类型] 操作。
 
-**示例**：
-```bash
-dbskiter --output-mode=ai --database=prod sql batch queries.sql
-```
+原因：
+根据安全策略，当前系统禁止AI助手执行任何可能修改数据的SQL操作。
+这是为了防止误操作导致数据丢失。
 
-### 10. 流式导出大表
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql export-stream --table=<表名> --output=<文件路径>
-```
-**功能**：流式导出大表数据，避免内存溢出
+允许的操作：
+- SELECT 查询数据
+- EXPLAIN 分析执行计划
+- SHOW 查看数据库信息
+- DESCRIBE 查看表结构
 
-**参数**：
-- `--table`（必需）：表名
-- `--output, -o`（必需）：输出文件路径
-- `--format, -f`：导出格式（csv/sql，默认csv）
-- `--where`：WHERE条件
-- `--batch-size`：每批导出的行数（默认10000）
+替代方案：
+如果您确实需要执行写操作，请使用数据库客户端工具（如MySQL Workbench、Navicat等）直接连接数据库，并确保您有足够的权限。
 
-### 11. 审计日志查询
-```bash
-dbskiter --output-mode=ai --database=<数据库名> sql audit
-```
-**功能**：查询SQL审计日志
+## 安全控制说明
 
-**可选参数**：
-- `--risk-level`：风险等级筛选（CRITICAL/HIGH/MEDIUM/SAFE）
-- `--hours`：最近多少小时（默认24）
-- `--limit`：返回数量限制（默认50）
-- `--stats`：显示统计信息
-- `--cleanup`：清理多少天前的记录
+### 三层安全架构
 
-## 安全控制
+1. AI层: SKILL.md规则约束，AI不得执行写操作
+2. CLI层: ReadOnlyEnforcer中间件，环境变量DBSKITER_READ_ONLY控制
+3. 数据库层: 数据库用户权限限制
 
-sql-master提供完善的安全控制机制，防止误操作导致数据丢失。
+### --force参数说明
 
-### 风险等级定义
+--force参数是系统保留给人类用户的机制，用于在明确知情的情况下执行极高风险操作（如DROP DATABASE）。AI助手在任何情况下都不得使用此参数，也不得建议用户使用此参数。
+
+### 风险等级
 
 | 风险等级 | 操作类型 | 处理方式 |
 |---------|---------|---------|
-| CRITICAL | DROP DATABASE, DROP SCHEMA | 默认禁止，必须使用 `--force` 才能执行 |
-| HIGH | DROP TABLE, TRUNCATE, DELETE无WHERE, UPDATE无WHERE | 允许执行但返回警告，建议使用 `--force` |
-| MEDIUM | DELETE带WHERE, UPDATE带WHERE, ALTER DROP COLUMN | 允许执行，建议先验证影响范围 |
-| SAFE | SELECT, INSERT, CREATE等 | 正常执行 |
-
-### 只读模式
-
-使用 `--read-only` 参数开启只读模式，禁止任何写操作：
-
-```bash
-# 只读模式下只能执行SELECT
-dbskiter --output-mode=ai --database=prod sql execute "SELECT * FROM users" --read-only
-
-# 写操作会被拒绝
-dbskiter --output-mode=ai --database=prod sql execute "DELETE FROM users WHERE id=1" --read-only
-```
-
-### 强制执行危险操作
-
-对于CRITICAL级别的操作，必须使用 `--force` 参数：
-
-```bash
-# 使用--force强制执行
-dbskiter --output-mode=ai --database=prod sql execute "DROP DATABASE testdb" --force
-```
+| CRITICAL | DROP DATABASE, DROP SCHEMA | 默认禁止，需要--force才能执行 |
+| HIGH | DROP TABLE, TRUNCATE, DELETE无WHERE, UPDATE无WHERE | 允许执行但返回警告 |
+| MEDIUM | DELETE带WHERE, UPDATE带WHERE | 允许执行，建议先验证影响范围 |
 
 ## AI决策流程
 
-### 场景1：用户说"执行这个SQL"
+### 场景1: 用户要求执行SQL
 
-```
-步骤1：提取用户提供的SQL
-步骤2：执行 dbskiter --output-mode=ai --database=<name> sql execute "<SQL>"
-步骤3：展示结果（最多50行）
-步骤4：告知总行数和耗时
+步骤1: 识别SQL类型
+  - 检查SQL是否为SELECT/EXPLAIN/SHOW/DESCRIBE: 继续执行
+  - 检查SQL是否为DELETE/UPDATE/INSERT/DROP等写操作: 停止，返回拒绝响应模板
+
+步骤2: 执行SQL（仅限读操作）
+  dbskiter --output-mode=ai --database={database} sql execute "{sql}"
+
+步骤3: 返回结果
+  - 显示查询结果摘要
+  - 说明返回行数
+  - 显示执行耗时
+
+### 场景2: 用户要求优化SQL
+
+步骤1: 执行SQL重写
+  dbskiter --output-mode=ai --database={database} sql rewrite "{sql}"
+
+步骤2: 执行SQL质量分析
+  dbskiter --output-mode=ai --database={database} sql analyze "{sql}"
+
+步骤3: 综合回复
+  - 展示重写后的SQL（如果有优化建议）
+  - 说明优化点
+  - 给出质量评分
+
+### 场景3: 用户要求查看表结构
+
+步骤1: 获取Schema信息
+  dbskiter --output-mode=ai --database={database} sql schema --table={table_name}
+
+步骤2: 展示信息
+  - 表基本信息
+  - 字段列表及类型
+  - 索引信息
+
+## 核心命令参考
+
+### 执行SQL
+```bash
+dbskiter --output-mode=ai --database={database} sql execute "{sql}" [--limit=N]
 ```
 
-### 场景2：用户说"优化这个SQL"
-
-```
-步骤1：提取用户提供的SQL
-步骤2：执行 dbskiter --output-mode=ai --database=<name> sql rewrite "<SQL>"
-步骤3：展示优化后的SQL和解释
-步骤4：如果质量评分<80，建议进一步优化
+### 重写SQL
+```bash
+dbskiter --output-mode=ai --database={database} sql rewrite "{sql}"
 ```
 
-### 场景3：用户说"查看表结构"
-
+### 分析SQL质量
+```bash
+dbskiter --output-mode=ai --database={database} sql analyze "{sql}"
 ```
-步骤1：提取表名
-步骤2：执行 dbskiter --output-mode=ai --database=<name> sql schema --table=<表名>
-步骤3：展示表结构和索引信息
+
+### 数据分析
+```bash
+dbskiter --output-mode=ai --database={database} sql data "{sql}"
+```
+
+### Schema查询
+```bash
+dbskiter --output-mode=ai --database={database} sql schema
+dbskiter --output-mode=ai --database={database} sql schema --table={table_name}
+```
+
+### 数据导出
+```bash
+dbskiter --output-mode=ai --database={database} sql export --table={table_name} --output={file_path} [--format=csv|json|sql]
+```
+
+### 审计日志
+```bash
+dbskiter --output-mode=ai --database={database} sql audit [--risk-level=CRITICAL|HIGH|MEDIUM] [--hours=24]
 ```

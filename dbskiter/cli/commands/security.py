@@ -283,8 +283,26 @@ class SecurityCommand(BaseCommand):
         
         result = skill.detect_sql_injection(self.args.sql, params)
         
-        risk_score = result.get('risk_score', 0)
-        level = result.get('level', 'unknown')
+        # 检查是否成功
+        if not result.get('success'):
+            self.output.error(f"SQL注入检测失败: {result.get('message', '未知错误')}")
+            return 1
+        
+        # 获取数据（标准响应格式）
+        data = result.get('data', {})
+        
+        risk_score = data.get('risk_score', 0)
+        
+        # 从 findings 中提取最高风险等级
+        findings = data.get('findings', [])
+        if findings:
+            level_priority = {'critical': 4, 'high': 3, 'medium': 2, 'low': 1}
+            level = max(
+                (f.get('risk_level', 'unknown') for f in findings),
+                key=lambda x: level_priority.get(x, 0)
+            )
+        else:
+            level = 'safe'
         
         summary = f"风险评分{risk_score}分（{level}级）"
         
@@ -303,23 +321,22 @@ class SecurityCommand(BaseCommand):
             self.output.success(f"\n风险评分: {risk_score}/100 - {level}级")
         
         # 注入类型
-        injection_types = result.get('injection_types', [])
+        injection_types = data.get('injection_types', [])
         if injection_types:
             self.output.warning(f"\n检测到注入类型:")
             for itype in injection_types:
                 self.output.warning(f"  - {itype}")
         
         # 建议
-        suggestions = result.get('suggestions', [])
+        suggestions = data.get('recommendation', '')
         if suggestions:
             self.output.print(f"\n建议:")
-            for sug in suggestions:
-                self.output.print(f"  - {sug}")
+            self.output.print(f"  {suggestions}")
         
         # 安全示例
-        if result.get('safe_example'):
+        if data.get('safe_example'):
             self.output.print(f"\n安全写法示例:")
-            self.output.print(f"  {result['safe_example']}")
+            self.output.print(f"  {data['safe_example']}")
         
         return 0
     

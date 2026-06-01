@@ -183,6 +183,491 @@ class MySQLDiagnostician(BaseDiagnostician):
                 error=str(e)
             )
 
+    def analyze_index_usage(self) -> Dict[str, Any]:
+        """
+        分析MySQL索引使用情况
+
+        识别未使用或低效的索引，以及可能缺少索引的表。
+        提供详细的索引分析、健康评分和具体的优化建议。
+
+        返回:
+            Dict: 索引使用分析结果，包含：
+                - unused_indexes: 未使用的索引列表
+                - hot_indexes: 高频使用索引列表
+                - tables_missing_index: 可能缺少索引的表列表
+                - redundant_indexes: 冗余索引列表
+                - health_score: 健康评分(0-100)
+                - suggestions: 优化建议
+                - actionable_commands: 可执行的SQL命令
+        """
+        try:
+            # 检查performance_schema是否启用
+            has_performance_schema = False
+            try:
+                result = self._execute_query("""
+                    SELECT COUNT(*) FROM information_schema.tables
+                    WHERE table_schema = 'performance_schema'
+                    AND table_name = 'table_io_waits_summary_by_index_usage'
+                """)
+                has_performance_schema = result and result[0][0] > 0
+            except Exception:
+                pass
+
+            unused_indexes = []
+            total_unused_size = 0
+
+            if has_performance_schema:
+                # 获取未使用的索引
+                result = self._execute_query("""
+                    SELECT
+                        OBJECT_SCHEMA,
+                        OBJECT_NAME,
+                        INDEX_NAME,
+                        COUNT_FETCH,
+                        COUNT_INSERT,
+                        COUNT_UPDATE,
+                        COUNT_DELETE
+                    FROM performance_schema.table_io_waits_summary_by_index_usage
+                    WHERE INDEX_NAME IS NOT NULL
+                    AND INDEX_NAME != 'PRIMARY'
+                    AND COUNT_FETCH = 0
+                    AND COUNT_INSERT = 0
+                    AND COUNT_UPDATE = 0
+                    AND COUNT_DELETE = 0
+                    ORDER BY OBJECT_SCHEMA, OBJECT_NAME
+                    LIMIT 50
+                """)
+
+                for row in result or []:
+                    # 获取索引大小
+                    size_result = self._execute_query("""
+                        SELECT ROUND(SUM(stat_value * @@innodb_page_size) / 1024 / 1024, 2)
+                        FROM mysql.innodb_index_stats
+                        WHERE database_name = %s
+                        AND table_name = %s
+                        AND index_name = %s
+                        AND stat_name = 'size'
+                    """, (row[0], row[1], row[2]))
+
+                    size_mb = size_result[0][0] if size_result and size_result[0][0] else 0
+                    total_unused_size += size_mb
+
+                    unused_indexes.append({
+                        "schema": row[0],
+                        "table": row[1],
+                        "index": row[2],
+                        "fetches": row[3],
+                        "inserts": row[4],
+                        "updates": row[5],
+                        "deletes": row[6],
+                        "size_mb": size_mb,
+                        "priority": "high" if size_mb > 10 else "medium"  # >10MB为高优先级
+                    })
+
+            # 获取高频使用索引
+            hot_indexes = []
+            if has_performance_schema:
+                result = self._execute_query("""
+                    SELECT
+                        OBJECT_SCHEMA,
+                        OBJECT_NAME,
+                        INDEX_NAME,
+                        SUM(COUNT_FETCH) as total_fetches,
+                        SUM(COUNT_INSERT) as total_inserts,
+                        SUM(COUNT_UPDATE) as total_updates,
+                        SUM(COUNT_DELETE) as total_deletes
+                    FROM performance_schema.table_io_waits_summary_by_index_usage
+                    WHERE INDEX_NAME IS NOT NULL
+                    AND COUNT_FETCH > 0
+                    GROUP BY OBJECT_SCHEMA, OBJECT_NAME, INDEX_NAME
+                    ORDER BY total_fetches DESC
+                    LIMIT 20
+                """)
+
+                for row in result or []:
+                    hot_indexes.append({
+                        "schema": row[0],
+                        "table": row[1],
+                        "index": row[2],
+                        "fetches": row[3],
+                        "inserts": row[4],
+                        "updates": row[5],
+                        "deletes": row[6]
+                    })
+
+            # 获取可能缺少索引的表（全表扫描多）
+            tables_missing_index = []
+            if has_performance_schema:
+                result = self._execute_query("""
+                    SELECT
+                        OBJECT_SCHEMA,
+                        OBJECT_NAME,
+                        COUNT_READ,
+                        COUNT_WRITE,
+                        SUM_TIMER_WAIT
+                    FROM performance_schema.table_io_waits_summary_by_table
+                    WHERE OBJECT_SCHEMA NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+                    AND COUNT_READ > 1000
+                    ORDER BY COUNT_READ DESC
+                    LIMIT 20
+                """)
+
+                for row in result or []:
+                    tables_missing_index.append({
+                        "schema": row[0],
+                        "table": row[1],
+                        "reads": row[2],
+                        "writes": row[3],
+                        "priority": "high" if row[2] > 100000 else "medium"
+                    })
+
+            # 检查冗余索引（使用sys schema）
+            redundant_indexes = []
+            try:
+                result = self._execute_query("""
+                    SELECT
+                        table_schema,
+                        table_name,
+                        redundant_index_name,
+                        redundant_index_columns,
+                        dominant_index_name,
+                        dominant_index_columns
+                    FROM sys.schema_redundant_indexes
+                    LIMIT 20
+                """)
+
+                for row in result or []:
+                    redundant_indexes.append({
+                        "schema": row[0],
+                        "table": row[1],
+                        "redundant_index": row[2],
+                        "redundant_columns": row[3],
+                        "dominant_index": row[4],
+                        "dominant_columns": row[5]
+                    })
+            except Exception as e:
+                logger.warning(f"获取冗余索引失败(可能sys schema不可用): {e}")
+
+            # 计算健康评分
+            health_score = self._calculate_mysql_index_health_score(
+                unused_indexes, tables_missing_index, redundant_indexes
+            )
+
+            # 生成建议和可执行命令
+            suggestions = []
+            actionable_commands = []
+
+            if unused_indexes:
+                high_priority_unused = [idx for idx in unused_indexes if idx["priority"] == "high"]
+                if high_priority_unused:
+                    wasted_mb = sum(idx.get("size_mb", 0) for idx in high_priority_unused)
+                    suggestions.append({
+                        "type": "warning",
+                        "message": f"发现 {len(high_priority_unused)} 个大体积未使用索引(>10MB)",
+                        "impact": f"可回收约 {wasted_mb:.2f} MB 空间",
+                        "indexes": [f"{idx['table']}.{idx['index']}" for idx in high_priority_unused[:5]]
+                    })
+                    # 生成删除命令
+                    for idx in high_priority_unused[:3]:
+                        actionable_commands.append({
+                            "priority": "high",
+                            "type": "drop_index",
+                            "index": f"{idx['schema']}.{idx['table']}.{idx['index']}",
+                            "commands": [
+                                f"-- 删除未使用的大索引",
+                                f"ALTER TABLE {idx['schema']}.{idx['table']} DROP INDEX {idx['index']};",
+                            ],
+                            "description": f"索引大小 {idx['size_mb']:.2f} MB，从未被使用",
+                            "warning": "请先在测试环境验证，确认无影响后再执行"
+                        })
+
+                if len(unused_indexes) > len(high_priority_unused):
+                    suggestions.append({
+                        "type": "info",
+                        "message": f"还有 {len(unused_indexes) - len(high_priority_unused)} 个小体积未使用索引",
+                        "note": "虽然占用空间不大，但会影响写入性能，建议评估后删除"
+                    })
+
+            if tables_missing_index:
+                high_priority_missing = [t for t in tables_missing_index if t["priority"] == "high"]
+                if high_priority_missing:
+                    suggestions.append({
+                        "type": "critical",
+                        "message": f"发现 {len(high_priority_missing)} 个表可能严重缺少索引",
+                        "impact": "大量全表扫描导致查询性能低下",
+                        "tables": [f"{t['schema']}.{t['table']}" for t in high_priority_missing[:5]]
+                    })
+                    for t in high_priority_missing[:3]:
+                        actionable_commands.append({
+                            "priority": "high",
+                            "type": "create_index",
+                            "table": f"{t['schema']}.{t['table']}",
+                            "commands": [
+                                f"-- 为表 {t['schema']}.{t['table']} 创建索引",
+                                f"-- 建议步骤:",
+                                f"-- 1. 分析慢查询日志，找出常用查询条件",
+                                f"-- 2. 使用 EXPLAIN 验证索引效果",
+                                f"-- 3. 创建索引 (Online DDL，MySQL 5.6+):",
+                                f"-- ALTER TABLE {t['schema']}.{t['table']} ADD INDEX idx_xxx (column_name);",
+                            ],
+                            "description": f"表有 {t['reads']} 次读取操作，可能缺少索引"
+                        })
+
+            if redundant_indexes:
+                suggestions.append({
+                    "type": "warning",
+                    "message": f"发现 {len(redundant_indexes)} 组冗余索引",
+                    "note": "冗余索引浪费空间且影响写入性能，建议删除"
+                })
+                for idx in redundant_indexes[:2]:
+                    actionable_commands.append({
+                        "priority": "medium",
+                        "type": "drop_redundant_index",
+                        "table": f"{idx['schema']}.{idx['table']}",
+                        "commands": [
+                            f"-- 删除冗余索引: {idx['redundant_index']}",
+                            f"-- 保留索引: {idx['dominant_index']} (列: {idx['dominant_columns']})",
+                            f"ALTER TABLE {idx['schema']}.{idx['table']} DROP INDEX {idx['redundant_index']};",
+                        ],
+                        "description": f"索引 {idx['redundant_index']} 被 {idx['dominant_index']} 包含"
+                    })
+
+            if not has_performance_schema:
+                suggestions.append({
+                    "type": "info",
+                    "message": "performance_schema未启用或不可用，索引使用统计可能不完整",
+                    "fix_command": "SET GLOBAL performance_schema = ON; (需要重启MySQL)",
+                    "note": "启用后可获得更准确的索引使用统计"
+                })
+
+            return self._create_result(
+                success=True,
+                message=f"索引使用分析完成，健康评分: {health_score}/100",
+                data={
+                    "unused_indexes": unused_indexes,
+                    "hot_indexes": hot_indexes,
+                    "tables_missing_index": tables_missing_index,
+                    "redundant_indexes": redundant_indexes,
+                    "health_score": health_score,
+                    "total_unused_index_size_mb": round(total_unused_size, 2),
+                    "has_performance_schema": has_performance_schema,
+                    "suggestions": suggestions,
+                    "actionable_commands": actionable_commands
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"索引使用分析失败: {e}")
+            return self._create_result(
+                success=False,
+                message="索引使用分析失败",
+                error=str(e)
+            )
+
+    def _calculate_mysql_index_health_score(
+        self,
+        unused_indexes: List[Dict],
+        tables_missing_index: List[Dict],
+        redundant_indexes: List[Dict]
+    ) -> int:
+        """
+        计算MySQL索引健康评分
+
+        评分标准:
+        - 基础分: 100分
+        - 高优先级未使用索引: -10分/个（最多-30分）
+        - 高优先级缺少索引: -15分/个（最多-45分）
+        - 冗余索引: -5分/组（最多-15分）
+
+        返回:
+            int: 健康评分(0-100)
+        """
+        all_items = unused_indexes + tables_missing_index + redundant_indexes
+        rules = [
+            {
+                "name": "高优先级未使用索引",
+                "filter": lambda x: x.get("priority") == "high" and x.get("size_mb") is not None,
+                "deduction": 10,
+                "max_deduction": 30
+            },
+            {
+                "name": "高优先级缺少索引",
+                "filter": lambda x: x.get("priority") == "high" and x.get("reads") is not None,
+                "deduction": 15,
+                "max_deduction": 45
+            },
+            {
+                "name": "冗余索引",
+                "filter": lambda x: x.get("redundant_index") is not None,
+                "deduction": 5,
+                "max_deduction": 15
+            }
+        ]
+        return self._calculate_health_score(all_items, rules)
+
+    def analyze_table_fragmentation(self) -> Dict[str, Any]:
+        """
+        分析MySQL表碎片情况
+
+        MySQL InnoDB表在频繁更新删除后会产生碎片，影响性能和空间使用。
+        提供详细的碎片分析、健康评分和具体的优化建议。
+
+        返回:
+            Dict: 表碎片分析结果，包含：
+                - fragmented_tables: 碎片表列表
+                - health_score: 健康评分(0-100)
+                - total_wasted_space_mb: 总浪费空间(MB)
+                - suggestions: 优化建议
+                - actionable_commands: 可执行的SQL命令
+        """
+        try:
+            # 获取表碎片信息
+            fragmented_tables = []
+            total_wasted_space = 0
+
+            result = self._execute_query("""
+                SELECT
+                    table_schema,
+                    table_name,
+                    engine,
+                    table_rows,
+                    data_length,
+                    index_length,
+                    data_free,
+                    ROUND(data_free / (data_length + index_length + data_free) * 100, 2) as frag_ratio
+                FROM information_schema.tables
+                WHERE table_schema NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')
+                AND engine = 'InnoDB'
+                AND data_free > 10485760  -- 大于10MB碎片
+                ORDER BY data_free DESC
+                LIMIT 30
+            """)
+
+            for row in result or []:
+                schema = row[0]
+                table = row[1]
+                engine = row[2]
+                table_rows = row[3] or 0
+                data_length = row[4] or 0
+                index_length = row[5] or 0
+                data_free = row[6] or 0
+                frag_ratio = row[7] or 0
+
+                total_size = data_length + index_length
+                wasted_mb = data_free / (1024 * 1024)
+                total_wasted_space += wasted_mb
+
+                # 计算优先级
+                if frag_ratio > 50 and wasted_mb > 100:
+                    priority = "high"
+                elif frag_ratio > 30 or wasted_mb > 50:
+                    priority = "medium"
+                else:
+                    priority = "low"
+
+                fragmented_tables.append({
+                    "schema": schema,
+                    "table": table,
+                    "engine": engine,
+                    "rows": table_rows,
+                    "data_size_mb": round(data_length / (1024 * 1024), 2),
+                    "index_size_mb": round(index_length / (1024 * 1024), 2),
+                    "wasted_space_mb": round(wasted_mb, 2),
+                    "fragmentation_ratio": frag_ratio,
+                    "priority": priority
+                })
+
+            # 计算健康评分
+            health_score = self._calculate_fragmentation_health_score(fragmented_tables)
+
+            # 生成建议和可执行命令
+            suggestions = []
+            actionable_commands = []
+
+            if fragmented_tables:
+                high_priority = [t for t in fragmented_tables if t["priority"] == "high"]
+                if high_priority:
+                    wasted = sum(t.get("wasted_space_mb", 0) for t in high_priority)
+                    suggestions.append({
+                        "type": "critical",
+                        "message": f"发现 {len(high_priority)} 个表严重碎片化，需要立即优化",
+                        "impact": f"预计可回收 {wasted:.2f} MB 空间",
+                        "tables": [f"{t['schema']}.{t['table']}" for t in high_priority[:5]]
+                    })
+                    # 生成优化命令
+                    for t in high_priority[:3]:
+                        actionable_commands.append({
+                            "priority": "high",
+                            "type": "optimize_table",
+                            "table": f"{t['schema']}.{t['table']}",
+                            "commands": [
+                                f"-- 优化表 {t['schema']}.{t['table']}",
+                                f"-- 方法1: OPTIMIZE TABLE (会锁表)",
+                                f"OPTIMIZE TABLE {t['schema']}.{t['table']};",
+                                f"",
+                                f"-- 方法2: 使用pt-online-schema-change (在线，推荐)",
+                                f"pt-online-schema-change --alter 'ENGINE=InnoDB' --execute D={t['schema']},t={t['table']}",
+                            ],
+                            "description": f"碎片率 {t['fragmentation_ratio']:.1f}%，浪费 {t['wasted_space_mb']:.2f} MB",
+                            "warning": "生产环境建议使用pt-online-schema-change进行在线优化"
+                        })
+
+                medium_priority = [t for t in fragmented_tables if t["priority"] == "medium"]
+                if medium_priority:
+                    suggestions.append({
+                        "type": "warning",
+                        "message": f"发现 {len(medium_priority)} 个表中度碎片化，建议在维护窗口优化",
+                        "tables": [f"{t['schema']}.{t['table']}" for t in medium_priority[:5]]
+                    })
+
+            return self._create_result(
+                success=True,
+                message=f"表碎片分析完成，健康评分: {health_score}/100",
+                data={
+                    "fragmented_tables": fragmented_tables,
+                    "health_score": health_score,
+                    "total_wasted_space_mb": round(total_wasted_space, 2),
+                    "suggestions": suggestions,
+                    "actionable_commands": actionable_commands
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"表碎片分析失败: {e}")
+            return self._create_result(
+                success=False,
+                message="表碎片分析失败",
+                error=str(e)
+            )
+
+    def _calculate_fragmentation_health_score(self, fragmented_tables: List[Dict]) -> int:
+        """
+        计算表碎片健康评分
+
+        评分标准:
+        - 基础分: 100分
+        - 高优先级碎片表: -15分/个（最多-45分）
+        - 中优先级碎片表: -8分/个（最多-24分）
+
+        返回:
+            int: 健康评分(0-100)
+        """
+        rules = [
+            {
+                "name": "高优先级碎片表",
+                "filter": lambda x: x.get("priority") == "high",
+                "deduction": 15,
+                "max_deduction": 45
+            },
+            {
+                "name": "中优先级碎片表",
+                "filter": lambda x: x.get("priority") == "medium",
+                "deduction": 8,
+                "max_deduction": 24
+            }
+        ]
+        return self._calculate_health_score(fragmented_tables, rules)
+
     def get_realtime_connections(self) -> Dict[str, Any]:
         """
         获取实时连接信息
@@ -250,7 +735,7 @@ class MySQLDiagnostician(BaseDiagnostician):
             """, (threshold, limit))
 
             queries = []
-            for row in result:
+            for row in result or []:
                 queries.append({
                     "id": row[0],
                     "user": row[1],
@@ -297,7 +782,7 @@ class MySQLDiagnostician(BaseDiagnostician):
             """)
 
             waits = []
-            for row in result:
+            for row in result or []:
                 waits.append({
                     "waiting_trx": row[0],
                     "waiting_thread": row[1],

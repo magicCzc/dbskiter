@@ -228,16 +228,21 @@ class UnifiedConnector:
 
         返回:
             List[str]: 表名列表
+
+        实现委托给底层 connector, 支持所有方言的完整查询语句。
         """
+        if hasattr(self._connector, 'get_tables'):
+            return self._connector.get_tables()
+        # fallback: 按方言分别处理
         if "oracle" in self.dialect:
             result = self.execute("SELECT table_name FROM user_tables ORDER BY table_name")
-            return [row[0] for row in result.rows]
         elif "postgresql" in self.dialect:
             result = self.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
-            return [row[0] for row in result.rows]
+        elif "sqlite" in self.dialect:
+            result = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         else:
             result = self.execute("SHOW TABLES")
-            return [row[0] for row in result.rows]
+        return [row[0] for row in result.rows]
 
     def close(self):
         """关闭连接"""

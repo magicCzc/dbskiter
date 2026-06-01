@@ -18,9 +18,9 @@
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional
 from enum import Enum
 
 from dbskiter.db_monitor.storage import MetricsStorage

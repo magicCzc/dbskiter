@@ -18,13 +18,10 @@ db_scheduler/utils.py
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError as FutureTimeoutError
-from queue import PriorityQueue
 import logging
 import threading
-import time
 import json
 import sqlite3
-import re
 import requests
 
 from dbskiter.shared.error_handler import create_error_response, create_success_response

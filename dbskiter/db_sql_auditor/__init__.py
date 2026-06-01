@@ -41,10 +41,10 @@ from .models import (
     AuditResult,
     AuditRule,
     DDLImpact,
-    BatchAuditResult,
-    create_success_response,
-    create_error_response,
-)
+    BatchAuditResult,)
+
+# 响应函数（从shared模块导入）
+from dbskiter.shared.error_handler import create_success_response, create_error_response
 
 # 工具类
 from .utils import (

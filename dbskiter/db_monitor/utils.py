@@ -19,17 +19,15 @@ db_monitor/utils.py
 """
 
 import statistics
-import math
 import time
 import logging
-from typing import Dict, List, Optional, Any, Callable
-from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Any
+from datetime import datetime
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
 
 from dbskiter.db_monitor.models import (
     MetricPoint, MetricType, AnomalyAlert, AnomalyType, Severity,
-    CapacityPrediction, ErrorCode, create_error_response, create_success_response
+    CapacityPrediction,
 )
 
 logger = logging.getLogger(__name__)

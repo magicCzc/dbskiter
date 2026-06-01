@@ -276,6 +276,14 @@ class LockCommand(BaseCommand):
 
     def _kill_transaction(self, skill) -> int:
         """终止阻塞事务"""
+        from dbskiter.cli.readonly_middleware import is_readonly_mode
+
+        # 只读模式下禁止kill操作
+        if is_readonly_mode():
+            self.output.error("只读模式下禁止终止事务（kill操作属于写操作）")
+            self.output.info("如需执行此操作，请关闭只读模式（设置DBSKITER_READ_ONLY=false）")
+            return 1
+
         transaction_id = self.args.transaction_id
 
         result = skill.kill_blocking_transaction(transaction_id)

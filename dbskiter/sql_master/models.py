@@ -20,10 +20,7 @@ sql_master/models.py
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
-
-# 从shared模块导入标准响应函数
-from dbskiter.shared.error_handler import create_success_response, create_error_response
+from typing import Any, Dict, List
 
 
 class ErrorCode:
@@ -51,6 +48,7 @@ class ErrorCode:
     READ_ONLY_VIOLATION = "SQL100005"  # 只读模式违规
     DANGEROUS_OPERATION = "SQL100006"  # 危险操作被拦截
     FORCE_REQUIRED = "SQL100007"       # 需要force参数
+    PERMISSION_DENIED = "SQL100008"    # 权限不足
 
     # 重写错误 (200)
     REWRITE_FAILED = "SQL200001"
@@ -81,6 +79,7 @@ class ErrorMessage:
         ErrorCode.READ_ONLY_VIOLATION: "只读模式下不允许执行写操作",
         ErrorCode.DANGEROUS_OPERATION: "危险操作被拦截",
         ErrorCode.FORCE_REQUIRED: "此操作需要 --force 参数强制执行",
+        ErrorCode.PERMISSION_DENIED: "权限不足",
         ErrorCode.REWRITE_FAILED: "SQL重写失败",
         ErrorCode.UNSUPPORTED_SQL: "不支持的SQL类型",
         ErrorCode.ANALYSIS_FAILED: "数据分析失败",

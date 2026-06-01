@@ -16,7 +16,7 @@ db_lock_analyzer 工具类
 """
 
 import logging
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Dict, Any, List, Optional, Set
 from collections import defaultdict
 from datetime import datetime
 

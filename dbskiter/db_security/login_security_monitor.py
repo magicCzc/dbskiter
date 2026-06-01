@@ -20,10 +20,9 @@ db_security/login_security_monitor.py
 """
 
 import logging
-import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 from collections import defaultdict
 
 from dbskiter.shared.unified_connector import UnifiedConnector
@@ -327,7 +326,7 @@ class LoginSecurityMonitor:
                 LIMIT 1000
             """)
 
-            for row in result.rows:
+            for row in result.rows or []:
                 attempts.append(LoginAttempt(
                     user=row[0] or "unknown",
                     host=row[1] or "localhost",
@@ -360,7 +359,7 @@ class LoginSecurityMonitor:
                 LIMIT 1000
             """)
 
-            for row in result.rows:
+            for row in result.rows or []:
                 attempts.append(LoginAttempt(
                     user=row[0] or "unknown",
                     host=str(row[1]) if row[1] else "localhost",
@@ -397,7 +396,7 @@ class LoginSecurityMonitor:
                 WHERE ROWNUM <= 1000
             """)
 
-            for row in result.rows:
+            for row in result.rows or []:
                 logon_time = row[3]
                 if logon_time and hasattr(logon_time, 'isoformat'):
                     attempt_time = logon_time
@@ -412,7 +411,7 @@ class LoginSecurityMonitor:
                 ))
 
         except Exception as e:
-            logger.debug(f"无法获取Oracle登录信息: {e}")
+            logger.warning(f"无法获取Oracle登录信息: {e}")
 
         return attempts
 

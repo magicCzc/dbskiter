@@ -359,7 +359,7 @@ class ExecutionPlanAnalyzer:
             return []
 
         except Exception as e:
-            logger.debug(f"获取Oracle执行计划失败（非致命）: {e}")
+            logger.warning(f"获取Oracle执行计划失败（非致命）: {e}")
             return []
 
     def _parse_oracle_plan_output(self, plan_rows: List[Tuple]) -> List[Tuple]:
@@ -451,7 +451,7 @@ class ExecutionPlanAnalyzer:
                             operation          # Extra
                         ))
                     except Exception as e:
-                        logger.debug(f"解析执行计划行失败: {e}, line={plan_line}")
+                        logger.warning(f"解析执行计划行失败: {e}, line={plan_line}")
                         continue
 
         return parsed_rows

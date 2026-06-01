@@ -3,12 +3,10 @@ sql_master/analyzer.py
 数据分析器 - 基于查询结果的数据分析
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 import pandas as pd
 import numpy as np
-
-from dbskiter.shared.models import PipelineResult
 
 
 class DataAnalyzer:

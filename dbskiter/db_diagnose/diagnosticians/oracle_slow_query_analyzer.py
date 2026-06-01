@@ -259,7 +259,7 @@ class OracleSlowQueryAnalyzer:
             )
             return result.rows and result.rows[0][0] > 0
         except Exception as e:
-            logger.debug(f"AWR检查失败: {e}")
+            logger.warning(f"AWR检查失败: {e}")
             return False
 
     def _fetch_realtime_queries(self, limit: int,

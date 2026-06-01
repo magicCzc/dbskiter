@@ -35,56 +35,56 @@ class ErrorCode:
     """
     错误码体系
 
-    格式: XXXYYYZZ
-    - XXX: 模块代码 (SCH=Scheduler)
-    - YYY: 功能代码
-    - ZZ: 具体错误
+    格式: SCHXXXYYY
+    - SCH: Scheduler模块标识
+    - XXX: 功能代码
+    - YYY: 具体错误
     """
 
     # 通用错误 (000)
-    SUCCESS = "SCH00000"
-    UNKNOWN_ERROR = "SCH00001"
-    INVALID_PARAM = "SCH00002"
-    NOT_FOUND = "SCH00003"
-    ALREADY_EXISTS = "SCH00004"
+    SUCCESS = "SCH000000"
+    UNKNOWN_ERROR = "SCH000001"
+    INVALID_PARAM = "SCH000002"
+    NOT_FOUND = "SCH000003"
+    ALREADY_EXISTS = "SCH000004"
 
     # 备份错误 (100)
-    BACKUP_FAILED = "SCH10001"
-    BACKUP_TIMEOUT = "SCH10002"
-    BACKUP_CIRCUIT_OPEN = "SCH10003"
-    BACKUP_INVALID_TYPE = "SCH10004"
-    BACKUP_STORAGE_FULL = "SCH10005"
-    BACKUP_FILE_CORRUPTED = "SCH10006"
+    BACKUP_FAILED = "SCH100001"
+    BACKUP_TIMEOUT = "SCH100002"
+    BACKUP_CIRCUIT_OPEN = "SCH100003"
+    BACKUP_INVALID_TYPE = "SCH100004"
+    BACKUP_STORAGE_FULL = "SCH100005"
+    BACKUP_FILE_CORRUPTED = "SCH100006"
 
     # 任务调度错误 (200)
-    TASK_SCHEDULE_INVALID = "SCH20001"
-    TASK_EXECUTION_FAILED = "SCH20002"
-    TASK_TIMEOUT = "SCH20003"
-    TASK_CANCELLED = "SCH20004"
-    TASK_RETRY_EXHAUSTED = "SCH20005"
-    TASK_DLQ_FULL = "SCH20006"
+    TASK_SCHEDULE_INVALID = "SCH200001"
+    TASK_EXECUTION_FAILED = "SCH200002"
+    TASK_TIMEOUT = "SCH200003"
+    TASK_CANCELLED = "SCH200004"
+    TASK_RETRY_EXHAUSTED = "SCH200005"
+    TASK_DLQ_FULL = "SCH200006"
 
     # 工作流错误 (300)
-    WORKFLOW_INVALID = "SCH30001"
-    WORKFLOW_EXECUTION_FAILED = "SCH30002"
-    WORKFLOW_CYCLE_DETECTED = "SCH30003"
-    WORKFLOW_NODE_FAILED = "SCH30004"
+    WORKFLOW_INVALID = "SCH300001"
+    WORKFLOW_EXECUTION_FAILED = "SCH300002"
+    WORKFLOW_CYCLE_DETECTED = "SCH300003"
+    WORKFLOW_NODE_FAILED = "SCH300004"
 
     # 数据库错误 (400)
-    DB_CONNECTION_FAILED = "SCH40001"
-    DB_QUERY_FAILED = "SCH40002"
-    DB_LOCK_TIMEOUT = "SCH40003"
+    DB_CONNECTION_FAILED = "SCH400001"
+    DB_QUERY_FAILED = "SCH400002"
+    DB_LOCK_TIMEOUT = "SCH400003"
 
     # 通知错误 (500)
-    NOTIFICATION_FAILED = "SCH50001"
-    WEBHOOK_INVALID = "SCH50002"
-    EMAIL_SEND_FAILED = "SCH50003"
+    NOTIFICATION_FAILED = "SCH500001"
+    WEBHOOK_INVALID = "SCH500002"
+    EMAIL_SEND_FAILED = "SCH500003"
 
 
 class ErrorMessage:
     """错误消息映射"""
 
-    MESSAGES = {
+    _messages = {
         ErrorCode.SUCCESS: "操作成功",
         ErrorCode.UNKNOWN_ERROR: "未知错误",
         ErrorCode.INVALID_PARAM: "参数无效",
@@ -121,7 +121,8 @@ class ErrorMessage:
 
     @classmethod
     def get_message(cls, code: str) -> str:
-        return cls.MESSAGES.get(code, f"未知错误码: {code}")
+        """获取错误消息"""
+        return cls._messages.get(code, f"未知错误码: {code}")
 
 
 # =============================================================================

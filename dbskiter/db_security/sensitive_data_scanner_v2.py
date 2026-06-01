@@ -12,11 +12,10 @@
 """
 
 import re
-import hashlib
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Dict, Any, Optional, Tuple, Set
+from typing import List, Dict, Any, Optional, Tuple
 from enum import Enum
 from collections import Counter
 import logging
@@ -208,14 +207,16 @@ class SensitiveDataScannerV2:
     def scan(
         self,
         tables: Optional[List[str]] = None,
-        sample_size: int = 100
+        sample_size: int = 100,
+        use_dynamic_sampling: bool = True
     ) -> Dict[str, Any]:
         """
         扫描敏感数据（兼容接口）
 
         参数：
             tables: 指定表列表（None表示所有表）
-            sample_size: 每列采样行数
+            sample_size: 每列采样行数（启用动态采样时作为基础值）
+            use_dynamic_sampling: 是否使用动态采样策略
 
         返回：
             Dict: 扫描结果
@@ -223,63 +224,23 @@ class SensitiveDataScannerV2:
         if tables:
             # 扫描指定表
             all_findings = []
+            sampling_info = {}
+
             for table in tables:
                 try:
-                    findings = self.scan_table(table, sample_size)
+                    # 根据配置决定是否使用动态采样
+                    if use_dynamic_sampling:
+                        actual_sample_size = self._calculate_dynamic_sample_size(table, sample_size)
+                        sampling_info[table] = actual_sample_size
+                    else:
+                        actual_sample_size = sample_size
+                        sampling_info[table] = sample_size
+
+                    findings = self.scan_table(table, actual_sample_size)
                     all_findings.extend(findings)
                 except Exception as e:
                     logger.error(f"扫描表 {table} 失败: {e}")
 
-            # 分类统计
-            by_level = {}
-            for finding in all_findings:
-                level = finding.risk_level.value
-                by_level[level] = by_level.get(level, 0) + 1
-
-            return {
-                "findings": [self._finding_to_dict(f) for f in all_findings],
-                "summary": {
-                    "total": len(all_findings),
-                    "by_level": by_level
-                }
-            }
-        else:
-            # 扫描所有表
-            return self.scan_all_tables(sample_size)
-
-    def _finding_to_dict(self, finding: SensitiveColumn) -> Dict[str, Any]:
-        """将SensitiveColumn转换为字典"""
-        return {
-            "table": finding.table_name,
-            "column": finding.column_name,
-            "type": finding.data_type.value,
-            "level": finding.risk_level.value,
-            "confidence": finding.confidence,
-            "sample": finding.sample_data,
-            "suggestion": finding.remediation
-        }
-
-    def scan_all_tables(self, sample_size: int = 100) -> Dict[str, Any]:
-        """
-        扫描所有表
-        
-        参数：
-            sample_size: 每列采样行数
-            
-        返回：
-            Dict: 扫描结果
-        """
-        try:
-            tables = self.connector.get_tables()
-            all_findings = []
-            
-            for table in tables:
-                try:
-                    findings = self.scan_table(table, sample_size)
-                    all_findings.extend(findings)
-                except Exception as e:
-                    logger.error(f"扫描表 {table} 失败: {e}")
-            
             # 分类统计
             by_level = {}
             by_category = {}
@@ -288,7 +249,7 @@ class SensitiveDataScannerV2:
                 category = finding.category.value
                 by_level[level] = by_level.get(level, 0) + 1
                 by_category[category] = by_category.get(category, 0) + 1
-            
+
             return {
                 "status": "success",
                 "total_tables": len(tables),
@@ -296,12 +257,122 @@ class SensitiveDataScannerV2:
                 "total_findings": len(all_findings),
                 "by_level": by_level,
                 "by_category": by_category,
+                "sampling_info": sampling_info,
+                "dynamic_sampling_enabled": use_dynamic_sampling,
                 "critical_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.CRITICAL],
                 "high_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.HIGH],
                 "all_findings": [f.to_dict() for f in all_findings],
                 "summary": self._generate_summary(all_findings)
             }
-            
+        else:
+            # 扫描所有表
+            return self.scan_all_tables(sample_size, use_dynamic_sampling)
+
+    def _calculate_dynamic_sample_size(self, table_name: str, base_sample_size: int = 100) -> int:
+        """
+        根据表大小动态计算采样行数
+
+        策略：
+        - 小表 (< 10,000行): 全量扫描
+        - 中表 (10,000 - 1,000,000行): 1%采样，最少1000行
+        - 大表 (> 1,000,000行): 分层采样，0.1%采样，最少5000行，最多50000行
+
+        参数：
+            table_name: 表名
+            base_sample_size: 基础采样大小
+
+        返回：
+            int: 动态计算的采样大小
+        """
+        try:
+            # 获取表的总行数
+            if "oracle" in self.dialect:
+                count_sql = f"SELECT COUNT(*) FROM {table_name.upper()}"
+            elif "postgresql" in self.dialect:
+                count_sql = f'SELECT COUNT(*) FROM "{table_name}"'
+            elif self.dialect in ("mysql", "mysql+pymysql"):
+                count_sql = f"SELECT COUNT(*) FROM `{table_name}`"
+            else:
+                count_sql = f"SELECT COUNT(*) FROM {table_name}"
+
+            count_result = self.connector.execute(count_sql)
+            total_rows = int(count_result.rows[0][0]) if count_result.rows else 0
+
+            # 根据表大小计算采样数
+            if total_rows < 10000:
+                # 小表：全量扫描
+                sample_size = total_rows
+                logger.debug(f"表 {table_name} 为小表 ({total_rows} 行)，使用全量扫描")
+            elif total_rows < 1000000:
+                # 中表：1%采样，最少1000行
+                sample_size = max(int(total_rows * 0.01), 1000)
+                logger.debug(f"表 {table_name} 为中表 ({total_rows} 行)，采样 {sample_size} 行")
+            else:
+                # 大表：0.1%采样，最少5000行，最多50000行
+                sample_size = min(max(int(total_rows * 0.001), 5000), 50000)
+                logger.debug(f"表 {table_name} 为大表 ({total_rows} 行)，采样 {sample_size} 行")
+
+            return sample_size
+
+        except Exception as e:
+            logger.warning(f"计算动态采样大小失败: {e}，使用默认值 {base_sample_size}")
+            return base_sample_size
+
+    def scan_all_tables(self, sample_size: int = 100, use_dynamic_sampling: bool = True) -> Dict[str, Any]:
+        """
+        扫描所有表
+
+        参数：
+            sample_size: 每列采样行数（启用动态采样时作为基础值）
+            use_dynamic_sampling: 是否使用动态采样策略
+
+        返回：
+            Dict: 扫描结果
+        """
+        try:
+            tables = self.connector.get_tables()
+            all_findings = []
+            sampling_info = {}
+
+            for table in tables:
+                try:
+                    # 根据配置决定是否使用动态采样
+                    if use_dynamic_sampling:
+                        actual_sample_size = self._calculate_dynamic_sample_size(table, sample_size)
+                        sampling_info[table] = actual_sample_size
+                    else:
+                        actual_sample_size = sample_size
+                        sampling_info[table] = sample_size
+
+                    findings = self.scan_table(table, actual_sample_size)
+                    all_findings.extend(findings)
+                except Exception as e:
+                    logger.error(f"扫描表 {table} 失败: {e}")
+
+            # 分类统计
+            by_level = {}
+            by_category = {}
+            for finding in all_findings:
+                level = finding.sensitivity_level.value
+                category = finding.category.value
+                by_level[level] = by_level.get(level, 0) + 1
+                by_category[category] = by_category.get(category, 0) + 1
+
+            return {
+                "status": "success",
+                "total_tables": len(tables),
+                "tables_scanned": len(set(f.table_name for f in all_findings)),
+                "total_findings": len(all_findings),
+                "by_level": by_level,
+                "by_category": by_category,
+                "sampling_info": sampling_info,  # 添加采样信息
+                "dynamic_sampling_enabled": use_dynamic_sampling,
+                "critical_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.CRITICAL],
+                "high_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.HIGH],
+                "all_findings": [f.to_dict() for f in all_findings],
+                "summary": self._generate_summary(all_findings)
+            }
+
         except Exception as e:
             logger.error(f"扫描所有表失败: {e}")
             return {
@@ -475,7 +546,7 @@ class SensitiveDataScannerV2:
             stats["unique_count"] = len(set(samples))
             
         except Exception as e:
-            logger.debug(f"获取采样数据失败: {e}")
+            logger.warning(f"获取采样数据失败: {e}")
         
         return samples, stats
     

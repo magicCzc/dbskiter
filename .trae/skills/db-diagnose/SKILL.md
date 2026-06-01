@@ -10,17 +10,36 @@ description: |
   - 用户说"全面检查" -> 执行 report
   - 用户说"性能分析" -> 执行 performance-snapshot
   - 用户说"瓶颈分析" -> 执行 bottleneck
+  - 用户说"表膨胀/碎片" -> 执行 bloat
+  - 用户说"索引使用情况" -> 执行 index-usage
+  - 用户说"VACUUM状态" -> 执行 vacuum（PostgreSQL）
+  - 用户说"表空间碎片" -> 执行 tablespace-fragmentation（Oracle）
 
   用法：
-  - dbskiter --output-mode=ai --database=<name> diagnose realtime
-  - dbskiter --output-mode=ai --database=<name> diagnose sql "SELECT * FROM users"
-  - dbskiter --output-mode=ai --database=<name> diagnose recommend-indexes
-  - dbskiter --output-mode=ai --database=<name> diagnose report
-  - dbskiter --output-mode=ai --database=<name> diagnose performance-snapshot
-  - dbskiter --output-mode=ai --database=<name> diagnose bottleneck
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose realtime
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose sql "SELECT * FROM users"
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose recommend-indexes
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose report
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose performance-snapshot
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose bottleneck
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose bloat
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose index-usage
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose vacuum
+  - python -m dbskiter --output-mode=ai --database=<name> diagnose tablespace-fragmentation
 ---
 
 # 数据库诊断 Skill
+
+## 安全原则
+
+本Skill的所有操作均为只读查询，不会修改任何数据。但需注意：
+
+| 规则 | 说明 |
+|------|------|
+| 只读操作 | 诊断命令只执行SELECT/SHOW/DESCRIBE等查询操作 |
+| 禁止写操作 | 不得通过诊断命令执行DELETE/UPDATE/INSERT/DROP等写操作 |
+| 索引建议仅供参考 | recommend-indexes只提供CREATE INDEX建议，不自动执行 |
+| VACUUM建议仅供参考 | vacuum命令只分析状态，不自动执行VACUUM操作 |
 
 ## 何时使用
 
@@ -28,18 +47,22 @@ description: |
 
 | 用户说法 | 执行命令 | 说明 |
 |---------|---------|------|
-| "数据库慢了" / "卡住了" | `dbskiter --output-mode=ai --database=<name> diagnose realtime` | 实时诊断当前性能问题 |
-| "CPU飙高了" | `dbskiter --output-mode=ai --database=<name> diagnose top` | 查看资源消耗最高的SQL |
-| "有死锁" / "有阻塞" | `dbskiter --output-mode=ai --database=<name> diagnose locks` | 检测死锁和阻塞 |
-| "SQL有问题" | `dbskiter --output-mode=ai --database=<name> diagnose sql "<SQL>"` | 诊断特定SQL |
-| "空间不够了" | `dbskiter --output-mode=ai --database=<name> diagnose space` | 分析表空间和碎片 |
-| "连接数满了" | `dbskiter --output-mode=ai --database=<name> diagnose connections` | 分析连接池状态 |
-| "主从延迟" | `dbskiter --output-mode=ai --database=<name> diagnose replication` | 分析复制状态 |
-| "慢查询" | `dbskiter --output-mode=ai --database=<name> diagnose slow-queries` | 查看历史慢查询 |
-| "加什么索引" | `dbskiter --output-mode=ai --database=<name> diagnose recommend-indexes` | 获取索引建议 |
-| "检查一下" | `dbskiter --output-mode=ai --database=<name> diagnose report` | 全面诊断报告 |
-| "性能分析" | `dbskiter --output-mode=ai --database=<name> diagnose performance-snapshot` | 采集性能快照 |
-| "瓶颈分析" | `dbskiter --output-mode=ai --database=<name> diagnose bottleneck` | 分析性能瓶颈 |
+| "数据库慢了" / "卡住了" | `python -m dbskiter --output-mode=ai --database=<name> diagnose realtime` | 实时诊断当前性能问题 |
+| "CPU飙高了" | `python -m dbskiter --output-mode=ai --database=<name> diagnose top` | 查看资源消耗最高的SQL |
+| "有死锁" / "有阻塞" | `python -m dbskiter --output-mode=ai --database=<name> diagnose locks` | 检测死锁和阻塞 |
+| "SQL有问题" | `python -m dbskiter --output-mode=ai --database=<name> diagnose sql "<SQL>"` | 诊断特定SQL |
+| "空间不够了" | `python -m dbskiter --output-mode=ai --database=<name> diagnose space` | 分析表空间和碎片 |
+| "连接数满了" | `python -m dbskiter --output-mode=ai --database=<name> diagnose connections` | 分析连接池状态 |
+| "主从延迟" | `python -m dbskiter --output-mode=ai --database=<name> diagnose replication` | 分析复制状态 |
+| "慢查询" | `python -m dbskiter --output-mode=ai --database=<name> diagnose slow-queries` | 查看历史慢查询 |
+| "加什么索引" | `python -m dbskiter --output-mode=ai --database=<name> diagnose recommend-indexes` | 获取索引建议 |
+| "检查一下" | `python -m dbskiter --output-mode=ai --database=<name> diagnose report` | 全面诊断报告 |
+| "性能分析" | `python -m dbskiter --output-mode=ai --database=<name> diagnose performance-snapshot` | 采集性能快照 |
+| "瓶颈分析" | `python -m dbskiter --output-mode=ai --database=<name> diagnose bottleneck` | 分析性能瓶颈 |
+| "表膨胀" / "碎片" | `python -m dbskiter --output-mode=ai --database=<name> diagnose bloat` | 检测表膨胀/碎片 |
+| "索引使用情况" | `python -m dbskiter --output-mode=ai --database=<name> diagnose index-usage` | 分析索引使用 |
+| "VACUUM状态" | `python -m dbskiter --output-mode=ai --database=<name> diagnose vacuum` | PostgreSQL VACUUM分析 |
+| "表空间碎片" | `python -m dbskiter --output-mode=ai --database=<name> diagnose tablespace-fragmentation` | Oracle表空间碎片 |
 
 ## 数据库支持
 
@@ -76,7 +99,7 @@ description: |
 
 #### 1. 实时诊断
 ```bash
-dbskiter --database=<数据库名> diagnose realtime
+python -m dbskiter --database=<数据库名> diagnose realtime
 ```
 **功能**：分析当前数据库性能问题（活跃连接、锁等待、慢查询）
 
@@ -85,7 +108,7 @@ dbskiter --database=<数据库名> diagnose realtime
 
 #### 2. TOP SQL分析
 ```bash
-dbskiter --database=<数据库名> diagnose top
+python -m dbskiter --database=<数据库名> diagnose top
 ```
 **功能**：查看资源消耗最高的SQL
 
@@ -95,7 +118,7 @@ dbskiter --database=<数据库名> diagnose top
 
 #### 3. 锁分析
 ```bash
-dbskiter --database=<数据库名> diagnose locks
+python -m dbskiter --database=<数据库名> diagnose locks
 ```
 **功能**：检测死锁、阻塞、锁等待
 
@@ -104,7 +127,7 @@ dbskiter --database=<数据库名> diagnose locks
 
 #### 4. SQL深度诊断
 ```bash
-dbskiter --database=<数据库名> diagnose sql "SELECT * FROM users WHERE email = 'test@test.com'"
+python -m dbskiter --database=<数据库名> diagnose sql "SELECT * FROM users WHERE email = 'test@test.com'"
 ```
 **输出**：评分、问题列表、优化建议
 
@@ -113,7 +136,7 @@ dbskiter --database=<数据库名> diagnose sql "SELECT * FROM users WHERE email
 
 #### 5. 空间诊断
 ```bash
-dbskiter --database=<数据库名> diagnose space
+python -m dbskiter --database=<数据库名> diagnose space
 ```
 **功能**：分析表空间、碎片、大表
 
@@ -125,7 +148,7 @@ dbskiter --database=<数据库名> diagnose space
 
 #### 6. 连接分析
 ```bash
-dbskiter --database=<数据库名> diagnose connections
+python -m dbskiter --database=<数据库名> diagnose connections
 ```
 **功能**：分析连接池、空闲连接
 
@@ -134,13 +157,13 @@ dbskiter --database=<数据库名> diagnose connections
 
 #### 7. 复制诊断
 ```bash
-dbskiter --database=<数据库名> diagnose replication
+python -m dbskiter --database=<数据库名> diagnose replication
 ```
 **功能**：分析主从延迟、复制状态
 
 #### 8. 慢查询分析
 ```bash
-dbskiter --database=<数据库名> diagnose slow-queries
+python -m dbskiter --database=<数据库名> diagnose slow-queries
 ```
 **功能**：分析历史慢查询
 
@@ -150,7 +173,7 @@ dbskiter --database=<数据库名> diagnose slow-queries
 
 #### 9. 索引建议
 ```bash
-dbskiter --database=<数据库名> diagnose recommend-indexes
+python -m dbskiter --database=<数据库名> diagnose recommend-indexes
 ```
 **功能**：全库索引分析和建议
 
@@ -161,19 +184,19 @@ dbskiter --database=<数据库名> diagnose recommend-indexes
 
 #### 10. 综合诊断报告
 ```bash
-dbskiter --database=<数据库名> diagnose report
+python -m dbskiter --database=<数据库名> diagnose report
 ```
 **功能**：生成完整诊断报告
 
 #### 11. 单表诊断
 ```bash
-dbskiter --database=<数据库名> diagnose table <表名>
+python -m dbskiter --database=<数据库名> diagnose table <表名>
 ```
 **功能**：分析单表结构和性能
 
 #### 12. 性能快照
 ```bash
-dbskiter --database=<数据库名> diagnose performance-snapshot
+python -m dbskiter --database=<数据库名> diagnose performance-snapshot
 ```
 **功能**：采集数据库性能指标（CPU、IO、内存、并发、锁等）
 
@@ -188,6 +211,51 @@ dbskiter --database=<数据库名> diagnose bottleneck
 
 **可选参数**：
 - `--top`：显示TOP N瓶颈（默认5）
+
+### 数据库特有诊断
+
+#### 14. VACUUM分析（PostgreSQL）
+```bash
+dbskiter --database=<数据库名> diagnose vacuum
+```
+**功能**：检查PostgreSQL表清理状态和死元组，评估autovacuum配置
+
+**输出**：健康评分、需VACUUM的表列表、可执行VACUUM命令
+
+#### 15. 膨胀/碎片分析（多数据库）
+```bash
+dbskiter --database=<数据库名> diagnose bloat
+```
+**功能**：检测表膨胀和碎片情况
+- PostgreSQL：检测MVCC导致的表膨胀
+- MySQL：检测InnoDB表碎片
+- Oracle：检测表空间碎片
+
+**可选参数**：
+- `--threshold`：膨胀率阈值（百分比，默认30）
+
+**输出**：健康评分、膨胀/碎片表列表、优化建议、可执行维护命令
+
+#### 16. 索引使用分析（多数据库）
+```bash
+dbskiter --database=<数据库名> diagnose index-usage
+```
+**功能**：识别未使用索引、缺失索引、冗余索引
+- MySQL：基于performance_schema分析，支持sys schema冗余索引检测
+- Oracle：基于v$object_usage分析，支持无效索引检测
+- PostgreSQL：基于pg_stat_user_indexes分析，支持重复索引检测
+
+**输出**：健康评分、未使用索引、高频索引、缺失索引、冗余索引、可执行命令
+
+#### 17. 表空间碎片分析（Oracle）
+```bash
+dbskiter --database=<数据库名> diagnose tablespace-fragmentation
+```
+**功能**：分析Oracle表空间碎片情况，基于dba_free_space检测
+
+**输出**：健康评分、碎片表空间列表、整理建议
+
+**注意**：需要DBA权限访问dba_free_space视图
 
 ## AI决策流程
 

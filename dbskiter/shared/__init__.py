@@ -22,6 +22,9 @@ shared - 共享模块
 from .unified_connector import UnifiedConnector, detect_connector_type
 from .query_result import QueryResult
 
+# 通用工具函数
+from .utils import format_bytes, format_duration, truncate_text
+
 # 数据模型
 from .models import (
     PipelineStep,
@@ -36,9 +39,9 @@ from .error_handler import (
     ConnectionError,
     QueryError,
     ConfigError,
-    PermissionError,
+    DBPermissionError,
     ValidationError,
-    TimeoutError,
+    DBTimeoutError,
     ResourceExhaustedError,
     create_error_response,
     create_success_response,
@@ -50,6 +53,10 @@ __all__ = [
     "UnifiedConnector",
     "detect_connector_type",
     "QueryResult",
+    # 工具函数
+    "format_bytes",
+    "format_duration",
+    "truncate_text",
     # 数据模型
     "PipelineStep",
     "PipelineResult",
@@ -60,9 +67,9 @@ __all__ = [
     "ConnectionError",
     "QueryError",
     "ConfigError",
-    "PermissionError",
+    "DBPermissionError",
     "ValidationError",
-    "TimeoutError",
+    "DBTimeoutError",
     "ResourceExhaustedError",
     "create_error_response",
     "create_success_response",

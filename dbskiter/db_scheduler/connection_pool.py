@@ -43,9 +43,9 @@ import threading
 import time
 import logging
 import queue
-from datetime import datetime, timedelta
+from datetime import datetime
 from enum import Enum
-from typing import Dict, List, Optional, Any, Callable, Set
+from typing import Dict, List, Optional, Any, Set
 from dataclasses import dataclass, field
 from contextlib import contextmanager
 import weakref

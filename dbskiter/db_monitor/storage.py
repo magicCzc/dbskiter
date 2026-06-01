@@ -26,8 +26,8 @@ from pathlib import Path
 
 from dbskiter.db_monitor.models import (
     MetricPoint, MetricType, AnomalyAlert, ErrorCode,
-    create_error_response, create_success_response
 )
+from dbskiter.shared.error_handler import create_error_response, create_success_response
 
 logger = logging.getLogger(__name__)
 

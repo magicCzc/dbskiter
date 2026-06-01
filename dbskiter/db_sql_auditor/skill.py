@@ -40,15 +40,11 @@ from dbskiter.shared.validators import validate_params, Validator
 # 导入数据模型
 from .models import (
     ErrorCode,
-    ErrorMessage,
     AuditLevel,
     AuditType,
-    SQLType,
     AuditConfig,
-    AuditIssue,
     AuditResult,
     AuditRule,
-    DDLImpact,
     BatchAuditResult,
     create_success_response,
     create_error_response,

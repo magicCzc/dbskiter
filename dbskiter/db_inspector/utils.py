@@ -15,11 +15,10 @@ db_inspector 工具类
 版本：3.0.0（模块化重构版）
 """
 
-import json
 import logging
-from typing import Dict, Any, List, Optional, Tuple
-from datetime import datetime, timedelta
-from dataclasses import asdict
+import json
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 
 from .models import (
     RiskLevel,

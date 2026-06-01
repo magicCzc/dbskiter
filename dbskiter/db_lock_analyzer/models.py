@@ -18,7 +18,7 @@ db_lock_analyzer 数据模型
 版本：3.0.0（模块化重构版）
 """
 
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -91,53 +91,6 @@ class ErrorMessage:
     def get_message(cls, error_code: str) -> str:
         """获取错误消息"""
         return cls.MESSAGES.get(error_code, f"未知错误码: {error_code}")
-
-
-def create_success_response(
-    data: Any = None,
-    message: str = "操作成功"
-) -> Dict[str, Any]:
-    """
-    创建成功响应
-
-    参数:
-        data: 响应数据
-        message: 成功消息
-
-    返回:
-        Dict: 标准成功响应格式
-    """
-    return {
-        "success": True,
-        "error_code": ErrorCode.SUCCESS,
-        "message": message,
-        "data": data or {}
-    }
-
-
-def create_error_response(
-    message: str,
-    error_code: str = ErrorCode.UNKNOWN_ERROR,
-    details: Optional[Dict[str, Any]] = None
-) -> Dict[str, Any]:
-    """
-    创建错误响应
-
-    参数:
-        message: 错误消息
-        error_code: 错误码
-        details: 详细错误信息
-
-    返回:
-        Dict: 标准错误响应格式
-    """
-    return {
-        "success": False,
-        "error_code": error_code,
-        "message": message,
-        "error_msg": ErrorMessage.get_message(error_code),
-        "details": details or {}
-    }
 
 
 class LockType(str, Enum):
