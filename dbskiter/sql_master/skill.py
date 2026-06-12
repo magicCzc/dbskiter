@@ -189,7 +189,7 @@ class SQLMasterSkill:
         sql: str,
         params: Optional[Dict[str, Any]] = None,
         limit: Optional[int] = None,
-        allow_write: bool = True,
+        allow_write: bool = False,
         force: bool = False
     ) -> Dict[str, Any]:
         """
@@ -199,7 +199,7 @@ class SQLMasterSkill:
             sql: SQL语句
             params: SQL参数
             limit: 返回行数限制
-            allow_write: 是否允许写操作（默认True，设为False开启只读模式）
+            allow_write: 是否允许写操作（默认False，严格模式）
             force: 是否强制执行危险操作（默认False，设为True可执行CRITICAL级别操作）
 
         返回:
@@ -422,7 +422,7 @@ class SQLMasterSkill:
         self,
         sqls: List[str],
         params_list: Optional[List[Dict[str, Any]]] = None,
-        allow_write: bool = True,
+        allow_write: bool = False,
         force: bool = False,
         stop_on_error: bool = True
     ) -> List[Dict[str, Any]]:
@@ -432,7 +432,7 @@ class SQLMasterSkill:
         参数:
             sqls: SQL语句列表
             params_list: 参数列表（与sqls一一对应）
-            allow_write: 是否允许写操作（默认True）
+            allow_write: 是否允许写操作（默认False，严格模式）
             force: 是否强制执行危险操作（默认False）
             stop_on_error: 遇到错误时是否停止（默认True）
 
@@ -547,6 +547,8 @@ class SQLMasterSkill:
                 return f"{sql} LIMIT {limit}"
             elif "oracle" in dialect:
                 return f"SELECT * FROM ({sql}) WHERE ROWNUM <= {limit}"
+            elif "mssql" in dialect or "sqlserver" in dialect:
+                return f"SELECT TOP {limit} * FROM ({sql}) AS t"
         return sql
 
     # ==================== SQL重写优化 ====================
@@ -555,7 +557,10 @@ class SQLMasterSkill:
     def rewrite_sql(self, sql: str) -> Dict[str, Any]:
         """重写SQL以优化性能"""
         if not self.config.enable_rewriter or not self.rewriter:
-            return {"status": "disabled", "message": "SQL重写已禁用"}
+            return create_success_response(
+                data={"status": "disabled", "message": "SQL重写已禁用"},
+                message="SQL重写已禁用"
+            )
 
         sanitized_sql = sanitize_sql(sql)
         logger.info(f"重写SQL: {sanitized_sql}")
@@ -642,7 +647,10 @@ class SQLMasterSkill:
     def analyze_data(self, sql: str) -> Dict[str, Any]:
         """分析查询数据"""
         if not self.config.enable_analyzer or not self.analyzer:
-            return {"status": "disabled", "message": "数据分析已禁用"}
+            return create_success_response(
+                data={"status": "disabled", "message": "数据分析已禁用"},
+                message="数据分析已禁用"
+            )
 
         logger.info(f"分析数据: {sanitize_sql(sql)}")
 
@@ -771,7 +779,10 @@ class SQLMasterSkill:
     def get_cache_stats(self) -> Dict[str, Any]:
         """获取缓存统计信息"""
         if not self.config.enable_cache or not self.cache_manager:
-            return {"status": "disabled", "message": "缓存已禁用"}
+            return create_success_response(
+                data={"status": "disabled", "message": "缓存已禁用"},
+                message="缓存已禁用"
+            )
 
         stats = self.cache_manager.get_stats()
 
@@ -784,7 +795,10 @@ class SQLMasterSkill:
     def clear_cache(self) -> Dict[str, Any]:
         """清除缓存"""
         if not self.config.enable_cache or not self.cache_manager:
-            return {"status": "disabled", "message": "缓存已禁用"}
+            return create_success_response(
+                data={"status": "disabled", "message": "缓存已禁用"},
+                message="缓存已禁用"
+            )
 
         count = self.cache_manager.invalidate()
         return create_success_response(

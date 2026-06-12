@@ -115,6 +115,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="调试模式（显示详细错误信息）"
     )
     parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="详细模式（显示诊断/监控过程中的日志信息）"
+    )
+    parser.add_argument(
         "--log-level",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         default="WARNING",
@@ -196,6 +201,8 @@ def main(args: Optional[List[str]] = None) -> int:
     log_level_name = getattr(parsed_args, 'log_level', 'WARNING')
     if getattr(parsed_args, 'debug', False):
         log_level_name = 'DEBUG'
+    elif getattr(parsed_args, 'verbose', False):
+        log_level_name = 'INFO'
     logging.basicConfig(
         level=getattr(logging, log_level_name, logging.WARNING),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -214,52 +221,8 @@ def main(args: Optional[List[str]] = None) -> int:
     )
     
     try:
-        # 加载配置（支持别名选择数据库）
-        database_alias = getattr(parsed_args, 'database', None)
-
-        # 如果指定了数据库别名，尝试通过 MultiDBConfig 查找对应配置
-        if database_alias:
-            multi_config = MultiDBConfig()
-            # 首先尝试作为别名查找
-            config = multi_config.get_config_by_alias(database_alias.lower())
-            if config:
-                config.prefix = f"DB_{database_alias.upper()}"
-            else:
-                # 向后兼容：尝试通过数据库名查找
-                config = multi_config.find_config_by_database(database_alias)
-                if config:
-                    alias = multi_config.get_alias_by_database(database_alias)
-                    config.prefix = f"DB_{alias.upper()}" if alias else "DB"
-                else:
-                    # 如果没找到，使用默认配置
-                    config = Config.from_env(prefix="DB")
-                    config.prefix = "DB"
-                    config.database = database_alias
-        else:
-            # 使用默认配置
-            config = Config.from_env(prefix="DB")
-            config.prefix = "DB"
-
-        # 用命令行参数覆盖（优先级最高）
-        # 注意：--database参数用于指定数据库别名/配置，不是直接设置数据库名
-        # 数据库名应该从配置中读取，只有在明确指定--database作为连接参数时才覆盖
-        if hasattr(parsed_args, "dialect") and parsed_args.dialect:
-            config.dialect = parsed_args.dialect
-        if hasattr(parsed_args, "host") and parsed_args.host:
-            config.host = parsed_args.host
-        if hasattr(parsed_args, "port") and parsed_args.port:
-            config.port = parsed_args.port
-        if hasattr(parsed_args, "user") and parsed_args.user:
-            config.username = parsed_args.user
-        if hasattr(parsed_args, "password") and parsed_args.password:
-            config.password = parsed_args.password
-        # 只有在没有通过别名找到配置时，才将--database作为数据库名使用
-        if hasattr(parsed_args, "database") and parsed_args.database:
-            multi_config = MultiDBConfig()
-            if not multi_config.get_config_by_alias(parsed_args.database.lower()):
-                # 没有找到对应别名配置，才将参数作为数据库名
-                config.database = parsed_args.database
-        
+        # 加载配置（支持配置文件、别名、环境变量、命令行参数的优先级覆盖）
+        config = Config.from_args(parsed_args)
         config.validate()
         
         # 获取命令类

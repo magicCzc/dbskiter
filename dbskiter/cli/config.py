@@ -166,71 +166,125 @@ class Config:
     def from_args(cls, args) -> "Config":
         """
         从命令行参数加载配置（支持配置文件）
-        
+
         参数:
             args: argparse 解析后的参数对象
-            
+
         返回:
             Config: 配置对象
-            
-        示例:
-            >>> args = parser.parse_args()
-            >>> config = Config.from_args(args)
         """
-        from .config_file import ConfigFileManager
-        
         # 加载顺序：环境变量 -> 配置文件 -> 命令行参数
-        
-        # 1. 从环境变量加载基础配置
-        config = cls.from_env()
-        
+
+        # 1. 从环境变量加载基础配置（可选）
+        config = cls._load_base_config()
+
         # 2. 从配置文件加载（如果指定了 --config 或存在默认配置）
         config_path = getattr(args, "config", None)
         profile = getattr(args, "profile", None)
-        
-        if config_path or not any([
-            getattr(args, "dialect", None),
-            getattr(args, "host", None),
-            getattr(args, "database", None)
-        ]):
-            try:
-                manager = ConfigFileManager(
-                    Path(config_path) if config_path else None
-                )
-                profile_config = manager.load_profile(profile)
-                
-                # 用配置文件覆盖环境变量
-                if profile_config.dialect:
-                    config.dialect = profile_config.dialect
-                if profile_config.host:
-                    config.host = profile_config.host
-                if profile_config.port:
-                    config.port = profile_config.port
-                if profile_config.username:
-                    config.username = profile_config.username
-                if profile_config.password:
-                    config.password = profile_config.password
-                if profile_config.database:
-                    config.database = profile_config.database
-                    
-            except Exception:
-                # 配置文件加载失败，继续使用环境变量配置
-                pass
-        
-        # 3. 用命令行参数覆盖（优先级最高）
-        if hasattr(args, "dialect") and args.dialect:
-            config.dialect = args.dialect
-        if hasattr(args, "host") and args.host:
-            config.host = args.host
-        if hasattr(args, "port") and args.port:
-            config.port = args.port
-        if hasattr(args, "user") and args.user:
-            config.username = args.user
-        if hasattr(args, "password") and args.password:
-            config.password = args.password
-        if hasattr(args, "database") and args.database:
-            config.database = args.database
-        
+        config = cls._apply_config_file(config, config_path, profile)
+
+        # 3. 处理 --database 参数（别名或数据库名）
+        database_arg = getattr(args, "database", None)
+        config = cls._apply_database_arg(config, database_arg)
+
+        # 4. 用命令行参数覆盖（优先级最高）
+        config = cls._apply_cli_overrides(config, args)
+
+        return config
+
+    @classmethod
+    def _load_base_config(cls) -> "Config":
+        """加载环境变量基础配置"""
+        try:
+            return cls.from_env()
+        except ConfigError:
+            return cls()
+
+    @classmethod
+    def _apply_config_file(
+        cls, config: "Config", config_path: Optional[str], profile: Optional[str]
+    ) -> "Config":
+        """
+        从配置文件加载并覆盖配置
+
+        参数说明：
+            - config: 当前配置对象
+            - config_path: 配置文件路径（可选）
+            - profile: 配置文件名（可选）
+
+        返回说明：
+            - Config: 覆盖后的配置对象
+        """
+        from .config_file import ConfigFileManager
+
+        # 是否应尝试加载配置文件：指定了路径，或未提供命令行参数
+        has_cli_params = any([
+            getattr(config, "dialect", None),
+            getattr(config, "host", None),
+            getattr(config, "database", None)
+        ])
+        if not config_path and has_cli_params:
+            return config
+
+        try:
+            manager = ConfigFileManager(
+                Path(config_path) if config_path else None
+            )
+            profile_config = manager.load_profile(profile)
+            # 用配置文件逐项覆盖
+            for field in ("dialect", "host", "port", "username", "password", "database"):
+                value = getattr(profile_config, field, None)
+                if value:
+                    setattr(config, field, value)
+        except Exception:
+            pass  # 配置文件加载失败，使用当前配置
+        return config
+
+    @classmethod
+    def _apply_database_arg(
+        cls, config: "Config", database_arg: Optional[str]
+    ) -> "Config":
+        """
+        处理 --database 参数（别名或数据库名）
+
+        参数说明：
+            - config: 当前配置对象
+            - database_arg: --database 参数值
+
+        返回说明：
+            - Config: 处理后的配置对象
+        """
+        if not database_arg:
+            return config
+        multi_config = MultiDBConfig()
+        alias_config = multi_config.get_config_by_alias(database_arg.lower())
+        if alias_config:
+            return alias_config
+        config.database = database_arg
+        return config
+
+    @classmethod
+    def _apply_cli_overrides(cls, config: "Config", args) -> "Config":
+        """
+        用命令行参数覆盖配置
+
+        参数说明：
+            - config: 当前配置对象
+            - args: argparse 解析后的参数对象
+
+        返回说明：
+            - Config: 覆盖后的配置对象
+        """
+        overrides = {
+            "dialect": getattr(args, "dialect", None),
+            "host": getattr(args, "host", None),
+            "port": getattr(args, "port", None),
+            "username": getattr(args, "user", None),
+            "password": getattr(args, "password", None),
+        }
+        for field, value in overrides.items():
+            if value:
+                setattr(config, field, value)
         return config
     
     def validate(self) -> None:
@@ -240,14 +294,9 @@ class Config:
         异常:
             ValidationError: 配置无效时抛出
         """
-        # 验证数据库类型（支持多种 Oracle 写法）
-        valid_dialects = ["mysql", "mysql+pymysql", "postgresql", "sqlite", "sqlite3", 
-                         "oracle", "oracle+oracledb", "oracle+jdbc", "oracle+cx_oracle"]
-        if self.dialect not in valid_dialects:
-            raise ValidationError(
-                f"不支持的数据库类型: {self.dialect}，"
-                f"支持的类型: {', '.join(valid_dialects)}"
-            )
+        # 验证数据库类型（支持任何 SQLAlchemy 兼容的方言）
+        if not self.dialect or not self.dialect.strip():
+            raise ValidationError("数据库方言不能为空")
         
         # 验证端口范围
         if not 1 <= self.port <= 65535:
@@ -373,13 +422,13 @@ class MultiDBConfig:
     def get_config_by_alias(self, alias: str) -> Optional[Config]:
         """
         通过别名获取配置
-        
+
         参数:
             alias: 数据库别名（如 'jump', 'chenzc', 'orcl'）
-            
+
         返回:
             Optional[Config]: 配置对象，如果不存在返回 None
-            
+
         示例:
             >>> multi_config = MultiDBConfig()
             >>> config = multi_config.get_config_by_alias('jump')
@@ -388,17 +437,17 @@ class MultiDBConfig:
         """
         # 构建前缀：DB_{ALIAS}
         prefix = f"DB_{alias.upper()}"
-        
+
         try:
             config = Config.from_env(prefix=prefix)
-            # 验证配置是否有效
-            if config.host and config.host not in ("localhost", "127.0.0.1"):
+            # 验证配置是否有效（只要有host即可，不排除localhost）
+            if config.host:
                 # 保存别名信息
                 config.extra['alias'] = alias.lower()
                 return config
         except Exception:
             pass
-        
+
         return None
     
     def get_config(self, instance_name: str) -> Optional[Config]:

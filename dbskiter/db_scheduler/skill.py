@@ -143,10 +143,23 @@ class SchedulerSkill:
                     error TEXT
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS workflows (
+                    workflow_id TEXT PRIMARY KEY,
+                    description TEXT,
+                    tasks TEXT,
+                    status TEXT,
+                    created_at TEXT,
+                    started_at TEXT,
+                    completed_at TEXT,
+                    results TEXT
+                )
+            """)
             conn.commit()
 
-        # 从数据库加载现有任务
+        # 从数据库加载现有任务和工作流
         self._load_tasks_from_db()
+        self._load_workflows_from_db()
 
     def _load_tasks_from_db(self):
         """从数据库加载任务到内存, 过期任务重新计算 next_run"""
@@ -183,6 +196,69 @@ class SchedulerSkill:
                     logger.info(f"从数据库加载了 {len(self._tasks)} 个任务")
         except Exception as e:
             logger.warning(f"从数据库加载任务失败: {e}")
+
+    def _load_workflows_from_db(self):
+        """从数据库加载工作流到内存"""
+        try:
+            with sqlite3.connect(self.storage_path) as conn:
+                cursor = conn.execute("SELECT * FROM workflows")
+                rows = cursor.fetchall()
+
+                for row in rows:
+                    workflow = TaskGraph(
+                        workflow_id=row[0],
+                        description=row[1] or "",
+                        status=WorkflowStatus(row[3]) if row[3] else WorkflowStatus.PENDING,
+                        created_at=datetime.fromisoformat(row[4]) if row[4] else datetime.now(),
+                        started_at=datetime.fromisoformat(row[5]) if row[5] else None,
+                        completed_at=datetime.fromisoformat(row[6]) if row[6] else None,
+                        results=json.loads(row[7]) if row[7] else {}
+                    )
+                    # 解析任务节点
+                    if row[2]:
+                        tasks_data = json.loads(row[2])
+                        for task_id, task_data in tasks_data.items():
+                            node = TaskNode(
+                                task_id=task_data.get("task_id", task_id),
+                                task_type=TaskType(task_data.get("task_type", "backup")),
+                                params=task_data.get("params", {}),
+                                depends_on=set(task_data.get("depends_on", [])),
+                                priority=TaskPriority(task_data.get("priority", 3)),
+                                timeout=task_data.get("timeout", 3600),
+                                retry_count=task_data.get("retry_count", 3)
+                            )
+                            workflow.add_task(node)
+                    self._workflows[row[0]] = workflow
+
+                if self._workflows:
+                    logger.info(f"从数据库加载了 {len(self._workflows)} 个工作流")
+        except Exception as e:
+            logger.warning(f"从数据库加载工作流失败: {e}")
+
+    def _save_workflow_to_db(self, workflow: TaskGraph):
+        """保存工作流到数据库"""
+        try:
+            with sqlite3.connect(self.storage_path) as conn:
+                conn.execute(
+                    """
+                    INSERT OR REPLACE INTO workflows
+                    (workflow_id, description, tasks, status, created_at, started_at, completed_at, results)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        workflow.workflow_id,
+                        workflow.description,
+                        json.dumps({k: v.to_dict() for k, v in workflow.tasks.items()}),
+                        workflow.status.value,
+                        workflow.created_at.isoformat() if workflow.created_at else None,
+                        workflow.started_at.isoformat() if workflow.started_at else None,
+                        workflow.completed_at.isoformat() if workflow.completed_at else None,
+                        json.dumps(workflow.results) if workflow.results else "{}"
+                    )
+                )
+                conn.commit()
+        except Exception as e:
+            logger.error(f"保存工作流到数据库失败: {e}")
 
     # =====================================================================
     # 备份功能
@@ -467,6 +543,7 @@ class SchedulerSkill:
         workflow = TaskGraph(workflow_id=workflow_id, description=description)
         with self._lock:
             self._workflows[workflow_id] = workflow
+        self._save_workflow_to_db(workflow)
         return workflow
 
     def submit_workflow(self, workflow: TaskGraph) -> Dict[str, Any]:
@@ -530,6 +607,27 @@ class SchedulerSkill:
         except Exception as e:
             workflow.status = WorkflowStatus.FAILED
             return handle_exception(e, "工作流执行失败")
+
+    def submit_workflow_by_name(self, workflow_id: str) -> Dict[str, Any]:
+        """
+        通过工作流名称提交执行
+
+        参数:
+            workflow_id: 工作流ID/名称
+
+        返回:
+            Dict: 执行结果
+        """
+        with self._lock:
+            workflow = self._workflows.get(workflow_id)
+
+        if not workflow:
+            return create_error_response(
+                f"工作流不存在: {workflow_id}",
+                code=ErrorCode.NOT_FOUND
+            )
+
+        return self.submit_workflow(workflow)
 
     # =====================================================================
     # 调度器控制

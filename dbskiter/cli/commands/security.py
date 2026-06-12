@@ -90,7 +90,7 @@ class SecurityCommand(BaseCommand):
                         tables=self.args.tables.split(',') if getattr(self.args, 'tables', None) else None,
                         sample_size=getattr(self.args, 'sample_size', 100),
                     ),
-                    "score": lambda: {"success": True, "data": skill.calculate_security_score(), "message": "安全评分完成"},
+                    "score": lambda: skill.calculate_security_score(),
                     "permissions": lambda: skill.audit_permissions(),
                     "login-security": lambda: skill.check_login_security(
                         hours=getattr(self.args, 'hours', 24),

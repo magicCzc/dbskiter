@@ -49,6 +49,7 @@ description: |
 |-----------|---------|-------------|
 | Oracle | Z 系列资产组（Z18, Z5等）或 KF 系列 | Zabbix |
 | MySQL | 其他名称 | 直连数据库 > Prometheus |
+| SQL Server | 其他名称 | 直连数据库 > Prometheus |
 
 **示例**:
 ```bash
@@ -59,7 +60,46 @@ python -m dbskiter --output-mode=ai --database=Z5 monitor capacity --resource=di
 # MySQL 数据库（优先直连，其次 Prometheus）
 python -m dbskiter --output-mode=ai --database=jump monitor health
 python -m dbskiter --output-mode=ai --database=prod monitor anomalies
+
+# SQL Server 数据库（优先直连）
+python -m dbskiter --output-mode=ai --database=mssql monitor health
+python -m dbskiter --output-mode=ai --database=mssql monitor capacity --resource=disk
 ```
+
+## 数据库支持
+
+| 数据库 | 健康检查 | 异常检测 | 容量预测 | 指标采集 | 状态 |
+|-------|---------|---------|---------|---------|------|
+| MySQL | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| Oracle | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| PostgreSQL | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| SQL Server | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| ClickHouse | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| SQLite | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+
+**SQLite 特有指标**：
+- 存储：数据库文件大小、空闲页面数
+- 缓存：缓存大小（页面数）
+- 配置：日志模式（journal_mode）、同步模式（synchronous）
+- 文件：WAL文件大小
+
+**ClickHouse 特有指标**：
+- 吞吐量：QPS（基于query_log）、查询类型分布
+- 连接：活跃连接数（system.processes）
+- 查询性能：慢查询数、平均/最大查询时间
+- 资源：内存使用（system.processes）
+- MergeTree：活跃parts数、总行数、数据大小
+- 复制：复制队列大小、复制延迟（Replicated表）
+
+**SQL Server 特有指标**：
+- 吞吐量：Batch Requests/sec, Transactions/sec
+- 连接：User Connections, Active Sessions
+- 查询性能：Cache Hit Ratio, Compilations/sec
+- 锁：Lock Waits/sec, Lock Timeouts/sec
+- 缓冲：Buffer Cache Hit Ratio, Page Life Expectancy
+- IO：Disk Read/Write Latency, IO Stalls
+- 内存：Memory Grants Pending, Target Server Memory
+- 事务：Active Transactions, Oldest Transaction
 
 ## 何时使用
 

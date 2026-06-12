@@ -395,7 +395,14 @@ class SecurityAuditor:
             return self._audit_oracle_permissions()
         elif 'postgresql' in self.dialect:
             return self._audit_postgresql_permissions()
-        return self._audit_mysql_permissions()
+        elif 'clickhouse' in self.dialect:
+            return self._audit_clickhouse_permissions()
+        elif 'sqlite' in self.dialect:
+            return self._audit_sqlite_permissions()
+        elif self.dialect in ('mysql', 'mysql+pymysql', 'mariadb'):
+            return self._audit_mysql_permissions()
+        else:
+            return self._audit_generic_permissions()
 
     def _audit_mysql_permissions(self) -> Dict[str, Any]:
         """
@@ -598,7 +605,14 @@ class SecurityAuditor:
             return self._audit_oracle_config()
         elif 'postgresql' in self.dialect:
             return self._audit_postgresql_config()
-        return self._audit_mysql_config()
+        elif 'clickhouse' in self.dialect:
+            return self._audit_clickhouse_config()
+        elif 'sqlite' in self.dialect:
+            return self._audit_sqlite_config()
+        elif self.dialect in ('mysql', 'mysql+pymysql', 'mariadb'):
+            return self._audit_mysql_config()
+        else:
+            return self._audit_generic_config()
 
     def _audit_mysql_config(self) -> Dict[str, Any]:
         """
@@ -1177,6 +1191,660 @@ class SecurityAuditor:
             "total_checked": checks_performed,
             "risks_found": len(risks),
             "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
+            "risks": [r.to_dict() for r in risks]
+        }
+
+    def _audit_clickhouse_permissions(self) -> Dict[str, Any]:
+        """
+        ClickHouse权限审计
+
+        ClickHouse使用基于角色的访问控制(RBAC)
+
+        返回:
+            Dict: 审计结果
+        """
+        risks = []
+        total_users = 0
+        high_privilege_users = 0
+
+        try:
+            # 查询用户列表
+            result = self.connector.execute("""
+                SELECT name, storage, auth_type, default_roles_all
+                FROM system.users
+                WHERE name NOT LIKE 'default%'
+            """)
+
+            total_users = len(result.rows) if result else 0
+
+            for row in result.rows if result else []:
+                username = str(row[0])
+                storage = str(row[1])
+                auth_type = str(row[2])
+                default_roles_all = str(row[3]).lower() == 'true'
+
+                # 检查是否拥有所有角色
+                if default_roles_all:
+                    high_privilege_users += 1
+                    risks.append(Risk(
+                        severity="high",
+                        description=f"用户 {username} 拥有所有默认角色",
+                        category="permission",
+                        current_value=f"{username} -> default_roles_all=true",
+                        recommended_value=f"限制 {username} 的角色权限"
+                    ))
+
+                # 检查无密码认证
+                if auth_type == 'no_password':
+                    risks.append(Risk(
+                        severity="critical",
+                        description=f"用户 {username} 使用无密码认证",
+                        category="permission",
+                        current_value=f"{username} -> auth_type=no_password",
+                        recommended_value=f"为 {username} 设置密码认证"
+                    ))
+
+            # 检查拥有ALL权限的用户
+            try:
+                result2 = self.connector.execute("""
+                    SELECT user_name, role_name, access_type, database, table
+                    FROM system.grants
+                    WHERE access_type = 'ALL'
+                    AND user_name NOT LIKE 'default%'
+                """)
+                for row in result2.rows if result2 else []:
+                    username = str(row[0])
+                    database = str(row[3])
+                    table = str(row[4])
+                    risks.append(Risk(
+                        severity="high",
+                        description=f"用户 {username} 对 {database}.{table} 拥有ALL权限",
+                        category="permission",
+                        current_value=f"{username} -> ALL on {database}.{table}",
+                        recommended_value=f"限制 {username} 的权限范围"
+                    ))
+            except Exception as e2:
+                logger.warning(f"查询ClickHouse权限详情失败: {e2}")
+
+        except Exception as e:
+            logger.error(f"ClickHouse权限审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"权限审计失败: {str(e)}",
+                "total_checked": 0,
+                "risks_found": 0,
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_users": total_users,
+            "high_privilege_users": high_privilege_users,
+            "total_checked": total_users,
+            "risks_found": len(risks),
+            "message": f"审计了{total_users}个用户，发现{high_privilege_users}个高权限用户，{len(risks)}个风险",
+            "risks": [r.to_dict() for r in risks[:20]]
+        }
+
+    def _audit_sqlite_permissions(self) -> Dict[str, Any]:
+        """
+        SQLite权限审计
+
+        SQLite没有用户权限系统，主要检查文件权限
+
+        返回:
+            Dict: 审计结果
+        """
+        import os
+
+        risks = []
+
+        try:
+            # 获取数据库路径
+            result = self.connector.execute("PRAGMA database_list")
+            db_path = None
+            if result and result.rows:
+                for row in result.rows:
+                    if row[1] == 'main':
+                        db_path = row[2]
+                        break
+
+            if db_path and db_path != ':memory:':
+                # 检查文件权限（POSIX系统）
+                if os.name == 'posix':
+                    import stat
+                    file_stat = os.stat(db_path)
+                    file_mode = stat.filemode(file_stat.st_mode)
+
+                    # 检查是否全局可读写
+                    if file_stat.st_mode & stat.S_IWOTH:
+                        risks.append(Risk(
+                            severity="critical",
+                            description=f"数据库文件全局可写: {file_mode}",
+                            category="permission",
+                            current_value=file_mode,
+                            recommended_value="移除全局写权限"
+                        ))
+
+                    if file_stat.st_mode & stat.S_IROTH:
+                        risks.append(Risk(
+                            severity="high",
+                            description=f"数据库文件全局可读: {file_mode}",
+                            category="permission",
+                            current_value=file_mode,
+                            recommended_value="移除全局读权限"
+                        ))
+
+                # 检查文件所有者
+                try:
+                    import pwd
+                    owner = pwd.getpwuid(os.stat(db_path).st_uid).pw_name
+                except (ImportError, KeyError):
+                    owner = str(os.stat(db_path).st_uid)
+
+                # 检查WAL文件权限
+                wal_path = db_path + "-wal"
+                if os.path.exists(wal_path):
+                    wal_stat = os.stat(wal_path)
+                    if os.name == 'posix' and wal_stat.st_mode & stat.S_IWOTH:
+                        risks.append(Risk(
+                            severity="high",
+                            description="WAL文件全局可写",
+                            category="permission",
+                            current_value="WAL全局可写",
+                            recommended_value="移除WAL文件全局写权限"
+                        ))
+
+            else:
+                risks.append(Risk(
+                    severity="low",
+                    description="内存数据库(:memory:)无文件权限控制",
+                    category="permission",
+                    current_value=":memory:",
+                    recommended_value="使用文件数据库以获得权限控制"
+                ))
+
+        except Exception as e:
+            logger.error(f"SQLite权限审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"权限审计失败: {str(e)}",
+                "total_checked": 0,
+                "risks_found": 0,
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_users": 1,
+            "high_privilege_users": 0,
+            "total_checked": 1,
+            "risks_found": len(risks),
+            "message": f"SQLite无用户系统，检查文件权限发现{len(risks)}个风险",
+            "risks": [r.to_dict() for r in risks[:20]]
+        }
+
+    def _audit_generic_permissions(self) -> Dict[str, Any]:
+        """
+        通用数据库权限审计
+
+        为任意 JDBC 兼容数据库提供基础权限审计能力。
+        通过标准 SQL 和 INFORMATION_SCHEMA 获取权限信息。
+
+        探测优先级：
+            1. INFORMATION_SCHEMA.TABLE_PRIVILEGES（标准视图）
+            2. 当前用户查询
+            3. 会话/连接信息
+
+        返回：
+            Dict: 审计结果
+        """
+        risks = []
+        total_users = 0
+        checks_performed = 0
+
+        # 1. 尝试 TABLE_PRIVILEGES
+        try:
+            result = self.connector.execute(
+                "SELECT COUNT(DISTINCT grantee) FROM information_schema.table_privileges"
+            )
+            if result.rows and result.rows[0][0] is not None:
+                total_users = int(result.rows[0][0])
+                checks_performed += 1
+
+                # 检查是否有过多用户拥有表权限
+                if total_users > 20:
+                    risks.append(Risk(
+                        severity="medium",
+                        description=f"有{total_users}个用户拥有表级权限，可能存在过度授权",
+                        category="permission",
+                        current_value=f"{total_users}个授权用户",
+                        recommended_value="定期审查并撤销不必要的权限"
+                    ))
+        except Exception as e:
+            logger.debug(f"通用权限审计: TABLE_PRIVILEGES 不可用 [{e}]")
+
+        # 2. 尝试查询当前用户
+        try:
+            current_user = None
+            for sql in [
+                "SELECT CURRENT_USER",
+                "SELECT current_user",
+                "SELECT USER()",
+                "SELECT SESSION_USER",
+            ]:
+                try:
+                    result = self.connector.execute(sql)
+                    if result.rows and result.rows[0][0]:
+                        current_user = str(result.rows[0][0])
+                        checks_performed += 1
+                        break
+                except Exception:
+                    continue
+
+            if current_user:
+                logger.info(f"通用权限审计: 当前用户={current_user}")
+        except Exception:
+            pass
+
+        # 3. 尝试查询活跃会话/连接（作为用户数量的代理）
+        if total_users == 0:
+            try:
+                for sql in [
+                    "SELECT COUNT(DISTINCT usename) FROM pg_stat_activity",
+                    "SELECT COUNT(DISTINCT user) FROM information_schema.processlist",
+                    "SELECT COUNT(*) FROM sys.dm_exec_sessions WHERE is_user_process = 1",
+                ]:
+                    try:
+                        result = self.connector.execute(sql)
+                        if result.rows and result.rows[0][0] is not None:
+                            total_users = int(result.rows[0][0])
+                            checks_performed += 1
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
+        # 4. 检查是否有公共可访问的表（无权限控制）
+        try:
+            result = self.connector.execute(
+                "SELECT COUNT(*) FROM information_schema.tables "
+                "WHERE table_schema IN ('public', 'PUBLIC')"
+            )
+            if result.rows and result.rows[0][0] is not None:
+                public_tables = int(result.rows[0][0])
+                if public_tables > 0:
+                    risks.append(Risk(
+                        severity="low",
+                        description=f"public schema 中有{public_tables}个表，默认可能对所有用户可见",
+                        category="permission",
+                        current_value=f"public schema 有{public_tables}个表",
+                        recommended_value="为敏感表设置适当的权限控制"
+                    ))
+        except Exception:
+            pass
+
+        if checks_performed == 0:
+            return {
+                "status": "success",
+                "total_users": 0,
+                "high_privilege_users": 0,
+                "total_checked": 0,
+                "risks_found": 0,
+                "message": (
+                    f"数据库类型 {self.dialect} 使用通用权限审计器。"
+                    "未能通过 INFORMATION_SCHEMA 获取权限信息。"
+                    "如需完整的权限审计，请使用支持的数据库类型专用分析器。"
+                ),
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_users": total_users,
+            "high_privilege_users": 0,
+            "total_checked": total_users,
+            "risks_found": len(risks),
+            "message": (
+                f"通用权限审计完成，"
+                f"检测到{total_users}个用户，发现{len(risks)}个风险"
+            ),
+            "risks": [r.to_dict() for r in risks[:20]]
+        }
+
+    def _audit_clickhouse_config(self) -> Dict[str, Any]:
+        """
+        ClickHouse配置审计
+
+        返回:
+            Dict: 审计结果
+        """
+        risks = []
+        checks_performed = 0
+
+        try:
+            # 检查1: 是否启用SSL
+            try:
+                result = self.connector.execute("""
+                    SELECT name, value FROM system.server_settings
+                    WHERE name LIKE '%ssl%'
+                """)
+                if not result or not result.rows:
+                    risks.append(Risk(
+                        severity="medium",
+                        description="无法确认SSL配置状态",
+                        category="config",
+                        current_value="未知",
+                        recommended_value="启用SSL加密连接"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查ClickHouse SSL配置失败: {e}")
+
+            # 检查2: 默认用户密码
+            try:
+                result = self.connector.execute("""
+                    SELECT name, auth_type, hash
+                    FROM system.users
+                    WHERE name = 'default'
+                """)
+                if result and result.rows:
+                    auth_type = str(result.rows[0][1])
+                    if auth_type == 'no_password':
+                        risks.append(Risk(
+                            severity="critical",
+                            description="默认用户(default)使用无密码认证",
+                            category="config",
+                            current_value="default -> no_password",
+                            recommended_value="为default用户设置密码"
+                        ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查ClickHouse默认用户失败: {e}")
+
+            # 检查3: 远程访问配置
+            try:
+                result = self.connector.execute("""
+                    SELECT name, value FROM system.server_settings
+                    WHERE name IN ('listen_host', 'tcp_port', 'http_port')
+                """)
+                settings = {row[0]: row[1] for row in result.rows} if result else {}
+                listen_host = settings.get('listen_host', '')
+                if listen_host == '::' or listen_host == '0.0.0.0':
+                    risks.append(Risk(
+                        severity="medium",
+                        description=f"ClickHouse监听所有地址({listen_host})，可能暴露于公网",
+                        category="config",
+                        current_value=f"listen_host={listen_host}",
+                        recommended_value="限制listen_host为特定IP"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查ClickHouse远程访问配置失败: {e}")
+
+            # 检查4: 查询日志是否启用
+            try:
+                result = self.connector.execute("""
+                    SELECT name, value FROM system.server_settings
+                    WHERE name LIKE '%query_log%'
+                """)
+                if not result or not result.rows:
+                    risks.append(Risk(
+                        severity="low",
+                        description="查询日志可能未启用",
+                        category="config",
+                        current_value="query_log未配置",
+                        recommended_value="启用query_log以记录查询历史"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查ClickHouse查询日志失败: {e}")
+
+        except Exception as e:
+            logger.error(f"ClickHouse配置审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"配置审计失败: {str(e)}",
+                "total_checked": checks_performed,
+                "risks_found": len(risks),
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_checks": checks_performed,
+            "failed_checks": len(risks),
+            "total_checked": checks_performed,
+            "risks_found": len(risks),
+            "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
+            "risks": [r.to_dict() for r in risks]
+        }
+
+    def _audit_sqlite_config(self) -> Dict[str, Any]:
+        """
+        SQLite配置审计
+
+        返回:
+            Dict: 审计结果
+        """
+        risks = []
+        checks_performed = 0
+
+        try:
+            # 检查1: 日志模式
+            try:
+                result = self.connector.execute("PRAGMA journal_mode")
+                journal_mode = result.rows[0][0] if result else "unknown"
+
+                if journal_mode.upper() == 'OFF':
+                    risks.append(Risk(
+                        severity="critical",
+                        description="日志模式为OFF，数据完整性无保障",
+                        category="config",
+                        current_value="journal_mode=OFF",
+                        recommended_value="journal_mode=WAL"
+                    ))
+                elif journal_mode.upper() == 'DELETE':
+                    risks.append(Risk(
+                        severity="low",
+                        description="日志模式为DELETE，并发性能较差",
+                        category="config",
+                        current_value="journal_mode=DELETE",
+                        recommended_value="journal_mode=WAL"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查SQLite日志模式失败: {e}")
+
+            # 检查2: 同步模式
+            try:
+                result = self.connector.execute("PRAGMA synchronous")
+                sync_value = int(result.rows[0][0]) if result else -1
+
+                if sync_value == 0:
+                    risks.append(Risk(
+                        severity="high",
+                        description="同步模式为OFF，可能导致数据丢失",
+                        category="config",
+                        current_value="synchronous=OFF",
+                        recommended_value="synchronous=NORMAL"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查SQLite同步模式失败: {e}")
+
+            # 检查3: 安全删除模式
+            try:
+                result = self.connector.execute("PRAGMA secure_delete")
+                secure_delete = result.rows[0][0] if result else "unknown"
+
+                if secure_delete == 0 or secure_delete == 'OFF':
+                    risks.append(Risk(
+                        severity="medium",
+                        description="安全删除未启用，已删除数据可能可恢复",
+                        category="config",
+                        current_value="secure_delete=OFF",
+                        recommended_value="secure_delete=ON"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查SQLite安全删除失败: {e}")
+
+            # 检查4: 外键约束
+            try:
+                result = self.connector.execute("PRAGMA foreign_keys")
+                foreign_keys = result.rows[0][0] if result else "unknown"
+
+                if foreign_keys == 0 or foreign_keys == 'OFF':
+                    risks.append(Risk(
+                        severity="low",
+                        description="外键约束未启用",
+                        category="config",
+                        current_value="foreign_keys=OFF",
+                        recommended_value="foreign_keys=ON"
+                    ))
+                checks_performed += 1
+            except Exception as e:
+                logger.warning(f"检查SQLite外键约束失败: {e}")
+
+        except Exception as e:
+            logger.error(f"SQLite配置审计失败: {e}")
+            return {
+                "status": "error",
+                "message": f"配置审计失败: {str(e)}",
+                "total_checked": checks_performed,
+                "risks_found": len(risks),
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_checks": checks_performed,
+            "failed_checks": len(risks),
+            "total_checked": checks_performed,
+            "risks_found": len(risks),
+            "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
+            "risks": [r.to_dict() for r in risks]
+        }
+
+    def _audit_generic_config(self) -> Dict[str, Any]:
+        """
+        通用数据库配置审计
+
+        为任意 JDBC 兼容数据库提供基础配置审计能力。
+        通过标准 SQL 查询数据库版本和一些通用配置参数。
+
+        返回：
+            Dict: 审计结果
+        """
+        risks = []
+        checks_performed = 0
+        version = None
+
+        # 1. 查询数据库版本
+        try:
+            for sql in [
+                "SELECT VERSION()",
+                "SELECT version()",
+                "SELECT @@version",
+                "SELECT sqlite_version()",
+            ]:
+                try:
+                    result = self.connector.execute(sql)
+                    if result.rows and result.rows[0][0]:
+                        version = str(result.rows[0][0])
+                        checks_performed += 1
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # 2. 尝试查询一些通用配置参数
+        config_checks = [
+            ("SELECT current_database()", "当前数据库"),
+            ("SELECT DATABASE()", "当前数据库"),
+        ]
+        for sql, desc in config_checks:
+            try:
+                result = self.connector.execute(sql)
+                if result.rows and result.rows[0][0]:
+                    checks_performed += 1
+                    break
+            except Exception:
+                continue
+
+        # 3. 检查数据库大小（作为容量风险指标）
+        try:
+            for sql in [
+                "SELECT pg_database_size(current_database()) / 1024.0 / 1024.0",
+                "SELECT SUM(data_length + index_length) / 1024.0 / 1024.0 FROM information_schema.tables WHERE table_schema = DATABASE()",
+            ]:
+                try:
+                    result = self.connector.execute(sql)
+                    if result.rows and result.rows[0][0] is not None:
+                        size_mb = float(result.rows[0][0])
+                        if size_mb > 10000:
+                            risks.append(Risk(
+                                severity="medium",
+                                description=f"数据库大小约{size_mb:.0f}MB，建议进行容量规划",
+                                category="config",
+                                current_value=f"数据库大小={size_mb:.0f}MB",
+                                recommended_value="监控数据库增长趋势，规划扩容"
+                            ))
+                        checks_performed += 1
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        # 4. 检查表数量（作为复杂度指标）
+        try:
+            result = self.connector.execute(
+                "SELECT COUNT(*) FROM information_schema.tables "
+                "WHERE table_type = 'BASE TABLE'"
+            )
+            if result.rows and result.rows[0][0] is not None:
+                table_count = int(result.rows[0][0])
+                if table_count > 500:
+                    risks.append(Risk(
+                        severity="low",
+                        description=f"数据库有{table_count}个表，结构可能过于复杂",
+                        category="config",
+                        current_value=f"表数量={table_count}",
+                        recommended_value="考虑拆分数据库或归档历史表"
+                    ))
+                checks_performed += 1
+        except Exception:
+            pass
+
+        if checks_performed == 0:
+            return {
+                "status": "success",
+                "total_checks": 0,
+                "failed_checks": 0,
+                "total_checked": 0,
+                "risks_found": 0,
+                "message": (
+                    f"数据库类型 {self.dialect} 使用通用配置审计器。"
+                    "未能获取任何配置信息。"
+                    "如需完整的配置审计，请使用支持的数据库类型专用分析器。"
+                ),
+                "risks": []
+            }
+
+        return {
+            "status": "success",
+            "total_checks": checks_performed,
+            "failed_checks": len(risks),
+            "total_checked": checks_performed,
+            "risks_found": len(risks),
+            "message": (
+                f"通用配置审计完成（版本: {version or '未知'}），"
+                f"检查{checks_performed}项，发现{len(risks)}个问题"
+            ),
             "risks": [r.to_dict() for r in risks]
         }
 

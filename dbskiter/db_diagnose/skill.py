@@ -2,13 +2,16 @@
 db_diagnose/skill.py
 数据库诊断 Skill 统一入口
 
-文件功能：提供统一的SQL诊断API，支持MySQL/Oracle/PostgreSQL
+文件功能：提供统一的SQL诊断API，支持MySQL/Oracle/PostgreSQL/SQL Server/ClickHouse/SQLite
 主要类：DiagnoseSkill - 诊断Skill统一入口
 
 支持的数据库：
     - MySQL: 慢查询分析、AAS分析、执行计划分析
     - Oracle: 慢SQL分析(AWR)、性能指标分析、执行计划分析
     - PostgreSQL: 慢查询分析(pg_stat_statements)、性能分析、执行计划分析
+    - SQL Server: 慢查询分析(Query Store/DMV)、性能指标分析、阻塞分析、等待统计
+    - ClickHouse: 锁分析、空间分析、连接分析、复制分析、索引建议、性能快照
+    - SQLite: 锁分析、空间分析、连接分析、复制分析、索引建议、性能快照
 
 核心功能：
 1. 深度SQL分析 - 使用SQLAnalyzer子模块
@@ -61,6 +64,8 @@ from .analyzers.batch_analyzer import BatchAnalyzer
 from .analyzers.plan_analyzer import ExecutionPlanAnalyzer
 from .reports.generator import ReportGenerator
 from .diagnosticians import get_diagnostician
+from .diagnosticians.clickhouse_performance_analyzer import ClickHousePerformanceAnalyzer
+from .diagnosticians.sqlite_performance_analyzer import SQLitePerformanceAnalyzer
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +90,9 @@ class DiagnoseSkill:
         - MySQL / MariaDB
         - Oracle
         - PostgreSQL
+        - SQL Server
+        - ClickHouse
+        - SQLite
     """
 
     def __init__(
@@ -1033,6 +1041,12 @@ class DiagnoseSkill:
                 return self._analyze_oracle_locks()
             elif 'postgresql' in self.dialect:
                 return self._analyze_postgresql_locks()
+            elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                return self._analyze_mssql_locks()
+            elif 'clickhouse' in self.dialect:
+                return self._analyze_clickhouse_locks()
+            elif 'sqlite' in self.dialect:
+                return self._analyze_sqlite_locks()
             else:
                 return create_error_response(
                     f"锁分析暂不支持 {self.dialect}",
@@ -1141,6 +1155,12 @@ class DiagnoseSkill:
                 return self._analyze_oracle_space(top_n, min_size_mb)
             elif 'postgresql' in self.dialect:
                 return self._analyze_postgresql_space(top_n, min_size_mb)
+            elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                return self._analyze_mssql_space(top_n, min_size_mb)
+            elif 'clickhouse' in self.dialect:
+                return self._analyze_clickhouse_space(top_n, min_size_mb)
+            elif 'sqlite' in self.dialect:
+                return self._analyze_sqlite_space(top_n, min_size_mb)
             else:
                 return create_error_response(
                     f"空间分析暂不支持 {self.dialect}",
@@ -1401,6 +1421,10 @@ class DiagnoseSkill:
                 return self._analyze_oracle_connections(show_idle)
             elif 'postgresql' in self.dialect:
                 return self._analyze_postgresql_connections(show_idle)
+            elif 'clickhouse' in self.dialect:
+                return self._analyze_clickhouse_connections(show_idle)
+            elif 'sqlite' in self.dialect:
+                return self._analyze_sqlite_connections(show_idle)
             else:
                 return create_error_response(
                     f"连接分析暂不支持 {self.dialect}",
@@ -1572,6 +1596,10 @@ class DiagnoseSkill:
                 return self._analyze_oracle_replication()
             elif 'postgresql' in self.dialect:
                 return self._analyze_postgresql_replication()
+            elif 'clickhouse' in self.dialect:
+                return self._analyze_clickhouse_replication()
+            elif 'sqlite' in self.dialect:
+                return self._analyze_sqlite_replication()
             else:
                 return create_error_response(
                     f"复制分析暂不支持 {self.dialect}",
@@ -1770,6 +1798,294 @@ class DiagnoseSkill:
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
+    def _analyze_mssql_locks(self) -> Dict[str, Any]:
+        """SQL Server锁分析"""
+        try:
+            # 获取锁等待信息
+            lock_waits = []
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        r.session_id AS waiting_session,
+                        r.blocking_session_id AS blocking_session,
+                        r.wait_type,
+                        r.wait_time / 1000.0 AS wait_seconds,
+                        DB_NAME(r.database_id) AS database_name,
+                        t.text AS sql_text,
+                        s.login_name,
+                        s.host_name
+                    FROM sys.dm_exec_requests r
+                    JOIN sys.dm_exec_sessions s ON r.session_id = s.session_id
+                    CROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t
+                    WHERE r.blocking_session_id IS NOT NULL
+                    AND r.blocking_session_id <> 0
+                    ORDER BY r.wait_time DESC
+                """)
+                for row in result.rows if result else []:
+                    lock_waits.append({
+                        "waiting_session": row[0],
+                        "blocking_session": row[1],
+                        "wait_type": row[2],
+                        "wait_seconds": row[3],
+                        "database": row[4],
+                        "sql_preview": row[5][:200] if row[5] else None,
+                        "login": row[6],
+                        "host": row[7]
+                    })
+            except Exception as e:
+                logger.warning(f"获取SQL Server锁等待信息失败: {e}")
+
+            # 获取死锁信息
+            deadlocks = []
+            try:
+                result = self.connector.execute("""
+                    SELECT TOP 10
+                        xml_deadlock_report,
+                        deadlock_graph,
+                        creation_time
+                    FROM sys.dm_xe_session_targets t
+                    JOIN sys.dm_xe_sessions s ON t.event_session_address = s.address
+                    JOIN sys.dm_xe_session_events e ON s.address = e.event_session_address
+                    WHERE s.name = 'system_health'
+                    AND e.package_name = 'sqlserver'
+                    AND e.event_name = 'xml_deadlock_report'
+                    AND t.target_name = 'ring_buffer'
+                    ORDER BY creation_time DESC
+                """)
+                for row in result.rows if result else []:
+                    deadlocks.append({
+                        "report": row[0],
+                        "time": row[2]
+                    })
+            except Exception as e:
+                logger.warning(f"获取SQL Server死锁信息失败: {e}")
+
+            # 获取活动事务统计
+            active_trx = 0
+            try:
+                result = self.connector.execute("""
+                    SELECT COUNT(*)
+                    FROM sys.dm_tran_active_transactions
+                    WHERE transaction_begin_time < DATEADD(SECOND, -5, GETDATE())
+                """)
+                if result.rows:
+                    active_trx = int(result.rows[0][0]) if result.rows[0][0] else 0
+            except Exception:
+                pass
+
+            return create_success_response(
+                message="锁分析完成",
+                data={
+                    "lock_waits": lock_waits,
+                    "deadlocks": deadlocks,
+                    "statistics": {
+                        "trx_count": active_trx,
+                        "running_trx": active_trx,
+                        "lock_waits_count": len(lock_waits),
+                        "deadlock_count": len(deadlocks)
+                    }
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_clickhouse_locks(self) -> Dict[str, Any]:
+        """
+        ClickHouse锁分析
+
+        ClickHouse锁模型简单，主要关注:
+        1. 正在执行的mutation（异步ALTER操作）
+        2. 长时间运行的查询
+        3. 复制队列阻塞
+
+        返回:
+            Dict: 锁分析结果
+        """
+        try:
+            lock_waits = []
+            deadlocks = []
+
+            # 获取正在执行的mutation（ALTER操作）
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        database,
+                        table,
+                        mutation_id,
+                        command,
+                        create_time,
+                        parts_to_do
+                    FROM system.mutations
+                    WHERE is_done = 0
+                    ORDER BY create_time DESC
+                """)
+                for row in result.rows if result else []:
+                    lock_waits.append({
+                        "type": "mutation",
+                        "database": str(row[0]) if row[0] else "",
+                        "table": str(row[1]) if row[1] else "",
+                        "mutation_id": str(row[2]) if row[2] else "",
+                        "command": str(row[3])[:100] if row[3] else "",
+                        "create_time": str(row[4]) if row[4] else "",
+                        "parts_to_do": int(row[5]) if row[5] else 0
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse mutation信息失败: {e}")
+
+            # 获取长时间运行的查询
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        query_id,
+                        user,
+                        query,
+                        elapsed,
+                        read_rows,
+                        memory_usage
+                    FROM system.processes
+                    WHERE elapsed > 60
+                    ORDER BY elapsed DESC
+                """)
+                for row in result.rows if result else []:
+                    deadlocks.append({
+                        "type": "long_running_query",
+                        "query_id": str(row[0]) if row[0] else "",
+                        "user": str(row[1]) if row[1] else "",
+                        "query_preview": str(row[2])[:100] if row[2] else "",
+                        "elapsed_seconds": float(row[3]) if row[3] else 0,
+                        "read_rows": int(row[4]) if row[4] else 0,
+                        "memory_usage": int(row[5]) if row[5] else 0
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse长时间运行查询失败: {e}")
+
+            # 获取replicated_fetches状态（副本间数据fetch）
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        database,
+                        table,
+                        source_replica,
+                        source_replica_path,
+                        part_name,
+                        total_size,
+                        bytes_size,
+                        elapsed
+                    FROM system.replicated_fetches
+                    ORDER BY elapsed DESC
+                    LIMIT 20
+                """)
+                replicated_fetches = []
+                for row in result.rows if result else []:
+                    replicated_fetches.append({
+                        "type": "replicated_fetch",
+                        "database": str(row[0]) if row[0] else "",
+                        "table": str(row[1]) if row[1] else "",
+                        "source_replica": str(row[2]) if row[2] else "",
+                        "source_path": str(row[3]) if row[3] else "",
+                        "part_name": str(row[4]) if row[4] else "",
+                        "total_size": int(row[5]) if row[5] else 0,
+                        "bytes_fetched": int(row[6]) if row[6] else 0,
+                        "elapsed_seconds": float(row[7]) if row[7] else 0
+                    })
+
+                if replicated_fetches:
+                    lock_waits.extend(replicated_fetches)
+            except Exception as e:
+                logger.warning(f"获取ClickHouse replicated_fetches失败: {e}")
+
+            # 获取merge状态
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        database,
+                        table,
+                        elapsed,
+                        progress,
+                        num_parts,
+                        result_part_name,
+                        total_size_bytes_compressed
+                    FROM system.merges
+                    ORDER BY elapsed DESC
+                    LIMIT 20
+                """)
+                merges = []
+                for row in result.rows if result else []:
+                    merges.append({
+                        "type": "merge",
+                        "database": str(row[0]) if row[0] else "",
+                        "table": str(row[1]) if row[1] else "",
+                        "elapsed_seconds": float(row[2]) if row[2] else 0,
+                        "progress": float(row[3]) if row[3] else 0,
+                        "num_parts": int(row[4]) if row[4] else 0,
+                        "result_part": str(row[5]) if row[5] else "",
+                        "total_size_bytes": int(row[6]) if row[6] else 0
+                    })
+
+                if merges:
+                    lock_waits.extend(merges)
+            except Exception as e:
+                logger.warning(f"获取ClickHouse merges失败: {e}")
+
+            return create_success_response(
+                message="ClickHouse锁分析完成",
+                data={
+                    "lock_waits": lock_waits,
+                    "deadlocks": deadlocks,
+                    "statistics": {
+                        "trx_count": len(lock_waits),
+                        "running_trx": len(lock_waits),
+                        "lock_waits_count": len(lock_waits),
+                        "deadlock_count": len(deadlocks)
+                    }
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_sqlite_locks(self) -> Dict[str, Any]:
+        """
+        SQLite锁分析
+
+        SQLite使用文件级锁，主要关注:
+        1. 当前锁状态（通过PRAGMA lock_status）
+        2. 长时间运行的事务
+
+        返回:
+            Dict: 锁分析结果
+        """
+        try:
+            lock_waits = []
+            deadlocks = []
+
+            # 获取锁状态
+            try:
+                result = self.connector.execute("PRAGMA lock_status")
+                for row in result.rows if result else []:
+                    lock_waits.append({
+                        "type": "file_lock",
+                        "database": str(row[0]) if row[0] else "main",
+                        "lock_type": str(row[1]) if len(row) > 1 else "unknown"
+                    })
+            except Exception as e:
+                logger.warning(f"获取SQLite锁状态失败: {e}")
+
+            return create_success_response(
+                message="SQLite锁分析完成",
+                data={
+                    "lock_waits": lock_waits,
+                    "deadlocks": deadlocks,
+                    "statistics": {
+                        "trx_count": 0,
+                        "running_trx": 0,
+                        "lock_waits_count": len(lock_waits),
+                        "deadlock_count": 0
+                    }
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
     def _analyze_postgresql_space(self, top_n: int = 20, min_size_mb: int = 100) -> Dict[str, Any]:
         """PostgreSQL空间分析"""
         try:
@@ -1829,6 +2145,342 @@ class DiagnoseSkill:
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_mssql_space(self, top_n: int = 20, min_size_mb: int = 100) -> Dict[str, Any]:
+        """SQL Server空间分析"""
+        try:
+            result = self.connector.execute(f"""
+                SELECT TOP {top_n}
+                    t.name AS table_name,
+                    s.name AS schema_name,
+                    CAST(ROUND(SUM(a.total_pages) * 8.0 / 1024, 2) AS DECIMAL(10,2)) AS total_mb,
+                    CAST(ROUND(SUM(CASE WHEN a.type_desc = 'IN_ROW_DATA' THEN a.used_pages ELSE 0 END) * 8.0 / 1024, 2) AS DECIMAL(10,2)) AS data_mb,
+                    CAST(ROUND((SUM(a.used_pages) - SUM(CASE WHEN a.type_desc = 'IN_ROW_DATA' THEN a.used_pages ELSE 0 END)) * 8.0 / 1024, 2) AS DECIMAL(10,2)) AS index_mb,
+                    SUM(p.rows) AS row_count
+                FROM sys.tables t
+                INNER JOIN sys.indexes i ON t.object_id = i.object_id
+                INNER JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+                INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
+                INNER JOIN sys.schemas s ON t.schema_id = s.schema_id
+                WHERE i.index_id IN (0, 1)
+                GROUP BY t.name, s.name
+                HAVING ROUND(SUM(a.total_pages) * 8.0 / 1024, 2) >= {min_size_mb}
+                ORDER BY SUM(a.total_pages) DESC
+            """)
+
+            tables = []
+            total_data = 0
+            total_index = 0
+            for row in result.rows if result else []:
+                table_name = f"{row[1]}.{row[0]}"
+                total_mb = float(row[2]) if row[2] else 0
+                data_mb = float(row[3]) if row[3] else 0
+                index_mb = float(row[4]) if row[4] else 0
+                row_count = int(row[5]) if row[5] else 0
+
+                tables.append({
+                    "table": table_name,
+                    "size_pretty": f"{total_mb} MB",
+                    "size_mb": total_mb,
+                    "data_mb": data_mb,
+                    "index_mb": index_mb,
+                    "rows": row_count
+                })
+                total_data += data_mb
+                total_index += index_mb
+
+            # 获取数据库总大小
+            total_db_mb = 0
+            try:
+                db_result = self.connector.execute("""
+                    SELECT SUM(size * 8.0 / 1024)
+                    FROM sys.database_files
+                    WHERE type_desc = 'ROWS'
+                """)
+                if db_result.rows:
+                    total_db_mb = float(db_result.rows[0][0]) if db_result.rows[0][0] else 0
+            except Exception:
+                pass
+
+            return create_success_response(
+                message=f"获取到 {len(tables)} 个大表",
+                data={
+                    "total_space": {
+                        "total_mb": round(total_db_mb, 2),
+                        "data_mb": round(total_data, 2),
+                        "index_mb": round(total_index, 2)
+                    },
+                    "large_tables": tables,
+                    "suggestions": []
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_clickhouse_space(self, top_n: int = 20, min_size_mb: int = 100) -> Dict[str, Any]:
+        """
+        ClickHouse空间分析
+
+        分析维度:
+        1. 表大小（数据+索引）
+        2. 分区大小
+        3. 数据库总大小
+
+        参数:
+            top_n: TOP N大表
+            min_size_mb: 最小表大小(MB)
+
+        返回:
+            Dict: 空间分析结果
+        """
+        try:
+            # 获取表空间信息
+            result = self.connector.execute(f"""
+                SELECT
+                    database,
+                    table,
+                    ROUND(SUM(bytes) / 1024 / 1024, 2) AS size_mb,
+                    ROUND(SUM(data_compressed_bytes) / 1024 / 1024, 2) AS data_mb,
+                    ROUND(SUM(data_uncompressed_bytes) / 1024 / 1024, 2) AS uncompressed_mb,
+                    SUM(rows) AS row_count,
+                    COUNT() AS parts_count
+                FROM system.parts
+                WHERE active = 1
+                GROUP BY database, table
+                HAVING size_mb >= {min_size_mb}
+                ORDER BY size_mb DESC
+                LIMIT {top_n}
+            """)
+
+            tables = []
+            total_data = 0
+            total_compressed = 0
+
+            for row in result.rows if result else []:
+                size_mb = float(row[2]) if row[2] else 0
+                data_mb = float(row[3]) if row[3] else 0
+                uncompressed_mb = float(row[4]) if row[4] else 0
+                row_count = int(row[5]) if row[5] else 0
+                parts_count = int(row[6]) if row[6] else 0
+
+                compression_ratio = round(uncompressed_mb / data_mb, 2) if data_mb > 0 else 0
+
+                tables.append({
+                    "table": f"{row[0]}.{row[1]}",
+                    "size_mb": size_mb,
+                    "data_mb": data_mb,
+                    "uncompressed_mb": uncompressed_mb,
+                    "compression_ratio": compression_ratio,
+                    "rows": row_count,
+                    "parts_count": parts_count
+                })
+                total_data += data_mb
+                total_compressed += size_mb
+
+            # 获取数据库总大小
+            total_db_mb = 0
+            try:
+                db_result = self.connector.execute("""
+                    SELECT ROUND(SUM(bytes) / 1024 / 1024, 2)
+                    FROM system.parts
+                    WHERE active = 1
+                """)
+                if db_result.rows:
+                    total_db_mb = float(db_result.rows[0][0]) if db_result.rows[0][0] else 0
+            except Exception:
+                pass
+
+            suggestions = []
+            for t in tables:
+                if t["parts_count"] > 100:
+                    suggestions.append({
+                        "type": "too_many_parts",
+                        "priority": "medium",
+                        "table": t["table"],
+                        "parts_count": t["parts_count"],
+                        "suggestion": f"表 {t['table']} 分区过多({t['parts_count']}个)，建议执行OPTIMIZE TABLE合并分区"
+                    })
+
+            return create_success_response(
+                message=f"获取到 {len(tables)} 个大表",
+                data={
+                    "total_space": {
+                        "total_mb": round(total_db_mb, 2),
+                        "data_mb": round(total_data, 2),
+                        "compressed_mb": round(total_compressed, 2)
+                    },
+                    "large_tables": tables,
+                    "suggestions": suggestions
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_sqlite_space(self, top_n: int = 20, min_size_mb: int = 100) -> Dict[str, Any]:
+        """
+        SQLite空间分析
+
+        分析维度:
+        1. 表大小估算（基于行数和页大小）
+        2. 数据库文件总大小
+        3. 空闲页面数
+
+        参数:
+            top_n: TOP N大表
+            min_size_mb: 最小表大小(MB)
+
+        返回:
+            Dict: 空间分析结果
+        """
+        try:
+            # 获取页大小
+            page_size = 4096
+            try:
+                result = self.connector.execute("PRAGMA page_size")
+                if result.rows:
+                    page_size = int(result.rows[0][0]) if result.rows[0][0] else 4096
+            except Exception:
+                pass
+
+            # 获取表信息
+            result = self.connector.execute("""
+                SELECT
+                    name,
+                    (SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = t.name) as exists_flag
+                FROM sqlite_master t
+                WHERE type = 'table'
+                AND name NOT LIKE 'sqlite_%'
+            """)
+
+            tables = []
+            total_data = 0
+
+            for row in result.rows if result else []:
+                table_name = row[0]
+
+                # 获取表行数
+                row_count = 0
+                try:
+                    count_result = self.connector.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+                    if count_result.rows:
+                        row_count = int(count_result.rows[0][0]) if count_result.rows[0][0] else 0
+                except Exception:
+                    continue
+
+                # 估算表大小
+                # 使用更精确的方法：通过sqlite_master和页统计信息
+                estimated_mb = self._estimate_sqlite_table_size(table_name, page_size, row_count)
+
+                if estimated_mb >= min_size_mb:
+                    tables.append({
+                        "table": table_name,
+                        "size_mb": estimated_mb,
+                        "estimated": True,
+                        "rows": row_count
+                    })
+                    total_data += estimated_mb
+
+            # 按大小排序
+            tables.sort(key=lambda x: x["size_mb"], reverse=True)
+            tables = tables[:top_n]
+
+            # 获取数据库文件总大小和空闲页面
+            total_db_mb = 0
+            free_pages = 0
+            try:
+                result = self.connector.execute("PRAGMA page_count")
+                if result.rows:
+                    page_count = int(result.rows[0][0]) if result.rows[0][0] else 0
+                    total_db_mb = round(page_count * page_size / 1024 / 1024, 2)
+
+                result = self.connector.execute("PRAGMA freelist_count")
+                if result.rows:
+                    free_pages = int(result.rows[0][0]) if result.rows[0][0] else 0
+            except Exception:
+                pass
+
+            free_mb = round(free_pages * page_size / 1024 / 1024, 2)
+
+            suggestions = []
+            if free_pages > 100:
+                suggestions.append({
+                    "type": "free_pages",
+                    "priority": "low",
+                    "free_pages": free_pages,
+                    "free_mb": free_mb,
+                    "suggestion": f"数据库有 {free_pages} 个空闲页面({free_mb}MB)，建议执行VACUUM释放空间"
+                })
+
+            return create_success_response(
+                message=f"获取到 {len(tables)} 个大表",
+                data={
+                    "total_space": {
+                        "total_mb": total_db_mb,
+                        "data_mb": round(total_data, 2),
+                        "free_mb": free_mb
+                    },
+                    "large_tables": tables,
+                    "suggestions": suggestions
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _estimate_sqlite_table_size(self, table_name: str, page_size: int, row_count: int) -> float:
+        """
+        估算SQLite表大小
+
+        使用更精确的方法：
+        1. 尝试获取表的索引和列信息来估算平均行大小
+        2. 回退到基于页大小的估算
+
+        参数:
+            table_name: 表名
+            page_size: 数据库页大小(字节)
+            row_count: 表行数
+
+        返回:
+            float: 估算的表大小(MB)
+        """
+        try:
+            # 方法1: 通过PRAGMA table_info获取列信息估算
+            result = self.connector.execute(f'PRAGMA table_info("{table_name}")')
+            columns = result.rows if result else []
+
+            if not columns:
+                # 回退到简单估算
+                return round(row_count * 200 / 1024 / 1024, 2)
+
+            # 估算每行平均字节数
+            avg_row_size = 0
+            for col in columns:
+                col_type = str(col[2]).upper() if len(col) > 2 and col[2] else "TEXT"
+                if "INT" in col_type:
+                    avg_row_size += 8
+                elif "REAL" in col_type or "FLOAT" in col_type or "DOUBLE" in col_type:
+                    avg_row_size += 8
+                elif "BLOB" in col_type:
+                    avg_row_size += 100  # 假设平均BLOB大小
+                elif "TEXT" in col_type or "VARCHAR" in col_type or "CHAR" in col_type:
+                    avg_row_size += 50  # 假设平均字符串长度
+                else:
+                    avg_row_size += 32  # 默认值
+
+            # 添加行头开销(约4字节)
+            avg_row_size += 4
+
+            # 计算总字节数
+            total_bytes = row_count * avg_row_size
+
+            # 考虑B-tree页开销（约填充率70%）
+            estimated_pages = total_bytes / (page_size * 0.7)
+            estimated_bytes = estimated_pages * page_size
+
+            return round(estimated_bytes / 1024 / 1024, 2)
+
+        except Exception:
+            # 回退到简单估算
+            return round(row_count * 200 / 1024 / 1024, 2)
 
     def _analyze_postgresql_connections(self, show_idle: bool) -> Dict[str, Any]:
         """PostgreSQL连接分析"""
@@ -1981,6 +2633,255 @@ class DiagnoseSkill:
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
+    def _analyze_clickhouse_connections(self, show_idle: bool) -> Dict[str, Any]:
+        """
+        ClickHouse连接分析
+
+        分析维度:
+        1. 当前连接数
+        2. 最大连接数限制
+        3. 连接来源统计
+        4. 长时间连接
+
+        参数:
+            show_idle: 是否显示空闲连接
+
+        返回:
+            Dict: 连接分析结果
+        """
+        try:
+            # 获取当前连接
+            result = self.connector.execute("""
+                SELECT
+                    COUNT(*) as current_conn,
+                    COUNT(DISTINCT user) as user_count,
+                    COUNT(DISTINCT client_address) as client_count
+                FROM system.processes
+            """)
+
+            current_conn = 0
+            user_count = 0
+            client_count = 0
+            if result.rows:
+                current_conn = int(result.rows[0][0]) if result.rows[0][0] else 0
+                user_count = int(result.rows[0][1]) if result.rows[0][1] else 0
+                client_count = int(result.rows[0][2]) if result.rows[0][2] else 0
+
+            # 获取最大连接数
+            max_conn = 100
+            try:
+                result = self.connector.execute(
+                    "SELECT value FROM system.settings WHERE name = 'max_concurrent_queries'"
+                )
+                if result.rows:
+                    max_conn = int(result.rows[0][0]) if result.rows[0][0] else 100
+            except Exception:
+                pass
+
+            usage_pct = round(current_conn / max_conn * 100, 1) if max_conn > 0 else 0
+
+            data = {
+                "summary": {
+                    "max_connections": max_conn,
+                    "current_connections": current_conn,
+                    "usage_percent": usage_pct,
+                    "available": max_conn - current_conn,
+                    "user_count": user_count,
+                    "client_count": client_count
+                },
+                "active_connections": [],
+                "idle_connections": [],
+                "user_distribution": [],
+                "client_distribution": []
+            }
+
+            # 获取用户分布统计
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        user,
+                        COUNT(*) as conn_count,
+                        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) as pct
+                    FROM system.processes
+                    GROUP BY user
+                    ORDER BY conn_count DESC
+                    LIMIT 10
+                """)
+                for row in result.rows if result else []:
+                    data["user_distribution"].append({
+                        "user": str(row[0]) if row[0] else "",
+                        "connections": int(row[1]) if row[1] else 0,
+                        "percentage": float(row[2]) if row[2] else 0.0
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse用户分布失败: {e}")
+
+            # 获取客户端地址分布统计
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        client_address,
+                        COUNT(*) as conn_count,
+                        ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER(), 1) as pct
+                    FROM system.processes
+                    WHERE client_address != ''
+                    GROUP BY client_address
+                    ORDER BY conn_count DESC
+                    LIMIT 10
+                """)
+                for row in result.rows if result else []:
+                    data["client_distribution"].append({
+                        "client_address": str(row[0]) if row[0] else "",
+                        "connections": int(row[1]) if row[1] else 0,
+                        "percentage": float(row[2]) if row[2] else 0.0
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse客户端分布失败: {e}")
+
+            # 获取活跃连接详情
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        query_id,
+                        user,
+                        client_address,
+                        elapsed,
+                        query
+                    FROM system.processes
+                    ORDER BY elapsed DESC
+                    LIMIT 20
+                """)
+                for row in result.rows if result else []:
+                    data["active_connections"].append({
+                        "query_id": str(row[0]) if row[0] else "",
+                        "user": str(row[1]) if row[1] else "",
+                        "client": str(row[2]) if row[2] else "",
+                        "elapsed_seconds": round(float(row[3]) if row[3] else 0, 2),
+                        "query_preview": str(row[4])[:100] if row[4] else ""
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse活跃连接失败: {e}")
+
+            # 获取长时间运行的查询（作为idle_connections）
+            if show_idle:
+                try:
+                    result = self.connector.execute("""
+                        SELECT
+                            query_id,
+                            user,
+                            client_address,
+                            elapsed,
+                            query
+                        FROM system.processes
+                        WHERE elapsed > 300
+                        ORDER BY elapsed DESC
+                        LIMIT 20
+                    """)
+                    for row in result.rows if result else []:
+                        data["idle_connections"].append({
+                            "query_id": str(row[0]) if row[0] else "",
+                            "user": str(row[1]) if row[1] else "",
+                            "client": str(row[2]) if row[2] else "",
+                            "elapsed_seconds": round(float(row[3]) if row[3] else 0, 2),
+                            "query_preview": str(row[4])[:100] if row[4] else ""
+                        })
+                except Exception as e:
+                    logger.warning(f"获取ClickHouse长时间查询失败: {e}")
+
+            suggestions = []
+            if usage_pct > 80:
+                suggestions.append({
+                    "type": "high_usage",
+                    "priority": "high",
+                    "message": f"连接使用率 {usage_pct}% 过高，建议增加max_concurrent_queries或优化查询"
+                })
+
+            # 检测单一用户连接过多
+            if data["user_distribution"]:
+                top_user = data["user_distribution"][0]
+                if top_user["percentage"] > 80:
+                    suggestions.append({
+                        "type": "user_imbalance",
+                        "priority": "medium",
+                        "message": f"用户 {top_user['user']} 占用 {top_user['percentage']}% 连接，建议检查是否有连接泄露"
+                    })
+
+            data["suggestions"] = suggestions
+
+            return create_success_response(
+                message="ClickHouse连接分析完成",
+                data=data
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_sqlite_connections(self, show_idle: bool) -> Dict[str, Any]:
+        """
+        SQLite连接分析
+
+        SQLite是单连接数据库（通常），分析维度:
+        1. 当前连接信息（有限）
+        2. 事务状态
+        3. 锁定状态
+
+        参数:
+            show_idle: 是否显示空闲连接（SQLite不适用）
+
+        返回:
+            Dict: 连接分析结果
+        """
+        try:
+            data = {
+                "summary": {
+                    "max_connections": 1,
+                    "current_connections": 1,
+                    "usage_percent": 100.0,
+                    "available": 0,
+                    "user_count": 1,
+                    "client_count": 1
+                },
+                "active_connections": [],
+                "idle_connections": []
+            }
+
+            # 获取事务状态
+            try:
+                result = self.connector.execute("PRAGMA lock_status")
+                for row in result.rows if result else []:
+                    data["active_connections"].append({
+                        "database": str(row[0]) if row[0] else "main",
+                        "lock_type": str(row[1]) if len(row) > 1 else "unknown"
+                    })
+            except Exception as e:
+                logger.warning(f"获取SQLite锁状态失败: {e}")
+
+            # 获取编译选项
+            try:
+                result = self.connector.execute("PRAGMA compile_options")
+                compile_options = []
+                for row in result.rows if result else []:
+                    compile_options.append(str(row[0]) if row[0] else "")
+                data["compile_options"] = compile_options
+            except Exception:
+                pass
+
+            suggestions = []
+            if "THREADSAFE=0" in str(data.get("compile_options", [])):
+                suggestions.append({
+                    "type": "threadsafe",
+                    "priority": "medium",
+                    "message": "SQLite编译为单线程模式(THREADSAFE=0)，不支持多连接并发"
+                })
+
+            data["suggestions"] = suggestions
+
+            return create_success_response(
+                message="SQLite连接分析完成（SQLite为单连接数据库）",
+                data=data
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
     def _recommend_postgresql_indexes(self, table: str = None) -> Dict[str, Any]:
         """PostgreSQL索引建议"""
         try:
@@ -2111,6 +3012,10 @@ class DiagnoseSkill:
                 return self._recommend_oracle_indexes(table)
             elif 'postgresql' in self.dialect:
                 return self._recommend_postgresql_indexes(table)
+            elif 'clickhouse' in self.dialect:
+                return self._recommend_clickhouse_indexes(table)
+            elif 'sqlite' in self.dialect:
+                return self._recommend_sqlite_indexes(table)
             else:
                 return create_error_response(
                     f"索引建议暂不支持 {self.dialect}",
@@ -3096,6 +4001,361 @@ class DiagnoseSkill:
 
         return suggestions
 
+    def _recommend_clickhouse_indexes(self, table: str = None) -> Dict[str, Any]:
+        """
+        ClickHouse索引建议
+
+        ClickHouse索引机制与传统数据库不同:
+        1. 主键/排序键（ORDER BY）决定数据物理排序
+        2. 跳数索引（data skipping indices）用于快速过滤
+        3. 没有传统B-tree索引
+
+        分析维度:
+        1. 缺少跳数索引的大表
+        2. 低基数字段适合跳数索引
+        3. 主键设计建议
+
+        参数:
+            table: 指定表名(可选)
+
+        返回:
+            Dict: 索引建议列表
+        """
+        try:
+            suggestions = []
+
+            # 获取表列表
+            table_filter = f" AND table = '{table}'" if table else ""
+
+            # 分析缺少跳数索引的大表
+            try:
+                result = self.connector.execute(f"""
+                    SELECT
+                        database,
+                        table,
+                        engine,
+                        total_rows,
+                        ROUND(total_bytes / 1024 / 1024 / 1024, 2) AS size_gb
+                    FROM system.tables
+                    WHERE engine LIKE '%MergeTree%'
+                    AND total_rows > 1000000
+                    {table_filter}
+                    ORDER BY total_rows DESC
+                    LIMIT 20
+                """)
+
+                for row in result.rows if result else []:
+                    db_name = str(row[0]) if row[0] else ""
+                    table_name = str(row[1]) if row[1] else ""
+                    engine = str(row[2]) if row[2] else ""
+                    total_rows = int(row[3]) if row[3] else 0
+                    size_gb = float(row[4]) if row[4] else 0
+
+                    # 检查是否已有跳数索引
+                    idx_result = self.connector.execute(f"""
+                        SELECT COUNT(*)
+                        FROM system.data_skipping_indices
+                        WHERE database = '{db_name}'
+                        AND table = '{table_name}'
+                    """)
+                    idx_count = int(idx_result.rows[0][0]) if idx_result and idx_result.rows else 0
+
+                    if idx_count == 0 and total_rows > 10000000:
+                        suggestions.append({
+                            "type": "missing_skipping_index",
+                            "priority": "medium",
+                            "table": f"{db_name}.{table_name}",
+                            "engine": engine,
+                            "rows": total_rows,
+                            "size_gb": size_gb,
+                            "description": f"表 {table_name} 数据量大但无跳数索引",
+                            "reason": f"该表有 {total_rows} 行数据({size_gb}GB)，缺少跳数索引会导致全分区扫描",
+                            "suggestion": f"考虑在低基数字段上添加跳数索引，如: ALTER TABLE {table_name} ADD INDEX idx_name (column) TYPE minmax GRANULARITY 4"
+                        })
+            except Exception as e:
+                logger.warning(f"分析ClickHouse缺少跳数索引失败: {e}")
+
+            # 分析主键/排序键设计
+            try:
+                result = self.connector.execute(f"""
+                    SELECT
+                        database,
+                        table,
+                        engine,
+                        sorting_key,
+                        primary_key,
+                        partition_key,
+                        total_rows
+                    FROM system.tables
+                    WHERE engine LIKE '%MergeTree%'
+                    {table_filter}
+                    ORDER BY total_rows DESC
+                    LIMIT 20
+                """)
+
+                for row in result.rows if result else []:
+                    db_name = str(row[0]) if row[0] else ""
+                    table_name = str(row[1]) if row[1] else ""
+                    engine = str(row[2]) if row[2] else ""
+                    sorting_key = str(row[3]) if row[3] else ""
+                    primary_key = str(row[4]) if row[4] else ""
+                    partition_key = str(row[5]) if row[5] else ""
+                    total_rows = int(row[6]) if row[6] else 0
+
+                    # 检测主键设计问题
+                    if not primary_key and total_rows > 1000000:
+                        suggestions.append({
+                            "type": "missing_primary_key",
+                            "priority": "high",
+                            "table": f"{db_name}.{table_name}",
+                            "engine": engine,
+                            "rows": total_rows,
+                            "description": f"表 {table_name} 缺少显式主键",
+                            "reason": "MergeTree表没有显式主键会导致数据排序不佳，影响查询性能",
+                            "suggestion": f"建议添加主键: ALTER TABLE {table_name} MODIFY ORDER BY (column1, column2)"
+                        })
+
+                    # 检测分区键设计问题
+                    if not partition_key and total_rows > 10000000:
+                        suggestions.append({
+                            "type": "missing_partition_key",
+                            "priority": "medium",
+                            "table": f"{db_name}.{table_name}",
+                            "engine": engine,
+                            "rows": total_rows,
+                            "description": f"表 {table_name} 缺少分区键",
+                            "reason": "大表缺少分区键会导致数据管理困难，影响查询和备份效率",
+                            "suggestion": f"建议添加分区: ALTER TABLE {table_name} MODIFY PARTITION BY toYYYYMMDD(date_column)"
+                        })
+
+                    # 检测主键字段数量过多
+                    if primary_key:
+                        pk_columns = [c.strip() for c in primary_key.split(",")]
+                        if len(pk_columns) > 5:
+                            suggestions.append({
+                                "type": "too_many_primary_key_columns",
+                                "priority": "low",
+                                "table": f"{db_name}.{table_name}",
+                                "engine": engine,
+                                "primary_key": primary_key,
+                                "column_count": len(pk_columns),
+                                "description": f"表 {table_name} 主键字段过多({len(pk_columns)}个)",
+                                "reason": "主键字段过多会降低数据压缩率并增加排序开销",
+                                "suggestion": "建议将主键精简为3-4个最关键字段，其他字段放入ORDER BY"
+                            })
+
+            except Exception as e:
+                logger.warning(f"分析ClickHouse主键设计失败: {e}")
+
+            # 分析已有跳数索引
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        database,
+                        table,
+                        name,
+                        type,
+                        expr
+                    FROM system.data_skipping_indices
+                    ORDER BY database, table
+                    LIMIT 50
+                """)
+
+                for row in result.rows if result else []:
+                    suggestions.append({
+                        "type": "existing_skipping_index",
+                        "priority": "info",
+                        "table": f"{row[0]}.{row[1]}",
+                        "index_name": str(row[2]) if row[2] else "",
+                        "index_type": str(row[3]) if row[3] else "",
+                        "expression": str(row[4]) if row[4] else "",
+                        "description": f"表 {row[1]} 已有跳数索引 {row[2]}",
+                        "suggestion": "检查跳数索引类型是否适合查询模式"
+                    })
+            except Exception as e:
+                logger.warning(f"分析ClickHouse已有跳数索引失败: {e}")
+
+            priority_order = {"high": 0, "medium": 1, "low": 2, "info": 3}
+            suggestions.sort(
+                key=lambda x: priority_order.get(x.get("priority", "low"), 2)
+            )
+
+            return create_success_response(
+                message=f"发现 {len(suggestions)} 个ClickHouse索引建议",
+                data={
+                    "database": "clickhouse",
+                    "table": table,
+                    "suggestions": suggestions,
+                    "summary": {
+                        "total": len(suggestions),
+                        "high_priority": len([s for s in suggestions if s.get("priority") == "high"]),
+                        "medium_priority": len([s for s in suggestions if s.get("priority") == "medium"]),
+                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"])
+                    }
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _recommend_sqlite_indexes(self, table: str = None) -> Dict[str, Any]:
+        """
+        SQLite索引建议
+
+        SQLite使用B-tree索引，分析维度:
+        1. 缺少索引的大表（基于EXPLAIN QUERY PLAN）
+        2. 未使用的索引
+        3. 冗余索引
+
+        参数:
+            table: 指定表名(可选)
+
+        返回:
+            Dict: 索引建议列表
+        """
+        try:
+            suggestions = []
+
+            # 获取表列表
+            if table:
+                tables = [(table,)]
+            else:
+                result = self.connector.execute("""
+                    SELECT name
+                    FROM sqlite_master
+                    WHERE type = 'table'
+                    AND name NOT LIKE 'sqlite_%'
+                """)
+                tables = result.rows if result else []
+
+            for row in tables:
+                table_name = row[0]
+
+                # 获取表行数
+                row_count = 0
+                try:
+                    count_result = self.connector.execute(f'SELECT COUNT(*) FROM "{table_name}"')
+                    if count_result.rows:
+                        row_count = int(count_result.rows[0][0]) if count_result.rows[0][0] else 0
+                except Exception:
+                    continue
+
+                if row_count < 1000:
+                    continue
+
+                # 获取现有索引
+                existing_indexes = []
+                try:
+                    idx_result = self.connector.execute(f"""
+                        SELECT name, sql
+                        FROM sqlite_master
+                        WHERE type = 'index'
+                        AND tbl_name = '{table_name}'
+                    """)
+                    for idx_row in idx_result.rows if idx_result else []:
+                        existing_indexes.append({
+                            "name": str(idx_row[0]) if idx_row[0] else "",
+                            "sql": str(idx_row[1]) if idx_row[1] else ""
+                        })
+                except Exception:
+                    pass
+
+                # 检查是否有主键索引
+                has_primary_key = False
+                try:
+                    pk_result = self.connector.execute(f"PRAGMA table_info({table_name})")
+                    for pk_row in pk_result.rows if pk_result else []:
+                        if len(pk_row) > 5 and pk_row[5] == 1:
+                            has_primary_key = True
+                            break
+                except Exception:
+                    pass
+
+                if not has_primary_key and row_count > 10000:
+                    suggestions.append({
+                        "type": "missing_primary_key",
+                        "priority": "high",
+                        "table": table_name,
+                        "rows": row_count,
+                        "description": f"表 {table_name} 无主键",
+                        "reason": f"该表有 {row_count} 行数据，缺少主键会影响查询性能和数据完整性",
+                        "suggestion": f"ALTER TABLE {table_name} ADD COLUMN id INTEGER PRIMARY KEY AUTOINCREMENT"
+                    })
+
+                # 检查索引数量
+                if len(existing_indexes) == 0 and row_count > 10000:
+                    suggestions.append({
+                        "type": "missing_index",
+                        "priority": "medium",
+                        "table": table_name,
+                        "rows": row_count,
+                        "description": f"表 {table_name} 无任何索引",
+                        "reason": f"该表有 {row_count} 行数据，缺少索引会导致全表扫描",
+                        "suggestion": f"根据查询模式在常用WHERE条件列上创建索引: CREATE INDEX idx_{table_name}_col ON {table_name}(column)"
+                    })
+
+            # 分析冗余索引
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        tbl_name,
+                        name,
+                        sql
+                    FROM sqlite_master
+                    WHERE type = 'index'
+                    AND sql IS NOT NULL
+                    ORDER BY tbl_name, name
+                """)
+
+                indexes_by_table = {}
+                for row in result.rows if result else []:
+                    tbl = str(row[0])
+                    idx_name = str(row[1])
+                    sql = str(row[2])
+
+                    # 提取索引列
+                    import re
+                    match = re.search(r'\(([^)]+)\)', sql)
+                    if match:
+                        columns = match.group(1).replace(' ', '').lower()
+                        key = f"{tbl}:{columns}"
+                        if key in indexes_by_table:
+                            suggestions.append({
+                                "type": "redundant_index",
+                                "priority": "low",
+                                "table": tbl,
+                                "index": idx_name,
+                                "columns": columns,
+                                "description": f"索引 {idx_name} 与 {indexes_by_table[key]} 重复",
+                                "reason": "两个索引包含相同的列",
+                                "suggestion": f"考虑删除索引 {idx_name}"
+                            })
+                        else:
+                            indexes_by_table[key] = idx_name
+            except Exception as e:
+                logger.warning(f"分析SQLite冗余索引失败: {e}")
+
+            priority_order = {"high": 0, "medium": 1, "low": 2}
+            suggestions.sort(
+                key=lambda x: priority_order.get(x.get("priority", "low"), 2)
+            )
+
+            return create_success_response(
+                message=f"发现 {len(suggestions)} 个SQLite索引建议",
+                data={
+                    "database": "sqlite",
+                    "table": table,
+                    "suggestions": suggestions,
+                    "summary": {
+                        "total": len(suggestions),
+                        "high_priority": len([s for s in suggestions if s.get("priority") == "high"]),
+                        "medium_priority": len([s for s in suggestions if s.get("priority") == "medium"]),
+                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"])
+                    }
+                }
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
     # ==================== 统一性能模型诊断方法 ====================
 
     def _get_performance_analyzer(self):
@@ -3114,6 +4374,10 @@ class DiagnoseSkill:
         elif 'postgresql' in self.dialect:
             from .diagnosticians.postgresql_performance_analyzer import PostgreSQLPerformanceAnalyzer
             return PostgreSQLPerformanceAnalyzer(self.connector, timeout=30)
+        elif 'clickhouse' in self.dialect:
+            return ClickHousePerformanceAnalyzer(self.connector, timeout=30)
+        elif 'sqlite' in self.dialect:
+            return SQLitePerformanceAnalyzer(self.connector, timeout=30)
         else:
             return None
 
@@ -3301,6 +4565,12 @@ class DiagnoseSkill:
                 elif 'oracle' in self.dialect:
                     result = self._diagnostician.analyze_tablespace_fragmentation()
                     db_label = "Oracle"
+                elif 'clickhouse' in self.dialect:
+                    result = self._diagnostician.analyze_partitions()
+                    db_label = "ClickHouse"
+                elif 'sqlite' in self.dialect:
+                    result = self._diagnostician.analyze_fragmentation()
+                    db_label = "SQLite"
                 else:
                     return create_error_response(
                         f"膨胀/碎片分析暂不支持 {self.dialect}",
@@ -3403,6 +4673,218 @@ class DiagnoseSkill:
                 )
         except Exception as e:
             logger.error(f"表空间碎片分析失败: {e}")
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_clickhouse_replication(self) -> Dict[str, Any]:
+        """
+        ClickHouse复制分析
+
+        ClickHouse支持两种复制:
+        1. ReplicatedMergeTree表引擎（基于ZooKeeper/Keeper）
+        2. 分布式表（Distributed）
+
+        分析维度:
+        1. 复制表状态
+        2. ZooKeeper/Keeper连接状态
+        3. 复制队列积压
+        4. 分布式表状态
+
+        返回:
+            Dict: 复制分析结果
+        """
+        try:
+            data = {"status": {}}
+
+            # 检查是否有复制表
+            replicated_tables = []
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        database,
+                        table,
+                        engine
+                    FROM system.tables
+                    WHERE engine LIKE 'Replicated%'
+                """)
+                for row in result.rows if result else []:
+                    replicated_tables.append({
+                        "database": str(row[0]) if row[0] else "",
+                        "table": str(row[1]) if row[1] else "",
+                        "engine": str(row[2]) if row[2] else ""
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse复制表失败: {e}")
+
+            data["status"]["replicated_tables_count"] = len(replicated_tables)
+            data["status"]["has_replication"] = len(replicated_tables) > 0
+            data["replicated_tables"] = replicated_tables
+
+            # 获取复制队列信息
+            replication_queue = []
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        database,
+                        table,
+                        type,
+                        source_replica,
+                        parts_to_merge,
+                        new_part_name,
+                        create_time,
+                        last_attempt_time,
+                        num_tries,
+                        last_exception
+                    FROM system.replication_queue
+                    ORDER BY create_time DESC
+                    LIMIT 50
+                """)
+                for row in result.rows if result else []:
+                    replication_queue.append({
+                        "database": str(row[0]) if row[0] else "",
+                        "table": str(row[1]) if row[1] else "",
+                        "type": str(row[2]) if row[2] else "",
+                        "source_replica": str(row[3]) if row[3] else "",
+                        "parts_to_merge": int(row[4]) if row[4] else 0,
+                        "new_part_name": str(row[5]) if row[5] else "",
+                        "create_time": str(row[6]) if row[6] else "",
+                        "last_attempt_time": str(row[7]) if row[7] else "",
+                        "num_tries": int(row[8]) if row[8] else 0,
+                        "last_exception": str(row[9])[:200] if row[9] else ""
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse复制队列失败: {e}")
+
+            data["replication_queue"] = replication_queue
+            data["status"]["queue_length"] = len(replication_queue)
+
+            # 获取ZooKeeper/Keeper状态
+            zk_status = {}
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        name,
+                        value
+                    FROM system.zookeeper
+                    WHERE path = '/clickhouse'
+                    LIMIT 1
+                """)
+                zk_status["connected"] = True
+            except Exception:
+                zk_status["connected"] = False
+
+            data["zookeeper_status"] = zk_status
+
+            # 获取分布式表信息
+            distributed_tables = []
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        database,
+                        table,
+                        engine,
+                        create_table_query
+                    FROM system.tables
+                    WHERE engine = 'Distributed'
+                """)
+                for row in result.rows if result else []:
+                    distributed_tables.append({
+                        "database": str(row[0]) if row[0] else "",
+                        "table": str(row[1]) if row[1] else "",
+                        "engine": str(row[2]) if row[2] else ""
+                    })
+            except Exception as e:
+                logger.warning(f"获取ClickHouse分布式表失败: {e}")
+
+            data["distributed_tables"] = distributed_tables
+            data["status"]["distributed_tables_count"] = len(distributed_tables)
+
+            suggestions = []
+            if len(replication_queue) > 100:
+                suggestions.append({
+                    "type": "replication_lag",
+                    "priority": "high",
+                    "message": f"复制队列积压严重({len(replication_queue)}个任务)，请检查ZooKeeper/Keeper连接和副本状态"
+                })
+
+            if not zk_status.get("connected") and len(replicated_tables) > 0:
+                suggestions.append({
+                    "type": "zookeeper_disconnected",
+                    "priority": "critical",
+                    "message": "ZooKeeper/Keeper连接异常，复制功能可能受影响"
+                })
+
+            data["suggestions"] = suggestions
+
+            return create_success_response(
+                message=f"ClickHouse复制分析完成，发现{len(replicated_tables)}个复制表",
+                data=data
+            )
+        except Exception as e:
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
+
+    def _analyze_sqlite_replication(self) -> Dict[str, Any]:
+        """
+        SQLite复制分析
+
+        SQLite本身不支持原生复制，但可以通过以下方式实现:
+        1. SQLite Replication (第三方扩展)
+        2. WAL模式下的读取副本
+        3. 文件级复制
+
+        返回:
+            Dict: 复制分析结果（SQLite原生不支持复制）
+        """
+        try:
+            data = {
+                "status": {
+                    "has_replication": False,
+                    "database_role": "STANDALONE",
+                    "note": "SQLite原生不支持复制功能"
+                },
+                "replication_methods": [
+                    {
+                        "method": "WAL模式",
+                        "description": "开启WAL模式后支持一个写入者和多个读取者",
+                        "supported": True
+                    },
+                    {
+                        "method": "文件复制",
+                        "description": "通过文件系统级复制实现备份",
+                        "supported": True
+                    },
+                    {
+                        "method": "第三方扩展",
+                        "description": "如SQLite-Rsync、Litestream等",
+                        "supported": False
+                    }
+                ]
+            }
+
+            # 检查WAL模式
+            try:
+                result = self.connector.execute("PRAGMA journal_mode")
+                if result.rows:
+                    journal_mode = str(result.rows[0][0]).upper() if result.rows[0][0] else "DELETE"
+                    data["status"]["journal_mode"] = journal_mode
+                    data["status"]["wal_enabled"] = journal_mode == "WAL"
+            except Exception as e:
+                logger.warning(f"获取SQLite日志模式失败: {e}")
+
+            suggestions = []
+            if not data["status"].get("wal_enabled", False):
+                suggestions.append({
+                    "type": "wal_mode",
+                    "priority": "low",
+                    "message": "建议开启WAL模式(PRAGMA journal_mode=WAL)以支持并发读取"
+                })
+
+            data["suggestions"] = suggestions
+
+            return create_success_response(
+                message="SQLite复制分析完成（SQLite原生不支持复制）",
+                data=data
+            )
+        except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
 

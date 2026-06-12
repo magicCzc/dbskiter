@@ -12,11 +12,14 @@ Schema 感知模块 - 智能 SQL 辅助功能
 创建时间：2026-04-17
 """
 
+import logging
 import re
 import time
 from typing import Dict, List, Any, Optional, Tuple, Set
 from dataclasses import dataclass, field
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -106,7 +109,7 @@ class SchemaCache:
             self._last_refresh = now
             return True
         except Exception as e:
-            print(f"Schema 刷新失败: {e}")
+            logger.error(f"Schema 刷新失败: {e}")
             return False
     
     def _load_schema(self):

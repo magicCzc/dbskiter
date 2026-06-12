@@ -29,14 +29,22 @@ db_scheduler模块 - 任务调度与工作流管理
 - 智能重试 - 熔断器、指数退避、死信队列
 - 任务统计 - 成功率、耗时分析、趋势报告
 - 通知渠道 - Webhook、邮件通知
+- 分布式锁 - Redis/数据库/文件系统多后端支持
+- 依赖管理 - DAG拓扑排序与循环检测
+- 监控告警 - Prometheus指标导出与告警规则
 
 模块结构:
 - models.py - 数据模型和枚举定义
 - utils.py - 工具类（熔断器、Cron解析器、通知管理等）
 - backup.py - 备份管理器
 - task_executors.py - 任务执行器集合
-- storage.py - 任务存储管理
+- persistent_storage.py - SQLite持久化存储
 - skill.py - 统一入口（SchedulerSkill）
+- distributed_lock.py - 分布式锁实现
+- dependency_manager.py - 任务依赖管理
+- scheduler_engine.py - 调度引擎
+- monitoring.py - 监控与告警
+- result_cleanup.py - 结果清理策略
 
 版本: 3.0.0（模块化重构版）
 作者: AI Assistant
@@ -83,6 +91,35 @@ from .task_executors import (
     ExecutorFactory,
 )
 
+# 分布式锁
+from .distributed_lock import (
+    DistributedLock,
+    RedisDistributedLock,
+    DatabaseDistributedLock,
+    FileDistributedLock,
+    LockManager,
+)
+
+# 依赖管理
+from .dependency_manager import DependencyManager
+
+# 调度引擎
+from .scheduler_engine import SchedulerEngine
+
+# 持久化存储
+from .persistent_storage import PersistentTaskStorage
+
+# 监控告警
+from .monitoring import (
+    MetricsCollector,
+    AlertManager,
+    AlertRule,
+    Alert,
+    MetricType,
+    AlertSeverity,
+    AlertState,
+)
+
 # 主Skill类
 from .skill import SchedulerSkill
 
@@ -117,6 +154,26 @@ __all__ = [
     "CheckExecutor",
     "CustomSQLExecutor",
     "ExecutorFactory",
+    # 分布式锁
+    "DistributedLock",
+    "RedisDistributedLock",
+    "DatabaseDistributedLock",
+    "FileDistributedLock",
+    "LockManager",
+    # 依赖管理
+    "DependencyManager",
+    # 调度引擎
+    "SchedulerEngine",
+    # 持久化存储
+    "PersistentTaskStorage",
+    # 监控告警
+    "MetricsCollector",
+    "AlertManager",
+    "AlertRule",
+    "Alert",
+    "MetricType",
+    "AlertSeverity",
+    "AlertState",
     # 主Skill类
     "SchedulerSkill",
 ]

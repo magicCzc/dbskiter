@@ -292,6 +292,10 @@ class SensitiveDataScannerV2:
                 count_sql = f'SELECT COUNT(*) FROM "{table_name}"'
             elif self.dialect in ("mysql", "mysql+pymysql"):
                 count_sql = f"SELECT COUNT(*) FROM `{table_name}`"
+            elif "clickhouse" in self.dialect:
+                count_sql = f'SELECT COUNT(*) FROM "{table_name}"'
+            elif self.dialect in ("sqlite", "sqlite3"):
+                count_sql = f'SELECT COUNT(*) FROM "{table_name}"'
             else:
                 count_sql = f"SELECT COUNT(*) FROM {table_name}"
 
@@ -527,6 +531,8 @@ class SensitiveDataScannerV2:
             elif "postgresql" in self.dialect:
                 sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
             elif self.dialect in ("sqlite", "sqlite3"):
+                sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
+            elif "clickhouse" in self.dialect:
                 sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
             elif "oracle" in self.dialect:
                 # Oracle 使用 ROWNUM，表名和列名默认大写，不需要引号

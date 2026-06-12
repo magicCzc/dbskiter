@@ -46,6 +46,7 @@ import threading
 import time
 import logging
 import json
+import re
 from abc import ABC, abstractmethod
 from typing import Dict, List, Optional, Any, Callable
 from dataclasses import dataclass, field
@@ -654,29 +655,155 @@ class AlertManager:
                 except Exception as e:
                     logger.error(f"评估规则失败 {rule.name}: {e}")
     
+    # 安全条件解析: 支持的比较运算符
+    _COMPARISON_OPS = {
+        ">": float.__gt__,
+        "<": float.__lt__,
+        ">=": float.__ge__,
+        "<=": float.__le__,
+        "==": float.__eq__,
+        "!=": float.__ne__,
+    }
+
+    # 安全条件解析: 支持的逻辑运算符
+    _LOGICAL_OPS = {"and", "or"}
+
+    # 条件表达式白名单: 只允许数字、比较运算符、逻辑运算符、括号、空格
+    _SAFE_EXPR_PATTERN = re.compile(
+        r"^[0-9eE.+\-<>=!&|()\s]+$"
+    )
+
     def _check_condition(self, condition: str, metrics: Dict[str, float]) -> bool:
         """
-        检查条件
-        
+        安全检查条件表达式
+
+        使用自定义解析器替代 eval(), 仅支持以下语法:
+        - 比较运算: >  <  >=  <=  ==  !=
+        - 逻辑运算: and  or
+        - 括号分组: ( )
+
         参数:
-            condition: 条件表达式
-            metrics: 指标数据
-            
+            condition: 条件表达式, 如 "cpu_usage > 80 and memory_usage > 90"
+            metrics: 指标数据字典
+
         返回:
             bool: 条件是否满足
         """
-        # 简单的条件解析，支持 > < >= <= ==
         try:
-            # 替换指标名称为值
+            # 第一步: 将指标名称替换为数值
             expr = condition
-            for name, value in metrics.items():
-                expr = expr.replace(name, str(value))
-            
-            # 安全评估
-            return eval(expr, {"__builtins__": {}}, {})
+            # 按名称长度降序排列, 避免短名称误替换长名称的前缀
+            for name in sorted(metrics.keys(), key=len, reverse=True):
+                expr = expr.replace(name, str(metrics[name]))
+
+            # 第二步: 白名单验证, 确保替换后表达式只包含安全字符
+            if not self._SAFE_EXPR_PATTERN.match(expr):
+                logger.error(
+                    f"条件表达式包含非法字符: {expr}"
+                )
+                return False
+
+            # 第三步: 解析并评估条件
+            return self._evaluate_safe_expr(expr)
         except Exception as e:
             logger.error(f"条件评估失败: {condition}, 错误: {e}")
             return False
+
+    def _evaluate_safe_expr(self, expr: str) -> bool:
+        """
+        安全评估简单条件表达式
+
+        仅支持 "值 比较运算符 值" 和 "and/or" 组合,
+        不使用 eval(), 完全避免代码注入风险。
+
+        参数:
+            expr: 已替换指标为数值的表达式
+
+        返回:
+            bool: 评估结果
+        """
+        # 按 "or" 分割, 任意一个为 True 则返回 True
+        or_parts = self._split_logical(expr, "or")
+        for or_part in or_parts:
+            # 按 "and" 分割, 全部为 True 则该部分为 True
+            and_parts = self._split_logical(or_part.strip(), "and")
+            all_true = True
+            for and_part in and_parts:
+                part = and_part.strip()
+                if not part:
+                    continue
+                # 处理括号
+                part = part.strip("()")
+                if not self._evaluate_comparison(part):
+                    all_true = False
+                    break
+            if all_true:
+                return True
+        return False
+
+    def _split_logical(self, expr: str, op: str) -> List[str]:
+        """
+        按逻辑运算符分割表达式, 不分割括号内的内容
+
+        参数:
+            expr: 表达式字符串
+            op: 逻辑运算符 ("and" 或 "or")
+
+        返回:
+            List[str]: 分割后的子表达式列表
+        """
+        parts = []
+        depth = 0
+        current = []
+        tokens = expr.split()
+        i = 0
+        while i < len(tokens):
+            token = tokens[i]
+            if token == "(":
+                depth += 1
+                current.append(token)
+            elif token == ")":
+                depth -= 1
+                current.append(token)
+            elif token == op and depth == 0:
+                parts.append(" ".join(current))
+                current = []
+            else:
+                current.append(token)
+            i += 1
+        if current:
+            parts.append(" ".join(current))
+        return parts
+
+    def _evaluate_comparison(self, expr: str) -> bool:
+        """
+        评估单个比较表达式, 如 "80.5 > 90"
+
+        参数:
+            expr: 比较表达式字符串
+
+        返回:
+            bool: 比较结果
+        """
+        expr = expr.strip()
+        # 按运算符优先级匹配: 先匹配双字符运算符
+        for op_str in [">=", "<=", "==", "!=", ">", "<"]:
+            # 使用正则分割, 确保运算符两侧是独立token
+            pattern = rf"^(.+?)\s*{re.escape(op_str)}\s*(.+)$"
+            match = re.match(pattern, expr)
+            if match:
+                try:
+                    left = float(match.group(1).strip())
+                    right = float(match.group(2).strip())
+                    op_func = self._COMPARISON_OPS[op_str]
+                    return op_func(left, right)
+                except (ValueError, TypeError) as e:
+                    logger.error(
+                        f"比较表达式解析失败: {expr}, 错误: {e}"
+                    )
+                    return False
+        logger.error(f"无法识别的比较表达式: {expr}")
+        return False
     
     def _trigger_alert(self, rule: AlertRule, metrics: Dict[str, float], 
                       labels: Dict[str, str]):

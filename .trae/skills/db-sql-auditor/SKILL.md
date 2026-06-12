@@ -123,6 +123,48 @@ dbskiter --database=<数据库名> audit recommend-indexes "SELECT * FROM orders
 - **style**：代码风格
 - **ddl**：DDL规范
 
+## 数据库支持
+
+| 数据库 | SQL审核 | DDL影响分析 | SQL优化 | 索引推荐 | 状态 |
+|-------|---------|------------|---------|---------|------|
+| MySQL | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| Oracle | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| PostgreSQL | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| SQL Server | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| ClickHouse | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| SQLite | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| 通用(Generic) | 支持 | 基础 | 基础 | 基础 | 可用 |
+
+**通用 SQL 审核说明**：
+
+通用 DDL 分析器通过标准 SQL 和 INFORMATION_SCHEMA 为任意 JDBC 兼容数据库提供基础 DDL 影响分析：
+- 支持 ALTER TABLE ADD/DROP/MODIFY COLUMN、CREATE/DROP TABLE、TRUNCATE 等操作
+- 通过 INFORMATION_SCHEMA 获取表大小、行数、索引、外键依赖
+- 评估大表 DDL 风险、执行时间预估
+- 支持的数据库：Trino、Presto、DuckDB、H2、Derby 等任何 JDBC 数据库
+
+**ClickHouse SQL审核特性**：
+- 语法规范检查：ClickHouse特有函数和语法
+- 性能规范检查：避免全表扫描、推荐PREWHERE
+- DDL影响分析：评估异步mutation影响、ON CLUSTER建议
+- 索引推荐：基于主键和ORDER BY的查询优化
+- 查询优化：提供查询重写建议，利用MergeTree引擎特性
+
+**SQLite SQL审核特性**：
+- 语法规范检查：SQLite特有语法和限制
+- 性能规范检查：避免全表扫描、推荐索引
+- DDL影响分析：检测有限ALTER支持、重建表风险
+- 索引推荐：基于查询条件的索引建议
+- 查询优化：提供查询重写建议
+
+**SQL Server SQL审核特性**：
+- 语法规范检查：TOP vs LIMIT、方括号标识符等SQL Server特有语法
+- 性能规范检查：避免SELECT *、确保WHERE条件有索引支持
+- 安全规范检查：防止SQL注入、敏感信息泄露
+- DDL影响分析：评估ALTER TABLE、CREATE INDEX等操作的影响
+- 索引推荐：基于查询条件推荐合适的索引列
+- 查询优化：提供查询重写建议，提高执行效率
+
 ## AI决策流程
 
 ### 场景1：用户说"审核这个SQL"

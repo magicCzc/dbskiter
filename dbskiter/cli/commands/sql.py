@@ -147,6 +147,9 @@ class SQLCommand(BaseCommand):
                     "schema": lambda: skill.get_schema_info(
                         table_name=getattr(self.args, 'table', None) or '',
                     ),
+                    "complete": lambda: skill.get_suggestions(
+                        getattr(self.args, 'partial', ''),
+                    ),
                 }
                 scenario_map = {
                     "execute": "sql_execute",

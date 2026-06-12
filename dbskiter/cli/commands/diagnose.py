@@ -216,7 +216,7 @@ class DiagnoseCommand(BaseCommand):
         # 15. bloat - 表膨胀/碎片分析（支持多数据库）
         bloat_parser = subparsers.add_parser(
             "bloat",
-            help="膨胀/碎片分析 - 检测表膨胀和碎片情况（PostgreSQL膨胀/MySQL碎片/Oracle表空间碎片）"
+            help="膨胀/碎片分析 - 检测表膨胀和碎片情况（PostgreSQL膨胀/MySQL碎片/Oracle表空间碎片/ClickHouse分区/SQLite空闲页）"
         )
         bloat_parser.add_argument(
             "--threshold",
@@ -228,7 +228,7 @@ class DiagnoseCommand(BaseCommand):
         # 16. index-usage - 索引使用分析（支持多数据库）
         index_usage_parser = subparsers.add_parser(
             "index-usage",
-            help="索引使用分析 - 识别未使用索引和缺失索引（MySQL/Oracle/PostgreSQL）"
+            help="索引使用分析 - 识别未使用索引和缺失索引（MySQL/Oracle/PostgreSQL/ClickHouse跳数索引/SQLite冗余索引）"
         )
 
         # 17. tablespace-fragmentation - Oracle表空间碎片分析
@@ -286,6 +286,21 @@ class DiagnoseCommand(BaseCommand):
                 'required': 'oracle',
                 'label': '表空间碎片分析',
                 'supported': ['oracle'],
+            },
+            'replication': {
+                'required': 'clickhouse',
+                'label': '复制分析',
+                'supported': ['clickhouse', 'postgresql', 'mysql'],
+            },
+            'bloat': {
+                'required': 'postgresql',
+                'label': '表膨胀/碎片分析',
+                'supported': ['postgresql', 'clickhouse', 'sqlite', 'mysql', 'oracle'],
+            },
+            'index-usage': {
+                'required': 'postgresql',
+                'label': '索引使用分析',
+                'supported': ['postgresql', 'clickhouse', 'sqlite', 'mysql', 'oracle'],
             },
         }
         if action in db_specific_commands:
@@ -424,7 +439,8 @@ class DiagnoseCommand(BaseCommand):
                     "  P0(高频): realtime, top, locks, sql, space\n"
                     "  P1(中频): connections, replication, slow-queries, recommend-indexes\n"
                     "  P2(低频): report, table, performance-snapshot, bottleneck\n"
-                    "  PostgreSQL特有: vacuum, bloat, index-usage\n"
+                    "  多数据库支持: bloat, index-usage\n"
+                    "  PostgreSQL特有: vacuum\n"
                     "  Oracle特有: tablespace-fragmentation"
                 )
                 return 1

@@ -61,10 +61,11 @@ setup(
         "requests>=2.28.0",
         "jinja2>=3.0.0",
         "pydantic>=2.0.0",
+        "sqlparse>=0.5.0",
     ],
     entry_points={
         "console_scripts": [
-            "dbskiter=dbskiter.cli:main",
+            "dbskiter=dbskiter.cli.main:main",
         ],
     },
     extras_require={

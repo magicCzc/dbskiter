@@ -54,6 +54,8 @@ class LockAnalyzerSkill:
     支持的数据库：
         - MySQL
         - PostgreSQL（部分支持）
+        - Oracle
+        - SQL Server
 
     使用示例：
         >>> skill = LockAnalyzerSkill(connector)
@@ -97,11 +99,14 @@ class LockAnalyzerSkill:
                 locks = self._get_postgresql_locks()
             elif 'oracle' in self.dialect:
                 locks = self._get_oracle_locks()
+            elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                locks = self._get_mssql_locks()
+            elif 'clickhouse' in self.dialect:
+                locks = self._get_clickhouse_locks()
+            elif 'sqlite' in self.dialect:
+                locks = self._get_sqlite_locks()
             else:
-                return create_error_response(
-                    message=f"数据库类型 {self.dialect} 的锁分析未完全实现",
-                    error_code=ErrorCode.UNSUPPORTED_DATABASE
-                )
+                locks = self._get_generic_locks()
 
             data = {
                 "locks": [lock.to_dict() for lock in locks],
@@ -460,6 +465,307 @@ class LockAnalyzerSkill:
                 logger.error(f"获取Oracle锁信息失败: 权限不足，请联系DBA授予必要的系统视图查询权限")
             else:
                 logger.error(f"获取Oracle锁信息失败: {e}")
+
+        return locks
+
+    def _get_mssql_locks(self) -> List[LockInfo]:
+        """
+        获取SQL Server锁信息
+
+        使用sys.dm_tran_locks、sys.dm_exec_sessions、sys.dm_exec_requests
+        和sys.dm_exec_sql_text获取完整锁信息
+        """
+        locks = []
+
+        try:
+            result = self.connector.execute("""
+                SELECT
+                    l.request_session_id,
+                    l.resource_type,
+                    l.resource_subtype,
+                    l.resource_database_id,
+                    l.resource_associated_entity_id,
+                    l.resource_description,
+                    l.request_mode,
+                    l.request_type,
+                    l.request_status,
+                    s.host_name,
+                    s.program_name,
+                    s.login_name,
+                    s.status,
+                    r.command,
+                    r.wait_type,
+                    r.wait_time,
+                    r.blocking_session_id,
+                    t.text AS sql_text,
+                    DB_NAME(l.resource_database_id) AS database_name,
+                    CASE
+                        WHEN l.resource_type = 'OBJECT'
+                        THEN OBJECT_NAME(l.resource_associated_entity_id, l.resource_database_id)
+                        ELSE NULL
+                    END AS object_name,
+                    s.session_id
+                FROM sys.dm_tran_locks l
+                LEFT JOIN sys.dm_exec_sessions s ON l.request_session_id = s.session_id
+                LEFT JOIN sys.dm_exec_requests r ON l.request_session_id = r.session_id
+                OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
+                WHERE l.request_session_id > 50
+                AND l.request_status IN ('GRANT', 'WAIT', 'CONVERT')
+                ORDER BY l.request_session_id, l.resource_type
+            """)
+
+            for row in result.rows if result else []:
+                session_id = row[0]
+                resource_type = row[1]
+                request_mode = row[6]
+                request_status = row[8]
+                host_name = row[9]
+                program_name = row[10]
+                login_name = row[11]
+                command = row[13]
+                wait_type = row[14]
+                wait_time = row[15]
+                blocking_session_id = row[16]
+                sql_text = row[17]
+                database_name = row[18]
+                object_name = row[19]
+
+                lock_status = "WAITING" if request_status in ('WAIT', 'CONVERT') else "GRANTED"
+
+                lock_info = LockInfo(
+                    lock_id=f"MSSQL-{session_id}-{resource_type}-{row[4]}",
+                    transaction_id=str(session_id),
+                    thread_id=session_id,
+                    lock_type=self._parser.parse_mssql_lock_type(resource_type),
+                    lock_mode=self._parser.parse_mssql_lock_mode(request_mode),
+                    table_schema=database_name,
+                    table_name=object_name,
+                    index_name=None,
+                    lock_data=row[5],
+                    lock_status=lock_status,
+                    wait_time=wait_time / 1000.0 if wait_time else None,
+                    query_sql=sql_text,
+                    query_time=None,
+                    connection_id=session_id,
+                    user=login_name,
+                    host=host_name,
+                    started_at=None
+                )
+                locks.append(lock_info)
+
+        except Exception as e:
+            error_msg = str(e)
+            if "permission" in error_msg.lower() or "denied" in error_msg.lower():
+                logger.error(f"获取SQL Server锁信息失败: 权限不足，需要VIEW SERVER STATE权限")
+            else:
+                logger.error(f"获取SQL Server锁信息失败: {e}")
+
+        return locks
+
+    def _get_clickhouse_locks(self) -> List[LockInfo]:
+        """
+        获取ClickHouse锁信息
+
+        ClickHouse锁机制特点：
+        1. 使用多版本并发控制(MVCC)，读操作不阻塞写操作
+        2. ALTER操作使用表级锁
+        3. 通过system.processes查看正在执行的查询
+        4. 通过system.mutations查看mutation进度
+
+        返回:
+            List[LockInfo]: 锁信息列表
+        """
+        locks = []
+
+        try:
+            # 查询正在执行的进程（可能持有锁）
+            result = self.connector.execute("""
+                SELECT
+                    query_id,
+                    user,
+                    query,
+                    elapsed,
+                    read_rows,
+                    written_rows,
+                    memory_usage,
+                    is_cancelled
+                FROM system.processes
+                WHERE query NOT LIKE '%system.processes%'
+                ORDER BY elapsed DESC
+            """)
+
+            for row in result.rows if result else []:
+                query_id = row[0]
+                user = row[1]
+                query = row[2]
+                elapsed = row[3]
+                read_rows = row[4]
+                written_rows = row[5]
+                memory_usage = row[6]
+                is_cancelled = row[7]
+
+                # ClickHouse进程视为表级锁
+                lock_info = LockInfo(
+                    lock_id=f"CH-{query_id[:8]}",
+                    transaction_id=str(query_id),
+                    thread_id=None,
+                    lock_type=LockType.TABLE,
+                    lock_mode=LockMode.EXCLUSIVE if written_rows > 0 else LockMode.SHARED,
+                    table_schema=None,
+                    table_name=None,
+                    index_name=None,
+                    lock_data=f"read_rows={read_rows}, written_rows={written_rows}",
+                    lock_status="RUNNING" if not is_cancelled else "CANCELLED",
+                    wait_time=elapsed,
+                    query_sql=query,
+                    query_time=elapsed,
+                    connection_id=None,
+                    user=user,
+                    host=None,
+                    started_at=None
+                )
+                locks.append(lock_info)
+
+        except Exception as e:
+            logger.warning(f"获取ClickHouse进程信息失败: {e}")
+
+        # 查询mutation（异步DDL/DML）
+        try:
+            result = self.connector.execute("""
+                SELECT
+                    database,
+                    table,
+                    mutation_id,
+                    command,
+                    create_time,
+                    parts_to_do,
+                    is_done
+                FROM system.mutations
+                WHERE is_done = 0
+                ORDER BY create_time
+            """)
+
+            for row in result.rows if result else []:
+                database = row[0]
+                table = row[1]
+                mutation_id = row[2]
+                command = row[3]
+                create_time = row[4]
+                parts_to_do = row[5]
+                is_done = row[6]
+
+                lock_info = LockInfo(
+                    lock_id=f"CH-MUT-{mutation_id[:8]}",
+                    transaction_id=str(mutation_id),
+                    thread_id=None,
+                    lock_type=LockType.TABLE,
+                    lock_mode=LockMode.EXCLUSIVE,
+                    table_schema=database,
+                    table_name=table,
+                    index_name=None,
+                    lock_data=f"parts_to_do={parts_to_do}",
+                    lock_status="WAITING" if parts_to_do > 0 else "GRANTED",
+                    wait_time=None,
+                    query_sql=command,
+                    query_time=None,
+                    connection_id=None,
+                    user=None,
+                    host=None,
+                    started_at=create_time
+                )
+                locks.append(lock_info)
+
+        except Exception as e:
+            logger.warning(f"获取ClickHouse mutation信息失败: {e}")
+
+        return locks
+
+    def _get_sqlite_locks(self) -> List[LockInfo]:
+        """
+        获取SQLite锁信息
+
+        SQLite锁机制特点：
+        1. 使用文件级锁（POSIX advisory locks 或 Windows locking）
+        2. 锁状态：UNLOCKED -> SHARED -> RESERVED -> PENDING -> EXCLUSIVE
+        3. 没有内置的锁信息视图
+        4. 通过PRAGMA lock_status获取锁状态（SQLite 3.37.0+）
+
+        返回:
+            List[LockInfo]: 锁信息列表
+        """
+        locks = []
+
+        try:
+            # 尝试获取锁状态（SQLite 3.37.0+）
+            result = self.connector.execute("PRAGMA lock_status")
+            if result and result.rows:
+                for row in result.rows:
+                    # lock_status返回: database, status
+                    db_name = row[0]
+                    status = row[1]
+
+                    lock_mode = LockMode.SHARED
+                    if status == 'exclusive':
+                        lock_mode = LockMode.EXCLUSIVE
+                    elif status == 'pending':
+                        lock_mode = LockMode.INTENTION_EXCLUSIVE
+
+                    lock_info = LockInfo(
+                        lock_id=f"SQLITE-{db_name}",
+                        transaction_id="sqlite",
+                        thread_id=None,
+                        lock_type=LockType.TABLE,
+                        lock_mode=lock_mode,
+                        table_schema=None,
+                        table_name=db_name,
+                        index_name=None,
+                        lock_data=f"status={status}",
+                        lock_status="GRANTED" if status != 'pending' else "WAITING",
+                        wait_time=None,
+                        query_sql=None,
+                        query_time=None,
+                        connection_id=None,
+                        user=None,
+                        host=None,
+                        started_at=None
+                    )
+                    locks.append(lock_info)
+
+        except Exception as e:
+            logger.warning(f"获取SQLite锁状态失败: {e}")
+
+        # 如果lock_status不可用，返回基本信息
+        if not locks:
+            try:
+                result = self.connector.execute("PRAGMA database_list")
+                if result and result.rows:
+                    for row in result.rows:
+                        db_name = row[1]
+                        db_path = row[2]
+
+                        lock_info = LockInfo(
+                            lock_id=f"SQLITE-{db_name}",
+                            transaction_id="sqlite",
+                            thread_id=None,
+                            lock_type=LockType.TABLE,
+                            lock_mode=LockMode.SHARED,
+                            table_schema=None,
+                            table_name=db_name,
+                            index_name=None,
+                            lock_data=f"path={db_path}",
+                            lock_status="GRANTED",
+                            wait_time=None,
+                            query_sql=None,
+                            query_time=None,
+                            connection_id=None,
+                            user=None,
+                            host=None,
+                            started_at=None
+                        )
+                        locks.append(lock_info)
+
+            except Exception as e:
+                logger.warning(f"获取SQLite数据库列表失败: {e}")
 
         return locks
 
@@ -1086,5 +1392,293 @@ class LockAnalyzerSkill:
             ]
 
         return hints
+
+    # ==================== 通用锁分析 ====================
+
+    def _get_generic_locks(self) -> List[LockInfo]:
+        """
+        通用数据库锁分析
+
+        为任意 JDBC 兼容数据库提供基础锁分析能力。
+        通过尝试多种数据库风格的系统视图获取锁信息。
+
+        探测优先级：
+            1. pg_locks + pg_stat_activity (PostgreSQL 风格)
+            2. information_schema.innodb_trx (MySQL 风格)
+            3. sys.dm_tran_locks (SQL Server 风格)
+            4. system.processes (ClickHouse 风格)
+
+        返回：
+            List[LockInfo]: 锁信息列表，无可用数据源返回空列表
+        """
+        locks = []
+
+        # 1. 尝试 PostgreSQL pg_locks
+        if not locks:
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        l.locktype,
+                        l.relation::regclass,
+                        l.mode,
+                        l.granted,
+                        l.pid,
+                        a.usename,
+                        a.client_addr,
+                        a.query,
+                        a.query_start,
+                        EXTRACT(EPOCH FROM (NOW() - a.query_start))::numeric(10,2)
+                    FROM pg_locks l
+                    JOIN pg_stat_activity a ON l.pid = a.pid
+                    WHERE l.granted = false
+                    OR l.pid IN (
+                        SELECT DISTINCT l1.pid
+                        FROM pg_locks l1
+                        JOIN pg_locks l2 ON l1.locktype = l2.locktype
+                            AND l1.relation = l2.relation
+                            AND l1.granted = false
+                            AND l2.granted = true
+                    )
+                    ORDER BY a.query_start
+                    LIMIT 100
+                """)
+                if result and result.rows:
+                    for row in result.rows:
+                        lock_info = LockInfo(
+                            lock_id=f"PG-{row[4]}",
+                            transaction_id=str(row[4]),
+                            thread_id=row[4],
+                            lock_type=self._parser.parse_postgresql_lock_type(row[0]),
+                            lock_mode=self._parser.parse_postgresql_lock_mode(row[2]),
+                            table_schema=None,
+                            table_name=str(row[1]) if row[1] else None,
+                            index_name=None,
+                            lock_data=None,
+                            lock_status="GRANTED" if row[3] else "WAITING",
+                            wait_time=row[9],
+                            query_sql=row[7],
+                            query_time=row[9],
+                            connection_id=row[4],
+                            user=row[5],
+                            host=str(row[6]) if row[6] else None,
+                            started_at=row[8]
+                        )
+                        locks.append(lock_info)
+                    logger.info(f"通用锁分析: 通过 pg_locks 获取到 {len(locks)} 个锁")
+            except Exception as e:
+                logger.debug(f"通用锁分析: pg_locks 不可用 [{type(e).__name__}]")
+
+        # 2. 尝试 MySQL information_schema.innodb_trx
+        if not locks:
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        r.trx_id,
+                        r.trx_mysql_thread_id,
+                        r.trx_state,
+                        r.trx_tables_locked,
+                        r.trx_rows_locked,
+                        r.trx_started,
+                        b.lock_mode,
+                        b.lock_type,
+                        b.lock_table,
+                        b.lock_index,
+                        b.lock_data,
+                        w.requesting_trx_id,
+                        w.blocking_trx_id,
+                        TIMESTAMPDIFF(SECOND, r.trx_started, NOW())
+                    FROM information_schema.innodb_trx r
+                    LEFT JOIN information_schema.innodb_locks b ON r.trx_id = b.lock_trx_id
+                    LEFT JOIN information_schema.innodb_lock_waits w ON r.trx_id = w.requesting_trx_id
+                    ORDER BY r.trx_started
+                    LIMIT 100
+                """)
+                if result and result.rows:
+                    for row in result.rows:
+                        lock_info = LockInfo(
+                            lock_id=row[6] or str(uuid.uuid4())[:8],
+                            transaction_id=str(row[0]),
+                            thread_id=row[1],
+                            lock_type=self._parser.parse_mysql_lock_type(row[7]),
+                            lock_mode=self._parser.parse_mysql_lock_mode(row[6]),
+                            table_schema=None,
+                            table_name=row[8],
+                            index_name=row[9],
+                            lock_data=row[10],
+                            lock_status="WAITING" if row[11] else "GRANTED",
+                            wait_time=None,
+                            query_sql=None,
+                            query_time=None,
+                            connection_id=row[1],
+                            user=None,
+                            host=None,
+                            started_at=row[5]
+                        )
+                        locks.append(lock_info)
+                    logger.info(f"通用锁分析: 通过 innodb_trx 获取到 {len(locks)} 个锁")
+            except Exception as e:
+                logger.debug(f"通用锁分析: innodb_trx 不可用 [{type(e).__name__}]")
+
+        # 3. 尝试 MySQL 8.0 performance_schema.data_locks
+        if not locks:
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        r.trx_id,
+                        r.trx_mysql_thread_id,
+                        r.trx_state,
+                        r.trx_tables_locked,
+                        r.trx_rows_locked,
+                        r.trx_started,
+                        b.lock_mode,
+                        b.lock_type,
+                        b.object_name,
+                        b.object_index_name,
+                        b.lock_data,
+                        w.requesting_engine_transaction_id,
+                        w.blocking_engine_transaction_id,
+                        TIMESTAMPDIFF(SECOND, r.trx_started, NOW())
+                    FROM information_schema.innodb_trx r
+                    LEFT JOIN performance_schema.data_locks b
+                        ON r.trx_id = b.engine_transaction_id
+                    LEFT JOIN performance_schema.data_lock_waits w
+                        ON r.trx_id = w.requesting_engine_transaction_id
+                    ORDER BY r.trx_started
+                    LIMIT 100
+                """)
+                if result and result.rows:
+                    for row in result.rows:
+                        lock_info = LockInfo(
+                            lock_id=row[6] or str(uuid.uuid4())[:8],
+                            transaction_id=str(row[0]),
+                            thread_id=row[1],
+                            lock_type=self._parser.parse_mysql_lock_type(row[7]),
+                            lock_mode=self._parser.parse_mysql_lock_mode(row[6]),
+                            table_schema=None,
+                            table_name=row[8],
+                            index_name=row[9],
+                            lock_data=row[10],
+                            lock_status="WAITING" if row[11] else "GRANTED",
+                            wait_time=None,
+                            query_sql=None,
+                            query_time=None,
+                            connection_id=row[1],
+                            user=None,
+                            host=None,
+                            started_at=row[5]
+                        )
+                        locks.append(lock_info)
+                    logger.info(f"通用锁分析: 通过 data_locks 获取到 {len(locks)} 个锁")
+            except Exception as e:
+                logger.debug(f"通用锁分析: data_locks 不可用 [{type(e).__name__}]")
+
+        # 4. 尝试 SQL Server sys.dm_tran_locks
+        if not locks:
+            try:
+                result = self.connector.execute("""
+                    SELECT TOP 100
+                        l.request_session_id,
+                        l.resource_type,
+                        l.request_mode,
+                        l.request_status,
+                        s.host_name,
+                        s.login_name,
+                        r.wait_time,
+                        t.text
+                    FROM sys.dm_tran_locks l
+                    LEFT JOIN sys.dm_exec_sessions s ON l.request_session_id = s.session_id
+                    LEFT JOIN sys.dm_exec_requests r ON l.request_session_id = r.session_id
+                    OUTER APPLY sys.dm_exec_sql_text(r.sql_handle) t
+                    WHERE l.request_session_id > 50
+                    ORDER BY l.request_session_id
+                """)
+                if result and result.rows:
+                    for row in result.rows:
+                        session_id = row[0]
+                        resource_type = row[1]
+                        request_mode = row[2]
+                        request_status = row[3]
+                        wait_time = row[6]
+
+                        lock_status = "WAITING" if request_status in ('WAIT', 'CONVERT') else "GRANTED"
+
+                        lock_info = LockInfo(
+                            lock_id=f"MSSQL-{session_id}-{resource_type}",
+                            transaction_id=str(session_id),
+                            thread_id=session_id,
+                            lock_type=self._parser.parse_mssql_lock_type(resource_type),
+                            lock_mode=self._parser.parse_mssql_lock_mode(request_mode),
+                            table_schema=None,
+                            table_name=None,
+                            index_name=None,
+                            lock_data=None,
+                            lock_status=lock_status,
+                            wait_time=wait_time / 1000.0 if wait_time else None,
+                            query_sql=row[7],
+                            query_time=None,
+                            connection_id=session_id,
+                            user=row[5],
+                            host=row[4],
+                            started_at=None
+                        )
+                        locks.append(lock_info)
+                    logger.info(f"通用锁分析: 通过 dm_tran_locks 获取到 {len(locks)} 个锁")
+            except Exception as e:
+                logger.debug(f"通用锁分析: dm_tran_locks 不可用 [{type(e).__name__}]")
+
+        # 5. 尝试 ClickHouse system.processes
+        if not locks:
+            try:
+                result = self.connector.execute("""
+                    SELECT
+                        query_id,
+                        user,
+                        query,
+                        elapsed,
+                        read_rows,
+                        written_rows,
+                        memory_usage,
+                        is_cancelled
+                    FROM system.processes
+                    WHERE query NOT LIKE '%system.processes%'
+                    ORDER BY elapsed DESC
+                    LIMIT 100
+                """)
+                if result and result.rows:
+                    for row in result.rows:
+                        query_id = row[0]
+                        elapsed = row[3]
+                        written_rows = row[5]
+
+                        lock_info = LockInfo(
+                            lock_id=f"CH-{query_id[:8]}",
+                            transaction_id=str(query_id),
+                            thread_id=None,
+                            lock_type=LockType.TABLE,
+                            lock_mode=LockMode.EXCLUSIVE if written_rows > 0 else LockMode.SHARED,
+                            table_schema=None,
+                            table_name=None,
+                            index_name=None,
+                            lock_data=f"read_rows={row[4]}, written_rows={written_rows}",
+                            lock_status="RUNNING" if not row[7] else "CANCELLED",
+                            wait_time=elapsed,
+                            query_sql=row[2],
+                            query_time=elapsed,
+                            connection_id=None,
+                            user=row[1],
+                            host=None,
+                            started_at=None
+                        )
+                        locks.append(lock_info)
+                    logger.info(f"通用锁分析: 通过 system.processes 获取到 {len(locks)} 个锁")
+            except Exception as e:
+                logger.debug(f"通用锁分析: system.processes 不可用 [{type(e).__name__}]")
+
+        if not locks:
+            logger.info(
+                f"通用锁分析: 数据库 {self.dialect} 不支持任何已知的锁信息视图"
+            )
+
+        return locks
 
 

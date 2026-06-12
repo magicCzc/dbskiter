@@ -132,6 +132,67 @@ dbskiter --database=<数据库名> inspector risks --days=7
 - **capacity**：容量检查
 - **replication**：复制检查
 
+## 数据库支持
+
+| 数据库 | 配置检查 | 性能检查 | 存储检查 | 安全检查 | 容量检查 | 状态 |
+|-------|---------|---------|---------|---------|---------|------|
+| MySQL | 支持 | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| Oracle | 支持 | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| PostgreSQL | 支持 | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| SQL Server | 支持 | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| ClickHouse | 支持 | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| SQLite | 支持 | 支持 | 支持 | 支持 | 支持 | 生产就绪 |
+| 通用(Generic) | 基础 | 基础 | 基础 | 基础 | 基础 | 可用 |
+
+**通用巡检器（GenericInspector）说明**：
+
+通用巡检器通过标准 SQL 和 INFORMATION_SCHEMA 自动探测数据库能力，
+为任意 JDBC 兼容数据库提供基础巡检能力。
+
+支持的数据库类型：
+- Trino / Presto
+- DuckDB
+- Apache Derby
+- H2
+- HSQLDB
+- 任何支持 JDBC 4.0+ 和 INFORMATION_SCHEMA 的数据库
+
+通用巡检器采集指标：
+
+| 检查项 | 数据源 | 说明 |
+|--------|--------|------|
+| 数据库类型与版本 | VERSION() / @@version | 数据库方言和版本号 |
+| Schema 数量 | INFORMATION_SCHEMA.TABLES | Schema 总数 |
+| 表总数 | INFORMATION_SCHEMA.TABLES | BASE TABLE 数量 |
+| 活跃连接数 | pg_stat_activity / v$session / sys.dm_exec_sessions | 当前活跃会话 |
+| 数据库总大小 | pg_database_size / information_schema / PRAGMA | 存储容量 |
+| 索引数量 | INFORMATION_SCHEMA.STATISTICS | 索引总数 |
+| TOP 大表 | INFORMATION_SCHEMA.TABLES | 行数最多的表 |
+| 数据库用户 | CURRENT_USER / USER() | 当前连接用户 |
+
+**SQLite 巡检项**：
+- 配置检查：缓存大小、日志模式（journal_mode）、同步模式（synchronous）
+- 性能检查：大表检测、缺少索引检测
+- 存储检查：数据库文件大小、碎片率
+- 安全检查：文件权限（POSIX系统）
+- 容量检查：表数量
+- 完整性检查：PRAGMA integrity_check
+
+**ClickHouse 巡检项**：
+- 配置检查：max_memory_usage、max_execution_time、query_log启用状态
+- 性能检查：慢查询数、高内存使用查询、连接数、复制延迟
+- 存储检查：大表检测、parts数量过多检测
+- 安全检查：默认用户密码配置
+- 容量检查：总数据量、磁盘使用
+- 复制检查：Replicated表复制队列、复制延迟
+
+**SQL Server 巡检项**：
+- 配置检查：最大内存、MAXDOP、恢复模式、安全设置
+- 性能检查：缓冲区命中率、过程缓存命中率、等待统计
+- 存储检查：文件增长设置、日志文件大小、磁盘空间
+- 安全检查：认证模式、sa账户、权限配置、密码策略
+- 容量检查：数据库大小、磁盘使用率、增长趋势
+
 ## AI决策流程
 
 ### 场景1：用户说"巡检一下数据库"

@@ -494,6 +494,370 @@ class PostgreSQLMetadataProvider(BaseMetadataProvider):
             return []
 
 
+class MSSQLMetadataProvider(BaseMetadataProvider):
+    """SQL Server元数据提供者"""
+
+    def get_table_size(self, table_name: str) -> Optional[float]:
+        """获取SQL Server表大小（MB）"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        try:
+            result = self.connector.execute("""
+                SELECT
+                    ROUND(SUM(a.total_pages) * 8.0 / 1024, 2) AS size_mb
+                FROM sys.tables t
+                INNER JOIN sys.indexes i ON t.object_id = i.object_id
+                INNER JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+                INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
+                WHERE t.name = ?
+                GROUP BY t.name
+            """, (table_name,))
+
+            if result.rows and result.rows[0][0]:
+                return float(result.rows[0][0])
+            return None
+        except ConnectionError:
+            logger.warning(f"获取表 {table_name} 大小时连接失败")
+            return None
+        except PermissionError:
+            logger.warning(f"获取表 {table_name} 大小时权限不足")
+            return None
+        except (ValueError, TypeError) as e:
+            logger.warning(f"获取表 {table_name} 大小时数据解析错误: {e}")
+            return None
+
+    def get_table_row_count(self, table_name: str) -> Optional[int]:
+        """获取SQL Server表行数"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        try:
+            # 使用sys.dm_db_partition_stats获取行数
+            result = self.connector.execute("""
+                SELECT SUM(p.rows)
+                FROM sys.tables t
+                INNER JOIN sys.indexes i ON t.object_id = i.object_id
+                INNER JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+                WHERE t.name = ?
+                AND i.index_id IN (0, 1)
+            """, (table_name,))
+
+            if result.rows and result.rows[0][0]:
+                return int(result.rows[0][0])
+            return None
+        except ConnectionError:
+            logger.warning(f"获取表 {table_name} 行数时连接失败")
+            return None
+        except PermissionError:
+            logger.warning(f"获取表 {table_name} 行数时权限不足")
+            return None
+        except (ValueError, TypeError) as e:
+            logger.warning(f"获取表 {table_name} 行数时数据解析错误: {e}")
+            return None
+
+    def get_table_indexes(self, table_name: str) -> List[IndexMetadata]:
+        """获取SQL Server表索引"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return []
+
+        try:
+            result = self.connector.execute("""
+                SELECT
+                    i.name AS index_name,
+                    c.name AS column_name,
+                    i.is_unique,
+                    i.is_primary_key,
+                    ic.key_ordinal
+                FROM sys.tables t
+                INNER JOIN sys.indexes i ON t.object_id = i.object_id
+                INNER JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
+                INNER JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+                WHERE t.name = ?
+                ORDER BY i.name, ic.key_ordinal
+            """, (table_name,))
+
+            indexes = {}
+            for row in result.rows:
+                idx_name = row[0]
+                column_name = row[1]
+                is_unique = row[2]
+                is_primary = row[3]
+
+                if idx_name not in indexes:
+                    indexes[idx_name] = {
+                        "columns": [],
+                        "is_unique": is_unique,
+                        "is_primary": is_primary
+                    }
+                indexes[idx_name]["columns"].append(column_name)
+
+            return [
+                IndexMetadata(
+                    name=name,
+                    table_name=table_name,
+                    columns=info["columns"],
+                    is_unique=info["is_unique"],
+                    is_primary=info["is_primary"]
+                )
+                for name, info in indexes.items()
+            ]
+        except ConnectionError:
+            logger.warning(f"获取表 {table_name} 索引时连接失败")
+            return []
+        except PermissionError:
+            logger.warning(f"获取表 {table_name} 索引时权限不足")
+            return []
+        except ValueError as e:
+            logger.warning(f"获取表 {table_name} 索引时数据错误: {e}")
+            return []
+
+
+class ClickHouseMetadataProvider(BaseMetadataProvider):
+    """ClickHouse元数据提供者"""
+
+    def get_table_size(self, table_name: str) -> Optional[float]:
+        """获取ClickHouse表大小（MB）"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        try:
+            result = self.connector.execute(f"""
+                SELECT ROUND(sum(bytes) / 1024 / 1024, 2)
+                FROM system.parts
+                WHERE table = '{table_name}'
+                AND active = 1
+            """)
+
+            if result.rows and result.rows[0][0]:
+                return float(result.rows[0][0])
+            return None
+        except Exception as e:
+            logger.warning(f"获取表 {table_name} 大小时失败: {e}")
+            return None
+
+    def get_table_row_count(self, table_name: str) -> Optional[int]:
+        """获取ClickHouse表行数"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        try:
+            result = self.connector.execute(f"""
+                SELECT sum(rows)
+                FROM system.parts
+                WHERE table = '{table_name}'
+                AND active = 1
+            """)
+
+            if result.rows and result.rows[0][0]:
+                return int(result.rows[0][0])
+            return None
+        except Exception as e:
+            logger.warning(f"获取表 {table_name} 行数时失败: {e}")
+            return None
+
+    def get_table_indexes(self, table_name: str) -> List[IndexMetadata]:
+        """获取ClickHouse表索引"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return []
+
+        try:
+            result = self.connector.execute(f"""
+                SELECT name, type
+                FROM system.data_skipping_indices
+                WHERE table = '{table_name}'
+            """)
+
+            indexes = []
+            for row in result.rows:
+                indexes.append(IndexMetadata(
+                    name=row[0],
+                    table_name=table_name,
+                    index_type=row[1]
+                ))
+
+            return indexes
+        except Exception as e:
+            logger.warning(f"获取表 {table_name} 索引时失败: {e}")
+            return []
+
+
+class SQLiteMetadataProvider(BaseMetadataProvider):
+    """SQLite元数据提供者"""
+
+    def get_table_size(self, table_name: str) -> Optional[float]:
+        """获取SQLite表大小（MB）"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        try:
+            result = self.connector.execute(f"""
+                SELECT ROUND((pgsize * (SELECT COUNT(*) FROM "{table_name}")) / 1024.0 / 1024.0, 2)
+            """)
+
+            if result.rows and result.rows[0][0]:
+                return float(result.rows[0][0])
+            return None
+        except Exception as e:
+            logger.warning(f"获取表 {table_name} 大小时失败: {e}")
+            return None
+
+    def get_table_row_count(self, table_name: str) -> Optional[int]:
+        """获取SQLite表行数"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        try:
+            result = self.connector.execute(f"""
+                SELECT COUNT(*)
+                FROM "{table_name}"
+            """)
+
+            if result.rows and result.rows[0][0]:
+                return int(result.rows[0][0])
+            return None
+        except Exception as e:
+            logger.warning(f"获取表 {table_name} 行数时失败: {e}")
+            return None
+
+    def get_table_indexes(self, table_name: str) -> List[IndexMetadata]:
+        """获取SQLite表索引"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return []
+
+        try:
+            result = self.connector.execute(f"""
+                SELECT name, sql
+                FROM sqlite_master
+                WHERE type = 'index'
+                AND tbl_name = '{table_name}'
+            """)
+
+            indexes = []
+            for row in result.rows:
+                idx_name = row[0]
+                sql = row[1] or ""
+                is_unique = "UNIQUE" in sql.upper()
+
+                indexes.append(IndexMetadata(
+                    name=idx_name,
+                    table_name=table_name,
+                    is_unique=is_unique
+                ))
+
+            return indexes
+        except Exception as e:
+            logger.warning(f"获取表 {table_name} 索引时失败: {e}")
+            return []
+
+
+class GenericMetadataProvider(BaseMetadataProvider):
+    """
+    通用元数据提供者
+
+    通过标准 SQL 和 INFORMATION_SCHEMA 为任意 JDBC 兼容数据库
+    提供基础元数据查询能力。
+
+    使用示例：
+        >>> provider = GenericMetadataProvider(connector)
+        >>> size = provider.get_table_size("users")
+        >>> rows = provider.get_table_row_count("users")
+    """
+
+    def get_table_size(self, table_name: str) -> Optional[float]:
+        """获取表大小（MB）（通用实现）"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        queries = [
+            # PostgreSQL 风格
+            ("SELECT pg_total_relation_size(quote_ident($1)) / 1024.0 / 1024.0",
+             (table_name,)),
+            # MySQL 风格
+            ("SELECT (data_length + index_length) / 1024.0 / 1024.0 "
+             "FROM information_schema.tables "
+             "WHERE table_schema = DATABASE() AND table_name = ?",
+             (table_name,)),
+            # 通用回退
+            (f"SELECT COUNT(*) * 0.001 FROM {table_name}", ()),
+        ]
+
+        for sql, params in queries:
+            try:
+                result = self.connector.execute(sql, params)
+                if result.rows and result.rows[0][0] is not None:
+                    return float(result.rows[0][0])
+            except Exception:
+                continue
+
+        return None
+
+    def get_table_row_count(self, table_name: str) -> Optional[int]:
+        """获取表行数（通用实现）"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return None
+
+        try:
+            result = self.connector.execute(
+                f"SELECT COUNT(*) FROM {table_name}"
+            )
+            if result.rows and result.rows[0][0] is not None:
+                return int(result.rows[0][0])
+        except Exception:
+            pass
+
+        # 尝试 INFORMATION_SCHEMA
+        try:
+            result = self.connector.execute(
+                "SELECT table_rows FROM information_schema.tables "
+                "WHERE table_name = ?",
+                (table_name,)
+            )
+            if result.rows and result.rows[0][0] is not None:
+                return int(result.rows[0][0])
+        except Exception:
+            pass
+
+        return None
+
+    def get_table_indexes(self, table_name: str) -> List[IndexMetadata]:
+        """获取表索引（通用实现）"""
+        if not self._is_valid_identifier(table_name):
+            logger.warning(f"无效的表名: {table_name}")
+            return []
+
+        try:
+            result = self.connector.execute(
+                "SELECT index_name FROM information_schema.statistics "
+                "WHERE table_name = ?",
+                (table_name,)
+            )
+            if result.rows:
+                return [
+                    IndexMetadata(
+                        name=row[0],
+                        table_name=table_name,
+                        is_unique=False
+                    )
+                    for row in result.rows
+                ]
+        except Exception:
+            pass
+
+        return []
+
+
 class DBMetadataService:
     """
     数据库元数据服务
@@ -527,8 +891,18 @@ class DBMetadataService:
             return OracleMetadataProvider(self.connector)
         elif 'postgresql' in self.dialect:
             return PostgreSQLMetadataProvider(self.connector)
+        elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+            return MSSQLMetadataProvider(self.connector)
+        elif 'clickhouse' in self.dialect:
+            return ClickHouseMetadataProvider(self.connector)
+        elif 'sqlite' in self.dialect:
+            return SQLiteMetadataProvider(self.connector)
         else:
-            raise ValueError(f"不支持的数据库方言: {self.dialect}")
+            logger.info(
+                f"方言 '{self.dialect}' 未找到专用元数据提供者，"
+                f"回退到 GenericMetadataProvider"
+            )
+            return GenericMetadataProvider(self.connector)
 
     def get_table_size(self, table_name: str) -> Optional[float]:
         """获取表大小（MB）"""

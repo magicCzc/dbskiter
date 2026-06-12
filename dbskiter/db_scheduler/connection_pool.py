@@ -486,7 +486,46 @@ class ConnectionPool:
         elif db_type == "postgresql":
             return self._create_postgresql_connection()
         else:
-            raise ValueError(f"不支持的数据库类型: {db_type}")
+            # 通用数据库支持：尝试使用 SQLAlchemy 创建连接
+            return self._create_generic_connection()
+    
+    def _create_generic_connection(self) -> Any:
+        """
+        创建通用数据库连接（通过 SQLAlchemy）
+        
+        适用于任何 SQLAlchemy 支持的数据库驱动。
+        
+        返回:
+            Any: 原始数据库连接
+            
+        异常:
+            ImportError: 未安装 sqlalchemy
+            ValueError: 连接参数不足
+        """
+        try:
+            from sqlalchemy import create_engine
+            from urllib.parse import quote_plus
+            
+            # 构建通用连接 URL
+            password = quote_plus(self.config.password) if self.config.password else ""
+            if self.config.host and self.config.port:
+                url = (
+                    f"{self.config.db_type}://{self.config.user}:{password}"
+                    f"@{self.config.host}:{self.config.port}/{self.config.database}"
+                )
+            elif self.config.database:
+                url = f"{self.config.db_type}:///{self.config.database}"
+            else:
+                url = f"{self.config.db_type}://"
+            
+            engine = create_engine(url, connect_args={"connect_timeout": self.config.connection_timeout})
+            return engine.raw_connection()
+        except ImportError:
+            logger.error("未安装 sqlalchemy，无法创建通用数据库连接")
+            raise
+        except Exception as e:
+            logger.error(f"创建通用数据库连接失败: {e}")
+            raise
     
     def _create_mysql_connection(self) -> Any:
         """创建MySQL连接"""
@@ -566,8 +605,19 @@ class ConnectionPool:
                 cursor.execute("SELECT 1")
                 cursor.close()
                 return True
-            
-            return False
+            else:
+                # 通用数据库支持：尝试执行标准 SELECT 1
+                try:
+                    cursor = raw_connection.cursor()
+                    cursor.execute("SELECT 1")
+                    cursor.close()
+                    return True
+                except Exception:
+                    # 某些数据库可能不支持 SELECT 1，尝试 ping 方法
+                    if hasattr(raw_connection, 'ping'):
+                        raw_connection.ping()
+                        return True
+                    return False
         except Exception as e:
             logger.debug(f"Ping失败: {e}")
             return False

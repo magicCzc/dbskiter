@@ -486,7 +486,8 @@ class AnalyzeExecutor(BaseTaskExecutor):
         elif dialect in ("sqlite", "sqlite3"):
             sql = f"ANALYZE {table}"
         else:
-            raise ValueError(f"不支持的数据库类型: {dialect}")
+            # 通用回退：标准 ANALYZE 语句
+            sql = f"ANALYZE {table}"
         
         self.connector.execute(sql)
     
@@ -597,7 +598,8 @@ class VacuumExecutor(BaseTaskExecutor):
         elif dialect in ("sqlite", "sqlite3"):
             sql = "VACUUM"
         else:
-            raise ValueError(f"不支持的数据库类型: {dialect}")
+            # 通用回退：尝试标准 VACUUM（多数数据库支持）
+            sql = f"VACUUM {table}"
 
         self.connector.execute(sql)
 
@@ -611,7 +613,8 @@ class VacuumExecutor(BaseTaskExecutor):
         elif dialect in ("mysql", "mysql+pymysql"):
             raise NotImplementedError("MySQL不支持全局VACUUM，请指定表名")
         else:
-            raise ValueError(f"不支持的数据库类型: {dialect}")
+            # 通用回退：尝试标准 VACUUM
+            sql = "VACUUM"
 
         self.connector.execute(sql)
 
@@ -752,7 +755,14 @@ class ReindexExecutor(BaseTaskExecutor):
         elif dialect in ("sqlite", "sqlite3"):
             sql = "REINDEX"
         else:
-            raise ValueError(f"不支持的数据库类型: {dialect}")
+            # 通用回退：尝试标准 REINDEX
+            concurrent_flag = "CONCURRENTLY" if concurrent else ""
+            if index:
+                sql = f"REINDEX INDEX {concurrent_flag} {index}"
+            elif table:
+                sql = f"REINDEX TABLE {concurrent_flag} {table}"
+            else:
+                sql = f"REINDEX DATABASE {concurrent_flag}"
         
         self.connector.execute(sql)
     

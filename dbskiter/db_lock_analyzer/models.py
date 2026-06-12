@@ -100,6 +100,7 @@ class LockType(str, Enum):
     PAGE = "page"                # 页锁
     METADATA = "metadata"        # 元数据锁
     GLOBAL = "global"            # 全局锁
+    APPLICATION = "application"  # 应用程序锁
 
 
 class LockMode(str, Enum):
@@ -111,6 +112,10 @@ class LockMode(str, Enum):
     AUTO_INC = "auto_inc"        # 自增锁
     GAP = "gap"                  # 间隙锁
     NEXT_KEY = "next_key"        # 临键锁
+    UPDATE = "update"            # 更新锁 (U)
+    BULK_UPDATE = "bu"           # 大容量更新锁 (BU)
+    SCHEMA_STABILITY = "sch_s"   # 架构稳定锁 (Sch-S)
+    SCHEMA_MODIFICATION = "sch_m" # 架构修改锁 (Sch-M)
 
 
 class TransactionState(str, Enum):

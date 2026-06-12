@@ -125,42 +125,50 @@ class ConfigFileManager:
             ConfigError: 配置文件不存在或格式错误
         """
         config_file = self.find_config_file()
-        
         if not config_file:
             if self.config_path:
                 raise ConfigError(f"配置文件不存在: {self.config_path}")
-            return {}  # 没有配置文件返回空字典
+            return {}
         
         try:
             content = config_file.read_text(encoding="utf-8")
-            
-            # 根据扩展名解析
-            suffix = config_file.suffix.lower()
-            
-            if suffix in (".yaml", ".yml"):
-                if not HAS_YAML:
-                    raise ConfigError("需要安装 PyYAML 才能解析 YAML 文件: pip install pyyaml")
-                self._config_data = yaml.safe_load(content) or {}
-                
-            elif suffix == ".json":
-                self._config_data = json.loads(content)
-                
-            elif suffix == ".toml":
-                if not HAS_TOML:
-                    raise ConfigError("需要安装 toml 才能解析 TOML 文件: pip install toml")
-                self._config_data = toml.loads(content)
-                
-            else:
-                raise ConfigError(f"不支持的配置文件格式: {suffix}")
-            
+            self._config_data = self._parse_content(content, config_file.suffix)
             return self._config_data
-            
         except json.JSONDecodeError as e:
             raise ConfigError(f"JSON 解析错误 ({config_file}): {e}")
         except yaml.YAMLError as e:
             raise ConfigError(f"YAML 解析错误 ({config_file}): {e}")
         except Exception as e:
             raise ConfigError(f"配置文件读取失败 ({config_file}): {e}")
+
+    @staticmethod
+    def _parse_content(content: str, suffix: str) -> Dict[str, Any]:
+        """
+        解析配置文件内容
+        
+        参数说明：
+            - content: 文件内容
+            - suffix: 文件后缀（如 .yaml, .json, .toml）
+
+        返回说明：
+            - Dict[str, Any]: 解析后的配置数据
+
+        异常情况：
+            - ConfigError: 不支持的格式或缺少依赖
+        """
+        suffix = suffix.lower()
+        if suffix in (".yaml", ".yml"):
+            if not HAS_YAML:
+                raise ConfigError("需要安装 PyYAML 才能解析 YAML 文件: pip install pyyaml")
+            return yaml.safe_load(content) or {}
+        elif suffix == ".json":
+            return json.loads(content)
+        elif suffix == ".toml":
+            if not HAS_TOML:
+                raise ConfigError("需要安装 toml 才能解析 TOML 文件: pip install toml")
+            return toml.loads(content)
+        else:
+            raise ConfigError(f"不支持的配置文件格式: {suffix}")
     
     def load_profile(self, profile_name: Optional[str] = None) -> ProfileConfig:
         """
@@ -211,35 +219,39 @@ class ConfigFileManager:
             data: 配置数据
             path: 保存路径，None 使用当前路径
         """
-        save_path = path or self.config_path
-        if not save_path:
-            save_path = Path("./dbskiter.yaml")
-        
-        # 确保目录存在
+        save_path = path or self.config_path or Path("./dbskiter.yaml")
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        suffix = save_path.suffix.lower()
-        
+        content = self._serialize_content(data, save_path.suffix)
+        save_path.write_text(content, encoding="utf-8")
+
+    @staticmethod
+    def _serialize_content(data: Dict[str, Any], suffix: str) -> str:
+        """
+        序列化配置数据为文本
+
+        参数说明：
+            - data: 配置数据
+            - suffix: 文件后缀
+
+        返回说明：
+            - str: 序列化后的文本
+        """
+        suffix = suffix.lower()
         if suffix in (".yaml", ".yml"):
             if not HAS_YAML:
                 raise ConfigError("需要安装 PyYAML: pip install pyyaml")
-            content = yaml.dump(data, default_flow_style=False, allow_unicode=True)
-            
+            return yaml.dump(data, default_flow_style=False, allow_unicode=True)
         elif suffix == ".json":
-            content = json.dumps(data, indent=2, ensure_ascii=False)
-            
+            return json.dumps(data, indent=2, ensure_ascii=False)
         elif suffix == ".toml":
             if not HAS_TOML:
                 raise ConfigError("需要安装 toml: pip install toml")
-            content = toml.dumps(data)
-            
+            return toml.dumps(data)
         else:
             # 默认使用 YAML
             if not HAS_YAML:
                 raise ConfigError("需要安装 PyYAML: pip install pyyaml")
-            content = yaml.dump(data, default_flow_style=False, allow_unicode=True)
-        
-        save_path.write_text(content, encoding="utf-8")
+            return yaml.dump(data, default_flow_style=False, allow_unicode=True)
     
     def create_sample_config(self, path: Optional[Path] = None) -> Path:
         """

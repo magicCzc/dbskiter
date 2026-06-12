@@ -152,9 +152,6 @@ class InspectorCommand(BaseCommand):
                 }
                 if action in method_map:
                     return self._execute_ai_mode(skill, action, method_map, scenario_map)
-                if action not in ("report", "baseline"):
-                    self.output.error(f"不支持的操作: {action}")
-                    return 1
 
             if action == "run":
                 return self._run_inspection(skill)

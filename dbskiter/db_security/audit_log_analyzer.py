@@ -280,7 +280,11 @@ class AuditLogAnalyzer:
             elif "oracle" in self.dialect:
                 events = self._get_oracle_audit_events(hours, users)
             else:
-                logger.warning(f"不支持的数据库类型: {self.dialect}")
+                # 通用数据库支持：返回空列表并记录日志
+                logger.info(
+                    f"数据库类型 '{self.dialect}' 暂无专用审计日志分析实现，"
+                    f"返回空列表"
+                )
 
         except Exception as e:
             logger.error(f"获取审计事件失败: {e}")

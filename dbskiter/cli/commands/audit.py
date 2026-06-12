@@ -117,7 +117,7 @@ class AuditCommand(BaseCommand):
                 method_map = {
                     "sql": lambda: skill.audit_sql(self.args.sql),
                     "file": lambda: self._audit_file_ai(skill),
-                    "ddl": lambda: skill.analyze_ddl_impact(self.args.ddl),
+                    "ddl": lambda: skill.analyze_ddl_impact(self.args.ddl_sql),
                     "optimize": lambda: skill.optimize_sql(getattr(self.args, 'sql', '')),
                     "recommend-indexes": lambda: skill.recommend_indexes(
                         getattr(self.args, 'sql', ''),

@@ -1,18 +1,20 @@
 ---
 name: db-lock-analyzer
 description: |
-  数据库锁分析与死锁检测，支持当前锁分析、死锁检测、锁等待链追踪。
+  数据库锁分析与死锁检测，支持当前锁分析、死锁检测、锁等待链追踪、锁统计报告、事务终止。
 
   使用场景：
   - 用户说"看锁" -> 执行 analyze
   - 用户说"死锁" -> 执行 deadlocks
   - 用户说"阻塞" -> 执行 chains
+  - 用户说"锁报告" -> 执行 report
   - 用户说"终止事务" -> 执行 kill <事务ID>
 
   用法：
   - python -m dbskiter --output-mode=ai --database=<name> lock analyze
   - python -m dbskiter --output-mode=ai --database=<name> lock deadlocks
   - python -m dbskiter --output-mode=ai --database=<name> lock chains
+  - python -m dbskiter --output-mode=ai --database=<name> lock report
   - python -m dbskiter --output-mode=ai --database=<name> lock kill <transaction_id>
 ---
 
@@ -101,6 +103,33 @@ python -m dbskiter --database=<数据库名> lock kill <transaction_id>
 | MySQL | 完整支持 | 支持 | 支持 | 需要 PROCESS 权限访问 information_schema.innodb_locks |
 | PostgreSQL | 完整支持 | 支持 | 支持 | 完全可用 |
 | Oracle | 完整支持 | 支持 | 支持 | 需要 SELECT ANY DICTIONARY 权限访问 v$lock、v$session |
+| SQL Server | 完整支持 | 支持 | 支持 | 需要 VIEW SERVER STATE 权限访问 sys.dm_tran_locks |
+| ClickHouse | 部分支持 | 不支持 | 不支持 | 通过system.processes和system.mutations查看 |
+| SQLite | 基础支持 | 不支持 | 不支持 | 通过PRAGMA lock_status查看（SQLite 3.37.0+） |
+| 通用(Generic) | 基础支持 | 不支持 | 不支持 | 通过多种系统视图自适应探测 |
+
+## 通用锁分析说明
+
+通用锁分析器为任意 JDBC 兼容数据库提供基础锁分析能力：
+- 自动探测 pg_locks、innodb_trx、dm_tran_locks、system.processes 等视图
+- 优先使用最详细的数据源，逐级回退
+- 支持的数据库：Trino、Presto、DuckDB、H2、Derby 等任何 JDBC 数据库
+
+## ClickHouse锁分析说明
+
+ClickHouse使用MVCC机制，读操作不阻塞写操作：
+- 锁分析：通过system.processes查看正在执行的查询，通过system.mutations查看异步DDL/DML
+- 不支持传统意义上的死锁检测（无行级锁冲突）
+- 锁等待链不适用（无阻塞等待机制）
+- 主要关注长时间运行的查询和堆积的mutation
+
+## SQLite锁分析说明
+
+SQLite使用文件级锁，锁状态有限：
+- 锁分析：通过PRAGMA lock_status获取锁状态（SQLite 3.37.0+）
+- 不支持死锁检测（SQLite通过忙等待处理冲突）
+- 锁等待链不适用
+- 锁状态：UNLOCKED -> SHARED -> RESERVED -> PENDING -> EXCLUSIVE
 
 ## 权限要求
 
@@ -123,6 +152,14 @@ python -m dbskiter --database=<数据库名> lock kill <transaction_id>
   - `v$session`
   - `dba_objects`
   - `v$sql`
+
+### SQL Server
+- 需要 `VIEW SERVER STATE` 权限访问以下动态管理视图：
+  - `sys.dm_tran_locks` - 锁信息
+  - `sys.dm_exec_sessions` - 会话信息
+  - `sys.dm_exec_requests` - 请求信息
+  - `sys.dm_os_waiting_tasks` - 等待任务
+- 用于检测阻塞链、死锁和锁等待情况
 
 ## AI决策流程
 

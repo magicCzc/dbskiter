@@ -8,6 +8,9 @@ from .base import BaseInspector
 from .mysql_inspector import MySQLInspector
 from .oracle_inspector import OracleInspector
 from .postgresql_inspector import PostgreSQLInspector
+from .mssql_inspector import MSSQLInspector
+from .clickhouse_inspector import ClickHouseInspector
+from .sqlite_inspector import SQLiteInspector
 from .generic_inspector import GenericInspector
 
 __all__ = [
@@ -15,6 +18,9 @@ __all__ = [
     'MySQLInspector',
     'OracleInspector',
     'PostgreSQLInspector',
+    'MSSQLInspector',
+    'ClickHouseInspector',
+    'SQLiteInspector',
     'GenericInspector',
 ]
 
@@ -24,7 +30,7 @@ def get_inspector(dialect: str, connector):
     根据数据库类型获取对应的巡检器
 
     参数:
-        dialect: 数据库方言，如'mysql', 'oracle', 'postgresql'
+        dialect: 数据库方言，如'mysql', 'oracle', 'postgresql', 'mssql'
         connector: 数据库连接器
 
     返回:
@@ -42,6 +48,12 @@ def get_inspector(dialect: str, connector):
         return OracleInspector(connector)
     elif 'postgresql' in dialect:
         return PostgreSQLInspector(connector)
+    elif 'mssql' in dialect or 'sqlserver' in dialect:
+        return MSSQLInspector(connector)
+    elif 'clickhouse' in dialect:
+        return ClickHouseInspector(connector)
+    elif 'sqlite' in dialect:
+        return SQLiteInspector(connector)
     else:
         # 默认使用通用巡检器
         return GenericInspector(connector)

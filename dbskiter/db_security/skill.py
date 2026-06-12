@@ -342,13 +342,10 @@ class SecuritySkill:
         audit_result = self.full_audit()
 
         if not audit_result.get("success"):
-            return {
-                "overall_score": 0,
-                "grade": "F",
-                "assessment": "审计失败",
-                "deductions": ["无法完成安全审计"],
-                "checked_at": datetime.now().isoformat()
-            }
+            return create_error_response(
+                "安全评分失败: 无法完成安全审计",
+                ErrorCode.AUDIT_FAILED
+            )
 
         data = audit_result.get("data", {})
 
@@ -362,14 +359,17 @@ class SecuritySkill:
             "F": "危险"
         }
 
-        return {
-            "overall_score": data.get("overall_score", 0),
-            "grade": grade,
-            "assessment": assessment_map.get(grade, "未知"),
-            "deductions": data.get("deductions", []),
-            "risk_summary": data.get("risk_summary", {}),
-            "checked_at": datetime.now().isoformat()
-        }
+        return create_success_response(
+            data={
+                "overall_score": data.get("overall_score", 0),
+                "grade": grade,
+                "assessment": assessment_map.get(grade, "未知"),
+                "deductions": data.get("deductions", []),
+                "risk_summary": data.get("risk_summary", {}),
+                "checked_at": datetime.now().isoformat()
+            },
+            message="安全评分完成"
+        )
 
     def format_report(self, report: Dict[str, Any]) -> str:
         """
@@ -608,6 +608,8 @@ class SecuritySkill:
                 db_type = 'oracle'
             elif 'postgres' in db_type.lower():
                 db_type = 'postgresql'
+            elif 'mssql' in db_type.lower() or 'sqlserver' in db_type.lower():
+                db_type = 'mssql'
 
             if db_type == 'mysql':
                 # 尝试从performance_schema获取最近的SQL
@@ -701,6 +703,46 @@ class SecuritySkill:
                             samples.append(row[0])
                 except Exception as e:
                     logger.warning(f"无法从AWR获取SQL: {e}")
+
+            elif db_type == 'mssql':
+                # 从Query Store获取SQL样本（SQL Server 2016+）
+                try:
+                    result = self.connector.execute("""
+                        SELECT TOP 50
+                            qst.query_sql_text
+                        FROM sys.query_store_query_text qst
+                        JOIN sys.query_store_query q ON qst.query_text_id = q.query_text_id
+                        JOIN sys.query_store_plan p ON q.query_id = p.query_id
+                        WHERE qst.query_sql_text IS NOT NULL
+                        AND qst.query_sql_text NOT LIKE '%sys.%'
+                        AND qst.query_sql_text NOT LIKE '%dm_%'
+                        AND p.last_execution_time >= DATEADD(HOUR, -24, GETDATE())
+                        ORDER BY p.last_execution_time DESC
+                    """)
+                    for row in result.rows:
+                        if row[0]:
+                            samples.append(row[0])
+                except Exception as e:
+                    logger.warning(f"无法从Query Store获取SQL: {e}")
+
+                # 从过程缓存获取SQL
+                try:
+                    result = self.connector.execute("""
+                        SELECT TOP 30
+                            t.text
+                        FROM sys.dm_exec_cached_plans p
+                        CROSS APPLY sys.dm_exec_sql_text(p.plan_handle) t
+                        WHERE t.text IS NOT NULL
+                        AND t.text NOT LIKE '%sys.%'
+                        AND t.text NOT LIKE '%dm_%'
+                        AND p.cacheobjtype = 'Compiled Plan'
+                        ORDER BY p.usecounts DESC
+                    """)
+                    for row in result.rows:
+                        if row[0]:
+                            samples.append(row[0])
+                except Exception as e:
+                    logger.warning(f"无法从过程缓存获取SQL: {e}")
 
             # 去重并返回
             return list(set(samples))

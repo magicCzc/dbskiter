@@ -8,7 +8,7 @@ dbskiter/__main__.py
     python -m dbskiter diagnose --sql="SELECT * FROM users"
 """
 
-from dbskiter.cli import main
+from dbskiter.cli.main import main
 
 if __name__ == "__main__":
     main()

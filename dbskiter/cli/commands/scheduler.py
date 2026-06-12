@@ -164,6 +164,13 @@ class SchedulerCommand(BaseCommand):
                         backup_type=getattr(self.args, 'type', 'full'),
                         tables=getattr(self.args, 'tables', '').split(',') if getattr(self.args, 'tables', None) else None,
                     ),
+                    "backup-verify": lambda: skill.verify_backup(
+                        getattr(self.args, 'file', ''),
+                    ),
+                    "backup-restore": lambda: skill.restore_backup(
+                        getattr(self.args, 'file', ''),
+                        target_db=getattr(self.args, 'target_db', None),
+                    ),
                     "logs": lambda: skill.get_task_logs(
                         task_name=getattr(self.args, 'task', None),
                         limit=getattr(self.args, 'limit', 50),
@@ -172,6 +179,8 @@ class SchedulerCommand(BaseCommand):
                 }
                 scenario_map = {
                     "backup": "backup",
+                    "backup-verify": "backup_verify",
+                    "backup-restore": "backup_restore",
                     "logs": "scheduler_logs",
                 }
                 if action in method_map:
@@ -707,7 +716,7 @@ class SchedulerCommand(BaseCommand):
         self.output.print(f"\n正在执行工作流 '{name}'...")
         self.output.print(f"{'='*60}")
 
-        result = skill.submit_workflow(name)
+        result = skill.submit_workflow_by_name(name)
 
         if result.get('success'):
             self.output.success(f"\n工作流执行完成")

@@ -140,6 +140,11 @@ class BaseInspector(ABC):
         except ValueError as e:
             logger.warning(f"查询参数错误: {e}")
             return None
+        except Exception as e:
+            # 防御性编程：任何未预料到的异常都应安全返回 None
+            # 而不是中断巡检流程。记录 warning 级别日志便于排查。
+            logger.warning(f"查询执行异常 [{type(e).__name__}]: {e}")
+            return None
 
     def _create_item(self, name: str, insp_type: InspectionType,
                      risk_level: RiskLevel, status: str,

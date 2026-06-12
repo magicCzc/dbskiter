@@ -3,10 +3,6 @@ dbskiter.cli
 
 CLI 模块 - 数据库 Skills 统一命令行入口
 
-重构记录：
-- 2026-04-16: 从单文件 cli.py 重构为模块化结构
-- 支持命令自动注册和插件扩展
-
 用法:
     from dbskiter.cli import main
     main()

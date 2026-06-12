@@ -1,12 +1,16 @@
 """
 sql_master/executor.py
 SQL 执行器 - 核心执行能力
+
+统一使用 UnifiedConnector 作为底层连接器，
+消除对 database_connector.DatabaseConnector 的直接依赖，
+消除未定义的 connect_sqlite/connect_mysql 函数引用。
 """
 
 from typing import Optional, Any, List
 
 from dbskiter.shared.unified_connector import UnifiedConnector
-from dbskiter.shared.database_connector import DatabaseConnector, QueryResult
+from dbskiter.shared.query_result import QueryResult
 
 
 class SQLExecutor:
@@ -31,23 +35,26 @@ class SQLExecutor:
         username: str = "",
         password: str = "",
         database: str = "",
-        filename: str = ""
+        **kwargs
     ) -> "SQLExecutor":
-        """建立数据库连接"""
-        self._connector = DatabaseConnector(
+        """建立数据库连接（统一使用 UnifiedConnector）"""
+        self._connector = UnifiedConnector(
             dialect=dialect,
             host=host,
             port=port,
             username=username,
             password=password,
             database=database,
-            filename=filename
+            **kwargs
         )
         return self
 
     def connect_sqlite(self, db_path: str = ":memory:") -> "SQLExecutor":
         """快速连接 SQLite"""
-        self._connector = connect_sqlite(db_path)
+        self._connector = UnifiedConnector(
+            dialect="sqlite",
+            database=db_path
+        )
         return self
 
     def connect_mysql(
@@ -59,7 +66,14 @@ class SQLExecutor:
         database: str = ""
     ) -> "SQLExecutor":
         """快速连接 MySQL"""
-        self._connector = connect_mysql(host, port, username, password, database)
+        self._connector = UnifiedConnector(
+            dialect="mysql+pymysql",
+            host=host,
+            port=port,
+            username=username,
+            password=password,
+            database=database
+        )
         return self
 
     def execute(self, sql: str, params: tuple = None) -> QueryResult:

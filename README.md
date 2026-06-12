@@ -1,10 +1,6 @@
 # dbskiter - 数据库AIOps运维助手
 
 <p align="center">
-  <img src="image.png" alt="dbskiter架构图" width="800"/>
-</p>
-
-<p align="center">
   <strong>开源免费的数据库运维工具，让AI帮你管理数据库</strong>
 </p>
 
@@ -31,12 +27,20 @@
 
 ### 支持数据库
 
-| 数据库 | 状态 | 说明 |
-|--------|------|------|
-| MySQL | 完全支持 | 主推荐，功能最完善 |
-| Oracle | 支持 | 11g/12c/19c+ |
-| PostgreSQL | 部分支持 | 基础功能可用 |
-| SQL Server | 计划中 | 未来版本支持 |
+| 级别 | 数据库 | 说明 |
+|------|--------|------|
+| 深度支持 | MySQL / MariaDB | 专用驱动，功能最完善，含AAS计算、慢查询分析 |
+| 深度支持 | Oracle | 专用驱动，11g/12c/19c+，含性能分析器 |
+| 深度支持 | PostgreSQL | 专用驱动，诊断、监控、锁分析全覆盖 |
+| 深度支持 | SQL Server (MSSQL) | 专用驱动，2016+，支持 Query Store |
+| 深度支持 | ClickHouse | 专用驱动，诊断、监控、锁分析全覆盖 |
+| 深度支持 | SQLite | 专用驱动，诊断、监控全覆盖 |
+| 通用支持 | Trino / Presto | Generic 驱动，通过 INFORMATION_SCHEMA 适配 |
+| 通用支持 | DuckDB | Generic 驱动，基础诊断与监控 |
+| 通用支持 | Apache Derby, H2, HSQLDB | Generic 驱动，基础诊断与监控 |
+| 理论支持 | 任何 JDBC 4.0+ 兼容数据库 | Generic 驱动自动能力探测适配 |
+
+**架构说明**: 本项目采用 **"6 + N" 双层驱动架构**。6 个专用驱动覆盖主流数据库的深度功能，Generic 驱动为其余 JDBC 兼容数据库提供基础支持。Generic 驱动通过运行时能力探测自动适配（检测 INFORMATION_SCHEMA、pg_stat_activity、v$session 等系统视图的存在情况），不支持的功能优雅降级返回提示而非报错。
 
 ---
 
@@ -101,6 +105,14 @@ DB_ORCL_USER=your_username
 DB_ORCL_PASSWORD=your_password
 DB_ORCL_SERVICE=orcl
 DB_ORCL_DIALECT=oracle+jdbc
+
+# SQL Server - 示例库（示例配置，请替换为实际值）
+DB_MSSQL_HOST=your_sqlserver_host
+DB_MSSQL_PORT=1433
+DB_MSSQL_USER=your_username
+DB_MSSQL_PASSWORD=your_password
+DB_MSSQL_NAME=your_database
+DB_MSSQL_DIALECT=mssql+pyodbc
 ```
 
 **使用别名连接**：
@@ -109,6 +121,7 @@ DB_ORCL_DIALECT=oracle+jdbc
 # 使用别名连接指定数据库
 dbskiter --database=jump sql execute "SELECT 1"
 dbskiter --database=orcl sql execute "SELECT 1 FROM DUAL"
+dbskiter --database=mssql sql execute "SELECT 1"
 ```
 
 ### 3. 验证安装
@@ -227,7 +240,7 @@ dbskiter --database=<数据库名> inspector intelligent
 
 ---
 
-## � 使用示例
+## 使用示例
 
 ### 场景1：数据库变慢了
 
@@ -280,57 +293,183 @@ dbskiter --database=<数据库名> monitor history table_size
 
 ```
 dbskiter/
+├── __main__.py                   # Python模块入口
+├── cli.py                        # CLI桥接入口
+├── mcp_integration.py            # MCP协议集成
+│
+├── config/                       # 配置模块
+│   └── security_config.py       # 安全配置
+│
 ├── cli/                          # CLI命令入口
 │   ├── commands/                 # 各模块命令实现
 │   │   ├── diagnose.py          # 诊断命令
+│   │   ├── diagnose_report_generator.py # 诊断报告生成命令
 │   │   ├── monitor.py           # 监控命令
 │   │   ├── security.py          # 安全命令
 │   │   ├── sql.py               # SQL命令
 │   │   ├── lock.py              # 锁分析命令
-│   │   └── inspector.py         # 巡检命令
+│   │   ├── inspector.py         # 巡检命令
+│   │   ├── scheduler.py         # 调度命令
+│   │   └── audit.py             # 审核命令
 │   ├── main.py                  # CLI主入口
-│   └── config.py                # 配置管理
+│   ├── config.py                # 配置管理
+│   ├── config_file.py           # 配置文件解析
+│   ├── readonly_middleware.py   # 只读安全中间件
+│   ├── error_handler.py        # CLI错误处理
+│   ├── exceptions.py           # CLI异常定义
+│   └── output.py               # 输出格式化
 │
 ├── db_diagnose/                  # 诊断模块
 │   ├── skill.py                 # 诊断Skill主类
-│   ├── engine.py                # 诊断引擎
-│   └── analyzers/               # 各类分析器
+│   ├── diagnosticians/          # 各数据库诊断器
+│   │   ├── base.py             # 诊断器基类
+│   │   ├── generic_diagnostician.py # 通用诊断器
+│   │   ├── mysql_diagnostician.py
+│   │   ├── mysql_performance_analyzer.py # MySQL性能分析
+│   │   ├── postgresql_diagnostician.py
+│   │   ├── postgresql_performance_analyzer.py # PG性能分析
+│   │   ├── oracle_diagnostician.py
+│   │   ├── oracle_performance_analyzer.py # Oracle性能分析
+│   │   ├── oracle_slow_query_analyzer.py # Oracle慢查询分析
+│   │   ├── clickhouse_diagnostician.py
+│   │   ├── clickhouse_performance_analyzer.py # CH性能分析
+│   │   ├── mssql_diagnostician.py
+│   │   ├── sqlite_diagnostician.py
+│   │   └── sqlite_performance_analyzer.py # SQLite性能分析
+│   ├── analyzers/               # 各类分析器
+│   │   ├── sql_analyzer.py
+│   │   ├── plan_analyzer.py
+│   │   ├── table_analyzer.py
+│   │   └── batch_analyzer.py
+│   ├── core/                    # 核心组件
+│   │   ├── performance_model.py
+│   │   └── slow_query_analyzer.py
+│   ├── reports/                 # 报告生成
+│   │   └── generator.py
+│   ├── models.py                # 数据模型
+│   └── utils.py                 # 工具函数
 │
 ├── db_monitor/                   # 监控模块
 │   ├── skill.py                 # 监控Skill主类
-│   ├── collector.py             # 指标采集器
+│   ├── collectors/              # 指标采集器
+│   │   ├── base.py             # 采集器基类
+│   │   ├── generic_collector.py # 通用采集器
+│   │   ├── mysql_collector.py
+│   │   ├── postgresql_collector.py
+│   │   ├── oracle_collector.py
+│   │   ├── clickhouse_collector.py
+│   │   ├── mssql_collector.py
+│   │   └── sqlite_collector.py
 │   ├── storage.py               # 数据存储
-│   └── models.py                # 数据模型
+│   ├── health_scorer.py         # 健康评分
+│   ├── capacity_predictor.py    # 容量预测
+│   ├── advanced_predictor.py    # 高级预测
+│   ├── trend_analyzer.py        # 趋势分析
+│   ├── models.py                # 数据模型
+│   └── utils.py                 # 工具函数
 │
 ├── db_security/                  # 安全模块
 │   ├── skill.py                 # 安全Skill主类
-│   ├── advanced_security_analyzer.py
-│   ├── sensitive_data_scanner_v2.py
-│   └── password_policy_checker.py
+│   ├── sql_injection_detector_v2.py  # SQL注入检测
+│   ├── sensitive_data_scanner_v2.py  # 敏感数据扫描
+│   ├── password_policy_checker.py    # 密码策略检查
+│   ├── advanced_security_analyzer.py # 高级安全分析
+│   ├── audit_log_analyzer.py    # 审计日志分析
+│   ├── login_security_monitor.py # 登录安全监控
+│   ├── models.py                # 数据模型
+│   └── utils.py                 # 工具函数
 │
 ├── db_scheduler/                 # 调度模块
 │   ├── skill.py                 # 调度Skill主类
+│   ├── backup.py                # 备份管理
 │   ├── connection_pool.py       # 连接池管理
-│   └── persistent_storage.py    # 持久化存储
+│   ├── scheduler_engine.py      # 调度引擎
+│   ├── task_executors.py        # 任务执行器
+│   ├── task_storage.py          # 任务持久化
+│   ├── persistent_storage.py    # 通用持久化
+│   ├── models.py                # 数据模型
+│   ├── utils.py                 # 工具函数
+│   ├── dependency_manager.py    # 依赖管理
+│   ├── distributed_lock.py      # 分布式锁
+│   ├── monitoring.py            # 监控
+│   └── result_cleanup.py        # 结果清理
 │
 ├── db_inspector/                 # 巡检模块
 │   ├── skill.py                 # 巡检Skill主类
-│   └── intelligent_inspector.py # 智能巡检
+│   ├── intelligent_inspector.py # 智能巡检
+│   ├── inspectors/              # 各数据库巡检器
+│   │   ├── base.py             # 巡检器基类
+│   │   ├── generic_inspector.py # 通用巡检器
+│   │   ├── mysql_inspector.py
+│   │   ├── postgresql_inspector.py
+│   │   ├── oracle_inspector.py
+│   │   ├── clickhouse_inspector.py
+│   │   ├── mssql_inspector.py
+│   │   └── sqlite_inspector.py
+│   ├── report_generator.py      # 报告生成
+│   ├── models.py                # 数据模型
+│   └── utils.py                 # 工具函数
 │
 ├── db_lock_analyzer/             # 锁分析模块
-│   └── skill.py                 # 锁分析Skill主类
+│   ├── skill.py                 # 锁分析Skill主类
+│   ├── models.py                # 数据模型
+│   └── utils.py                 # 工具函数
 │
 ├── sql_master/                   # SQL执行模块
 │   ├── skill.py                 # SQL Skill主类
 │   ├── executor.py              # SQL执行器
-│   └── data_transfer.py         # 数据传输
+│   ├── security_checker.py      # SQL安全检查器
+│   ├── security_executor_v2.py  # 安全执行器
+│   ├── sql_parser.py            # SQL解析器
+│   ├── sql_rewriter_v2.py       # SQL重写器
+│   ├── analyzer.py              # SQL分析器
+│   ├── data_transfer.py         # 数据传输
+│   ├── audit_storage.py         # 审计存储
+│   ├── audit_logger.py          # 审计日志
+│   ├── cache_manager.py         # 缓存管理
+│   ├── cache_invalidator.py     # 缓存失效
+│   ├── schema_aware.py          # Schema感知
+│   ├── intelligent_intellisense.py  # 智能提示
+│   ├── models.py                # 数据模型
+│   └── utils.py                 # 工具函数
+│
+├── db_sql_auditor/               # SQL审核模块
+│   ├── skill.py                 # 审核Skill主类
+│   ├── analyzers/               # 各数据库审核器
+│   │   ├── base.py             # 审核器基类
+│   │   ├── generic_analyzer.py # 通用审核器
+│   │   ├── mysql_analyzer.py
+│   │   ├── postgresql_analyzer.py
+│   │   ├── oracle_analyzer.py
+│   │   ├── clickhouse_analyzer.py
+│   │   ├── mssql_analyzer.py
+│   │   └── sqlite_analyzer.py
+│   ├── intelligent_optimizer.py # 智能优化器
+│   ├── models.py                # 数据模型
+│   └── utils.py                 # 工具函数
 │
 └── shared/                       # 共享组件
-    ├── database_connector.py    # 数据库连接器
-    ├── unified_connector.py     # 统一连接器
-    ├── zabbix_client.py         # Zabbix客户端
-    ├── prometheus_client.py     # Prometheus客户端
-    └── mysql_aas_calculator_v2.py # AAS计算器
+    ├── database_connector.py    # 数据库连接器（可配置连接池）
+    ├── unified_connector.py     # 统一连接器（JDBC/SQLAlchemy适配器）
+    ├── sql_utils.py             # SQL工具函数共享（表名提取/类型检测/能力摘要等）
+    ├── query_result.py          # 查询结果模型
+    ├── validators.py            # 输入验证和脱敏
+    ├── error_handler.py         # 统一异常处理
+    ├── models.py                # 共享数据模型
+    ├── db_metadata.py           # 数据库元数据
+    ├── schema_detector.py       # 数据库类型检测
+    ├── sql_dialect.py           # SQL方言适配
+    ├── sql_fingerprint.py       # SQL指纹计算
+    ├── utils.py                 # 通用工具函数
+    ├── ai_context.py            # AI上下文
+    ├── zabbix_client.py         # Zabbix监控客户端
+    ├── prometheus_client.py     # Prometheus指标采集
+    ├── prometheus_metrics.py    # Prometheus指标定义
+    ├── oracle_jdbc_connector.py # Oracle JDBC连接器
+    ├── oracle_metrics.py        # Oracle指标定义
+    ├── slow_log_parser.py       # 慢日志解析
+    ├── mysql_slow_query_collector.py # MySQL慢查询采集
+    └── mysql_aas_calculator_v2.py    # AAS计算
 ```
 
 ---
@@ -431,6 +570,18 @@ dbskiter --prefix=MYSQL2 monitor health
 dbskiter --database=<数据库名> --json monitor health
 ```
 
+### 详细日志
+
+```bash
+# 查看 Generic 驱动能力探测结果等 INFO 级别日志
+dbskiter --database=trino --verbose diagnose realtime
+
+# --verbose 会显示 Generic 驱动自动探测到的能力摘要：
+# [Generic驱动] 能力探测: 版本查询, 可用视图: INFORMATION_SCHEMA
+```
+
+### 调试模式
+
 ### 配合Prometheus
 
 ```bash
@@ -441,6 +592,30 @@ dbskiter --database=<数据库名> monitor collect
 ---
 
 ## 重要说明
+
+### 安全设计
+
+dbskiter 采用三层纵深防御架构保障数据安全:
+
+| 层级 | 机制 | 说明 |
+|------|------|------|
+| AI层 | 规则限制 | AI助手禁止执行写操作SQL |
+| CLI层 | ReadOnlyEnforcer | 环境变量控制, 拦截写操作 |
+| 数据库层 | 用户权限 | 数据库账号权限物理限制 |
+
+关键安全措施:
+
+- **密码保护**: MySQL使用MYSQL_PWD环境变量传递密码, PostgreSQL使用PGPASSWORD环境变量, 避免密码在进程列表中暴露
+- **SQL注入防护**: 表名白名单正则验证, 值转义覆盖反斜杠和单引号, 恢复操作仅允许白名单语句类型(INSERT/CREATE TABLE/DROP TABLE IF EXISTS等)
+- **条件解析安全**: 告警条件表达式使用自定义解析器, 不使用eval(), 仅支持比较运算和逻辑运算
+- **只读模式**: 恢复操作在只读模式下被拒绝, 防止误操作
+- **表名引号包裹**: 根据数据库类型自动选择引号(MySQL/ClickHouse用反引号, PostgreSQL用双引号), 支持schema.table限定表名
+
+```bash
+# 启用只读模式
+export DBSKITER_READ_ONLY=true
+dbskiter --database=mydb diagnose realtime
+```
 
 ### 定位说明
 
@@ -453,6 +628,35 @@ dbskiter 是**诊断工具**，不是实时监控系统。
 | 故障诊断 | **dbskiter** |
 | SQL优化 | **dbskiter** |
 | 安全审计 | **dbskiter** |
+
+### 连接池配置
+
+通过环境变量自定义连接池参数（无需修改代码）：
+
+```bash
+# 连接池大小（默认5）
+DB_POOL_SIZE=10
+# 最大溢出连接（默认10）
+DB_POOL_MAX_OVERFLOW=20
+# 连接超时秒数（默认30）
+DB_POOL_TIMEOUT=60
+# 连接回收周期秒数（默认3600，即1小时）
+DB_POOL_RECYCLE=7200
+```
+
+也可以在代码中通过 kwargs 传入：
+
+```python
+conn = DatabaseConnector(
+    dialect="mysql",
+    host="localhost",
+    database="mydb",
+    username="user",
+    password="pass",
+    pool_size=10,
+    pool_max_overflow=20
+)
+```
 
 ### 定时任务示例
 
@@ -468,10 +672,9 @@ dbskiter 是**诊断工具**，不是实时监控系统。
 
 ## 文档
 
-- [CLI命令参考](docs/CLI_COMMAND_REFERENCE.md)
+- [CLI使用指南](CLI使用指南.md)
 - [AI集成指南](AI集成指南.md)
 - [Skill系统介绍](.trae/skills/README.md)
-- [数据采集方案](docs/DATA_COLLECTION_PLAN.md)
 
 ---
 

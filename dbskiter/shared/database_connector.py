@@ -54,7 +54,7 @@ class DatabaseConnector:
         >>> print(result.df)
     """
 
-    # 连接池配置
+    # 连接池默认配置（可通过 kwargs 或环境变量覆盖）
     POOL_SIZE = 5
     POOL_MAX_OVERFLOW = 10
     POOL_TIMEOUT = 30
@@ -73,7 +73,13 @@ class DatabaseConnector:
     ):
         """
         初始化数据库连接器
-        
+
+        连接池配置（可通过 kwargs 传入，也可通过对应环境变量设置）：
+            pool_size: 池大小（默认5，环境变量 DB_POOL_SIZE）
+            pool_max_overflow: 最大溢出（默认10，环境变量 DB_POOL_MAX_OVERFLOW）
+            pool_timeout: 超时秒数（默认30，环境变量 DB_POOL_TIMEOUT）
+            pool_recycle: 回收秒数（默认3600，环境变量 DB_POOL_RECYCLE）
+
         Args:
             dialect: 数据库类型 (sqlite/mysql/postgresql/sqlserver/oracle/clickhouse)
             host: 主机地址
@@ -82,7 +88,7 @@ class DatabaseConnector:
             password: 密码
             database: 数据库名
             filename: SQLite 文件路径
-            **kwargs: 额外参数
+            **kwargs: 额外参数（含连接池覆盖配置）
         """
         self.dialect = dialect.lower()
         self.host = host
@@ -92,10 +98,21 @@ class DatabaseConnector:
         self.database = database
         self.filename = filename
         self.kwargs = kwargs
-        
+
+        # 从 kwargs 读取连接池配置（支持运行时覆盖）
+        import os as _os
+        self._pool_size = int(kwargs.get("pool_size",
+                            _os.getenv("DB_POOL_SIZE", self.POOL_SIZE)))
+        self._pool_max_overflow = int(kwargs.get("pool_max_overflow",
+                                      _os.getenv("DB_POOL_MAX_OVERFLOW", self.POOL_MAX_OVERFLOW)))
+        self._pool_timeout = int(kwargs.get("pool_timeout",
+                                 _os.getenv("DB_POOL_TIMEOUT", self.POOL_TIMEOUT)))
+        self._pool_recycle = int(kwargs.get("pool_recycle",
+                                  _os.getenv("DB_POOL_RECYCLE", self.POOL_RECYCLE)))
+
         self._engine: Optional[Engine] = None
         self._engine_url: Optional[str] = None
-        
+
         self._init_engine()
 
     @classmethod
@@ -187,12 +204,11 @@ class DatabaseConnector:
             self._engine = create_engine(
                 self._engine_url,
                 poolclass=QueuePool,
-                pool_size=self.POOL_SIZE,
-                max_overflow=self.POOL_MAX_OVERFLOW,
-                pool_timeout=self.POOL_TIMEOUT,
-                pool_recycle=self.POOL_RECYCLE,
+                pool_size=self._pool_size,
+                max_overflow=self._pool_max_overflow,
+                pool_timeout=self._pool_timeout,
+                pool_recycle=self._pool_recycle,
                 echo=False,
-                # 连接健康检查
                 pool_pre_ping=True,
             )
             logger.info(f"数据库引擎初始化成功: {self.dialect}")
@@ -208,14 +224,39 @@ class DatabaseConnector:
             return self._build_mysql_url()
         elif "postgresql" in self.dialect:
             return self._build_postgresql_url()
-        elif "sqlserver" in self.dialect:
+        elif "sqlserver" in self.dialect or "mssql" in self.dialect:
             return self._build_sqlserver_url()
         elif self.dialect in ("oracle", "oracle+cx_oracle", "oracle+oracledb"):
             return self._build_oracle_url()
         elif "clickhouse" in self.dialect:
             return self._build_clickhouse_url()
         else:
-            raise ValueError(f"不支持的数据库类型: {self.dialect}")
+            # 通用 JDBC URL 构建（适用于 Trino/DuckDB/H2/Derby 等）
+            logger.info(
+                f"方言 '{self.dialect}' 使用通用 JDBC URL 格式"
+            )
+            return self._build_generic_url()
+
+    def _build_generic_url(self) -> str:
+        """
+        构建通用数据库连接 URL
+
+        适用于任何支持 SQLAlchemy 的 JDBC 数据库。
+        使用标准格式：dialect://user:pass@host:port/database
+
+        返回：
+            str: 通用连接 URL
+        """
+        encoded_password = quote_plus(self.password) if self.password else ""
+        if self.host and self.port:
+            return (
+                f"{self.dialect}://{self.username}:{encoded_password}"
+                f"@{self.host}:{self.port}/{self.database}"
+            )
+        elif self.database:
+            return f"{self.dialect}:///{self.database}"
+        else:
+            return f"{self.dialect}://"
 
     def _build_sqlite_url(self) -> str:
         """构建 SQLite URL"""
@@ -244,26 +285,30 @@ class DatabaseConnector:
 
     def _build_postgresql_url(self) -> str:
         """构建 PostgreSQL URL"""
+        encoded_password = quote_plus(self.password) if self.password else ""
         return (
-            f"postgresql://{self.username}:{self.password}"
+            f"postgresql://{self.username}:{encoded_password}"
             f"@{self.host}:{self.port}/{self.database}"
         )
 
     def _build_sqlserver_url(self) -> str:
         """构建 SQL Server URL"""
+        encoded_password = quote_plus(self.password) if self.password else ""
         return (
-            f"mssql+pyodbc://{self.username}:{self.password}"
+            f"mssql+pyodbc://{self.username}:{encoded_password}"
             f"@{self.host}:{self.port}/{self.database}"
         )
 
     def _build_oracle_url(self) -> str:
         """构建 Oracle URL"""
-        # Oracle 默认端口 1521
-        if self.port == 3306:
-            self.port = 1521
-        
+        # 使用本地变量，不修改实例属性（避免多线程竞态）
+        port = self.port
+        if port == 3306:
+            port = 1521
+
         service_name = self.kwargs.get("service_name", self.database)
-        
+        encoded_password = quote_plus(self.password) if self.password else ""
+
         # 根据 dialect 选择驱动
         if "oracledb" in self.dialect:
             driver = "oracledb"
@@ -276,22 +321,23 @@ class DatabaseConnector:
                 logger.warning(f"无法启用 Oracle thick 模式: {e}，将使用 thin 模式")
         else:
             driver = "cx_oracle"
-        
+
         if service_name:
             return (
-                f"oracle+{driver}://{self.username}:{self.password}"
-                f"@{self.host}:{self.port}/{service_name}"
+                f"oracle+{driver}://{self.username}:{encoded_password}"
+                f"@{self.host}:{port}/{service_name}"
             )
         else:
             return (
-                f"oracle+{driver}://{self.username}:{self.password}"
-                f"@{self.host}:{self.port}"
+                f"oracle+{driver}://{self.username}:{encoded_password}"
+                f"@{self.host}:{port}"
             )
 
     def _build_clickhouse_url(self) -> str:
         """构建 ClickHouse URL"""
+        encoded_password = quote_plus(self.password) if self.password else ""
         return (
-            f"clickhouse+native://{self.username}:{self.password}"
+            f"clickhouse+native://{self.username}:{encoded_password}"
             f"@{self.host}:{self.port}/{self.database}"
         )
 

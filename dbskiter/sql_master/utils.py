@@ -20,6 +20,7 @@ import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from dbskiter.sql_master.models import SQLType
+from dbskiter.shared.sql_utils import extract_tables as _shared_extract_tables
 
 
 class SQLTypeDetector:
@@ -139,6 +140,7 @@ class SQLFormatter:
     def extract_tables(sql: str) -> List[str]:
         """
         提取SQL中的表名
+        (委托至 shared.sql_utils.extract_tables)
 
         参数:
             sql: SQL语句
@@ -146,32 +148,7 @@ class SQLFormatter:
         返回:
             List[str]: 表名列表
         """
-        if not sql:
-            return []
-
-        tables = set()
-
-        # FROM 子句
-        from_pattern = re.compile(r'\bFROM\s+(\w+)', re.IGNORECASE)
-        for match in from_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        # JOIN 子句
-        join_pattern = re.compile(r'\bJOIN\s+(\w+)', re.IGNORECASE)
-        for match in join_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        # INTO 子句
-        into_pattern = re.compile(r'\bINTO\s+(\w+)', re.IGNORECASE)
-        for match in into_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        # UPDATE 子句
-        update_pattern = re.compile(r'\bUPDATE\s+(\w+)', re.IGNORECASE)
-        for match in update_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        return sorted(list(tables))
+        return _shared_extract_tables(sql)
 
     @staticmethod
     def normalize(sql: str) -> str:
@@ -396,6 +373,10 @@ class SQLAnalyzer:
         """
         分析SQL复杂度和规范问题
 
+        注意:
+            - complexity_score 仅反映实际复杂度（JOIN/子查询/GROUP BY等）
+            - 代码规范问题（SELECT * / 缺少LIMIT等）记录在 issues 中但不影响复杂等级
+
         参数:
             sql: SQL语句
 
@@ -406,16 +387,17 @@ class SQLAnalyzer:
             return {"level": "unknown", "score": 0, "issues": [], "suggestions": []}
 
         sql_upper = sql.upper()
-        score = 0
+        complexity_score = 0
+        issues_score = 0
         factors = []
         issues = []
         suggestions = []
 
-        # ========== 规范检查（与db_sql_auditor标准对齐）==========
+        # ========== 规范检查（不影响复杂度等级）==========
 
         # SELECT *
         if re.search(r'SELECT\s+\*', sql_upper):
-            score += 15
+            issues_score += 15
             issues.append("禁止使用SELECT *")
             suggestions.append("明确指定需要的列名")
 
@@ -423,13 +405,13 @@ class SQLAnalyzer:
         is_select = re.search(r'^\s*SELECT\b', sql_upper) is not None
         has_limit = 'LIMIT' in sql_upper
         if is_select and not has_limit:
-            score += 10
+            issues_score += 10
             issues.append("建议添加LIMIT限制")
             suggestions.append("添加LIMIT限制返回行数")
 
         # NOT IN
         if re.search(r'NOT\s+IN\b', sql_upper):
-            score += 10
+            issues_score += 10
             issues.append("避免使用NOT IN")
             suggestions.append("使用NOT EXISTS替代NOT IN")
 
@@ -437,60 +419,61 @@ class SQLAnalyzer:
         sql_type_match = re.search(r'^\s*(DELETE|UPDATE)\b', sql_upper)
         has_where = 'WHERE' in sql_upper
         if sql_type_match and not has_where:
-            score += 50
+            issues_score += 50
             issues.append("禁止无WHERE条件的DELETE/UPDATE")
             suggestions.append("添加WHERE条件限制影响范围")
 
         # DROP/TRUNCATE
         if re.search(r'^\s*(DROP|TRUNCATE)\b', sql_upper):
-            score += 50
+            issues_score += 50
             issues.append("禁止DROP/TRUNCATE操作")
             suggestions.append("确认操作必要性并备份数据")
 
-        # ========== 复杂度分析 ==========
+        # ========== 复杂度分析（影响等级）==========
 
         # JOIN复杂度
         join_count = sql_upper.count(' JOIN ')
         if join_count > 0:
-            score += join_count * 10
+            complexity_score += join_count * 10
             factors.append(f"{join_count}个JOIN")
 
         # 子查询
         subquery_count = sql_upper.count('SELECT') - 1
         if subquery_count > 0:
-            score += subquery_count * 15
+            complexity_score += subquery_count * 15
             factors.append(f"{subquery_count}个子查询")
 
         # WHERE条件复杂度
         where_count = sql_upper.count(' AND ') + sql_upper.count(' OR ')
         if where_count > 0:
-            score += where_count * 5
+            complexity_score += where_count * 5
             factors.append(f"{where_count}个WHERE条件")
 
         # GROUP BY
         if 'GROUP BY' in sql_upper:
-            score += 10
+            complexity_score += 10
             factors.append("包含GROUP BY")
 
         # ORDER BY
         if 'ORDER BY' in sql_upper:
-            score += 5
+            complexity_score += 5
             factors.append("包含ORDER BY")
 
-        # 确定等级
-        if score >= 50:
+        # 确定等级（基于复杂度分数）
+        if complexity_score >= 50:
             level = "high"
-        elif score >= 20:
+        elif complexity_score >= 20:
             level = "medium"
         else:
             level = "low"
 
         return {
             "level": level,
-            "score": score,
+            "score": complexity_score,
             "factors": factors,
             "issues": issues,
-            "suggestions": suggestions
+            "suggestions": suggestions,
+            "issues_score": issues_score,
         }
 
     @staticmethod

@@ -14,10 +14,13 @@ SQL 重写器 V2 - 真正的 SQL 优化重写
 创建时间：2026-04-20
 """
 
+import logging
 import re
 from typing import List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
+
+logger = logging.getLogger(__name__)
 
 from dbskiter.shared.unified_connector import UnifiedConnector
 
@@ -351,7 +354,7 @@ class SQLRewriterV2:
                 result = self.connector.execute(f"PRAGMA table_info({table_name})")
                 return [row[1] for row in result.rows]
         except Exception as e:
-            print(f"获取表字段失败: {e}")
+            logger.error(f"获取表字段失败: {e}")
         return []
     
     def _analyze_subquery(self, sql: str) -> Optional[RewriteSuggestion]:

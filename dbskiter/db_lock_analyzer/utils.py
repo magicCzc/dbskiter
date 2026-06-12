@@ -239,6 +239,109 @@ class LockParser:
         result = oracle_mode_map.get(mode_str, (LockMode.SHARED, 'Unknown'))
         return result[0]
 
+    @staticmethod
+    def parse_mssql_lock_type(lock_type_str: Optional[str]) -> LockType:
+        """
+        解析SQL Server锁类型
+
+        SQL Server资源类型：
+        - DATABASE: 数据库级锁
+        - FILE: 文件级锁
+        - OBJECT: 对象级锁（表、视图等）
+        - PAGE: 页级锁
+        - KEY: 键级锁（行锁）
+        - EXTENT: 区段锁
+        - RID: 行标识锁
+        - APPLICATION: 应用程序锁
+        - METADATA: 元数据锁
+
+        参数:
+            lock_type_str: SQL Server资源类型字符串
+
+        返回:
+            LockType: 锁类型枚举
+        """
+        if not lock_type_str:
+            return LockType.ROW
+
+        lock_type_upper = lock_type_str.upper()
+
+        if lock_type_upper == 'DATABASE':
+            return LockType.GLOBAL
+        elif lock_type_upper == 'OBJECT':
+            return LockType.TABLE
+        elif lock_type_upper == 'PAGE':
+            return LockType.PAGE
+        elif lock_type_upper in ('KEY', 'RID'):
+            return LockType.ROW
+        elif lock_type_upper == 'METADATA':
+            return LockType.METADATA
+        elif lock_type_upper == 'APPLICATION':
+            return LockType.APPLICATION
+        else:
+            return LockType.ROW
+
+    @staticmethod
+    def parse_mssql_lock_mode(lock_mode_str: Optional[str]) -> LockMode:
+        """
+        解析SQL Server锁模式
+
+        SQL Server锁模式：
+        - S: 共享锁 (Shared)
+        - X: 排他锁 (Exclusive)
+        - IS: 意向共享锁 (Intent Shared)
+        - IX: 意向排他锁 (Intent Exclusive)
+        - SIX: 共享意向排他锁 (Shared with Intent Exclusive)
+        - U: 更新锁 (Update)
+        - BU: 大容量更新锁 (Bulk Update)
+        - Sch-S: 架构稳定锁 (Schema Stability)
+        - Sch-M: 架构修改锁 (Schema Modification)
+
+        参数:
+            lock_mode_str: SQL Server锁模式字符串
+
+        返回:
+            LockMode: 锁模式枚举
+        """
+        if not lock_mode_str:
+            return LockMode.SHARED
+
+        lock_mode_upper = lock_mode_str.upper().strip()
+
+        # 精确匹配
+        mssql_mode_map = {
+            'S': LockMode.SHARED,
+            'X': LockMode.EXCLUSIVE,
+            'IS': LockMode.INTENTION_SHARED,
+            'IX': LockMode.INTENTION_EXCLUSIVE,
+            'SIX': LockMode.INTENTION_EXCLUSIVE,
+            'U': LockMode.UPDATE,
+            'BU': LockMode.BULK_UPDATE,
+            'SCH-S': LockMode.SCHEMA_STABILITY,
+            'SCH-M': LockMode.SCHEMA_MODIFICATION,
+        }
+
+        if lock_mode_upper in mssql_mode_map:
+            return mssql_mode_map[lock_mode_upper]
+
+        # 模糊匹配
+        if 'X' in lock_mode_upper and 'IX' not in lock_mode_upper and 'SIX' not in lock_mode_upper:
+            return LockMode.EXCLUSIVE
+        elif 'IX' in lock_mode_upper:
+            return LockMode.INTENTION_EXCLUSIVE
+        elif 'IS' in lock_mode_upper:
+            return LockMode.INTENTION_SHARED
+        elif 'U' in lock_mode_upper:
+            return LockMode.UPDATE
+        elif 'SCH-M' in lock_mode_upper:
+            return LockMode.SCHEMA_MODIFICATION
+        elif 'SCH-S' in lock_mode_upper:
+            return LockMode.SCHEMA_STABILITY
+        elif 'S' in lock_mode_upper:
+            return LockMode.SHARED
+        else:
+            return LockMode.SHARED
+
 
 class DeadlockDetector:
     """

@@ -1,34 +1,21 @@
 ---
-skill:
-  id: sql-master
-  name: SQL智能助手
-  version: "3.0.0"
-  cli_min_version: "3.0.0"
-  category: database_ops
-  tags: [sql, execute, rewrite, analyze, mysql, oracle, postgresql]
+name: sql-master
+description: |
+  SQL执行与优化，支持SQL执行、重写优化、质量分析、数据分析、智能补全、Schema查询、数据导出导入。
 
-security:
-  read_only: false
-  risk_level: medium
-  blocked_operations:
-    - DELETE
-    - UPDATE
-    - INSERT
-    - DROP
-    - TRUNCATE
-    - ALTER
-    - CREATE
-    - REPLACE
-  note: AI助手绝对禁止执行任何写操作，也不得使用--force参数
+  使用场景：
+  - 用户说"执行SQL" -> 执行 execute
+  - 用户说"优化SQL" -> 执行 rewrite
+  - 用户说"分析SQL质量" -> 执行 analyze
+  - 用户说"查看表结构" -> 执行 schema
+  - 用户说"导出数据" -> 执行 export
 
-cli:
-  entry_prefix: "dbskiter --output-mode=ai --database={database}"
-  subcommand_group: "sql"
-
-output:
-  format: ai_envelope
-  schema_version: "1.0"
----
+  用法：
+  - python -m dbskiter --output-mode=ai --database=<name> sql execute "SELECT * FROM users"
+  - python -m dbskiter --output-mode=ai --database=<name> sql rewrite "SELECT * FROM users WHERE id = 1"
+  - python -m dbskiter --output-mode=ai --database=<name> sql analyze "SELECT * FROM users"
+  - python -m dbskiter --output-mode=ai --database=<name> sql schema
+  - python -m dbskiter --output-mode=ai --database=<name> sql complete "SELECT * FROM "
 
 # SQL Master Skill
 

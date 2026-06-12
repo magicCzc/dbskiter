@@ -105,6 +105,10 @@ class BaseDiagnostician(ABC):
         except ValueError as e:
             logger.warning(f"查询参数错误: {e}")
             return None
+        except Exception as e:
+            # 防御性编程：任何未预料到的异常都应安全返回 None
+            logger.warning(f"查询执行异常 [{type(e).__name__}]: {e}")
+            return None
 
     def _create_result(
         self,

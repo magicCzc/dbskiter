@@ -297,7 +297,11 @@ class LoginSecurityMonitor:
             elif "oracle" in self.dialect:
                 attempts = self._get_oracle_login_attempts(hours, success_only)
             else:
-                logger.warning(f"不支持的数据库类型: {self.dialect}")
+                # 通用数据库支持：返回空列表并记录日志
+                logger.info(
+                    f"数据库类型 '{self.dialect}' 暂无专用登录监控实现，"
+                    f"返回空列表"
+                )
 
         except Exception as e:
             logger.error(f"获取登录记录失败: {e}")

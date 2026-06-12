@@ -71,7 +71,7 @@ monitor_data/
 
 # Tests (may contain sensitive data)
 tests/
-
+# docs
 docs/
 backup/
 

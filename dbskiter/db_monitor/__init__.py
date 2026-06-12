@@ -74,6 +74,10 @@ from .collectors import (
     MySQLMetricsCollector,
     OracleMetricsCollector,
     PostgreSQLMetricsCollector,
+    MSSQLMetricsCollector,
+    ClickHouseMetricsCollector,
+    SQLiteMetricsCollector,
+    GenericMetricsCollector,
     get_collector,
     MetricType as CollectorMetricType,
 )
@@ -107,6 +111,10 @@ __all__ = [
     "MySQLMetricsCollector",
     "OracleMetricsCollector",
     "PostgreSQLMetricsCollector",
+    "MSSQLMetricsCollector",
+    "ClickHouseMetricsCollector",
+    "SQLiteMetricsCollector",
+    "GenericMetricsCollector",
     "get_collector",
     # 主Skill类
     "MonitorSkill",

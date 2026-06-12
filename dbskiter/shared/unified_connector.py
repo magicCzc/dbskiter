@@ -209,17 +209,51 @@ class UnifiedConnector:
             return self._connector.get_schema(table_name)
 
     def _get_schema_jdbc(self, table_name: str) -> Any:
-        """JDBC 方式获取表结构"""
+        """
+        JDBC 方式获取表结构（通用实现）
+
+        优先使用 INFORMATION_SCHEMA，失败后回退到 SELECT * WHERE 1=0
+        """
         import pandas as pd
 
-        result = self.execute(f"""
-            SELECT column_name, data_type, data_length, nullable
-            FROM user_tab_columns
-            WHERE table_name = '{table_name.upper()}'
-            ORDER BY column_id
-        """)
+        # 1. 尝试 INFORMATION_SCHEMA（适用于大多数 JDBC 数据库）
+        try:
+            result = self.execute(
+                "SELECT column_name, data_type, is_nullable "
+                "FROM information_schema.columns "
+                "WHERE table_name = ? "
+                "ORDER BY ordinal_position",
+                (table_name,)
+            )
+            if result.rows:
+                df = pd.DataFrame(
+                    result.rows,
+                    columns=["column_name", "data_type", "nullable"]
+                )
+                return df
+        except Exception:
+            pass
 
-        df = pd.DataFrame(result.rows, columns=["column_name", "data_type", "data_length", "nullable"])
+        # 2. 尝试 Oracle 风格（兼容旧版本 Oracle JDBC）
+        try:
+            result = self.execute("""
+                SELECT column_name, data_type, data_length, nullable
+                FROM user_tab_columns
+                WHERE table_name = :table_name
+                ORDER BY column_id
+            """, {"table_name": table_name.upper()})
+            if result.rows:
+                df = pd.DataFrame(
+                    result.rows,
+                    columns=["column_name", "data_type", "data_length", "nullable"]
+                )
+                return df
+        except Exception:
+            pass
+
+        # 3. 回退：执行空查询获取列名
+        result = self.execute(f"SELECT * FROM {table_name} WHERE 1=0")
+        df = pd.DataFrame(columns=result.columns)
         return df
 
     def get_tables(self) -> List[str]:
@@ -240,15 +274,52 @@ class UnifiedConnector:
             result = self.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
         elif "sqlite" in self.dialect:
             result = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
+        elif "mssql" in self.dialect:
+            result = self.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME")
         else:
-            result = self.execute("SHOW TABLES")
+            # 通用回退：使用 INFORMATION_SCHEMA（适用于 Trino/DuckDB/Derby/H2 等）
+            result = self.execute(
+                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME"
+            )
         return [row[0] for row in result.rows]
 
     def close(self):
         """关闭连接"""
         if self._connector_type == "jdbc":
             self._connector.disconnect()
-        # SQLAlchemy 使用连接池，不需要手动关闭
+        else:
+            # SQLAlchemy 方式：调用底层 DatabaseConnector.close()
+            if hasattr(self._connector, 'close'):
+                self._connector.close()
+
+    def table_preview(self, table: str, limit: int = 10) -> Any:
+        """
+        预览表数据（委托给底层连接器）
+
+        参数:
+            table: 表名
+            limit: 最大返回行数
+
+        返回:
+            DataFrame: 数据预览
+        """
+        if self._connector_type == "jdbc":
+            result = self.execute(f"SELECT * FROM {table} LIMIT {int(limit)}")
+            import pandas as pd
+            if result.columns:
+                return pd.DataFrame(result.rows, columns=result.columns)
+            return pd.DataFrame()
+        else:
+            # SQLAlchemy 方式
+            if hasattr(self._connector, 'table_preview'):
+                return self._connector.table_preview(table, limit)
+            # 回退
+            result = self.execute(f"SELECT * FROM {table} LIMIT {int(limit)}")
+            import pandas as pd
+            if result.columns:
+                return pd.DataFrame(result.rows, columns=result.columns)
+            return pd.DataFrame()
 
     @classmethod
     def from_env(cls, prefix: str = "DB") -> "UnifiedConnector":
@@ -290,6 +361,11 @@ class UnifiedConnector:
             kwargs["jdbc_driver_path"] = os.getenv(f"{prefix}_JDBC_DRIVER")
             if port == 3306:
                 port = 1521
+
+        # SQL Server 特殊处理
+        if "mssql" in dialect.lower():
+            if port == 3306:
+                port = 1433
 
         return cls(
             dialect=dialect,

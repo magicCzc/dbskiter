@@ -20,6 +20,7 @@ import re
 from typing import Any, Dict, List
 
 from dbskiter.db_diagnose.models import DiagnoseLevel
+from dbskiter.shared.sql_utils import extract_tables as _shared_extract_tables
 
 
 class SQLFingerprint:
@@ -441,6 +442,7 @@ class QueryExtractor:
     def extract_tables(sql: str) -> List[str]:
         """
         提取表名
+        (委托至 shared.sql_utils.extract_tables)
 
         参数:
             sql: SQL语句
@@ -448,33 +450,7 @@ class QueryExtractor:
         返回:
             List: 表名列表
         """
-        if not sql:
-            return []
-
-        tables = set()
-        sql_upper = sql.upper()
-
-        # FROM 子句
-        from_pattern = re.compile(r'\bFROM\s+(\w+)', re.IGNORECASE)
-        for match in from_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        # JOIN 子句
-        join_pattern = re.compile(r'\bJOIN\s+(\w+)', re.IGNORECASE)
-        for match in join_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        # UPDATE 子句
-        update_pattern = re.compile(r'\bUPDATE\s+(\w+)', re.IGNORECASE)
-        for match in update_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        # INTO 子句
-        into_pattern = re.compile(r'\bINTO\s+(\w+)', re.IGNORECASE)
-        for match in into_pattern.finditer(sql):
-            tables.add(match.group(1).lower())
-
-        return sorted(list(tables))
+        return _shared_extract_tables(sql)
 
     @staticmethod
     def extract_columns(sql: str) -> List[str]:

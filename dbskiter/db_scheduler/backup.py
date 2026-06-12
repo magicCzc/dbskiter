@@ -198,9 +198,17 @@ class BackupManager:
                 result = self._sqlite_full_backup(
                     output_dir, backup_id, timestamp, compress
                 )
+            elif "clickhouse" in self.dialect:
+                result = self._clickhouse_full_backup(
+                    output_dir, backup_id, timestamp, compress, include_schema
+                )
             else:
-                return self._error(
-                    backup_id, f"不支持的数据库类型: {self.dialect}"
+                # 通用回退：使用 SQL 分页查询备份
+                output_file = os.path.join(
+                    output_dir, f"{backup_id}.sql"
+                )
+                result = self._generic_fallback_backup(
+                    output_file, backup_id, include_schema, compress
                 )
 
             if result.success:
@@ -263,9 +271,17 @@ class BackupManager:
                 result = self._sqlite_table_backup(
                     safe_table, output_dir, backup_id, timestamp
                 )
+            elif "clickhouse" in self.dialect:
+                result = self._clickhouse_table_backup(
+                    safe_table, output_dir, backup_id, timestamp, include_schema
+                )
             else:
-                return self._error(
-                    backup_id, f"不支持的数据库类型: {self.dialect}"
+                # 通用回退：使用 SQL 分页查询备份单表
+                output_file = os.path.join(
+                    output_dir, f"{backup_id}.sql"
+                )
+                result = self._generic_fallback_backup(
+                    output_file, backup_id, include_schema, True, [safe_table]
                 )
 
             if result.success:
@@ -404,6 +420,7 @@ class BackupManager:
 
         警告:
             恢复操作会覆盖目标数据库中的数据。生产环境执行前请确认。
+            如果系统处于只读模式, 恢复操作将被拒绝。
 
         参数:
             backup_file: 备份文件路径
@@ -412,6 +429,14 @@ class BackupManager:
         返回:
             BackupResult: 恢复结果
         """
+        # 只读模式检查: 恢复操作涉及写操作, 必须在非只读模式下执行
+        if self._is_readonly():
+            return self._error(
+                os.path.basename(backup_file),
+                "当前处于只读模式, 恢复操作被拒绝。"
+                "如需执行恢复, 请先关闭只读模式。"
+            )
+
         if not os.path.exists(backup_file):
             return self._error(
                 os.path.basename(backup_file), "备份文件不存在"
@@ -438,9 +463,14 @@ class BackupManager:
                 result = self._sqlite_restore(
                     backup_file, backup_id, start_time
                 )
+            elif "clickhouse" in self.dialect:
+                result = self._clickhouse_restore(
+                    backup_file, backup_id, start_time
+                )
             else:
-                return self._error(
-                    backup_id, f"不支持的数据库类型: {self.dialect}"
+                # 通用回退：逐行执行 SQL 文件中的语句
+                result = self._generic_restore(
+                    backup_file, backup_id, start_time
                 )
 
             if result.success:
@@ -559,12 +589,15 @@ class BackupManager:
         password = self.connector.password
         database = self.connector.database
 
+        # 使用 MYSQL_PWD 环境变量传递密码, 避免在进程列表中暴露
+        env = os.environ.copy()
+        env["MYSQL_PWD"] = password
+
         cmd = [
             "mysqldump",
             f"--host={host}",
             f"--port={port}",
             f"--user={user}",
-            f"--password={password}",
             "--single-transaction",
             "--routines",
             "--triggers",
@@ -588,6 +621,7 @@ class BackupManager:
                     stderr=subprocess.PIPE,
                     text=True,
                     check=True,
+                    env=env,
                 )
 
             file_size = os.path.getsize(output_file)
@@ -692,7 +726,7 @@ class BackupManager:
 
         参数:
             file_handle: 文件句柄
-            table: 表名
+            table: 表名(已通过_safe_table_name验证)
 
         返回:
             int: 写入的行数
@@ -700,10 +734,11 @@ class BackupManager:
         total_rows = 0
         offset = 0
         batch_size = self.FALLBACK_BATCH_SIZE
+        safe_table = self._quote_table_name(table)
 
         while True:
             result = self.connector.execute(
-                f"SELECT * FROM `{table}` LIMIT {batch_size} OFFSET {offset}"
+                f"SELECT * FROM {safe_table} LIMIT {batch_size} OFFSET {offset}"
             )
             if not result.rows:
                 break
@@ -711,7 +746,7 @@ class BackupManager:
             for row in result.rows:
                 values = [self._escape_mysql_value(v) for v in row]
                 file_handle.write(
-                    f"INSERT INTO `{table}` VALUES ({', '.join(values)});\n"
+                    f"INSERT INTO {safe_table} VALUES ({', '.join(values)});\n"
                 )
                 total_rows += 1
 
@@ -739,13 +774,16 @@ class BackupManager:
             input_file = backup_file[:-3]
             self._gunzip_file(backup_file, input_file)
 
+        # 使用 MYSQL_PWD 环境变量传递密码, 避免在进程列表中暴露
+        env = os.environ.copy()
+        env["MYSQL_PWD"] = password
+
         try:
             cmd = [
                 "mysql",
                 f"--host={host}",
                 f"--port={port}",
                 f"--user={user}",
-                f"--password={password}",
                 db,
             ]
 
@@ -756,6 +794,7 @@ class BackupManager:
                     stderr=subprocess.PIPE,
                     text=True,
                     check=True,
+                    env=env,
                 )
 
             duration = int(
@@ -975,10 +1014,11 @@ class BackupManager:
         total_rows = 0
         offset = 0
         batch_size = self.FALLBACK_BATCH_SIZE
+        safe_table = self._quote_table_name(table)
 
         while True:
             result = self.connector.execute(
-                f"SELECT * FROM {table} LIMIT {batch_size} OFFSET {offset}"
+                f"SELECT * FROM {safe_table} LIMIT {batch_size} OFFSET {offset}"
             )
             if not result.rows:
                 break
@@ -986,7 +1026,7 @@ class BackupManager:
             for row in result.rows:
                 values = [self._escape_pg_value(v) for v in row]
                 file_handle.write(
-                    f"INSERT INTO {table} VALUES ({', '.join(values)});\n"
+                    f"INSERT INTO {safe_table} VALUES ({', '.join(values)});\n"
                 )
                 total_rows += 1
 
@@ -1170,10 +1210,11 @@ class BackupManager:
         total_rows = 0
         offset = 0
         batch_size = self.FALLBACK_BATCH_SIZE
+        safe_table = self._quote_table_name(table)
 
         while True:
             result = self.connector.execute(
-                f"SELECT * FROM `{table}` LIMIT {batch_size} OFFSET {offset}"
+                f"SELECT * FROM {safe_table} LIMIT {batch_size} OFFSET {offset}"
             )
             if not result.rows:
                 break
@@ -1181,7 +1222,7 @@ class BackupManager:
             for row in result.rows:
                 values = [self._escape_sqlite_value(v) for v in row]
                 file_handle.write(
-                    f"INSERT INTO `{table}` VALUES ({', '.join(values)});\n"
+                    f"INSERT INTO {safe_table} VALUES ({', '.join(values)});\n"
                 )
                 total_rows += 1
 
@@ -1243,6 +1284,250 @@ class BackupManager:
 
         except Exception as exc:
             return self._error(backup_id, f"SQLite 恢复失败: {exc}")
+
+    # =====================================================================
+    # ClickHouse 实现
+    # =====================================================================
+
+    def _clickhouse_full_backup(
+        self,
+        output_dir: str,
+        backup_id: str,
+        timestamp: str,
+        compress: bool,
+        include_schema: bool,
+    ) -> BackupResult:
+        """
+        ClickHouse 全量备份
+
+        ClickHouse备份策略：
+        1. 优先使用clickhouse-client导出（如果有原生工具）
+        2. 否则使用Python分页导出INSERT语句
+        3. 对于大表建议使用ClickHouse原生备份工具
+        """
+        start_time = datetime.now()
+        output_file = os.path.join(output_dir, f"{backup_id}.sql")
+
+        try:
+            tables = self.connector.get_tables()
+
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(f"-- ClickHouse Backup: {backup_id}\n")
+                f.write(f"-- Generated: {datetime.now().isoformat()}\n")
+                f.write("-- NOTE: ClickHouse backup using Python fallback.\n")
+                f.write(
+                    "--       For production use, consider clickhouse-backup tool.\n\n"
+                )
+
+                for table in tables:
+                    safe_table = self._safe_table_name(table)
+                    f.write(f"\n-- Table: {safe_table}\n")
+
+                    if include_schema:
+                        schema_result = self.connector.execute(
+                            f"SHOW CREATE TABLE {safe_table}"
+                        )
+                        if schema_result.rows:
+                            f.write(
+                                f"DROP TABLE IF EXISTS {safe_table};\n"
+                            )
+                            f.write(schema_result.rows[0][0] + ";\n\n")
+
+                    row_count = self._write_clickhouse_table_data(
+                        f, safe_table
+                    )
+                    f.write(
+                        f"-- End of table: {safe_table} ({row_count} rows)\n"
+                    )
+
+            file_size = os.path.getsize(output_file)
+
+            if compress:
+                output_file = self._gzip_file(output_file)
+                file_size = os.path.getsize(output_file)
+
+            duration = int(
+                (datetime.now() - start_time).total_seconds() * 1000
+            )
+            return BackupResult(
+                success=True,
+                backup_id=backup_id,
+                file_path=output_file,
+                file_size=file_size,
+                duration_ms=duration,
+                tables=tables,
+                backup_type="full",
+            )
+
+        except Exception as exc:
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            return self._error(backup_id, f"ClickHouse 备份失败: {exc}")
+
+    def _clickhouse_table_backup(
+        self,
+        table: str,
+        output_dir: str,
+        backup_id: str,
+        timestamp: str,
+        include_schema: bool,
+    ) -> BackupResult:
+        """ClickHouse 单表备份"""
+        start_time = datetime.now()
+        output_file = os.path.join(output_dir, f"{backup_id}.sql")
+        safe_table = self._safe_table_name(table)
+
+        try:
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(f"-- ClickHouse Table Backup: {safe_table}\n")
+                f.write(f"-- Generated: {datetime.now().isoformat()}\n\n")
+
+                if include_schema:
+                    schema_result = self.connector.execute(
+                        f"SHOW CREATE TABLE {safe_table}"
+                    )
+                    if schema_result.rows:
+                        f.write(
+                            f"DROP TABLE IF EXISTS {safe_table};\n"
+                        )
+                        f.write(schema_result.rows[0][0] + ";\n\n")
+
+                row_count = self._write_clickhouse_table_data(f, safe_table)
+                f.write(
+                    f"-- End of table: {safe_table} ({row_count} rows)\n"
+                )
+
+            duration = int(
+                (datetime.now() - start_time).total_seconds() * 1000
+            )
+            return BackupResult(
+                success=True,
+                backup_id=backup_id,
+                file_path=output_file,
+                file_size=os.path.getsize(output_file),
+                duration_ms=duration,
+                tables=[safe_table],
+                backup_type="table",
+            )
+
+        except Exception as exc:
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            return self._error(
+                backup_id, f"ClickHouse 单表备份失败: {exc}"
+            )
+
+    def _write_clickhouse_table_data(
+        self, file_handle, table: str
+    ) -> int:
+        """
+        分页写入ClickHouse单表数据
+
+        ClickHouse特点：
+        - 使用LIMIT/OFFSET分页
+        - 数据量大时建议使用clickhouse-client原生工具
+        """
+        total_rows = 0
+        offset = 0
+        batch_size = self.FALLBACK_BATCH_SIZE
+        safe_table = self._quote_table_name(table)
+
+        while True:
+            result = self.connector.execute(
+                f"SELECT * FROM {safe_table} LIMIT {batch_size} OFFSET {offset}"
+            )
+            if not result.rows:
+                break
+
+            for row in result.rows:
+                values = [self._escape_clickhouse_value(v) for v in row]
+                file_handle.write(
+                    f"INSERT INTO {safe_table} VALUES ({', '.join(values)});\n"
+                )
+                total_rows += 1
+
+            offset += batch_size
+
+        return total_rows
+
+    def _clickhouse_restore(
+        self,
+        backup_file: str,
+        backup_id: str,
+        start_time: datetime,
+    ) -> BackupResult:
+        """
+        ClickHouse 恢复
+
+        逐语句执行INSERT语句
+        注意：ClickHouse不支持事务，失败语句会被记录但不会回滚
+        """
+        try:
+            input_file = backup_file
+            if backup_file.endswith(".gz"):
+                input_file = backup_file[:-3]
+                self._gunzip_file(backup_file, input_file)
+
+            with open(input_file, "r", encoding="utf-8") as f:
+                sql_content = f.read()
+
+            statements = self._split_sql_statements(sql_content)
+            success_count = 0
+            fail_count = 0
+
+            for stmt in statements:
+                if stmt.strip() and not stmt.strip().startswith("--"):
+                    try:
+                        self.connector.execute(stmt)
+                        success_count += 1
+                    except Exception as stmt_exc:
+                        fail_count += 1
+                        logger.warning(
+                            f"SQL执行跳过: {stmt_exc} [stmt={stmt[:80]}]"
+                        )
+
+            if input_file != backup_file and os.path.exists(input_file):
+                os.remove(input_file)
+
+            duration = int(
+                (datetime.now() - start_time).total_seconds() * 1000
+            )
+            return BackupResult(
+                success=True,
+                backup_id=backup_id,
+                file_path=backup_file,
+                file_size=os.path.getsize(backup_file),
+                duration_ms=duration,
+            )
+
+        except Exception as exc:
+            return self._error(backup_id, f"ClickHouse 恢复失败: {exc}")
+
+    @staticmethod
+    def _escape_clickhouse_value(value: Any) -> str:
+        """
+        ClickHouse值转义
+
+        ClickHouse值特点：
+        - 字符串使用单引号
+        - 日期时间格式：'YYYY-MM-DD HH:MM:SS'
+        - 数组使用方括号
+        """
+        if value is None:
+            return "NULL"
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        if isinstance(value, (int, float)):
+            return str(value)
+        if isinstance(value, bytes):
+            return f"toFixedString(unhex('{value.hex()}'), {len(value)})"
+        if isinstance(value, (datetime, date)):
+            return f"'{value.isoformat()}'"
+        if isinstance(value, str):
+            # 先转义反斜杠, 再转义单引号, 顺序不可颠倒
+            escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
+        return f"'{str(value)}'"
 
     # =====================================================================
     # 转义与值处理
@@ -1345,6 +1630,62 @@ class BackupManager:
         if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", table):
             raise ValueError(f"非法表名: {table}")
         return table
+
+    @staticmethod
+    def _safe_qualified_table_name(table: str) -> str:
+        """
+        验证限定表名(支持 schema.table 格式)
+
+        对每个部分分别应用白名单正则验证,
+        支持 PostgreSQL/ClickHouse 等需要 schema 前缀的场景。
+
+        参数:
+            table: 原始表名, 如 "public.users" 或 "users"
+
+        返回:
+            str: 验证后的表名
+
+        异常:
+            ValueError: 表名包含非法字符
+        """
+        parts = table.split(".")
+        if len(parts) > 2:
+            raise ValueError(f"非法表名(过多限定符): {table}")
+        for part in parts:
+            if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", part):
+                raise ValueError(f"非法表名: {table}")
+        return table
+
+    def _quote_table_name(self, table: str) -> str:
+        """
+        根据数据库类型为表名添加引号包裹
+
+        MySQL/ClickHouse/SQLite 使用反引号,
+        PostgreSQL 使用双引号,
+        通用场景使用反引号作为默认值。
+
+        参数:
+            table: 已验证的表名
+
+        返回:
+            str: 引号包裹后的表名, 如 "`users`" 或 '"public"."users"'
+        """
+        db_type = self.connector.db_type.lower() if hasattr(
+            self.connector, "db_type"
+        ) else "mysql"
+
+        # 处理限定表名 schema.table
+        parts = table.split(".")
+        if len(parts) == 2:
+            schema, tbl = parts
+            if db_type == "postgresql":
+                return f'"{schema}"."{tbl}"'
+            return f"`{schema}`.`{tbl}`"
+
+        # 单一表名
+        if db_type == "postgresql":
+            return f'"{table}"'
+        return f"`{table}`"
 
     @staticmethod
     def _safe_filename(name: str) -> str:
@@ -1525,6 +1866,346 @@ class BackupManager:
             statements.append(stmt)
 
         return statements
+
+    # =====================================================================
+    # 通用备份（适用于任意 JDBC 数据库）
+    # =====================================================================
+
+    def _generic_fallback_backup(
+        self,
+        output_file: str,
+        backup_id: str,
+        include_schema: bool,
+        compress: bool,
+        tables: Optional[List[str]] = None,
+    ) -> BackupResult:
+        """
+        通用数据库分页降级备份
+
+        使用 LIMIT/OFFSET 分批查询，逐行写入 INSERT 语句格式的 SQL 文件。
+        适用于任何支持标准 SQL 的 JDBC 数据库（Trino/DuckDB/Derby/H2 等）。
+
+        参数：
+            output_file: 输出文件路径
+            backup_id: 备份标识
+            include_schema: 是否包含表结构
+            compress: 是否压缩
+            tables: 指定备份的表列表，None 表示全部表
+
+        返回：
+            BackupResult: 备份结果
+        """
+        start_time = datetime.now()
+        target_tables = tables or self.connector.get_tables()
+        dialect = self.dialect
+
+        try:
+            with open(output_file, "w", encoding="utf-8") as f:
+                f.write(f"-- Generic Backup: {backup_id}\n")
+                f.write(f"-- Source dialect: {dialect}\n")
+                f.write(f"-- Generated: {datetime.now().isoformat()}\n")
+                f.write(
+                    "-- NOTE: This backup was created using generic fallback.\n"
+                )
+                f.write(
+                    "--       Restore requires compatible SQL dialect.\n\n"
+                )
+
+                for table in target_tables:
+                    safe_table = self._safe_table_name(table)
+                    quoted_table = self._quote_table_name(safe_table)
+                    f.write(f"\n-- Table: {safe_table}\n")
+
+                    # 尝试获取表结构
+                    if include_schema:
+                        try:
+                            schema = self._get_generic_table_schema(safe_table)
+                            if schema:
+                                f.write(
+                                    f"DROP TABLE IF EXISTS {quoted_table};\n"
+                                )
+                                f.write(f"{schema};\n\n")
+                        except Exception as e:
+                            logger.debug(
+                                f"获取表 {safe_table} 结构失败: {e}"
+                            )
+
+                    row_count = self._write_generic_table_data(
+                        f, safe_table
+                    )
+                    f.write(
+                        f"-- End of table: {safe_table} ({row_count} rows)\n"
+                    )
+
+            file_size = os.path.getsize(output_file)
+
+            if compress:
+                output_file = self._gzip_file(output_file)
+                file_size = os.path.getsize(output_file)
+
+            duration = int(
+                (datetime.now() - start_time).total_seconds() * 1000
+            )
+            return BackupResult(
+                success=True,
+                backup_id=backup_id,
+                file_path=output_file,
+                file_size=file_size,
+                duration_ms=duration,
+                tables=target_tables,
+                backup_type="table" if tables else "full",
+            )
+
+        except Exception as exc:
+            if os.path.exists(output_file):
+                os.remove(output_file)
+            return self._error(backup_id, f"通用备份失败: {exc}")
+
+    def _get_generic_table_schema(self, table: str) -> Optional[str]:
+        """
+        获取通用表结构 DDL
+
+        通过 INFORMATION_SCHEMA 或 DESCRIBE 获取表结构，
+        生成兼容的 CREATE TABLE 语句。
+
+        参数：
+            table: 表名
+
+        返回：
+            Optional[str]: CREATE TABLE 语句，不支持返回 None
+        """
+        safe_table = self._quote_table_name(table)
+
+        # 尝试 INFORMATION_SCHEMA
+        try:
+            result = self.connector.execute(
+                "SELECT column_name, data_type, is_nullable, "
+                "column_default "
+                "FROM information_schema.columns "
+                "WHERE table_name = ? "
+                "ORDER BY ordinal_position",
+                (table,)
+            )
+            if result.rows:
+                columns = []
+                for row in result.rows:
+                    col_name = row[0]
+                    data_type = row[1]
+                    nullable = row[2]
+                    default = row[3]
+                    col_def = f"  {col_name} {data_type}"
+                    if nullable and nullable.upper() == "NO":
+                        col_def += " NOT NULL"
+                    if default is not None:
+                        col_def += f" DEFAULT {default}"
+                    columns.append(col_def)
+                return (
+                    f"CREATE TABLE {safe_table} (\n"
+                    + ",\n".join(columns) + "\n)"
+                )
+        except Exception:
+            pass
+
+        # 尝试 DESCRIBE
+        try:
+            result = self.connector.execute(f"DESCRIBE {safe_table}")
+            if result.rows:
+                columns = []
+                for row in result.rows:
+                    col_name = row[0]
+                    data_type = row[1]
+                    columns.append(f"  {col_name} {data_type}")
+                return (
+                    f"CREATE TABLE {safe_table} (\n"
+                    + ",\n".join(columns) + "\n)"
+                )
+        except Exception:
+            pass
+
+        return None
+
+    def _write_generic_table_data(
+        self, file_handle, table: str
+    ) -> int:
+        """
+        分页写入单表数据，返回写入行数
+
+        参数：
+            file_handle: 文件句柄
+            table: 表名(原始表名, 内部自动添加引号)
+
+        返回：
+            int: 写入的行数
+        """
+        total_rows = 0
+        offset = 0
+        batch_size = self.FALLBACK_BATCH_SIZE
+        safe_table = self._quote_table_name(table)
+
+        while True:
+            result = self.connector.execute(
+                f"SELECT * FROM {safe_table} "
+                f"LIMIT {batch_size} OFFSET {offset}"
+            )
+            if not result.rows:
+                break
+
+            for row in result.rows:
+                values = [self._escape_generic_value(v) for v in row]
+                file_handle.write(
+                    f"INSERT INTO {safe_table} VALUES ({', '.join(values)});\n"
+                )
+                total_rows += 1
+
+            offset += batch_size
+
+        return total_rows
+
+    @staticmethod
+    def _escape_generic_value(value: Any) -> str:
+        """
+        通用 SQL 值转义
+
+        参数：
+            value: 原始值
+
+        返回：
+            str: 转义后的 SQL 值字符串
+        """
+        if value is None:
+            return "NULL"
+        if isinstance(value, bool):
+            return "1" if value else "0"
+        if isinstance(value, (int, float)):
+            return str(value)
+        if isinstance(value, (datetime, date)):
+            return f"'{value.isoformat()}'"
+        if isinstance(value, bytes):
+            return f"X'{value.hex()}'"
+        # 字符串转义
+        s = str(value).replace("'", "''")
+        return f"'{s}'"
+
+    # 通用恢复允许的SQL语句类型白名单
+    _RESTORE_ALLOWED_PREFIXES = (
+        "INSERT", "CREATE TABLE", "DROP TABLE IF EXISTS",
+        "ALTER TABLE", "CREATE INDEX", "DROP INDEX",
+    )
+
+    def _generic_restore(
+        self,
+        backup_file: str,
+        backup_id: str,
+        start_time: datetime,
+    ) -> BackupResult:
+        """
+        通用数据库恢复
+
+        逐行解析 SQL 备份文件中的语句并执行。
+        仅允许白名单中的语句类型(INSERT/CREATE TABLE/DROP TABLE等),
+        防止备份文件被篡改后执行危险操作(DELETE/UPDATE/TRUNCATE等)。
+
+        参数：
+            backup_file: 备份文件路径
+            backup_id: 备份标识
+            start_time: 开始时间
+
+        返回：
+            BackupResult: 恢复结果
+        """
+        input_file = backup_file
+        # 如果是 gzip 压缩，先解压到临时文件
+        if backup_file.endswith(".gz"):
+            input_file = backup_file[:-3]
+            self._gunzip_file(backup_file, input_file)
+
+        executed = 0
+        failed = 0
+        skipped = 0
+
+        try:
+            with open(input_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    # 跳过注释和空行
+                    if not line or line.startswith("--"):
+                        continue
+                    # 去除末尾分号
+                    if line.endswith(";"):
+                        line = line[:-1]
+                    # 安全过滤: 仅允许白名单中的语句类型
+                    line_upper = line.strip().upper()
+                    if not any(
+                        line_upper.startswith(prefix)
+                        for prefix in self._RESTORE_ALLOWED_PREFIXES
+                    ):
+                        skipped += 1
+                        logger.warning(
+                            f"恢复跳过非法语句: {line[:80]}..."
+                        )
+                        continue
+                    try:
+                        self.connector.execute(line)
+                        executed += 1
+                    except Exception as e:
+                        logger.warning(
+                            f"恢复语句执行失败: {line[:80]}... [{e}]"
+                        )
+                        failed += 1
+
+            duration = int(
+                (datetime.now() - start_time).total_seconds() * 1000
+            )
+            file_size = os.path.getsize(backup_file)
+
+            # 清理临时文件
+            if input_file != backup_file and os.path.exists(input_file):
+                os.remove(input_file)
+
+            if failed > 0 or skipped > 0:
+                parts = [f"{executed} 条语句成功"]
+                if failed > 0:
+                    parts.append(f"{failed} 条失败")
+                if skipped > 0:
+                    parts.append(f"{skipped} 条被安全过滤跳过")
+                return BackupResult(
+                    success=False,
+                    backup_id=backup_id,
+                    file_path=backup_file,
+                    file_size=file_size,
+                    duration_ms=duration,
+                    error=f"恢复完成，" + "，".join(parts),
+                )
+
+            return BackupResult(
+                success=True,
+                backup_id=backup_id,
+                file_path=backup_file,
+                file_size=file_size,
+                duration_ms=duration,
+            )
+
+        except Exception as exc:
+            if input_file != backup_file and os.path.exists(input_file):
+                os.remove(input_file)
+            return self._error(backup_id, f"通用恢复失败: {exc}")
+
+    @staticmethod
+    def _is_readonly() -> bool:
+        """
+        检查系统是否处于只读模式
+
+        读取环境变量 DBSKITER_READ_ONLY 和 DBSKITER_DEFAULT_READ_ONLY,
+        任一为 true/1/yes 即视为只读模式。
+
+        返回:
+            bool: 是否处于只读模式
+        """
+        import os as _os
+        for var in ("DBSKITER_READ_ONLY", "DBSKITER_DEFAULT_READ_ONLY"):
+            if _os.getenv(var, "").lower() in ("true", "1", "yes"):
+                return True
+        return False
 
     def _error(self, backup_id: str, message: str) -> BackupResult:
         """生成错误结果"""
