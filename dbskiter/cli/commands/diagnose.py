@@ -246,31 +246,37 @@ class DiagnoseCommand(BaseCommand):
         # 不需要数据库连接的命令（如果有的话）
         # ...
 
-        # 需要数据库连接的命令
-        # 诊断命令必须直连数据库，不支持Zabbix/Prometheus外部监控
-        try:
-            db_name = getattr(self.args, 'database', None)
-            configs = self._load_all_configs()
-            connector = self._create_connector_for_diagnose(db_name, configs)
+        # 检查 --demo 模式
+        if getattr(self.args, 'demo', False):
+            from dbskiter.shared.mock_connector import MockConnector
+            self._connector = MockConnector()
+            self.output.info("演示模式：使用内置 Mock 数据")
+        else:
+            # 需要数据库连接的命令
+            # 诊断命令必须直连数据库，不支持Zabbix/Prometheus外部监控
+            try:
+                db_name = getattr(self.args, 'database', None)
+                configs = self._load_all_configs()
+                connector = self._create_connector_for_diagnose(db_name, configs)
 
-            if not connector:
-                self.output.error(
-                    "无法找到可用的数据库直连配置。\n\n"
-                    "诊断命令（慢查询、锁分析、SQL诊断等）必须直连数据库，\n"
-                    "不支持通过Zabbix或Prometheus查询。\n\n"
-                    "请检查：\n"
-                    "1. .env 文件中是否配置了正确的数据库连接信息\n"
-                    "2. 使用 --database 参数指定正确的数据库名\n\n"
-                    "如需监控Oracle数据库的指标（CPU、内存、磁盘），请使用：\n"
-                    "  dbskiter --database=Z18 monitor health"
-                )
+                if not connector:
+                    self.output.error(
+                        "无法找到可用的数据库直连配置。\n\n"
+                        "诊断命令（慢查询、锁分析、SQL诊断等）必须直连数据库，\n"
+                        "不支持通过Zabbix或Prometheus查询。\n\n"
+                        "请检查：\n"
+                        "1. .env 文件中是否配置了正确的数据库连接信息\n"
+                        "2. 使用 --database 参数指定正确的数据库名\n\n"
+                        "如需监控Oracle数据库的指标（CPU、内存、磁盘），请使用：\n"
+                        "  dbskiter --database=Z18 monitor health"
+                    )
+                    return 1
+
+                self._connector = connector
+
+            except Exception as e:
+                self.output.error(str(e))
                 return 1
-
-            self._connector = connector
-
-        except Exception as e:
-            self.output.error(str(e))
-            return 1
 
         # 数据库特有命令的方言预检查
         # 在连接数据库之前就检查，避免不匹配时还要等待连接重试

@@ -15,14 +15,20 @@ db_scheduler/utils.py
 创建时间: 2026-04-23
 """
 
+from __future__ import annotations
+
 from typing import Dict, Any, List, Optional, Callable
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, Future, TimeoutError as FutureTimeoutError
 import logging
 import threading
 import json
-import sqlite3
 import requests
+
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 
 from dbskiter.shared.error_handler import create_error_response, create_success_response
 from .models import (

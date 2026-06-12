@@ -6,6 +6,8 @@ cli/error_handler.py
 提供统一的错误处理、日志记录和用户友好的错误提示
 """
 
+from __future__ import annotations
+
 import sys
 import traceback
 from typing import Optional, Callable, Any

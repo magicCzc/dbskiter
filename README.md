@@ -49,23 +49,41 @@
 ### 1. 安装
 
 ```bash
-# 克隆仓库
+# 通过 PyPI 安装（推荐）
+pip install dbskiter
+
+# 或克隆仓库安装
 git clone https://github.com/magicCzc/dbskiter.git
 cd dbskiter
-
-# 安装依赖
 pip install -e .
 ```
 
-### 2. 配置环境变量
+### 2. 快速体验（无需数据库）
+
+```bash
+# 演示模式 - 使用内置 Mock 数据，无需配置数据库
+dbskiter --demo sql execute "SELECT * FROM users LIMIT 5"
+dbskiter --demo sql execute "SHOW TABLES"
+
+# 交互式配置向导（新手推荐）
+dbskiter init
+
+# 生成配置模板
+dbskiter init --quick
+```
+
+### 3. 配置环境变量
 
 创建 `.env` 文件（**切勿提交到Git仓库**）：
 
 ```bash
-# 复制示例配置
+# 交互式配置向导（推荐新手使用）
+dbskiter init
+
+# 或手动复制示例配置
 cp .env.example .env
 
-# 编辑 .env 文件，填入你的数据库配置
+# 编辑 .env 文件，填入你的数据库连接信息
 ```
 
 **最小配置示例（单数据库）**：

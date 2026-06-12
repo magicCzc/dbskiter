@@ -9,6 +9,7 @@ CLI 主入口
 - 全局错误处理
 """
 
+import os
 import sys
 import logging
 import argparse
@@ -20,6 +21,8 @@ from .output import OutputFormatter
 from .exceptions import CLIError, ConfigError
 from .commands import command_registry, BaseCommand
 from .error_handler import ErrorHandler
+from .banner import print_banner, print_minimal_banner
+from .style import get_console
 
 
 def create_parser() -> argparse.ArgumentParser:
@@ -35,12 +38,14 @@ def create_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 使用示例:
+  dbskiter init                    # 交互式配置向导（新手推荐）
+  dbskiter --demo monitor health   # 演示模式（无需数据库）
   dbskiter monitor --database=jump
   dbskiter diagnose --database=jump --sql="SELECT * FROM users"
   dbskiter security --database=jump
   dbskiter scheduler backup --type=full
   dbskiter sql "SELECT * FROM users LIMIT 10"
-  python -m dbskiter monitor  # 使用模块方式运行
+  python -m dbskiter monitor       # 使用模块方式运行
 
 环境变量:
   DB_DIALECT, DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME
@@ -53,8 +58,9 @@ def create_parser() -> argparse.ArgumentParser:
     # 全局参数
     parser.add_argument(
         "--version",
-        action="version",
-        version=f"%(prog)s {__version__}"
+        "-V",
+        action="store_true",
+        help="显示版本信息并退出"
     )
     parser.add_argument(
         "--json",
@@ -66,6 +72,11 @@ def create_parser() -> argparse.ArgumentParser:
         "-q",
         action="store_true",
         help="静默模式，只输出结果"
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="禁用 ANSI 颜色输出（同时支持 NO_COLOR 环境变量）"
     )
     parser.add_argument(
         "--dialect",
@@ -108,6 +119,11 @@ def create_parser() -> argparse.ArgumentParser:
         "--prefix",
         default="DB",
         help="环境变量前缀 (DB, ORACLE, MYSQL2 等)，默认 DB"
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="演示模式：使用内置 Mock 数据，无需真实数据库"
     )
     parser.add_argument(
         "--debug",
@@ -176,6 +192,25 @@ def add_subcommands(parser: argparse.ArgumentParser) -> None:
         cmd_class.add_arguments(subparser)
 
 
+def _check_has_config() -> bool:
+    """
+    检查是否已配置数据库
+
+    返回说明：
+        - bool: 是否有数据库配置
+    """
+    import os
+    # 检查环境变量
+    for key in os.environ:
+        if key.endswith(("_HOST", "_DIALECT")) and not key.startswith(("PATH", "HOME", "USER")):
+            return True
+    # 检查 .env 文件
+    env_path = Path.cwd() / ".env"
+    if env_path.exists():
+        return True
+    return False
+
+
 def main(args: Optional[List[str]] = None) -> int:
     """
     CLI 主入口
@@ -196,7 +231,20 @@ def main(args: Optional[List[str]] = None) -> int:
     
     # 解析参数
     parsed_args = parser.parse_args(args)
-    
+
+    # 处理 --no-color（在创建 Console 前设置环境变量，确保全局生效）
+    if getattr(parsed_args, 'no_color', False):
+        os.environ["NO_COLOR"] = "1"
+
+    # 处理 --version（手动控制，可用 Rich 美化）
+    if getattr(parsed_args, 'version', False):
+        console = get_console(quiet=False, json_mode=False)
+        if console:
+            print_minimal_banner(console, __version__)
+        else:
+            print(f"dbskiter {__version__}")
+        return 0
+
     # 配置日志
     log_level_name = getattr(parsed_args, 'log_level', 'WARNING')
     if getattr(parsed_args, 'debug', False):
@@ -208,9 +256,30 @@ def main(args: Optional[List[str]] = None) -> int:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S"
     )
-    
-    # 如果没有子命令，显示帮助
+
+    # 如果没有子命令，显示横幅 + 帮助
     if not parsed_args.command:
+        console = get_console(
+            quiet=getattr(parsed_args, 'quiet', False),
+            json_mode=getattr(parsed_args, 'json', False)
+        )
+        if console and not getattr(parsed_args, 'quiet', False):
+            print_banner(console, __version__)
+
+        # 检测是否有数据库配置
+        has_config = _check_has_config()
+        if not has_config and console:
+            console.print()
+            console.print("[bold yellow]未检测到数据库配置[/bold yellow]")
+            console.print()
+            console.print("[bold]快速开始：[/bold]")
+            console.print("  1. [cyan]dbskiter init[/cyan]         - 交互式配置向导")
+            console.print("  2. [cyan]dbskiter --demo monitor[/cyan] - 演示模式（无需数据库）")
+            console.print("  3. [cyan]dbskiter init --quick[/cyan]   - 生成配置模板")
+            console.print()
+            console.print("[dim]提示：编辑 .env 文件配置你的数据库连接信息[/dim]")
+            console.print()
+
         parser.print_help()
         return 0
     

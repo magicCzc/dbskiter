@@ -19,6 +19,8 @@
 创建时间：2026-04-29
 """
 
+from __future__ import annotations
+
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum

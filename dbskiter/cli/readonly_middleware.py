@@ -16,6 +16,8 @@ CLI只读模式中间件
 最后修改：2026-05-20
 """
 
+from __future__ import annotations
+
 import os
 import sys
 import logging

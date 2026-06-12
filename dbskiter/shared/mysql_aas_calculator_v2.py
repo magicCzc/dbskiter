@@ -51,8 +51,12 @@ MySQL AAS (Average Active Sessions) 计算器 V2 - 企业级优化版
 import logging
 import time
 import os
-import sqlite3
 import hashlib
+
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 import json
 import statistics
 from typing import Dict, List, Optional, Any, Tuple, Callable, Union

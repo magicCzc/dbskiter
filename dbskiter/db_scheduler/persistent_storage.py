@@ -6,9 +6,13 @@
 """
 from typing import List, Optional
 from datetime import datetime
-import sqlite3
 import json
 import logging
+
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 
 logger = logging.getLogger(__name__)
 

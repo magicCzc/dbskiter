@@ -15,6 +15,7 @@ from .sql import SQLCommand
 from .inspector import InspectorCommand
 from .lock import LockCommand
 from .audit import AuditCommand
+from .init import InitCommand
 
 __all__ = [
     "BaseCommand",
@@ -27,4 +28,5 @@ __all__ = [
     "InspectorCommand",
     "LockCommand",
     "AuditCommand",
+    "InitCommand",
 ]

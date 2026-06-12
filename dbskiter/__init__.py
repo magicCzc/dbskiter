@@ -9,10 +9,10 @@ DBSKiter - 数据库AIOps运维助手
 
 作者：MagiCzc
 创建时间：2026-04-16
-最后修改：2026-06-05
+最后修改：2026-06-12
 """
 
-__version__ = "3.0.0"
+__version__ = "3.0.8"
 __all__ = [
     "DiagnoseSkill",
     "MonitorSkill",

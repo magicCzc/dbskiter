@@ -6,6 +6,7 @@ sqlalchemy>=2.0.0          # SQL 执行引擎
 pymysql>=1.0.0             # MySQL 驱动
 psycopg2-binary>=2.9.0     # PostgreSQL 驱动
 python-dotenv>=1.0.0       # .env 环境变量配置
+rich>=13.0.0               # 终端富文本渲染、表格、进度条、Panel
 
 # ── 数据处理 ──────────────────────────────────────────────────────────────
 pandas>=2.0.0              # 数据分析

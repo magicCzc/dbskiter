@@ -36,6 +36,7 @@ from .mssql_collector import MSSQLMetricsCollector
 from .clickhouse_collector import ClickHouseMetricsCollector
 from .sqlite_collector import SQLiteMetricsCollector
 from .generic_collector import GenericMetricsCollector
+from .mock_collector import MockMetricsCollector
 
 __all__ = [
     'BaseMetricsCollector',
@@ -46,6 +47,7 @@ __all__ = [
     'ClickHouseMetricsCollector',
     'SQLiteMetricsCollector',
     'GenericMetricsCollector',
+    'MockMetricsCollector',
     'get_collector',
     'MetricPoint',
     'MetricType',
@@ -68,6 +70,7 @@ KNOWN_COLLECTORS = {
     'clickhouse+native': ClickHouseMetricsCollector,
     'sqlite': SQLiteMetricsCollector,
     'sqlite+pysqlite': SQLiteMetricsCollector,
+    'mock': MockMetricsCollector,
 }
 
 

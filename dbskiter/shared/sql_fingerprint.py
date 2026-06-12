@@ -31,6 +31,8 @@ SQL指纹核心模块
     aggregated = fingerprinter.aggregate(queries)
 """
 
+from __future__ import annotations
+
 import re
 import hashlib
 from enum import Enum

@@ -46,68 +46,101 @@ SQL 执行 + 重写 + 数据分析核心模块
 版本: 3.0.0（模块化重构版）
 """
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 # 数据模型
-from .models import (
-    ErrorCode,
-    ErrorMessage,
-    SQLType,
-    OptimizationLevel,
-    SQLOptimizationReport,
-    SQLMasterConfig,
-    SQLAnalysisResult,
-    CacheStats,
-    ExecutionResult,
-    RewriteSuggestion,)
+try:
+    from .models import (
+        ErrorCode,
+        ErrorMessage,
+        SQLType,
+        OptimizationLevel,
+        SQLOptimizationReport,
+        SQLMasterConfig,
+        SQLAnalysisResult,
+        CacheStats,
+        ExecutionResult,
+        RewriteSuggestion,
+    )
+except ImportError as _e:
+    logger.debug("sql_master.models 导入失败: %s", _e)
 
 # 响应函数（从shared模块导入）
-from dbskiter.shared.error_handler import create_success_response, create_error_response
+try:
+    from dbskiter.shared.error_handler import create_success_response, create_error_response
+except ImportError as _e:
+    logger.debug("shared.error_handler 导入失败: %s", _e)
 
 # 工具类
-from .utils import (
-    SQLTypeDetector,
-    SQLFormatter,
-    QueryBuilder,
-    ResultProcessor,
-    PerformanceTimer,
-    SQLAnalyzer,
-)
+try:
+    from .utils import (
+        SQLTypeDetector,
+        SQLFormatter,
+        QueryBuilder,
+        ResultProcessor,
+        PerformanceTimer,
+        SQLAnalyzer,
+    )
+except ImportError as _e:
+    logger.debug("sql_master.utils 导入失败: %s", _e)
 
 # 统一入口
-from .skill import SQLMasterSkill
+try:
+    from .skill import SQLMasterSkill
+except ImportError as _e:
+    logger.debug("sql_master.skill 导入失败: %s", _e)
 
 # 导出核心组件（供高级用户使用）
-from .executor import SQLExecutor
-from .analyzer import DataAnalyzer
-from .sql_rewriter_v2 import SQLRewriterV2, RewriteResult, RewriteSuggestion as RewriteResultSuggestion
-from .cache_manager import SQLCacheManager
-from .cache_invalidator import SmartCachedExecutor
+try:
+    from .executor import SQLExecutor
+    from .analyzer import DataAnalyzer
+    from .sql_rewriter_v2 import SQLRewriterV2, RewriteResult, RewriteSuggestion as RewriteResultSuggestion
+    from .cache_manager import SQLCacheManager
+    from .cache_invalidator import SmartCachedExecutor
+except ImportError as _e:
+    logger.debug("sql_master 核心组件导入失败: %s", _e)
 
 # 安全执行组件
-from .security_executor_v2 import SecurityExecutorV2, ExecutionContext, SecurityCheckResult
-from .security_checker import (
-    SecurityChecker,
-    SQLInjectionDetector,
-    InjectionCheckResult,
-    RateLimiter,
-    RateLimitStatus,
-    check_sql,
-)
-from .sql_parser import (
-    SQLType,
-    SQLDialect,
-    ParsedSQL,
-    SQLParser,
-    parse_sql,
-    is_read_only,
-    is_dangerous_without_where
-)
-from .audit_logger import (
-    StorageBackend,
-    OperationStatus,
-    AuditLogEntry,
-    AuditLogger,
-    AuditLogQuery
-)
+try:
+    from .security_executor_v2 import SecurityExecutorV2, ExecutionContext, SecurityCheckResult
+    from .security_checker import (
+        SecurityChecker,
+        SQLInjectionDetector,
+        InjectionCheckResult,
+        RateLimiter,
+        RateLimitStatus,
+        check_sql,
+    )
+except ImportError as _e:
+    logger.debug("sql_master 安全组件导入失败: %s", _e)
+
+# SQL解析器
+try:
+    from .sql_parser import (
+        SQLType,
+        SQLDialect,
+        ParsedSQL,
+        SQLParser,
+        parse_sql,
+        is_read_only,
+        is_dangerous_without_where,
+    )
+except ImportError as _e:
+    logger.debug("sql_master.sql_parser 导入失败: %s", _e)
+
+# 审计日志
+try:
+    from .audit_logger import (
+        StorageBackend,
+        OperationStatus,
+        AuditLogEntry,
+        AuditLogger,
+        AuditLogQuery,
+    )
+except ImportError as _e:
+    logger.debug("sql_master.audit_logger 导入失败: %s", _e)
 
 __all__ = [
     # 数据模型

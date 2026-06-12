@@ -16,12 +16,18 @@ SQL审计日志存储模块
 创建时间: 2026-04-28
 """
 
-import sqlite3
+from __future__ import annotations
+
 import logging
 import threading
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
+
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +149,10 @@ class SQLAuditStorage:
         参数:
             storage_path: 存储目录路径
         """
+        self._disabled = sqlite3 is None
+        if self._disabled:
+            logger.warning("SQLite3 不可用，审计日志存储功能已禁用")
+            return
         self.storage_path = Path(storage_path)
         self.storage_path.mkdir(parents=True, exist_ok=True)
         self.db_path = self.storage_path / "audit.db"
@@ -152,6 +162,8 @@ class SQLAuditStorage:
     
     def _get_connection(self) -> sqlite3.Connection:
         """获取数据库连接"""
+        if self._disabled:
+            raise RuntimeError("SQLite3 不可用，审计日志存储功能已禁用")
         if self._conn is None:
             self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row

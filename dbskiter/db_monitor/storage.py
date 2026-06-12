@@ -16,10 +16,16 @@ db_monitor/storage.py
 创建时间: 2026-04-23
 """
 
-import sqlite3
+from __future__ import annotations
+
 import json
 import logging
 import threading
+
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -59,14 +65,27 @@ class MetricsStorage:
         self.db_path = self.storage_path / "metrics.db"
         self._lock = threading.RLock()
         self._conn: Optional[sqlite3.Connection] = None
-        self._init_db()
+        self._available = sqlite3 is not None
+        if not self._available:
+            logger.warning("sqlite3 模块不可用，MetricsStorage 将以降级模式运行")
+        else:
+            self._init_db()
 
-    def _get_connection(self) -> sqlite3.Connection:
+    def _get_connection(self) -> Optional[sqlite3.Connection]:
         """获取数据库连接"""
+        if not self._available:
+            return None
         if self._conn is None:
             self._conn = sqlite3.connect(self.db_path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
         return self._conn
+
+    def _require_storage(self) -> bool:
+        """检查存储是否可用"""
+        if not self._available:
+            logger.warning("MetricsStorage 不可用：sqlite3 模块未安装")
+            return False
+        return True
 
     def close(self):
         """关闭数据库连接"""
@@ -78,7 +97,11 @@ class MetricsStorage:
 
     def _init_db(self):
         """初始化数据库表结构"""
+        if not self._available:
+            return
         conn = self._get_connection()
+        if not conn:
+            return
 
         # 指标数据表
         conn.execute("""
@@ -150,9 +173,19 @@ class MetricsStorage:
         返回:
             Dict: 操作结果
         """
+        if not self._require_storage():
+            return create_error_response(
+                "sqlite3 不可用，无法保存指标",
+                error_code=ErrorCode.STORAGE_ERROR
+            )
         try:
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return create_error_response(
+                        "数据库连接不可用",
+                        error_code=ErrorCode.STORAGE_ERROR
+                    )
                 conn.execute(
                     """
                     INSERT INTO metrics (timestamp, metric_type, value, unit, source, tags)
@@ -171,7 +204,7 @@ class MetricsStorage:
 
             return create_success_response("指标已保存")
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"保存指标失败: {e}")
             return create_error_response(
                 "保存指标失败",
@@ -189,9 +222,19 @@ class MetricsStorage:
         返回:
             Dict: 操作结果
         """
+        if not self._require_storage():
+            return create_error_response(
+                "sqlite3 不可用，无法保存告警",
+                error_code=ErrorCode.STORAGE_ERROR
+            )
         try:
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return create_error_response(
+                        "数据库连接不可用",
+                        error_code=ErrorCode.STORAGE_ERROR
+                    )
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO alerts
@@ -216,7 +259,7 @@ class MetricsStorage:
 
             return create_success_response("告警已保存")
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"保存告警失败: {e}")
             return create_error_response(
                 "保存告警失败",
@@ -241,11 +284,15 @@ class MetricsStorage:
         返回:
             List[MetricPoint]: 指标数据点列表
         """
+        if not self._require_storage():
+            return []
         try:
             since = (datetime.now() - timedelta(hours=hours)).isoformat()
 
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return []
                 cursor = conn.execute(
                     """
                     SELECT timestamp, metric_type, value, unit, source, tags
@@ -276,7 +323,7 @@ class MetricsStorage:
                 # 按时间正序返回
                 return list(reversed(results))
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"查询历史数据失败: {e}")
             return []
 
@@ -297,9 +344,13 @@ class MetricsStorage:
         返回:
             List[MetricPoint]: 指标数据点列表
         """
+        if not self._require_storage():
+            return []
         try:
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return []
                 cursor = conn.execute(
                     """
                     SELECT timestamp, metric_type, value, unit, source, tags
@@ -328,7 +379,7 @@ class MetricsStorage:
 
                 return results
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"查询指标数据失败: {e}")
             return []
 
@@ -345,9 +396,13 @@ class MetricsStorage:
         返回:
             Optional[MetricPoint]: 最早的指标数据点，如果没有则返回None
         """
+        if not self._require_storage():
+            return None
         try:
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return None
                 cursor = conn.execute(
                     """
                     SELECT timestamp, metric_type, value, unit, source, tags
@@ -371,7 +426,7 @@ class MetricsStorage:
                     )
                 return None
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"获取最早指标记录失败: {e}")
             return None
 
@@ -394,6 +449,8 @@ class MetricsStorage:
         返回:
             List[Dict]: 告警列表
         """
+        if not self._require_storage():
+            return []
         try:
             since = (datetime.now() - timedelta(hours=hours)).isoformat()
 
@@ -413,6 +470,8 @@ class MetricsStorage:
 
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return []
                 cursor = conn.execute(query, params)
 
                 columns = [description[0] for description in cursor.description]
@@ -430,7 +489,7 @@ class MetricsStorage:
 
                 return results
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"查询告警失败: {e}")
             return []
 
@@ -444,9 +503,19 @@ class MetricsStorage:
         返回:
             Dict: 操作结果
         """
+        if not self._require_storage():
+            return create_error_response(
+                "sqlite3 不可用，无法确认告警",
+                error_code=ErrorCode.STORAGE_ERROR
+            )
         try:
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return create_error_response(
+                        "数据库连接不可用",
+                        error_code=ErrorCode.STORAGE_ERROR
+                    )
                 cursor = conn.execute(
                     "UPDATE alerts SET acknowledged = 1 WHERE alert_id = ?",
                     (alert_id,)
@@ -461,7 +530,7 @@ class MetricsStorage:
                         error_code=ErrorCode.NOT_FOUND
                     )
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"确认告警失败: {e}")
             return create_error_response(
                 "确认告警失败",
@@ -476,9 +545,29 @@ class MetricsStorage:
         返回:
             Dict: 统计信息
         """
+        if not self._require_storage():
+            return {
+                "total_metrics": 0,
+                "total_alerts": 0,
+                "unacknowledged_alerts": 0,
+                "db_size_bytes": 0,
+                "db_size_mb": 0,
+                "status": "unavailable",
+                "reason": "sqlite3 模块未安装"
+            }
         try:
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return {
+                        "total_metrics": 0,
+                        "total_alerts": 0,
+                        "unacknowledged_alerts": 0,
+                        "db_size_bytes": 0,
+                        "db_size_mb": 0,
+                        "status": "unavailable",
+                        "reason": "数据库连接不可用"
+                    }
 
                 # 指标统计
                 cursor = conn.execute("SELECT COUNT(*) FROM metrics")
@@ -504,7 +593,7 @@ class MetricsStorage:
                     "db_size_mb": round(db_size / (1024 * 1024), 2)
                 }
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"获取统计信息失败: {e}")
             return {
                 "total_metrics": 0,
@@ -523,11 +612,21 @@ class MetricsStorage:
         返回:
             Dict: 清理结果
         """
+        if not self._require_storage():
+            return create_error_response(
+                "sqlite3 不可用，无法清理数据",
+                error_code=ErrorCode.STORAGE_ERROR
+            )
         try:
             cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
             with self._lock:
                 conn = self._get_connection()
+                if not conn:
+                    return create_error_response(
+                        "数据库连接不可用",
+                        error_code=ErrorCode.STORAGE_ERROR
+                    )
 
                 # 清理旧指标
                 cursor = conn.execute(
@@ -559,7 +658,7 @@ class MetricsStorage:
                 }
             )
 
-        except sqlite3.Error as e:
+        except Exception as e:
             logger.error(f"清理数据失败: {e}")
             return create_error_response(
                 "清理数据失败",

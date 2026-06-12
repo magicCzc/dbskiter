@@ -30,7 +30,11 @@ import logging
 import threading
 import time
 import json
-import sqlite3
+
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 
 from dbskiter.shared.unified_connector import UnifiedConnector
 from dbskiter.shared.error_handler import (

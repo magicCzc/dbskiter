@@ -818,11 +818,65 @@ class MonitorSkill:
             )
 
     def _collect_from_prometheus(self, metric_types: Optional[List[str]] = None) -> Dict[str, Any]:
-        """从 Prometheus 采集指标（预留接口）"""
-        return create_error_response(
-            "Prometheus 指标采集暂未实现",
-            error_code=ErrorCode.NOT_IMPLEMENTED
-        )
+        """
+        从 Prometheus 采集指标
+        
+        参数:
+            metric_types: 指定指标类型列表，None表示全部
+        
+        返回:
+            Dict: 指标数据
+        """
+        if not self.prometheus_client:
+            return create_error_response(
+                "Prometheus 客户端未初始化",
+                error_code=ErrorCode.CONNECTION_ERROR,
+                details={"solution": "请设置 PROMETHEUS_URL 环境变量"}
+            )
+        
+        try:
+            from dbskiter.shared.prometheus_client import RDSMetrics
+            
+            host_name = self._get_host_name()
+            if not host_name:
+                return create_error_response(
+                    "无法确定实例名",
+                    error_code=ErrorCode.CONFIG_INVALID
+                )
+            
+            rds_metrics = RDSMetrics(self.prometheus_client)
+            
+            # 获取指标数据
+            metrics_data = rds_metrics.get_current_metrics(host_name)
+            
+            # 转换为标准格式
+            metrics_dict = {}
+            for metric_name, metric_info in metrics_data.get('metrics', {}).items():
+                value = metric_info.get('value')
+                if value is not None:
+                    metrics_dict[metric_name] = {
+                        "value": value,
+                        "unit": metric_info.get('unit', ''),
+                        "timestamp": datetime.now().isoformat(),
+                        "source": "prometheus"
+                    }
+            
+            return create_success_response(
+                message=f"从 Prometheus 采集到 {len(metrics_dict)} 个指标",
+                data={
+                    "timestamp": datetime.now().isoformat(),
+                    "instance": host_name,
+                    "metrics": metrics_dict
+                }
+            )
+        
+        except Exception as e:
+            logger.error(f"Prometheus 指标采集失败: {e}")
+            return create_error_response(
+                "Prometheus 指标采集失败",
+                error_code=ErrorCode.COLLECTION_FAILED,
+                details={"error": str(e)}
+            )
 
     def _get_instance_name(self) -> Optional[str]:
         """获取 Prometheus 实例名"""
@@ -932,6 +986,9 @@ class MonitorSkill:
         # 如果有外部监控系统，优先使用
         if not self.collector and self.zabbix_client:
             return self._assess_health_from_zabbix()
+        
+        if not self.collector and self.prometheus_client:
+            return self._assess_health_from_prometheus()
 
         if not self.collector:
             return create_error_response(
@@ -991,6 +1048,127 @@ class MonitorSkill:
             logger.error(f"健康评估失败: {e}", exc_info=True)
             return create_error_response(
                 "健康评估失败",
+                error_code=ErrorCode.UNKNOWN_ERROR,
+                details={"error": str(e)}
+            )
+
+    def _assess_health_from_prometheus(self) -> Dict[str, Any]:
+        """
+        从 Prometheus 获取数据进行健康评估
+
+        返回:
+            Dict: 健康评估结果
+        """
+        try:
+            from dbskiter.shared.prometheus_client import RDSMetrics
+
+            host_name = self._get_host_name()
+            if not host_name:
+                return create_error_response(
+                    "无法确定实例名",
+                    error_code=ErrorCode.CONFIG_INVALID
+                )
+
+            rds_metrics = RDSMetrics(self.prometheus_client)
+            metrics_data = rds_metrics.get_current_metrics(host_name)
+
+            # 获取核心指标
+            metrics_summary = {}
+            score = 100
+            issues = []
+
+            prom_metrics = metrics_data.get('metrics', {})
+
+            # CPU 使用率
+            cpu_info = prom_metrics.get('cpu', {})
+            if cpu_info.get('value') is not None:
+                cpu_value = float(cpu_info['value'])
+                metrics_summary["cpu_usage"] = round(cpu_value, 2)
+                if cpu_value > 80:
+                    score -= 20
+                    issues.append(f"CPU 使用率过高: {cpu_value:.1f}%")
+                elif cpu_value > 70:
+                    score -= 10
+                    issues.append(f"CPU 使用率较高: {cpu_value:.1f}%")
+
+            # 内存使用率
+            memory_info = prom_metrics.get('memory', {})
+            if memory_info.get('value') is not None:
+                memory_value = float(memory_info['value'])
+                metrics_summary["memory_usage"] = round(memory_value, 2)
+                if memory_value > 90:
+                    score -= 20
+                    issues.append(f"内存使用率过高: {memory_value:.1f}%")
+                elif memory_value > 80:
+                    score -= 10
+                    issues.append(f"内存使用率较高: {memory_value:.1f}%")
+
+            # 磁盘使用率
+            disk_info = prom_metrics.get('disk_util', {})
+            if disk_info.get('value') is not None:
+                disk_value = float(disk_info['value'])
+                metrics_summary["disk_usage"] = round(disk_value, 2)
+                if disk_value > 85:
+                    score -= 15
+                    issues.append(f"磁盘使用率过高: {disk_value:.1f}%")
+                elif disk_value > 70:
+                    score -= 5
+                    issues.append(f"磁盘使用率较高: {disk_value:.1f}%")
+
+            # 活跃连接数
+            conn_info = prom_metrics.get('connections_active', {})
+            if conn_info.get('value') is not None:
+                conn_value = float(conn_info['value'])
+                metrics_summary["connections_active"] = round(conn_value, 2)
+                if conn_value > 1000:
+                    score -= 15
+                    issues.append(f"活跃连接数过多: {conn_value:.0f}")
+                elif conn_value > 500:
+                    score -= 5
+                    issues.append(f"活跃连接数较多: {conn_value:.0f}")
+
+            # 慢查询数
+            slow_info = prom_metrics.get('slow_queries', {})
+            if slow_info.get('value') is not None:
+                slow_value = float(slow_info['value'])
+                metrics_summary["slow_queries"] = round(slow_value, 2)
+                if slow_value > 10:
+                    score -= 10
+                    issues.append(f"慢查询数较多: {slow_value:.0f}")
+
+            # 磁盘 IO 使用率
+            io_info = prom_metrics.get('vm_ioutils', {})
+            if io_info.get('value') is not None:
+                io_value = float(io_info['value'])
+                metrics_summary["disk_io_util"] = round(io_value, 2)
+                if io_value > 80:
+                    score -= 10
+                    issues.append(f"磁盘 IO 使用率过高: {io_value:.1f}%")
+
+            # 确定状态
+            if score >= 90:
+                status = HealthStatus.HEALTHY
+            elif score >= 70:
+                status = HealthStatus.WARNING
+            else:
+                status = HealthStatus.CRITICAL
+
+            assessment = HealthAssessment(
+                status=status,
+                score=max(0, score),
+                issues=issues,
+                metrics_summary=metrics_summary
+            )
+
+            return create_success_response(
+                message=f"健康评估完成: {status.value}",
+                data=assessment.to_dict()
+            )
+
+        except Exception as e:
+            logger.error(f"Prometheus 健康评估失败: {e}")
+            return create_error_response(
+                "Prometheus 健康评估失败",
                 error_code=ErrorCode.UNKNOWN_ERROR,
                 details={"error": str(e)}
             )

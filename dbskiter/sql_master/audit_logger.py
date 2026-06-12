@@ -22,9 +22,13 @@
 import os
 import json
 import logging
-import sqlite3
 import threading
 from datetime import datetime, timedelta
+
+try:
+    import sqlite3
+except ImportError:
+    sqlite3 = None
 from typing import Dict, Any, List, Optional, Callable
 from dataclasses import dataclass, asdict
 from pathlib import Path

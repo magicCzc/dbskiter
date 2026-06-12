@@ -81,22 +81,27 @@ class BaseCommand(metaclass=CommandMeta):
         获取数据库连接器（延迟加载）
         
         返回:
-            UnifiedConnector: 统一数据库连接器（支持 SQLAlchemy 和 JDBC）
+            UnifiedConnector 或 MockConnector: 数据库连接器
         """
         if self._connector is None:
-            from dbskiter.shared.unified_connector import UnifiedConnector
-            
-            # 使用配置中的数据库连接信息（支持--database参数覆盖）
-            # 传递 extra 参数（包含 Oracle service_name 和 jdbc_driver_path 等）
-            self._connector = UnifiedConnector(
-                dialect=self.config.dialect,
-                host=self.config.host,
-                port=self.config.port,
-                username=self.config.username,
-                password=self.config.password,
-                database=self.config.database,
-                **self.config.extra
-            )
+            # Demo/Mock 模式
+            if getattr(self.args, "demo", False) or self.config.dialect == "mock":
+                from dbskiter.shared.mock_connector import MockConnector
+                self._connector = MockConnector()
+            else:
+                from dbskiter.shared.unified_connector import UnifiedConnector
+                
+                # 使用配置中的数据库连接信息（支持--database参数覆盖）
+                # 传递 extra 参数（包含 Oracle service_name 和 jdbc_driver_path 等）
+                self._connector = UnifiedConnector(
+                    dialect=self.config.dialect,
+                    host=self.config.host,
+                    port=self.config.port,
+                    username=self.config.username,
+                    password=self.config.password,
+                    database=self.config.database,
+                    **self.config.extra
+                )
             
         return self._connector
     
@@ -317,7 +322,7 @@ class BaseCommand(metaclass=CommandMeta):
 
         if self.output_mode == "raw":
             data = result.get("data", {})
-            self.output.print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
+            self.output.print(json.dumps(data, indent=2, ensure_ascii=False, default=str), force=True)
             return 0
 
         from dbskiter.shared.ai_context import AIOutputFormatter
@@ -346,5 +351,5 @@ class BaseCommand(metaclass=CommandMeta):
                 connector=self._connector,
             )
 
-        self.output.print(json.dumps(envelope, indent=2, ensure_ascii=False, default=str))
+        self.output.print(json.dumps(envelope, indent=2, ensure_ascii=False, default=str), force=True)
         return 0

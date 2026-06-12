@@ -78,12 +78,19 @@ class MonitorCommand(BaseCommand):
 
         skill = None
         try:
-            db_name = getattr(self.args, 'database', None)
-            configs = self._load_all_configs()
-            skill = self._create_skill_smart(
-                db_name=db_name,
-                configs=configs
-            )
+            # 检查 --demo 模式
+            if getattr(self.args, 'demo', False):
+                from dbskiter.shared.mock_connector import MockConnector
+                mock_connector = MockConnector()
+                skill = MonitorSkill(mock_connector)
+                self.output.info("演示模式：使用内置 Mock 数据")
+            else:
+                db_name = getattr(self.args, 'database', None)
+                configs = self._load_all_configs()
+                skill = self._create_skill_smart(
+                    db_name=db_name,
+                    configs=configs
+                )
 
             if not skill:
                 self.output.error("无法找到可用的数据源。请检查：\n"
@@ -777,15 +784,15 @@ class MonitorCommand(BaseCommand):
         """
         智能创建 MonitorSkill
 
-        策略:
-        1. 如果指定了 db_name，尝试匹配配置
-        2. 根据匹配的配置确定数据库类型和监控系统
-        3. 如果配置可用，优先使用直连数据库
-        4. 如果配置不可用，根据数据库类型选择外部监控（Oracle->Zabbix, MySQL->Prometheus）
+        策略（优先级从高到低）：
+        1. 优先使用 self.config 直接连接数据库（已解析好的配置）
+        2. 如果指定了 db_name，尝试在 configs 中匹配配置
+        3. 使用 BaseCommand 的 connector（延迟加载）
+        4. 如果以上都失败，才回退到外部监控（Oracle->Zabbix, MySQL->Prometheus）
 
         参数:
             db_name: 数据库名/主机名/实例名
-            configs: 所有可用配置
+            configs: 所有可用配置（MultiDBConfig 加载的别名配置）
 
         返回:
             MonitorSkill 实例，或 None
@@ -793,7 +800,18 @@ class MonitorCommand(BaseCommand):
         from dbskiter.db_monitor.skill import MonitorSkill
         from dbskiter.shared.oracle_metrics import OracleHostMapping
 
-        # 1. 如果指定了 db_name，尝试在所有配置中匹配
+        # 1. 优先使用 self.config 直接连接数据库（最高优先级）
+        # self.config 已由 main.py 通过 Config.from_args() 解析好，包含环境变量和命令行参数
+        if (hasattr(self, 'config') and self.config and
+            self.config.host and self.config.host not in ('localhost', '127.0.0.1')):
+            try:
+                self.output.info(f"使用数据库配置直连: {self.config.host}/{self.config.database}")
+                self._connector = self._create_connector_from_config(self.config)
+                return MonitorSkill(self._connector)
+            except Exception as e:
+                self.output.warning(f"使用配置直连失败: {e}")
+
+        # 2. 如果指定了 db_name，尝试在 configs 中匹配别名配置
         if db_name:
             db_name_lower = db_name.lower()
             for prefix, config in configs.items():
@@ -805,7 +823,7 @@ class MonitorCommand(BaseCommand):
                     self._connector = self._create_connector_from_config(config)
                     return MonitorSkill(self._connector)
 
-            # 没有找到匹配的配置，根据 db_name 推断数据库类型
+            # 没有找到匹配的配置，回退到外部监控
             if OracleHostMapping.is_oracle_group(db_name):
                 # Oracle 资产组使用 Zabbix
                 host_patterns = OracleHostMapping.get_group_hosts(db_name)
@@ -813,14 +831,14 @@ class MonitorCommand(BaseCommand):
                 return MonitorSkill(host_name=host_patterns)
             else:
                 # 默认使用 Prometheus（MySQL）
-                self.output.info(f"使用 Prometheus 查询: {db_name}")
+                self.output.info(f"未找到数据库配置，回退到 Prometheus 查询: {db_name}")
                 return MonitorSkill(host_name=db_name)
 
-        # 2. 没有指定 db_name，使用当前配置
+        # 3. 使用 BaseCommand 的 connector（延迟加载）
         if hasattr(self, 'connector') and self.connector:
             return MonitorSkill(self.connector)
 
-        # 3. 尝试使用第一个可用配置
+        # 4. 尝试使用第一个可用配置
         if configs:
             first_config = list(configs.values())[0]
             prefix = list(configs.keys())[0]
