@@ -206,15 +206,13 @@ class SecurityConfig:
         参数:
             environment: 环境名称，None则从DBSKITER_ENV读取
         """
-        # 加载.env文件
-        if HAS_DOTENV:
-            env_path = Path.cwd() / ".env"
-            if not env_path.exists():
-                # 尝试从项目根目录查找
-                env_path = Path(__file__).parent.parent.parent / ".env"
-            if env_path.exists():
-                load_dotenv(env_path)
-                logger.debug(f"已加载环境变量文件: {env_path}")
+        # 加载.env文件（使用 dotenv_values 避免 load_dotenv 副作用）
+        try:
+            from dbskiter.cli.config import _load_env_values
+            env_values = _load_env_values()
+            logger.debug(f"已加载环境变量文件")
+        except ImportError:
+            env_values = {}
 
         # 确定环境
         self._environment = self._detect_environment(environment)
@@ -223,7 +221,7 @@ class SecurityConfig:
         config = self._load_template(self._environment)
 
         # 应用环境变量覆盖
-        config = self._apply_env_overrides(config)
+        config = self._apply_env_overrides(config, env_values)
 
         # 创建策略对象（创建后不可变）
         self._policy = SecurityPolicy(**config)
@@ -259,7 +257,7 @@ class SecurityConfig:
         """加载基础配置模板"""
         return self._TEMPLATES[environment].copy()
 
-    def _apply_env_overrides(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_env_overrides(self, config: Dict[str, Any], env_values: Dict[str, Optional[str]] = None) -> Dict[str, Any]:
         """
         应用环境变量覆盖
 
@@ -275,37 +273,42 @@ class SecurityConfig:
             DBSKITER_REQUIRE_CONFIRMATION: true/false
             DBSKITER_DEFAULT_READ_ONLY: true/false
         """
+        env_values = env_values or {}
         config = config.copy()
 
+        def _get_env(key: str) -> Optional[str]:
+            """优先从 .env 缓存读取，其次从 os.environ 读取"""
+            return env_values.get(key) or os.getenv(key)
+
         # 行数限制
-        if value := os.getenv("DBSKITER_MAX_DELETE_ROWS"):
+        if value := _get_env("DBSKITER_MAX_DELETE_ROWS"):
             try:
                 config["max_delete_rows"] = int(value)
             except ValueError:
                 logger.warning(f"无效的 DBSKITER_MAX_DELETE_ROWS: {value}")
 
-        if value := os.getenv("DBSKITER_MAX_UPDATE_ROWS"):
+        if value := _get_env("DBSKITER_MAX_UPDATE_ROWS"):
             try:
                 config["max_update_rows"] = int(value)
             except ValueError:
                 logger.warning(f"无效的 DBSKITER_MAX_UPDATE_ROWS: {value}")
 
         # 集合类型（逗号分隔）
-        if value := os.getenv("DBSKITER_BLOCKED_OPERATIONS"):
+        if value := _get_env("DBSKITER_BLOCKED_OPERATIONS"):
             config["blocked_operations"] = {
                 op.strip().upper()
                 for op in value.split(",")
                 if op.strip()
             }
 
-        if value := os.getenv("DBSKITER_WHITELIST_TABLES"):
+        if value := _get_env("DBSKITER_WHITELIST_TABLES"):
             config["whitelist_tables"] = {
                 t.strip()
                 for t in value.split(",")
                 if t.strip()
             }
 
-        if value := os.getenv("DBSKITER_BLACKLIST_TABLES"):
+        if value := _get_env("DBSKITER_BLACKLIST_TABLES"):
             config["blacklist_tables"] = {
                 t.strip()
                 for t in value.split(",")
@@ -313,25 +316,25 @@ class SecurityConfig:
             }
 
         # 布尔类型
-        if value := os.getenv("DBSKITER_ENABLE_AUDIT"):
+        if value := _get_env("DBSKITER_ENABLE_AUDIT"):
             config["enable_audit"] = value.lower() in ("true", "1", "yes")
 
-        if value := os.getenv("DBSKITER_ENABLE_BACKUP_REMINDER"):
+        if value := _get_env("DBSKITER_ENABLE_BACKUP_REMINDER"):
             config["enable_backup_reminder"] = value.lower() in ("true", "1", "yes")
 
-        if value := os.getenv("DBSKITER_ENABLE_IMPACT_PREVIEW"):
+        if value := _get_env("DBSKITER_ENABLE_IMPACT_PREVIEW"):
             config["enable_impact_preview"] = value.lower() in ("true", "1", "yes")
 
-        if value := os.getenv("DBSKITER_DEFAULT_READ_ONLY"):
+        if value := _get_env("DBSKITER_DEFAULT_READ_ONLY"):
             config["default_read_only"] = value.lower() in ("true", "1", "yes")
 
         # DBSKITER_READ_ONLY 与 DBSKITER_DEFAULT_READ_ONLY 取OR关系
-        if value := os.getenv("DBSKITER_READ_ONLY"):
+        if value := _get_env("DBSKITER_READ_ONLY"):
             if value.lower() in ("true", "1", "yes"):
                 config["default_read_only"] = True
 
         # 确认级别特殊处理
-        if value := os.getenv("DBSKITER_REQUIRE_CONFIRMATION"):
+        if value := _get_env("DBSKITER_REQUIRE_CONFIRMATION"):
             if value.lower() in ("false", "0", "no"):
                 config["require_confirmation_levels"] = {SecurityLevel.CRITICAL}
             else:

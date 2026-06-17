@@ -1061,13 +1061,97 @@ class SQLMasterSkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建SQL执行透明度追踪信息
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        if scenario == "sql_execute":
+            trace["metrics_checked"] = [
+                {"name": "sql_text", "description": "SQL语句", "source": "用户输入"},
+                {"name": "execution_time", "description": "执行耗时", "source": "连接器计时"},
+                {"name": "rows_affected", "description": "影响行数", "source": "数据库返回"},
+                {"name": "execution_plan", "description": "执行计划", "source": "EXPLAIN"},
+            ]
+            trace["data_sources"] = ["user_input", "database_execution", "EXPLAIN"]
+
+        elif scenario == "sql_rewrite":
+            trace["metrics_checked"] = [
+                {"name": "original_sql", "description": "原始SQL", "source": "用户输入"},
+                {"name": "rewritten_sql", "description": "改写后SQL", "source": "规则引擎"},
+                {"name": "equivalence_check", "description": "等价性检查", "source": "语法分析"},
+            ]
+            trace["data_sources"] = ["user_input", "rule_engine", "syntax_analysis"]
+
+        elif scenario == "sql_analyze":
+            trace["metrics_checked"] = [
+                {"name": "execution_plan", "description": "执行计划", "source": "EXPLAIN"},
+                {"name": "index_usage", "description": "索引使用", "source": "EXPLAIN / SHOW INDEX"},
+                {"name": "cost_estimation", "description": "成本估算", "source": "优化器统计"},
+            ]
+            trace["data_sources"] = ["EXPLAIN", "SHOW INDEX", "optimizer_statistics"]
+
+        elif scenario == "data_analysis":
+            trace["metrics_checked"] = [
+                {"name": "data_distribution", "description": "数据分布", "source": "采样查询"},
+                {"name": "null_ratio", "description": "空值比例", "source": "统计查询"},
+                {"name": "cardinality", "description": "基数", "source": "information_schema"},
+            ]
+            trace["data_sources"] = ["sample_queries", "information_schema"]
+
+        elif scenario == "sql_complete":
+            trace["metrics_checked"] = [
+                {"name": "schema_info", "description": "表结构信息", "source": "information_schema"},
+                {"name": "context_sql", "description": "上下文SQL", "source": "用户输入"},
+                {"name": "suggestion_candidates", "description": "补全候选", "source": "语法分析"},
+            ]
+            trace["data_sources"] = ["information_schema", "user_input", "syntax_analysis"]
+
+        elif scenario == "schema_query":
+            trace["metrics_checked"] = [
+                {"name": "table_structure", "description": "表结构", "source": "information_schema"},
+                {"name": "index_info", "description": "索引信息", "source": "SHOW INDEX"},
+                {"name": "constraint_info", "description": "约束信息", "source": "information_schema"},
+            ]
+            trace["data_sources"] = ["information_schema", "SHOW INDEX"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_sql_info", "description": "通用SQL信息", "source": "自动检测"}
+            ]
+            trace["data_sources"] = ["auto_detection"]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        return trace
 
     def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取原始指标"""
@@ -1127,8 +1211,9 @@ class SQLMasterSkill:
         # SQL问题标记
         issues = data.get("issues", [])
         if isinstance(issues, list):
-            critical_issues = [i for i in issues if i.get("severity") == "critical"]
-            high_issues = [i for i in issues if i.get("severity") == "high"]
+            # issues 可能是 List[str] 或 List[Dict]，统一兼容
+            critical_issues = [i for i in issues if isinstance(i, dict) and i.get("severity") == "critical"]
+            high_issues = [i for i in issues if isinstance(i, dict) and i.get("severity") == "high"]
             if critical_issues:
                 flags["critical_sql_issues"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical_issues)} 个严重问题"}
             if high_issues:
@@ -1183,7 +1268,8 @@ class SQLMasterSkill:
             hints["focus_areas"] = ["query_optimization", "anti_patterns", "best_practices"]
 
             if isinstance(issues, list) and issues:
-                performance_issues = [i for i in issues if "performance" in i.get("category", "").lower()]
+                # issues 可能是 List[str] 或 List[Dict]，统一兼容
+                performance_issues = [i for i in issues if isinstance(i, dict) and "performance" in i.get("category", "").lower()]
                 if performance_issues:
                     hints["focus_areas"].append("performance_tuning")
 

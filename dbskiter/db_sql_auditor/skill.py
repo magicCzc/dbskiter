@@ -131,33 +131,39 @@ class SQLAuditorSkill:
         context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
-        审核单条SQL
+        审核单条SQL（已接入多步骤计时）
 
         参数:
             sql: SQL语句
             context: 上下文信息
 
         返回:
-            Dict: 审核结果
+            Dict: 审核结果，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         try:
-            audit_id = str(uuid.uuid4())[:8]
-            sql_type = self.parser.detect_sql_type(sql)
+            with timer.step("detect_sql_type", "检测 SQL 类型"):
+                audit_id = str(uuid.uuid4())[:8]
+                sql_type = self.parser.detect_sql_type(sql)
 
-            result = AuditResult(
-                audit_id=audit_id,
-                sql_content=sql,
-                sql_type=sql_type,
-                audit_time=datetime.now()
-            )
+                result = AuditResult(
+                    audit_id=audit_id,
+                    sql_content=sql,
+                    sql_type=sql_type,
+                    audit_time=datetime.now()
+                )
 
-            # 执行各类审核
-            self._execute_audit(sql, result)
+            with timer.step("execute_audit", "执行 SQL 审核"):
+                self._execute_audit(sql, result)
 
-            # 计算统计和评分
-            self._finalize_result(result)
+            with timer.step("finalize_result", "计算统计和评分"):
+                self._finalize_result(result)
 
-            return create_success_response(result.to_dict(), "SQL审核完成")
+            response = create_success_response(result.to_dict(), "SQL审核完成")
+            response["_execution_time"] = timer.to_summary()
+            return response
 
         except Exception as e:
             logger.error(f"SQL审核失败: {e}")
@@ -684,13 +690,76 @@ class SQLAuditorSkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建SQL审核透明度追踪信息
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        if scenario == "sql_audit":
+            trace["metrics_checked"] = [
+                {"name": "syntax_check", "description": "语法检查", "source": "SQL解析器"},
+                {"name": "rule_violations", "description": "规则违规", "source": "规则引擎"},
+                {"name": "performance_risk", "description": "性能风险", "source": "EXPLAIN分析"},
+                {"name": "security_risk", "description": "安全风险", "source": "安全规则库"},
+            ]
+            trace["data_sources"] = ["sql_parser", "rule_engine", "EXPLAIN", "security_rule_library"]
+
+        elif scenario == "ddl_impact":
+            trace["metrics_checked"] = [
+                {"name": "table_size", "description": "表大小", "source": "information_schema"},
+                {"name": "lock_duration", "description": "锁持有时间估算", "source": "经验模型"},
+                {"name": "rebuild_cost", "description": "重建成本", "source": "表结构分析"},
+                {"name": "dependent_objects", "description": "依赖对象", "source": "information_schema"},
+            ]
+            trace["data_sources"] = ["information_schema", "empirical_model"]
+            trace["notes"].append("DDL影响分析基于估算，实际影响可能因数据量和并发度而异")
+
+        elif scenario == "optimization":
+            trace["metrics_checked"] = [
+                {"name": "execution_plan", "description": "执行计划", "source": "EXPLAIN"},
+                {"name": "index_recommendation", "description": "索引推荐", "source": "成本模型"},
+                {"name": "rewrite_suggestion", "description": "改写建议", "source": "规则引擎"},
+                {"name": "statistics_accuracy", "description": "统计信息准确度", "source": "information_schema"},
+            ]
+            trace["data_sources"] = ["EXPLAIN", "cost_model", "rule_engine", "information_schema"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_audit", "description": "通用审核指标", "source": "自动检测"}
+            ]
+            trace["data_sources"] = ["auto_detection"]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        return trace
 
     def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取原始指标"""

@@ -74,6 +74,7 @@ class BaseCommand(metaclass=CommandMeta):
         self.output = output
         self.args = args
         self._connector = None
+        self._last_skill_result: Optional[Dict[str, Any]] = None
     
     @property
     def connector(self):
@@ -133,13 +134,19 @@ class BaseCommand(metaclass=CommandMeta):
         """
         运行命令（包装 execute）
         
-        处理异常和清理资源
+        处理异常和清理资源。
+        若用户指定了 --show-trace 且 execute() 中保存了 _last_skill_result，
+        则在命令结束后统一展示诊断追踪信息（支持 rule / raw / ai 全模式）。
         
         返回:
             int: 退出码
         """
         try:
-            return self.execute()
+            exit_code = self.execute()
+            # rule 模式下若指定了 --show-trace，统一展示追踪信息
+            if self.show_trace and self._last_skill_result is not None:
+                self._print_inspection_trace(self._last_skill_result)
+            return exit_code
         except CommandError as e:
             self.output.error(e.message)
             return e.exit_code
@@ -198,6 +205,16 @@ class BaseCommand(metaclass=CommandMeta):
         return getattr(self.args, 'ai_depth', 'detail')
 
     @property
+    def show_trace(self) -> bool:
+        """
+        是否展示诊断追踪信息
+
+        返回:
+            bool: True=展示追踪信息
+        """
+        return getattr(self.args, 'show_trace', False)
+
+    @property
     def mask_sensitive(self) -> bool:
         """
         是否脱敏敏感信息
@@ -249,6 +266,20 @@ class BaseCommand(metaclass=CommandMeta):
         mode = self.output_mode
 
         if mode == "rule":
+            # rule 模式下输出简要结论，避免完全静默
+            # 详细格式化由各命令的 execute() 自行处理，此处仅兜底输出核心信息
+            success = skill_result.get("success", False)
+            message = skill_result.get("message", "")
+            if message:
+                if success:
+                    self.output.success(message)
+                else:
+                    self.output.error(message)
+
+            # 如果指定了 --show-trace，展示诊断追踪信息
+            if self.show_trace:
+                self._print_inspection_trace(skill_result)
+
             return 0
 
         if mode == "raw":
@@ -276,6 +307,289 @@ class BaseCommand(metaclass=CommandMeta):
 
         return 0
 
+    def _inject_execution_time(
+        self,
+        skill_result: Dict[str, Any],
+        action: str,
+        total_ms: float,
+    ) -> None:
+        """
+        将执行耗时注入 inspection_trace，并合并 Skill 内部的多步骤计时
+
+        在 _execute_ai_mode 中自动调用，将计时结果融入 inspection_trace，
+        供 _print_inspection_trace 展示。
+        如果 Skill 返回了 _execution_time（多步骤计时），则将其步骤合并到
+        inspection_trace 的 steps 中。
+
+        参数:
+            skill_result: Skill返回的原始结果
+            action: 子命令名称
+            total_ms: 总耗时（毫秒）
+        """
+        # 提取 Skill 内部的多步骤计时（如果存在）
+        skill_steps: List[Dict[str, Any]] = []
+        skill_exec = skill_result.get("_execution_time")
+        if isinstance(skill_exec, dict):
+            skill_steps = skill_exec.get("steps", [])
+
+        # 定位 inspection_trace
+        trace = skill_result.get("inspection_trace")
+        if not trace:
+            data = skill_result.get("data", {})
+            trace = data.get("inspection_trace")
+
+        if trace:
+            trace["execution_time_ms"] = round(total_ms, 2)
+            # 构建合并后的 steps：总览 + Skill 内部步骤 + 已有步骤
+            merged_steps: List[Dict[str, Any]] = [{
+                "name": "total",
+                "description": "总执行时间（含 CLI 层开销）",
+                "elapsed_ms": round(total_ms, 2),
+            }]
+            # 添加 Skill 内部步骤（如 db_query、format_result）
+            if skill_steps:
+                merged_steps.extend(skill_steps)
+            # 保留 inspection_trace 中已有的步骤（如 diagnose 子命令的细分）
+            if "steps" in trace:
+                existing_names = {s["name"] for s in skill_steps}
+                for step in trace["steps"]:
+                    if step.get("name") not in existing_names:
+                        merged_steps.append(step)
+            trace["steps"] = merged_steps
+        else:
+            # 如果 Skill 没有返回 inspection_trace，创建一个简化版
+            steps = [{
+                "name": action,
+                "description": f"执行 {action}",
+                "elapsed_ms": round(total_ms, 2),
+            }]
+            if skill_steps:
+                steps.extend(skill_steps)
+            skill_result["inspection_trace"] = {
+                "scenario": action,
+                "metrics_checked": [],
+                "data_sources": [],
+                "confidence": "unknown",
+                "notes": ["自动生成的执行追踪（Skill 未提供 inspection_trace）"],
+                "execution_time_ms": round(total_ms, 2),
+                "steps": steps,
+            }
+
+    def _assess_dynamic_confidence(
+        self,
+        declared_confidence: str,
+        skill_result: Dict[str, Any]
+    ) -> tuple:
+        """
+        根据实际数据质量动态评估可信度
+
+        将 Skill 声明的可信度与实际数据质量交叉验证，
+        生成最终可信度评级和动态备注。
+
+        参数:
+            declared_confidence: Skill 声明的可信度
+            skill_result: Skill返回的原始结果
+
+        返回:
+            tuple: (final_confidence, dynamic_notes)
+                - final_confidence: 最终可信度 (high/medium/low)
+                - dynamic_notes: 动态生成的备注列表
+        """
+        data = skill_result.get("data", {})
+        notes = []
+
+        # 规则1：如果 data 完全为空，可信度最多 medium
+        if not data:
+            if declared_confidence == "high":
+                notes.append("数据体为空，可信度已从 high 自动降级")
+            return "low", notes + ["未获取到任何数据，建议检查配置或权限"]
+
+        # 规则2：检查关键字段是否为空
+        empty_key_count = 0
+        total_key_count = len(data)
+
+        for key, value in data.items():
+            if value is None:
+                empty_key_count += 1
+            elif isinstance(value, (list, dict)) and len(value) == 0:
+                empty_key_count += 1
+            elif isinstance(value, str) and value.strip() == "":
+                empty_key_count += 1
+
+        empty_ratio = empty_key_count / total_key_count if total_key_count > 0 else 0
+
+        if empty_ratio >= 0.5:
+            if declared_confidence == "high":
+                notes.append(f"超过 50% 的数据字段为空 ({empty_key_count}/{total_key_count})，可信度降级")
+            return "low", notes
+        elif empty_ratio >= 0.3:
+            if declared_confidence == "high":
+                notes.append(f"部分数据字段为空 ({empty_key_count}/{total_key_count})，可信度降级")
+            return "medium", notes
+
+        # 规则3：检查列表型数据量是否充足
+        for key, value in data.items():
+            if isinstance(value, list) and len(value) == 0:
+                notes.append(f"'{key}' 结果为空列表，该维度分析可能不完整")
+            elif isinstance(value, list) and len(value) < 3:
+                notes.append(f"'{key}' 样本量较少 ({len(value)} 条)，结论可能不具代表性")
+
+        # 规则4：检查 success 状态
+        if not skill_result.get("success", True):
+            notes.append("Skill 执行未完全成功，结果可能不完整")
+            return "low", notes
+
+        return declared_confidence, notes
+
+    def _print_inspection_trace(self, skill_result: Dict[str, Any]) -> None:
+        """
+        打印诊断/监控/安全追踪信息（Rich Table 美化版 + 动态可信度评估 + 耗时分解）
+
+        当用户指定 --show-trace 时调用，展示数据来源、检查指标和执行耗时。
+        兼容 ai 模式（inspection_trace）和 rule 模式（_execution_time）两种数据源。
+
+        参数:
+            skill_result: Skill返回的原始结果
+        """
+        # 从 skill_result 或 data 中提取 inspection_trace
+        trace = skill_result.get("inspection_trace")
+        if not trace:
+            data = skill_result.get("data", {})
+            trace = data.get("inspection_trace")
+
+        # 如果 rule 模式未返回 inspection_trace，但有 _execution_time（Skill 内部计时），
+        # 则生成一个简化的 inspection_trace 用于展示步骤耗时
+        if not trace:
+            exec_time = skill_result.get("_execution_time") or data.get("_execution_time")
+            if isinstance(exec_time, dict):
+                trace = {
+                    "scenario": "rule_mode",
+                    "metrics_checked": [],
+                    "data_sources": [],
+                    "confidence": "unknown",
+                    "notes": ["rule 模式自动追踪（Skill 内部步骤）"],
+                    "execution_time_ms": exec_time.get("total_ms", 0),
+                    "steps": exec_time.get("steps", []),
+                }
+
+        if not trace:
+            return
+
+        scenario = trace.get("scenario", "unknown")
+        metrics = trace.get("metrics_checked", [])
+        sources = trace.get("data_sources", [])
+        declared_confidence = trace.get("confidence", "unknown")
+        static_notes = trace.get("notes", [])
+        execution_time_ms = trace.get("execution_time_ms")
+        steps = trace.get("steps", [])
+
+        # 动态可信度评估
+        final_confidence, dynamic_notes = self._assess_dynamic_confidence(
+            declared_confidence, skill_result
+        )
+        all_notes = static_notes + dynamic_notes
+
+        # 使用 Rich Table 展示（如果 console 可用）
+        if self.output.console and not self.output.json_mode:
+            from rich.table import Table as RichTable
+            from rich.text import Text
+            from ..style import ThemeColor
+
+            # 标题面板（含耗时）
+            self.output.print("")
+            confidence_color = {
+                "high": ThemeColor.SUCCESS,
+                "medium": ThemeColor.WARNING,
+                "low": ThemeColor.ERROR,
+            }.get(final_confidence, ThemeColor.INFO)
+
+            title_text = Text(f"诊断追踪 | 场景: {scenario} | 可信度: ")
+            title_text.append(final_confidence.upper(), style=f"bold {confidence_color}")
+            if final_confidence != declared_confidence:
+                title_text.append(f" (原声明: {declared_confidence})", style="dim")
+            if execution_time_ms is not None:
+                time_text = f" | 耗时: {execution_time_ms}ms"
+                title_text.append(time_text, style=f"bold {ThemeColor.INFO}")
+            self.output.rich_print(title_text)
+
+            # 执行步骤耗时表格（如果有步骤数据）
+            if steps:
+                step_table = RichTable(
+                    title="执行步骤耗时分解",
+                    show_header=True,
+                    header_style=f"bold {ThemeColor.PRIMARY_BRIGHT}",
+                    border_style=ThemeColor.BORDER,
+                    padding=(0, 1),
+                )
+                step_table.add_column("步骤", style=f"bold {ThemeColor.PRIMARY}", min_width=20)
+                step_table.add_column("说明", min_width=30)
+                step_table.add_column("耗时", style=ThemeColor.INFO, min_width=10, justify="right")
+
+                for s in steps:
+                    elapsed = s.get("elapsed_ms", 0)
+                    # 根据耗时给颜色提示
+                    time_style = ThemeColor.SUCCESS if elapsed < 200 else (
+                        ThemeColor.WARNING if elapsed < 1000 else ThemeColor.ERROR
+                    )
+                    step_table.add_row(
+                        s.get("name", ""),
+                        s.get("description", ""),
+                        Text(f"{elapsed}ms", style=time_style),
+                    )
+                self.output.rich_print(step_table)
+
+            # 指标表格
+            if metrics:
+                table = RichTable(
+                    title="检查指标",
+                    show_header=True,
+                    header_style=f"bold {ThemeColor.PRIMARY_BRIGHT}",
+                    border_style=ThemeColor.BORDER,
+                    padding=(0, 1),
+                )
+                table.add_column("指标名", style=f"bold {ThemeColor.PRIMARY}", min_width=15)
+                table.add_column("说明", min_width=25)
+                table.add_column("数据来源", style=ThemeColor.INFO, min_width=20)
+
+                for m in metrics:
+                    table.add_row(
+                        m.get("name", ""),
+                        m.get("description", ""),
+                        m.get("source", ""),
+                    )
+                self.output.rich_print(table)
+
+            # 数据来源
+            if sources:
+                sources_text = Text(f"数据来源: {', '.join(sources)}")
+                sources_text.stylize(ThemeColor.INFO)
+                self.output.rich_print(sources_text)
+
+            # 备注
+            if all_notes:
+                for note in all_notes:
+                    note_text = Text(f"⚠ {note}")
+                    note_text.stylize(ThemeColor.WARNING)
+                    self.output.rich_print(note_text)
+        else:
+            # 降级到纯文本（JSON/quiet 模式或 console 不可用时）
+            self.output.print("")
+            time_str = f" | 耗时: {execution_time_ms}ms" if execution_time_ms is not None else ""
+            self.output.print(f"[诊断追踪] 场景: {scenario} | 可信度: {final_confidence} (声明: {declared_confidence}){time_str}")
+            if steps:
+                self.output.print("执行步骤:")
+                for s in steps:
+                    self.output.print(f"  • {s.get('name', '')}: {s.get('description', '')} ({s.get('elapsed_ms', 0)}ms)")
+            if sources:
+                self.output.print(f"数据来源: {', '.join(sources)}")
+            if metrics:
+                self.output.print("检查指标:")
+                for m in metrics:
+                    self.output.print(f"  • {m.get('name', '')}: {m.get('description', '')} [{m.get('source', '')}]")
+            if all_notes:
+                for note in all_notes:
+                    self.output.print(f"  ⚠ {note}")
+
     def _execute_ai_mode(
         self,
         skill,
@@ -284,7 +598,7 @@ class BaseCommand(metaclass=CommandMeta):
         scenario_map: Optional[Dict[str, str]] = None,
     ) -> int:
         """
-        通用AI/Raw模式执行
+        通用AI/Raw模式执行（自动计时 + inspection_trace 注入）
 
         各命令模块在execute()中检测output_mode != "rule"时，
         构建method_map后调用此方法完成AI/Raw模式输出
@@ -306,12 +620,18 @@ class BaseCommand(metaclass=CommandMeta):
             >>> scenario_map = {"health": "monitor", "anomalies": "monitor"}
             >>> return self._execute_ai_mode(skill, action, method_map, scenario_map)
         """
+        from dbskiter.shared import ExecutionTimer
+
         handler = method_map.get(action)
         if not handler:
             self.output.error(f"不支持的操作: {action}")
             return 1
 
+        # 自动计时
+        timer = ExecutionTimer().start()
         result = handler()
+        total_ms = timer.stop()
+
         if result is None:
             self.output.error(f"操作返回空结果: {action}")
             return 1
@@ -319,6 +639,12 @@ class BaseCommand(metaclass=CommandMeta):
         if not result.get("success"):
             self.output.error(f"操作失败: {self._extract_error_message(result)}")
             return 1
+
+        # 将耗时注入 inspection_trace
+        self._inject_execution_time(result, action, total_ms)
+
+        # 保存结果供 run() 中 --show-trace 统一展示
+        self._last_skill_result = result
 
         if self.output_mode == "raw":
             data = result.get("data", {})

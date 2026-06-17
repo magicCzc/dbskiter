@@ -126,7 +126,7 @@ class SecuritySkill:
         dialect: str = "mysql"
     ) -> Dict[str, Any]:
         """
-        检测SQL注入风险
+        检测SQL注入风险（已接入多步骤计时）
 
         参数:
             sql: SQL语句
@@ -134,8 +134,11 @@ class SecuritySkill:
             dialect: 数据库类型
 
         返回:
-            Dict: 检测结果
+            Dict: 检测结果，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         if not self.config.enable_sql_injection_detection:
             return create_error_response(
                 "SQL注入检测已禁用",
@@ -149,11 +152,15 @@ class SecuritySkill:
             )
 
         try:
-            result = self.sql_detector.detect(sql, params, dialect)
-            return create_success_response(
+            with timer.step("detect_sql", "检测SQL注入风险"):
+                result = self.sql_detector.detect(sql, params, dialect)
+
+            response = create_success_response(
                 data=result,
                 message="SQL注入检测完成"
             )
+            response["_execution_time"] = timer.to_summary()
+            return response
         except Exception as e:
             logger.error(f"SQL注入检测失败: {e}")
             return create_error_response(
@@ -167,15 +174,18 @@ class SecuritySkill:
         sample_size: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        扫描敏感数据
+        扫描敏感数据（已接入多步骤计时）
 
         参数:
             tables: 指定表列表，None表示所有表
             sample_size: 采样行数
 
         返回:
-            Dict: 扫描结果
+            Dict: 扫描结果，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         if not self.config.enable_sensitive_data_scan:
             return create_error_response(
                 "敏感数据扫描已禁用",
@@ -185,28 +195,33 @@ class SecuritySkill:
         sample = sample_size or self.config.sample_size
 
         try:
-            result = self.data_scanner.scan(
-                tables=tables,
-                sample_size=sample
-            )
+            with timer.step("scan_data", "扫描敏感数据"):
+                result = self.data_scanner.scan(
+                    tables=tables,
+                    sample_size=sample
+                )
 
             # 构建详细的执行信息
-            total_tables = result.get('total_tables', 0)
-            tables_scanned = result.get('tables_scanned', 0)
-            total_findings = result.get('total_findings', 0)
+            with timer.step("build_result", "构建扫描结果"):
+                total_tables = result.get('total_tables', 0)
+                tables_scanned = result.get('tables_scanned', 0)
+                total_findings = result.get('total_findings', 0)
 
-            message = f"扫描了{total_tables}个表，在{tables_scanned}个表中发现{total_findings}个敏感字段"
-            if total_findings == 0:
-                message += "（未发现敏感数据）"
+                message = f"扫描了{total_tables}个表，在{tables_scanned}个表中发现{total_findings}个敏感字段"
+                if total_findings == 0:
+                    message += "（未发现敏感数据）"
 
-            return create_success_response(
-                data={
-                    **result,
-                    'total_checked': total_tables,  # 用于CLI显示
-                    'risks_found': total_findings   # 用于CLI显示
-                },
-                message=message
-            )
+                response = create_success_response(
+                    data={
+                        **result,
+                        'total_checked': total_tables,  # 用于CLI显示
+                        'risks_found': total_findings   # 用于CLI显示
+                    },
+                    message=message
+                )
+
+            response["_execution_time"] = timer.to_summary()
+            return response
         except Exception as e:
             logger.error(f"敏感数据扫描失败: {e}")
             return create_error_response(
@@ -791,13 +806,134 @@ class SecuritySkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建安全审计透明度追踪信息
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        if scenario == "security":
+            trace["metrics_checked"] = [
+                {"name": "overall_score", "description": "安全综合评分", "source": "多模块聚合"},
+                {"name": "sql_injection_risk", "description": "SQL注入风险", "source": "静态分析"},
+                {"name": "permission_risk", "description": "权限风险", "source": "information_schema"},
+                {"name": "password_policy", "description": "密码策略", "source": "系统变量"},
+                {"name": "config_security", "description": "配置安全", "source": "系统变量"},
+            ]
+            trace["data_sources"] = ["static_analysis", "information_schema", "system_variables"]
+
+        elif scenario == "sql_injection":
+            trace["metrics_checked"] = [
+                {"name": "sql_patterns", "description": "SQL模式分析", "source": "用户输入SQL"},
+                {"name": "injection_vectors", "description": "注入向量检测", "source": "规则引擎"},
+                {"name": "parameter_safety", "description": "参数安全性", "source": "语法分析"},
+            ]
+            trace["data_sources"] = ["user_input", "rule_engine", "syntax_analysis"]
+
+        elif scenario == "sensitive_data":
+            trace["metrics_checked"] = [
+                {"name": "column_names", "description": "列名匹配", "source": "information_schema"},
+                {"name": "data_patterns", "description": "数据模式识别", "source": "正则表达式/关键词"},
+                {"name": "sample_data", "description": "抽样数据", "source": "LIMIT 查询"},
+            ]
+            trace["data_sources"] = ["information_schema", "sample_queries"]
+            if not data.get("findings"):
+                trace["notes"].append("未发现敏感数据，可能是采样不足或匹配规则不够全面")
+
+        elif scenario == "permissions":
+            trace["metrics_checked"] = [
+                {"name": "user_privileges", "description": "用户权限", "source": "mysql.user / information_schema"},
+                {"name": "excessive_permissions", "description": "过度授权", "source": "权限对比"},
+                {"name": "unused_grants", "description": "未使用授权", "source": "审计日志"},
+            ]
+            trace["data_sources"] = ["mysql.user", "information_schema"]
+
+        elif scenario == "login_security":
+            trace["metrics_checked"] = [
+                {"name": "failed_login_attempts", "description": "失败登录尝试", "source": "error_log"},
+                {"name": "connection_patterns", "description": "连接模式", "source": "performance_schema"},
+                {"name": "ssl_usage", "description": "SSL使用情况", "source": "status_variables"},
+            ]
+            trace["data_sources"] = ["error_log", "performance_schema", "status_variables"]
+
+        elif scenario == "audit_log":
+            trace["metrics_checked"] = [
+                {"name": "audit_events", "description": "审计事件", "source": "audit_log_plugin"},
+                {"name": "high_risk_operations", "description": "高危操作", "source": "规则匹配"},
+                {"name": "user_activity", "description": "用户活动", "source": "audit_log"},
+            ]
+            trace["data_sources"] = ["audit_log"]
+            if not data.get("events"):
+                trace["confidence"] = "low"
+                trace["notes"].append("未获取审计日志，可能未开启审计插件")
+
+        elif scenario == "high_risk":
+            trace["metrics_checked"] = [
+                {"name": "ddl_operations", "description": "DDL操作", "source": "审计日志"},
+                {"name": "drop_truncate", "description": "删除/截断操作", "source": "审计日志"},
+                {"name": "privilege_changes", "description": "权限变更", "source": "审计日志"},
+            ]
+            trace["data_sources"] = ["audit_log"]
+
+        elif scenario == "password_policy":
+            trace["metrics_checked"] = [
+                {"name": "policy_settings", "description": "密码策略设置", "source": "系统变量"},
+                {"name": "user_passwords", "description": "用户密码状态", "source": "mysql.user"},
+            ]
+            trace["data_sources"] = ["system_variables", "mysql.user"]
+
+        elif scenario == "weak_passwords":
+            trace["metrics_checked"] = [
+                {"name": "password_hash_strength", "description": "密码哈希强度", "source": "mysql.user"},
+                {"name": "common_passwords", "description": "常见弱密码检测", "source": "弱密码字典"},
+            ]
+            trace["data_sources"] = ["mysql.user", "weak_password_dictionary"]
+
+        elif scenario == "config_security":
+            trace["metrics_checked"] = [
+                {"name": "secure_file_priv", "description": "文件导入限制", "source": "系统变量"},
+                {"name": "local_infile", "description": "本地文件加载", "source": "系统变量"},
+                {"name": "skip_networking", "description": "网络跳过", "source": "系统变量"},
+                {"name": "bind_address", "description": "绑定地址", "source": "系统变量"},
+            ]
+            trace["data_sources"] = ["system_variables"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_security", "description": "通用安全检查", "source": "自动检测"}
+            ]
+            trace["data_sources"] = ["auto_detection"]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        return trace
 
     def _extract_raw_metrics_for_ai(
         self,

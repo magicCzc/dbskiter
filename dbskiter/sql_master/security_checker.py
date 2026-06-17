@@ -337,10 +337,10 @@ class SQLInjectionDetector:
                 where_match = re.search(r'WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)', sql)
                 if where_match:
                     where_clause = where_match.group(1)
-                    # 检查是否有多个单引号（字符串值）
+                    # 检查单引号数量（0个或偶数个均为正常，奇数个可能表示未闭合）
                     quote_count = where_clause.count("'")
-                    if quote_count >= 2 and quote_count % 2 == 0:
-                        # 成对的单引号，可能是正常的字符串值
+                    if quote_count % 2 == 0:
+                        # 没有单引号（纯数字/列名条件）或成对的单引号（正常字符串值）
                         if not re.search(r"'\s*OR\s*'", where_clause, re.IGNORECASE):
                             if not re.search(r"'\s*AND\s*'", where_clause, re.IGNORECASE):
                                 return True

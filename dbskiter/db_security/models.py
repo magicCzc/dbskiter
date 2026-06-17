@@ -159,6 +159,7 @@ class RiskReport:
     medium_count: int = 0
     low_count: int = 0
     risks: List[Risk] = field(default_factory=list)
+    failed_modules: List[str] = field(default_factory=list)
     generated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 
     def to_dict(self) -> Dict[str, Any]:
@@ -170,6 +171,7 @@ class RiskReport:
             "medium_count": self.medium_count,
             "low_count": self.low_count,
             "risks": [r.to_dict() for r in self.risks],
+            "failed_modules": self.failed_modules,
             "generated_at": self.generated_at
         }
 

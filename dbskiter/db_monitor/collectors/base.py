@@ -155,16 +155,54 @@ class BaseMetricsCollector(ABC):
         """
         pass
 
+    def _health_check(self) -> None:
+        """
+        连接健康检查
+
+        执行简单的 SELECT 1 查询验证连接是否可用。
+        如果连接失败，抛出异常，让 collect_all_metrics 统一处理。
+
+        异常说明：
+            - ConnectionError: 连接失败
+            - PermissionError: 权限不足
+            - SQLAlchemyError: 数据库异常
+        """
+        try:
+            self.connector.execute("SELECT 1")
+        except Exception as e:
+            # 将异常重新抛出为 SQLAlchemyError，以便统一捕获
+            raise SQLAlchemyError(f"数据库连接检查失败: {e}") from e
+
     def collect_all_metrics(self) -> List[MetricPoint]:
         """
         采集所有指标
 
+        采集前先做连接健康检查，如果连接失败只报一次错误，
+        避免每个指标都重复报错。
+
         返回:
             List[MetricPoint]: 指标数据点列表
         """
-        metrics = []
         timestamp = datetime.now()
         queries = self.get_metric_queries()
+
+        # 先做连接健康检查，只报一次错误
+        try:
+            self._health_check()
+        except ConnectionError as e:
+            logger.warning(f"数据库连接失败，跳过指标采集: {e}")
+            return []
+        except PermissionError as e:
+            logger.warning(f"数据库权限不足，跳过指标采集: {e}")
+            return []
+        except SQLAlchemyError as e:
+            logger.warning(f"数据库连接异常，跳过指标采集: {e}")
+            return []
+        except Exception as e:
+            logger.warning(f"数据库连接检查失败，跳过指标采集: {e}")
+            return []
+
+        metrics = []
 
         for metric_type, query_def in queries.items():
             try:

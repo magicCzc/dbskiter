@@ -241,9 +241,15 @@ class OutputFormatter:
         初始化输出格式化器
 
         参数:
-            json_mode: 是否输出 JSON 格式
+            json_mode: 是否输出 JSON 格式（默认自动检测：管道/重定向时自动启用）
             quiet: 是否静默模式（只输出结果）
         """
+        # 自动检测：如果 stdout 不是 TTY（管道/重定向/文件），自动切换到 JSON 模式
+        if not json_mode and not quiet:
+            import sys
+            if not sys.stdout.isatty():
+                json_mode = True
+
         self.json_mode = json_mode
         self.quiet = quiet
         # 懒加载 Rich Console，避免在 json/quiet 模式下无意义初始化

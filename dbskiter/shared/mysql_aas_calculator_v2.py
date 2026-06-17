@@ -1111,6 +1111,9 @@ class MySQLAASCalculatorV2:
                     max_size_mb=self.config.storage_max_size_mb,
                     max_age_hours=self.config.max_metric_age_hours
                 )
+            except ImportError:
+                # sqlite3 不可用，静默使用内存模式（常见情况，不需要告警）
+                logger.debug("sqlite3 模块不可用，AAS 使用仅内存模式")
             except Exception as e:
                 logger.warning(f"持久化存储初始化失败: {e}，将使用仅内存模式")
         

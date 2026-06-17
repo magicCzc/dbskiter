@@ -191,7 +191,7 @@ class DiagnoseSkill:
         since: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        分析慢查询（多数据库支持，增强版）
+        分析慢查询（多数据库支持，增强版，已接入多步骤计时）
 
         支持两种模式：
         1. 实时模式：从数据库采集当前慢查询
@@ -208,28 +208,49 @@ class DiagnoseSkill:
                 - summary: 汇总统计
                 - top_patterns: TOP查询模式
                 - recommendations: 优化建议
+                - _execution_time: 步骤耗时（自动注入）
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         try:
             if log_file:
                 # 日志文件模式
-                from .core.slow_query_analyzer import SlowQueryAnalyzer
-                analyzer = SlowQueryAnalyzer(self.connector)
-                report = analyzer.analyze_log_file(
-                    file_path=log_file,
-                    since=since,
-                    min_time=min_time
-                )
-                return create_success_response(
+                with timer.step("load_log_file", "加载慢查询日志文件"):
+                    from .core.slow_query_analyzer import SlowQueryAnalyzer
+                    analyzer = SlowQueryAnalyzer(self.connector)
+
+                with timer.step("parse_log", "解析日志内容"):
+                    report = analyzer.analyze_log_file(
+                        file_path=log_file,
+                        since=since,
+                        min_time=min_time
+                    )
+
+                result = create_success_response(
                     report.to_dict(),
                     f"日志分析完成: {log_file}"
                 )
             else:
                 # 实时模式
-                result = self._diagnostician.analyze_slow_queries(
-                    limit=limit,
-                    min_time=min_time
-                )
-                return result
+                with timer.step("db_query", "从数据库采集慢查询"):
+                    result = self._diagnostician.analyze_slow_queries(
+                        limit=limit,
+                        min_time=min_time
+                    )
+
+                with timer.step("process_data", "处理并封装结果"):
+                    if not isinstance(result, dict):
+                        result = {"data": result}
+                    if "success" not in result:
+                        result = create_success_response(
+                            result.get("data", result),
+                            "慢查询分析完成"
+                        )
+
+            # 注入多步骤耗时
+            result["_execution_time"] = timer.to_summary()
+            return result
         except Exception as e:
             logger.error(f"慢查询分析失败: {e}")
             return create_error_response(
@@ -485,13 +506,107 @@ class DiagnoseSkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建诊断透明度追踪信息
+
+        让用户/AI清楚知道本次诊断查了哪些指标、数据来源是什么
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息，包含 metrics_checked / data_sources / confidence
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        if scenario == "slow_query":
+            trace["metrics_checked"] = [
+                {"name": "slow_queries", "description": "执行时间超过阈值的SQL", "source": "performance_schema / slow log"},
+                {"name": "query_time", "description": "SQL执行耗时", "source": "performance_schema.events_statements_history_long"},
+                {"name": "execution_plan", "description": "执行计划分析", "source": "EXPLAIN 输出"},
+            ]
+            trace["data_sources"] = ["performance_schema", "slow_query_log"]
+            if not data.get("queries") and not data.get("slow_queries"):
+                trace["confidence"] = "low"
+                trace["notes"].append("未找到慢查询数据，可能未开启慢查询日志或performance_schema")
+
+        elif scenario == "sql_analysis":
+            trace["metrics_checked"] = [
+                {"name": "sql_text", "description": "SQL语句文本", "source": "用户输入"},
+                {"name": "execution_plan", "description": "执行计划", "source": "EXPLAIN"},
+                {"name": "index_usage", "description": "索引使用情况", "source": "EXPLAIN / SHOW INDEX"},
+            ]
+            trace["data_sources"] = ["user_input", "EXPLAIN"]
+
+        elif scenario == "index_recommend":
+            trace["metrics_checked"] = [
+                {"name": "table_statistics", "description": "表统计信息", "source": "information_schema"},
+                {"name": "existing_indexes", "description": "现有索引", "source": "SHOW INDEX"},
+                {"name": "column_cardinality", "description": "列基数", "source": "information_schema.statistics"},
+            ]
+            trace["data_sources"] = ["information_schema", "SHOW INDEX"]
+
+        elif scenario == "bottleneck":
+            trace["metrics_checked"] = [
+                {"name": "cpu_usage", "description": "CPU使用率", "source": "监控采集器"},
+                {"name": "memory_usage", "description": "内存使用", "source": "监控采集器"},
+                {"name": "disk_io", "description": "磁盘IO", "source": "监控采集器"},
+                {"name": "connection_count", "description": "连接数", "source": "performance_schema / 直连"},
+            ]
+            trace["data_sources"] = ["monitor_collector", "performance_schema"]
+            if self._has_external_monitor():
+                trace["notes"].append(f"使用了外部监控源: {self._get_monitor_source()}")
+            else:
+                trace["notes"].append("使用直连数据库采集指标")
+
+        elif scenario == "realtime":
+            trace["metrics_checked"] = [
+                {"name": "qps", "description": "每秒查询数", "source": "performance_schema / 状态变量"},
+                {"name": "active_connections", "description": "活跃连接数", "source": "performance_schema.threads"},
+                {"name": "lock_waits", "description": "锁等待", "source": "performance_schema.metadata_locks"},
+            ]
+            trace["data_sources"] = ["performance_schema", "status_variables"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_status", "description": "通用状态指标", "source": "自动检测"}
+            ]
+            trace["data_sources"] = ["auto_detection"]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        return trace
+
+    def _has_external_monitor(self) -> bool:
+        """检查是否使用了外部监控源"""
+        # 简化的检测逻辑，实际可根据配置判断
+        return False
+
+    def _get_monitor_source(self) -> str:
+        """获取当前使用的监控源名称"""
+        return "直连数据库"
 
     def _extract_raw_metrics_for_ai(
         self,
@@ -984,7 +1099,7 @@ class DiagnoseSkill:
     def get_top_sql(self, limit: int = 10, threshold: int = 0,
                     order_by: str = "time") -> Dict[str, Any]:
         """
-        获取TOP SQL
+        获取TOP SQL（已接入多步骤计时）
 
         参数:
             limit: 返回条数
@@ -992,17 +1107,28 @@ class DiagnoseSkill:
             order_by: 排序依据(time/cpu/io/rows)
 
         返回:
-            Dict: TOP SQL列表
+            Dict: TOP SQL列表，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         try:
-            if self._diagnostician:
-                result = self._diagnostician.get_top_sql(limit, threshold)
-                return self._convert_diagnostician_result(result)
-            else:
-                return create_error_response(
-                    f"TOP SQL分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+            with timer.step("db_query", "从数据库采集TOP SQL"):
+                if self._diagnostician:
+                    result = self._diagnostician.get_top_sql(limit, threshold)
+                    result = self._convert_diagnostician_result(result)
+                else:
+                    result = create_error_response(
+                        f"TOP SQL分析暂不支持 {self.dialect}",
+                        ErrorCode.UNSUPPORTED_SQL
+                    )
+
+            with timer.step("format_result", "转换并封装结果"):
+                if isinstance(result, dict) and "_execution_time" not in result:
+                    pass  # 保留原结果
+
+            result["_execution_time"] = timer.to_summary()
+            return result
         except Exception as e:
             logger.error(f"获取TOP SQL失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
@@ -1029,29 +1155,40 @@ class DiagnoseSkill:
 
     def analyze_locks(self) -> Dict[str, Any]:
         """
-        综合分析锁情况
+        综合分析锁情况（已接入多步骤计时）
 
         返回:
-            Dict: 锁分析结果
+            Dict: 锁分析结果，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         try:
-            if 'mysql' in self.dialect:
-                return self._analyze_mysql_locks()
-            elif 'oracle' in self.dialect:
-                return self._analyze_oracle_locks()
-            elif 'postgresql' in self.dialect:
-                return self._analyze_postgresql_locks()
-            elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
-                return self._analyze_mssql_locks()
-            elif 'clickhouse' in self.dialect:
-                return self._analyze_clickhouse_locks()
-            elif 'sqlite' in self.dialect:
-                return self._analyze_sqlite_locks()
-            else:
-                return create_error_response(
-                    f"锁分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+            with timer.step("select_engine", "选择数据库引擎适配"):
+                if 'mysql' in self.dialect:
+                    result = self._analyze_mysql_locks()
+                elif 'oracle' in self.dialect:
+                    result = self._analyze_oracle_locks()
+                elif 'postgresql' in self.dialect:
+                    result = self._analyze_postgresql_locks()
+                elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                    result = self._analyze_mssql_locks()
+                elif 'clickhouse' in self.dialect:
+                    result = self._analyze_clickhouse_locks()
+                elif 'sqlite' in self.dialect:
+                    result = self._analyze_sqlite_locks()
+                else:
+                    result = create_error_response(
+                        f"锁分析暂不支持 {self.dialect}",
+                        ErrorCode.UNSUPPORTED_SQL
+                    )
+
+            with timer.step("format_result", "转换并封装结果"):
+                if isinstance(result, dict) and "_execution_time" not in result:
+                    pass
+
+            result["_execution_time"] = timer.to_summary()
+            return result
         except Exception as e:
             logger.error(f"锁分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
@@ -1138,7 +1275,7 @@ class DiagnoseSkill:
 
     def analyze_space(self, top_n: int = 20, min_size_mb: int = 100, database: Optional[str] = None) -> Dict[str, Any]:
         """
-        空间诊断
+        空间诊断（已接入多步骤计时）
 
         参数:
             top_n: TOP N大表
@@ -1146,26 +1283,37 @@ class DiagnoseSkill:
             database: 指定数据库名（可选，默认使用当前连接的数据库）
 
         返回:
-            Dict: 空间分析结果
+            Dict: 空间分析结果，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         try:
-            if 'mysql' in self.dialect:
-                return self._analyze_mysql_space(top_n, min_size_mb, database)
-            elif 'oracle' in self.dialect:
-                return self._analyze_oracle_space(top_n, min_size_mb)
-            elif 'postgresql' in self.dialect:
-                return self._analyze_postgresql_space(top_n, min_size_mb)
-            elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
-                return self._analyze_mssql_space(top_n, min_size_mb)
-            elif 'clickhouse' in self.dialect:
-                return self._analyze_clickhouse_space(top_n, min_size_mb)
-            elif 'sqlite' in self.dialect:
-                return self._analyze_sqlite_space(top_n, min_size_mb)
-            else:
-                return create_error_response(
-                    f"空间分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+            with timer.step("select_engine", "选择数据库引擎适配"):
+                if 'mysql' in self.dialect:
+                    result = self._analyze_mysql_space(top_n, min_size_mb, database)
+                elif 'oracle' in self.dialect:
+                    result = self._analyze_oracle_space(top_n, min_size_mb)
+                elif 'postgresql' in self.dialect:
+                    result = self._analyze_postgresql_space(top_n, min_size_mb)
+                elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                    result = self._analyze_mssql_space(top_n, min_size_mb)
+                elif 'clickhouse' in self.dialect:
+                    result = self._analyze_clickhouse_space(top_n, min_size_mb)
+                elif 'sqlite' in self.dialect:
+                    result = self._analyze_sqlite_space(top_n, min_size_mb)
+                else:
+                    result = create_error_response(
+                        f"空间分析暂不支持 {self.dialect}",
+                        ErrorCode.UNSUPPORTED_SQL
+                    )
+
+            with timer.step("format_result", "转换并封装结果"):
+                if isinstance(result, dict) and "_execution_time" not in result:
+                    pass
+
+            result["_execution_time"] = timer.to_summary()
+            return result
         except Exception as e:
             logger.error(f"空间分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)

@@ -202,7 +202,7 @@ class MetricsStorage:
                 )
                 conn.commit()
 
-            return create_success_response("指标已保存")
+            return create_success_response(message="指标已保存")
 
         except Exception as e:
             logger.error(f"保存指标失败: {e}")
@@ -257,7 +257,7 @@ class MetricsStorage:
                 )
                 conn.commit()
 
-            return create_success_response("告警已保存")
+            return create_success_response(message="告警已保存")
 
         except Exception as e:
             logger.error(f"保存告警失败: {e}")
@@ -523,7 +523,7 @@ class MetricsStorage:
                 conn.commit()
 
                 if cursor.rowcount > 0:
-                    return create_success_response("告警已确认")
+                    return create_success_response(message="告警已确认")
                 else:
                     return create_error_response(
                         "告警不存在",
@@ -650,7 +650,7 @@ class MetricsStorage:
             logger.info(f"数据清理完成: 删除{metrics_deleted}条指标, {alerts_deleted}条告警")
 
             return create_success_response(
-                "数据清理完成",
+                message="数据清理完成",
                 data={
                     "metrics_deleted": metrics_deleted,
                     "alerts_deleted": alerts_deleted,

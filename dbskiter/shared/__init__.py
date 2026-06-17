@@ -24,6 +24,8 @@ from .query_result import QueryResult
 
 # 通用工具函数
 from .utils import format_bytes, format_duration, truncate_text
+from .execution_timer import ExecutionTimer, timed
+from .history_manager import HistoryManager, HistoryEntry
 
 # 数据模型
 from .models import (

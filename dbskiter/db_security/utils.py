@@ -1859,15 +1859,35 @@ class SecurityAuditor:
             RiskReport: 风险报告
         """
         all_risks = []
+        failed_modules = []
 
         for module, result in modules_results.items():
             if isinstance(result, dict):
                 # 处理标准响应格式: {"success": true, "data": {...}}
-                if "success" in result and "data" in result:
+                if "success" in result:
+                    if not result.get("success"):
+                        # 模块执行失败，记录为严重风险
+                        failed_modules.append(module)
+                        message = result.get("message", "未知错误")
+                        all_risks.append(Risk(
+                            severity="critical",
+                            description=f"[{module}] 检测失败: {message}",
+                            category=module
+                        ))
+                        continue
                     actual_data = result.get("data", {})
                     risks = actual_data.get("risks", [])
                 else:
-                    # 直接数据格式
+                    # 直接数据格式（向后兼容）
+                    if result.get("status") == "failed":
+                        failed_modules.append(module)
+                        message = result.get("message", "未知错误")
+                        all_risks.append(Risk(
+                            severity="critical",
+                            description=f"[{module}] 检测失败: {message}",
+                            category=module
+                        ))
+                        continue
                     risks = result.get("risks", [])
 
                 for risk_data in risks:
@@ -1882,12 +1902,14 @@ class SecurityAuditor:
         high_count = sum(1 for r in all_risks if r.severity == "high")
         medium_count = sum(1 for r in all_risks if r.severity == "medium")
         low_count = sum(1 for r in all_risks if r.severity == "low")
+        total_risks = len(all_risks)
 
         return RiskReport(
-            total_risks=len(all_risks),
+            risks=all_risks,
+            total_risks=total_risks,
             critical_count=critical_count,
             high_count=high_count,
             medium_count=medium_count,
             low_count=low_count,
-            risks=all_risks
+            failed_modules=failed_modules
         )

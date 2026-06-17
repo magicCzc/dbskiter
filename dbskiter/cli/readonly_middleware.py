@@ -18,6 +18,7 @@ CLI只读模式中间件
 
 from __future__ import annotations
 
+import inspect
 import os
 import sys
 import logging
@@ -30,20 +31,19 @@ from dbskiter.shared.error_handler import DBPermissionError
 
 logger = logging.getLogger(__name__)
 
+# 模块级单例缓存，避免重复加载 .env 和创建 SQLParser 实例
+_readonly_enforcer_instance: Optional[ReadOnlyEnforcer] = None
+
 
 def _load_dotenv_if_available():
     """
     加载.env文件中的环境变量
 
-    确保在读取环境变量之前，.env文件已被加载
+    使用 _load_env_values 避免重复解析和 load_dotenv 副作用
     """
     try:
-        from dotenv import load_dotenv
-        env_path = Path.cwd() / ".env"
-        if not env_path.exists():
-            env_path = Path(__file__).parent.parent.parent / ".env"
-        if env_path.exists():
-            load_dotenv(env_path, override=False)
+        from dbskiter.cli.config import _load_env_values
+        _load_env_values()
     except ImportError:
         pass
 
@@ -86,13 +86,17 @@ class ReadOnlyEnforcer:
     @classmethod
     def from_config(cls) -> "ReadOnlyEnforcer":
         """
-        从配置创建执行器
+        从配置创建执行器（使用模块级单例缓存）
 
         检查顺序：
             1. 环境变量 DBSKITER_READ_ONLY
             2. 环境变量 DBSKITER_DEFAULT_READ_ONLY
             3. 默认配置（False）
         """
+        global _readonly_enforcer_instance
+        if _readonly_enforcer_instance is not None:
+            return _readonly_enforcer_instance
+
         # 确保已加载.env文件
         _load_dotenv_if_available()
 
@@ -103,7 +107,8 @@ class ReadOnlyEnforcer:
         if not enabled:
             enabled = os.getenv("DBSKITER_DEFAULT_READ_ONLY", "").lower() in ("true", "1", "yes")
 
-        return cls(enabled=enabled)
+        _readonly_enforcer_instance = cls(enabled=enabled)
+        return _readonly_enforcer_instance
 
     def check(self, sql: str) -> tuple[bool, Optional[str]]:
         """
@@ -175,10 +180,11 @@ def readonly_protect(func):
     """
     @wraps(func)
     def wrapper(*args, **kwargs):
-        # 获取SQL参数（通常是第一个位置参数或sql关键字参数）
-        sql = kwargs.get('sql')
-        if not sql and args:
-            sql = args[0]
+        # 使用 inspect 精确定位 sql 参数，避免位置参数误取
+        sig = inspect.signature(func)
+        bound = sig.bind_partial(*args, **kwargs)
+        bound.apply_defaults()
+        sql = bound.arguments.get('sql')
 
         if sql:
             enforcer = ReadOnlyEnforcer.from_config()

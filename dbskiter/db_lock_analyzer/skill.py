@@ -85,45 +85,53 @@ class LockAnalyzerSkill:
 
     def analyze_current_locks(self) -> Dict[str, Any]:
         """
-        分析当前所有锁
+        分析当前所有锁（已接入多步骤计时）
 
         返回:
-            Dict: 标准响应格式，包含锁信息列表
+            Dict: 标准响应格式，包含锁信息列表，以及 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         try:
-            locks = []
+            with timer.step("select_engine", "选择数据库引擎适配"):
+                locks = []
 
-            if 'mysql' in self.dialect:
-                locks = self._get_mysql_locks()
-            elif 'postgresql' in self.dialect:
-                locks = self._get_postgresql_locks()
-            elif 'oracle' in self.dialect:
-                locks = self._get_oracle_locks()
-            elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
-                locks = self._get_mssql_locks()
-            elif 'clickhouse' in self.dialect:
-                locks = self._get_clickhouse_locks()
-            elif 'sqlite' in self.dialect:
-                locks = self._get_sqlite_locks()
-            else:
-                locks = self._get_generic_locks()
+                if 'mysql' in self.dialect:
+                    locks = self._get_mysql_locks()
+                elif 'postgresql' in self.dialect:
+                    locks = self._get_postgresql_locks()
+                elif 'oracle' in self.dialect:
+                    locks = self._get_oracle_locks()
+                elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                    locks = self._get_mssql_locks()
+                elif 'clickhouse' in self.dialect:
+                    locks = self._get_clickhouse_locks()
+                elif 'sqlite' in self.dialect:
+                    locks = self._get_sqlite_locks()
+                else:
+                    locks = self._get_generic_locks()
 
-            data = {
-                "locks": [lock.to_dict() for lock in locks],
-                "count": len(locks)
-            }
-            # 如果锁列表为空，添加权限提示（可能因权限不足无法获取）
-            if len(locks) == 0:
-                data["note"] = (
-                    "未获取到锁信息。可能原因："
-                    "1) 当前确实无锁等待；"
-                    "2) 数据库用户缺少 PROCESS 权限，无法访问 information_schema.innodb_locks 等系统视图。"
-                    "如需完整锁分析，请使用具有 PROCESS 权限的数据库用户。"
+            with timer.step("build_result", "构建锁分析结果"):
+                data = {
+                    "locks": [lock.to_dict() for lock in locks],
+                    "count": len(locks)
+                }
+                # 如果锁列表为空，添加权限提示（可能因权限不足无法获取）
+                if len(locks) == 0:
+                    data["note"] = (
+                        "未获取到锁信息。可能原因："
+                        "1) 当前确实无锁等待；"
+                        "2) 数据库用户缺少 PROCESS 权限，无法访问 information_schema.innodb_locks 等系统视图。"
+                        "如需完整锁分析，请使用具有 PROCESS 权限的数据库用户。"
+                    )
+                response = create_success_response(
+                    data=data,
+                    message=f"成功获取 {len(locks)} 个锁信息"
                 )
-            return create_success_response(
-                data=data,
-                message=f"成功获取 {len(locks)} 个锁信息"
-            )
+
+            response["_execution_time"] = timer.to_summary()
+            return response
 
         except Exception as e:
             logger.error(f"获取锁信息失败: {e}")
@@ -1274,13 +1282,75 @@ class LockAnalyzerSkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建锁分析透明度追踪信息
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        if scenario == "lock_analysis":
+            trace["metrics_checked"] = [
+                {"name": "current_locks", "description": "当前锁状态", "source": "performance_schema.metadata_locks"},
+                {"name": "lock_waits", "description": "锁等待", "source": "performance_schema.data_lock_waits"},
+                {"name": "blocking_transactions", "description": "阻塞事务", "source": "information_schema.innodb_trx"},
+                {"name": "lock_duration", "description": "锁持有时间", "source": "performance_schema.events_waits_current"},
+            ]
+            trace["data_sources"] = ["performance_schema", "information_schema"]
+
+        elif scenario == "deadlock_detection":
+            trace["metrics_checked"] = [
+                {"name": "deadlock_events", "description": "死锁事件", "source": "performance_schema.log"},
+                {"name": "deadlock_graph", "description": "死锁图", "source": "SHOW ENGINE INNODB STATUS"},
+                {"name": "victim_selection", "description": "牺牲者选择", "source": "InnoDB 内部逻辑"},
+            ]
+            trace["data_sources"] = ["performance_schema", "innodb_status"]
+            if not data.get("deadlocks"):
+                trace["notes"].append("未检测到死锁，不代表系统不存在死锁风险")
+
+        elif scenario == "lock_chains":
+            trace["metrics_checked"] = [
+                {"name": "wait_chain", "description": "等待链", "source": "performance_schema"},
+                {"name": "blocking_tree", "description": "阻塞树", "source": "递归查询"},
+                {"name": "root_blocker", "description": "根阻塞者", "source": "锁依赖分析"},
+            ]
+            trace["data_sources"] = ["performance_schema", "recursive_query"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_lock_status", "description": "通用锁状态", "source": "自动检测"}
+            ]
+            trace["data_sources"] = ["auto_detection"]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        return trace
 
     def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取原始指标"""

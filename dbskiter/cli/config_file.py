@@ -8,7 +8,7 @@ cli/config_file.py
 
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass, asdict
 
 try:
@@ -48,9 +48,19 @@ class ProfileConfig:
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ProfileConfig":
-        """从字典创建配置"""
+        """
+        从字典创建配置
+
+        兼容字段名：
+            - dialect / driver → dialect
+            - host → host
+            - port → port
+            - username / user → username
+            - password → password
+            - database / db → database
+        """
         return cls(
-            dialect=data.get("dialect", "mysql"),
+            dialect=data.get("dialect", data.get("driver", "mysql")),
             host=data.get("host", "localhost"),
             port=data.get("port", 3306),
             username=data.get("username", data.get("user", "root")),
@@ -59,8 +69,25 @@ class ProfileConfig:
         )
     
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
-        return asdict(self)
+        """
+        转换为字典
+
+        输出格式：
+            - driver: 数据库驱动
+            - host: 主机地址
+            - port: 端口
+            - user: 用户名
+            - password: 密码
+            - db: 数据库名
+        """
+        return {
+            "driver": self.dialect,
+            "host": self.host,
+            "port": self.port,
+            "user": self.username,
+            "password": self.password,
+            "db": self.database,
+        }
 
 
 class ConfigFileManager:
@@ -173,33 +200,81 @@ class ConfigFileManager:
     def load_profile(self, profile_name: Optional[str] = None) -> ProfileConfig:
         """
         加载指定 profile
-        
+
+        支持两种配置文件格式：
+        1. profiles 字典（旧格式）
+        2. databases 列表（新格式，init --format yaml 生成）
+
         参数:
-            profile_name: profile 名称，None 使用 default
-            
+            profile_name: profile 名称或数据库别名，None 使用默认配置
+
         返回:
             ProfileConfig: 配置对象
         """
         data = self.load()
-        
-        # 获取 profiles
+
+        # 尝试新格式：databases 列表
+        databases = data.get("databases", [])
+        if databases:
+            # 如果指定了 profile_name，在 databases 中按 name 匹配
+            if profile_name:
+                for db in databases:
+                    if db.get("name", "") == profile_name:
+                        return ProfileConfig.from_dict(db)
+            # 没有指定 profile_name，使用默认数据库
+            default_name = data.get("settings", {}).get("default_database")
+            if default_name:
+                for db in databases:
+                    if db.get("name", "") == default_name:
+                        return ProfileConfig.from_dict(db)
+            # 返回第一个数据库
+            if databases:
+                return ProfileConfig.from_dict(databases[0])
+            return ProfileConfig()
+
+        # 旧格式：profiles 字典
         profiles = data.get("profiles", {})
-        
-        # 确定使用哪个 profile
         if profile_name:
             profile_data = profiles.get(profile_name, {})
         else:
-            # 使用 default profile 或第一个 profile
             default_name = data.get("default_profile")
             if default_name and default_name in profiles:
                 profile_data = profiles[default_name]
             elif profiles:
                 profile_data = next(iter(profiles.values()))
             else:
-                profile_data = data  # 直接使用根级配置
-        
+                profile_data = data
+
         return ProfileConfig.from_dict(profile_data)
-    
+
+    def list_databases(self) -> List[str]:
+        """
+        列出 YAML 配置文件中所有数据库别名
+
+        返回:
+            List[str]: 数据库别名列表
+        """
+        data = self.load()
+        databases = data.get("databases", [])
+        return [db.get("name", "") for db in databases if db.get("name")]
+
+    def get_database_config(self, name: str) -> Optional[ProfileConfig]:
+        """
+        按别名获取数据库配置
+
+        参数:
+            name: 数据库别名
+
+        返回:
+            Optional[ProfileConfig]: 配置对象，不存在返回 None
+        """
+        data = self.load()
+        databases = data.get("databases", [])
+        for db in databases:
+            if db.get("name", "") == name:
+                return ProfileConfig.from_dict(db)
+        return None
+
     def list_profiles(self) -> list:
         """
         列出所有可用的 profiles

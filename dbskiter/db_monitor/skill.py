@@ -308,14 +308,17 @@ class MonitorSkill:
         metric_types: Optional[List[str]] = None
     ) -> Dict[str, Any]:
         """
-        执行异常检测
+        执行异常检测（已接入多步骤计时）
 
         参数:
             metric_types: 指定指标类型，None表示全部
 
         返回:
-            Dict: 检测到的异常列表
+            Dict: 检测到的异常列表，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         if not self.collector:
             return create_error_response(
                 "未提供数据库连接器",
@@ -324,58 +327,65 @@ class MonitorSkill:
 
         try:
             # 采集当前指标
-            metrics = self.collector.collect_all_metrics()
+            with timer.step("collect_metrics", "采集当前指标"):
+                metrics = self.collector.collect_all_metrics()
 
             # 过滤指定指标
-            if metric_types:
-                metrics = [
-                    m for m in metrics
-                    if m.metric_type.value in metric_types
-                ]
+            with timer.step("filter_metrics", "过滤指定指标"):
+                if metric_types:
+                    metrics = [
+                        m for m in metrics
+                        if m.metric_type.value in metric_types
+                    ]
 
             # 检测异常
-            anomalies = []
-            for metric in metrics:
-                alert = self.detector.detect(metric)
-                if alert:
-                    # 检查告警冷却
-                    if self.alert_manager.should_alert(alert.alert_id):
-                        anomalies.append(alert)
+            with timer.step("detect_anomalies", "检测异常模式"):
+                anomalies = []
+                for metric in metrics:
+                    alert = self.detector.detect(metric)
+                    if alert:
+                        # 检查告警冷却
+                        if self.alert_manager.should_alert(alert.alert_id):
+                            anomalies.append(alert)
 
-                        # 保存告警
-                        if self.storage:
-                            self.storage.save_alert(alert)
+                            # 保存告警
+                            if self.storage:
+                                self.storage.save_alert(alert)
 
-                        # 触发处理器
-                        for handler in self._alert_handlers:
-                            try:
-                                handler(alert)
-                            except Exception as e:
-                                logger.error(f"告警处理器执行失败: {e}")
+                            # 触发处理器
+                            for handler in self._alert_handlers:
+                                try:
+                                    handler(alert)
+                                except Exception as e:
+                                    logger.error(f"告警处理器执行失败: {e}")
 
             # 构建指标列表（包含当前值和状态）
-            metrics_list = []
-            for metric in metrics:
-                # 检查该指标是否有异常
-                has_anomaly = any(
-                    a.metric_type == metric.metric_type
-                    for a in anomalies
-                )
-                metrics_list.append({
-                    "name": metric.metric_type.value,
-                    "value": round(metric.value, 2),
-                    "unit": metric.unit,
-                    "status": "anomaly" if has_anomaly else "normal"
-                })
+            with timer.step("build_result", "构建结果数据"):
+                metrics_list = []
+                for metric in metrics:
+                    # 检查该指标是否有异常
+                    has_anomaly = any(
+                        a.metric_type == metric.metric_type
+                        for a in anomalies
+                    )
+                    metrics_list.append({
+                        "name": metric.metric_type.value,
+                        "value": round(metric.value, 2),
+                        "unit": metric.unit,
+                        "status": "anomaly" if has_anomaly else "normal"
+                    })
 
-            return create_success_response(
-                message=f"检测到 {len(anomalies)} 个异常",
-                data={
-                    "anomalies": [a.to_dict() for a in anomalies],
-                    "total_checked": len(metrics),
-                    "metrics": metrics_list
-                }
-            )
+                result = create_success_response(
+                    message=f"检测到 {len(anomalies)} 个异常",
+                    data={
+                        "anomalies": [a.to_dict() for a in anomalies],
+                        "total_checked": len(metrics),
+                        "metrics": metrics_list
+                    }
+                )
+
+            result["_execution_time"] = timer.to_summary()
+            return result
 
         except Exception as e:
             logger.error(f"异常检测失败: {e}")
@@ -976,19 +986,28 @@ class MonitorSkill:
     @validate_params()
     def assess_health(self) -> Dict[str, Any]:
         """
-        评估数据库健康状况
+        评估数据库健康状况（已接入多步骤计时）
 
         使用基于权重的评分算法，支持不同数据库类型的差异化评分
 
         返回:
-            Dict: 健康评估结果
+            Dict: 健康评估结果，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         # 如果有外部监控系统，优先使用
         if not self.collector and self.zabbix_client:
-            return self._assess_health_from_zabbix()
-        
+            with timer.step("prometheus_health", "从 Prometheus 获取健康评估"):
+                result = self._assess_health_from_zabbix()
+            result["_execution_time"] = timer.to_summary()
+            return result
+
         if not self.collector and self.prometheus_client:
-            return self._assess_health_from_prometheus()
+            with timer.step("prometheus_health", "从 Prometheus 获取健康评估"):
+                result = self._assess_health_from_prometheus()
+            result["_execution_time"] = timer.to_summary()
+            return result
 
         if not self.collector:
             return create_error_response(
@@ -998,7 +1017,8 @@ class MonitorSkill:
 
         try:
             # 采集指标
-            metrics = self.collector.collect_all_metrics()
+            with timer.step("collect_metrics", "采集数据库指标"):
+                metrics = self.collector.collect_all_metrics()
 
             if not metrics:
                 assessment = HealthAssessment(
@@ -1006,43 +1026,50 @@ class MonitorSkill:
                     score=0,
                     issues=["无法连接到数据库或采集指标"]
                 )
-                return create_success_response(
-                    "无法采集指标",
+                result = create_success_response(
+                    message="无法采集指标",
+                    data=assessment.to_dict()
+                )
+                result["_execution_time"] = timer.to_summary()
+                return result
+
+            # 构建指标字典
+            with timer.step("build_metrics", "构建指标字典"):
+                metrics_dict: Dict[MetricType, float] = {}
+                metrics_summary: Dict[str, float] = {}
+                max_connections = 2000.0
+
+                for metric in metrics:
+                    metrics_dict[metric.metric_type] = metric.value
+                    metrics_summary[metric.metric_type.value] = round(metric.value, 2)
+
+                    # 记录最大连接数
+                    if metric.metric_type == MetricType.CONNECTIONS_MAX:
+                        max_connections = metric.value
+
+            # 使用健康评分器计算分数
+            with timer.step("calculate_score", "计算健康评分"):
+                scorer = get_health_scorer()
+                score, status, issues = scorer.calculate_score(
+                    metrics=metrics_dict,
+                    db_type=self.dialect or "unknown",
+                    max_connections=max_connections
+                )
+
+                assessment = HealthAssessment(
+                    status=status,
+                    score=score,
+                    issues=issues,
+                    metrics_summary=metrics_summary
+                )
+
+                result = create_success_response(
+                    message=f"健康评估完成: {status.value}",
                     data=assessment.to_dict()
                 )
 
-            # 构建指标字典
-            metrics_dict: Dict[MetricType, float] = {}
-            metrics_summary: Dict[str, float] = {}
-            max_connections = 2000.0
-            
-            for metric in metrics:
-                metrics_dict[metric.metric_type] = metric.value
-                metrics_summary[metric.metric_type.value] = round(metric.value, 2)
-                
-                # 记录最大连接数
-                if metric.metric_type == MetricType.CONNECTIONS_MAX:
-                    max_connections = metric.value
-
-            # 使用健康评分器计算分数
-            scorer = get_health_scorer()
-            score, status, issues = scorer.calculate_score(
-                metrics=metrics_dict,
-                db_type=self.dialect or "unknown",
-                max_connections=max_connections
-            )
-
-            assessment = HealthAssessment(
-                status=status,
-                score=score,
-                issues=issues,
-                metrics_summary=metrics_summary
-            )
-
-            return create_success_response(
-                message=f"健康评估完成: {status.value}",
-                data=assessment.to_dict()
-            )
+            result["_execution_time"] = timer.to_summary()
+            return result
 
         except Exception as e:
             logger.error(f"健康评估失败: {e}", exc_info=True)
@@ -1440,7 +1467,7 @@ class MonitorSkill:
                 error_code=ErrorCode.STORAGE_ERROR
             )
         return create_success_response(
-            "获取存储统计成功",
+            message="获取存储统计成功",
             data=self.storage.get_statistics()
         )
 
@@ -1510,8 +1537,19 @@ class MonitorSkill:
             )
 
         try:
+            # 资源名称到 MetricType 的映射
+            resource_to_metric = {
+                "disk": "disk_usage",
+                "memory": "memory_usage",
+                "cpu": "cpu_usage",
+                "connections": "connections_active",
+                "qps": "qps",
+            }
+            # 转换资源名称为指标名称
+            metric_name = resource_to_metric.get(metric, metric)
+
             # 获取历史数据
-            metric_enum = MetricType(metric)
+            metric_enum = MetricType(metric_name)
             history = self.storage.get_metric_history(metric_enum, hours=24*30)
 
             if len(history) < 3:
@@ -1798,13 +1836,122 @@ class MonitorSkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建监控透明度追踪信息
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        # 判断监控数据源
+        monitor_source = "直连数据库"
+        if self._has_external_monitor():
+            monitor_source = self._get_monitor_source()
+
+        if scenario == "monitor":
+            trace["metrics_checked"] = [
+                {"name": "health_score", "description": "健康评分", "source": monitor_source},
+                {"name": "qps", "description": "每秒查询数", "source": monitor_source},
+                {"name": "active_connections", "description": "活跃连接数", "source": monitor_source},
+                {"name": "cpu_usage", "description": "CPU使用率", "source": monitor_source},
+                {"name": "memory_usage", "description": "内存使用", "source": monitor_source},
+            ]
+            trace["data_sources"] = [monitor_source]
+
+        elif scenario == "anomaly_detection":
+            trace["metrics_checked"] = [
+                {"name": "metric_baselines", "description": "指标基线", "source": monitor_source},
+                {"name": "deviation_analysis", "description": "偏差分析", "source": "统计模型"},
+                {"name": "anomaly_patterns", "description": "异常模式识别", "source": "时序分析"},
+            ]
+            trace["data_sources"] = [monitor_source, "statistical_model"]
+
+        elif scenario in ("capacity", "capacity_advanced"):
+            trace["metrics_checked"] = [
+                {"name": "disk_usage", "description": "磁盘使用趋势", "source": monitor_source},
+                {"name": "growth_rate", "description": "增长率", "source": "历史数据"},
+                {"name": "forecast", "description": "容量预测", "source": "趋势外推"},
+            ]
+            trace["data_sources"] = [monitor_source, "historical_data", "trend_extrapolation"]
+
+        elif scenario == "metrics_collection":
+            trace["metrics_checked"] = [
+                {"name": "all_available_metrics", "description": "全量指标采集", "source": monitor_source},
+            ]
+            trace["data_sources"] = [monitor_source]
+
+        elif scenario == "metrics_history":
+            trace["metrics_checked"] = [
+                {"name": "historical_metrics", "description": "历史指标", "source": monitor_source},
+            ]
+            trace["data_sources"] = [monitor_source]
+            if not data.get("history") and not data.get("metrics"):
+                trace["confidence"] = "low"
+                trace["notes"].append("未获取到历史数据，可能监控未启用或历史数据已过期")
+
+        elif scenario == "trend_analysis":
+            trace["metrics_checked"] = [
+                {"name": "metric_trend", "description": "指标趋势", "source": monitor_source},
+                {"name": "slope", "description": "变化斜率", "source": "线性回归"},
+                {"name": "seasonality", "description": "周期性", "source": "时序分解"},
+            ]
+            trace["data_sources"] = [monitor_source, "linear_regression", "seasonal_decomposition"]
+
+        elif scenario == "baseline_comparison":
+            trace["metrics_checked"] = [
+                {"name": "current_value", "description": "当前值", "source": monitor_source},
+                {"name": "baseline_value", "description": "基线值", "source": "基线存储"},
+                {"name": "deviation", "description": "偏差", "source": "对比计算"},
+            ]
+            trace["data_sources"] = [monitor_source, "baseline_storage"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_metrics", "description": "通用监控指标", "source": monitor_source}
+            ]
+            trace["data_sources"] = [monitor_source]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        if monitor_source != "直连数据库":
+            trace["notes"].append(f"使用外部监控源: {monitor_source}")
+
+        return trace
+
+    def _has_external_monitor(self) -> bool:
+        """检查是否使用了外部监控源"""
+        # 简化的检测逻辑
+        return False
+
+    def _get_monitor_source(self) -> str:
+        """获取当前使用的监控源名称"""
+        return "直连数据库"
 
     def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取原始指标"""

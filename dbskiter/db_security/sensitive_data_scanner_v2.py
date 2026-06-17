@@ -473,20 +473,42 @@ class SensitiveDataScannerV2:
         try:
             # 使用 DatabaseConnector 的 get_schema 方法
             import pandas as pd
-            schema_df = self.connector.get_schema(table_name)
-            
+            schema_result = self.connector.get_schema(table_name)
+
             columns = []
-            for _, row in schema_df.iterrows():
-                # 支持多种列名格式
-                # MySQL: Field, Type
-                # PostgreSQL: column_name, data_type
-                # 通用: name, type
-                col_name = row.get("Field") or row.get("name") or row.get("column_name", "")
-                col_type = row.get("Type") or row.get("type") or row.get("data_type", "UNKNOWN")
-                columns.append({
-                    "name": str(col_name),
-                    "type": str(col_type)
-                })
+
+            # 兼容 dict 返回类型（如 MockConnector: {"columns": [...], "row_count": N}）
+            if isinstance(schema_result, dict):
+                raw_cols = schema_result.get("columns", [])
+                for raw_col in raw_cols:
+                    # raw_col 可能是字符串（列名）或 dict（含 name/type 字段）
+                    if isinstance(raw_col, dict):
+                        columns.append({
+                            "name": str(raw_col.get("name", "")),
+                            "type": str(raw_col.get("type", "UNKNOWN")),
+                        })
+                    else:
+                        columns.append({
+                            "name": str(raw_col),
+                            "type": "UNKNOWN",
+                        })
+                return columns
+
+            # DataFrame 返回类型（真实数据库连接器）
+            if hasattr(schema_result, "iterrows"):
+                for _, row in schema_result.iterrows():
+                    # 支持多种列名格式
+                    # MySQL: Field, Type
+                    # PostgreSQL: column_name, data_type
+                    # 通用: name, type
+                    col_name = row.get("Field") or row.get("name") or row.get("column_name", "")
+                    col_type = row.get("Type") or row.get("type") or row.get("data_type", "UNKNOWN")
+                    columns.append({
+                        "name": str(col_name),
+                        "type": str(col_type),
+                    })
+                return columns
+
             return columns
         except Exception as e:
             logger.error(f"获取表结构失败: {e}")

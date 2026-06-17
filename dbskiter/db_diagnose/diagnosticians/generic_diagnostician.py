@@ -613,6 +613,78 @@ class GenericDiagnostician(BaseDiagnostician):
 
         return None
 
+    # ==================== 通用诊断方法（Mock / 未知数据库兼容） ====================
+
+    def get_realtime_connections(self) -> Dict[str, Any]:
+        """
+        获取实时连接信息（通用降级实现）
+
+        当目标数据库不支持专用会话视图时，返回空结果而非报错。
+
+        返回:
+            Dict: 连接统计（所有指标归零）
+        """
+        from dbskiter.shared.error_handler import create_success_response
+        return create_success_response(
+            {
+                "total": 0,
+                "active": 0,
+                "idle": 0,
+                "max": 0,
+                "slow_count": 0,
+                "connections": [],
+                "note": "通用诊断器：数据库不支持专用会话视图，连接信息不可用",
+            },
+            "实时连接信息（通用降级）",
+        )
+
+    def get_top_sql(
+        self, limit: int = 10, threshold: int = 0
+    ) -> Dict[str, Any]:
+        """
+        获取TOP SQL（通用降级实现）
+
+        当目标数据库不支持专用 SQL 统计视图时，返回空结果而非报错。
+
+        参数:
+            limit: 返回条数限制
+            threshold: 执行时间阈值（秒）
+
+        返回:
+            Dict: TOP SQL 列表（空列表）
+        """
+        from dbskiter.shared.error_handler import create_success_response
+        return create_success_response(
+            {
+                "top_sqls": [],
+                "total_count": 0,
+                "note": "通用诊断器：数据库不支持专用 SQL 统计视图，TOP SQL 信息不可用",
+            },
+            "TOP SQL信息（通用降级）",
+        )
+
+    def get_lock_waits(self) -> Dict[str, Any]:
+        """
+        获取锁等待信息（通用降级实现）
+
+        当目标数据库不支持专用锁视图时，返回空结果而非报错。
+
+        返回:
+            Dict: 锁等待统计（空结果）
+        """
+        from dbskiter.shared.error_handler import create_success_response
+        return create_success_response(
+            {
+                "total_locks": 0,
+                "waiting_locks": 0,
+                "granted_locks": 0,
+                "lock_waits": [],
+                "deadlocks": [],
+                "note": "通用诊断器：数据库不支持专用锁视图，锁信息不可用",
+            },
+            "锁等待信息（通用降级）",
+        )
+
     def _get_database_size_mb(self, caps: Dict[str, bool]) -> Optional[float]:
         """
         获取数据库大小（MB）

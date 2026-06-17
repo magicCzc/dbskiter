@@ -918,7 +918,7 @@ class AIOutputFormatter:
         connector=None,
     ) -> Dict[str, Any]:
         """
-        从Skill返回结果转换为AI输出
+        从Skill返回结果转换为AI输出（自动融入 inspection_trace）
 
         参数:
             skill_result: Skill返回的原始结果
@@ -935,6 +935,11 @@ class AIOutputFormatter:
         context = self._extract_context(data, context_builder, connector)
         reference_values = self._extract_reference_values(data)
         ai_hints = self._extract_ai_hints(data)
+
+        # 自动融入 inspection_trace 到 AI 提示中
+        inspection_trace = skill_result.get("inspection_trace") or data.get("inspection_trace")
+        if inspection_trace:
+            ai_hints = self._merge_inspection_trace_into_hints(ai_hints, inspection_trace)
 
         return self.format_envelope(
             raw_metrics=raw_metrics,
@@ -1044,6 +1049,76 @@ class AIOutputFormatter:
         if "ai_hints" in data:
             return data["ai_hints"]
         return {}
+
+    def _merge_inspection_trace_into_hints(
+        self,
+        ai_hints: Dict[str, Any],
+        inspection_trace: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """
+        将 inspection_trace 融入 AI 提示
+
+        让 AI 了解数据来源、可信度和检查范围，从而生成更精准的分析建议。
+
+        参数:
+            ai_hints: 原始 AI 提示
+            inspection_trace: 追踪信息
+
+        返回:
+            Dict[str, Any]: 融合后的 AI 提示
+        """
+        if not ai_hints:
+            ai_hints = {}
+
+        # 数据来源和可信度提示
+        data_sources = inspection_trace.get("data_sources", [])
+        confidence = inspection_trace.get("confidence", "unknown")
+        metrics = inspection_trace.get("metrics_checked", [])
+        notes = inspection_trace.get("notes", [])
+
+        # 构建数据质量说明
+        quality_notes = []
+        if confidence == "low":
+            quality_notes.append(
+                "【数据质量警告】本次诊断数据可信度为 LOW，" +
+                "建议谨慎对待分析结论，必要时人工验证。"
+            )
+        elif confidence == "medium":
+            quality_notes.append(
+                "【数据质量提示】本次诊断数据可信度为 MEDIUM，" +
+                "部分数据可能不完整，分析结论仅供参考。"
+            )
+
+        # 数据来源说明
+        if data_sources:
+            quality_notes.append(
+                f"【数据来源】本次分析基于以下数据源: {', '.join(data_sources)}。" +
+                "AI 分析时应据此判断结论的适用范围。"
+            )
+
+        # 检查范围说明
+        if metrics:
+            metric_names = [m.get("name", "") for m in metrics]
+            quality_notes.append(
+                f"【检查范围】本次诊断检查了以下指标: {', '.join(metric_names)}。" +
+                "未检查的维度可能存在盲区。"
+            )
+
+        # 特定场景备注
+        if notes:
+            for note in notes:
+                quality_notes.append(f"【诊断备注】{note}")
+
+        # 融入 ai_hints
+        ai_hints["data_quality_context"] = {
+            "confidence": confidence,
+            "data_sources": data_sources,
+            "metrics_checked": [m.get("name", "") for m in metrics],
+            "quality_notes": quality_notes,
+        }
+        ai_hints["_system_prompt_addendum"] = "\n".join(quality_notes)
+
+        return ai_hints
 
     def _apply_depth_filter(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -326,6 +326,9 @@ class UnifiedConnector:
         """
         从环境变量创建连接器
 
+        优先从 _load_env_values() 读取 .env 文件配置，
+        其次从 os.environ 读取系统环境变量。
+
         参数:
             prefix: 环境变量前缀
 
@@ -345,20 +348,38 @@ class UnifiedConnector:
             >>> # 使用 ORACLE_* 环境变量
             >>> conn = UnifiedConnector.from_env("ORACLE")
         """
-        host = os.getenv(f"{prefix}_HOST", "localhost")
-        port = int(os.getenv(f"{prefix}_PORT", "3306"))
-        username = os.getenv(f"{prefix}_USER", "")
-        password = os.getenv(f"{prefix}_PASSWORD", "")
-        database = os.getenv(f"{prefix}_NAME", "")
-        dialect = os.getenv(f"{prefix}_DIALECT", "mysql+pymysql")
+        # 优先从 _load_env_values() 读取 .env 文件配置
+        try:
+            from dbskiter.cli.config import _load_env_values
+            env_values = _load_env_values()
+        except ImportError:
+            env_values = {}
+
+        def _get_env(key: str, default: str = "") -> str:
+            """优先从 .env 缓存读取，其次从 os.environ 读取"""
+            value = env_values.get(key)
+            if value is not None:
+                return value
+            return os.getenv(key, default)
+
+        host = _get_env(f"{prefix}_HOST", "localhost")
+        port_str = _get_env(f"{prefix}_PORT", "3306")
+        try:
+            port = int(port_str)
+        except (ValueError, TypeError):
+            port = 3306
+        username = _get_env(f"{prefix}_USER", "")
+        password = _get_env(f"{prefix}_PASSWORD", "")
+        database = _get_env(f"{prefix}_NAME", "")
+        dialect = _get_env(f"{prefix}_DIALECT", "mysql+pymysql")
 
         kwargs = {}
 
         # Oracle 特殊处理
         if "oracle" in dialect.lower():
-            service = os.getenv(f"{prefix}_SERVICE", database)
+            service = _get_env(f"{prefix}_SERVICE", database)
             kwargs["service_name"] = service
-            kwargs["jdbc_driver_path"] = os.getenv(f"{prefix}_JDBC_DRIVER")
+            kwargs["jdbc_driver_path"] = _get_env(f"{prefix}_JDBC_DRIVER")
             if port == 3306:
                 port = 1521
 

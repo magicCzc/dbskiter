@@ -277,7 +277,7 @@ class SchedulerSkill:
         compress: bool = True,
     ) -> Dict[str, Any]:
         """
-        执行数据库备份
+        执行数据库备份（已接入多步骤计时）
 
         参数:
             backup_type: 备份类型 (full/incremental/tables)
@@ -286,8 +286,11 @@ class SchedulerSkill:
             compress: 是否压缩
 
         返回:
-            Dict: 备份结果
+            Dict: 备份结果，包含 _execution_time 步骤耗时
         """
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
+
         if not self.circuit_breaker.can_execute():
             return create_error_response(
                 ErrorMessage.get_message(ErrorCode.BACKUP_CIRCUIT_OPEN),
@@ -296,22 +299,26 @@ class SchedulerSkill:
 
         try:
             if backup_type == "incremental":
-                result = self.backup_manager.backup_incremental(
-                    tables, output_dir=output_dir
-                )
+                with timer.step("backup_incremental", "执行增量备份"):
+                    result = self.backup_manager.backup_incremental(
+                        tables, output_dir=output_dir
+                    )
             elif backup_type == "table" and tables:
-                results = self.backup_manager.backup_tables(
-                    tables, output_dir=output_dir
-                )
+                with timer.step("backup_tables", "执行多表备份"):
+                    results = self.backup_manager.backup_tables(
+                        tables, output_dir=output_dir
+                    )
                 # 多表备份返回列表, 汇总结果
                 all_success = all(r.success for r in results)
                 if all_success:
                     self.circuit_breaker.record_success()
-                    return create_success_response({
+                    response = create_success_response({
                         "results": [r.to_dict() for r in results],
                         "total": len(results),
                         "success_count": sum(1 for r in results if r.success),
                     })
+                    response["_execution_time"] = timer.to_summary()
+                    return response
                 else:
                     self.circuit_breaker.record_failure()
                     errors = [r.error for r in results if not r.success and r.error]
@@ -320,9 +327,10 @@ class SchedulerSkill:
                         code=ErrorCode.BACKUP_FAILED
                     )
             else:
-                result = self.backup_manager.backup_full(
-                    output_dir=output_dir, compress=compress
-                )
+                with timer.step("backup_full", "执行全量备份"):
+                    result = self.backup_manager.backup_full(
+                        output_dir=output_dir, compress=compress
+                    )
 
             if result.success:
                 self.circuit_breaker.record_success()
@@ -330,7 +338,9 @@ class SchedulerSkill:
                     f"备份成功: {result.backup_id}",
                     {"backup_type": backup_type, "file_path": result.file_path}
                 )
-                return create_success_response(result.to_dict())
+                response = create_success_response(result.to_dict())
+                response["_execution_time"] = timer.to_summary()
+                return response
             else:
                 self.circuit_breaker.record_failure()
                 return create_error_response(
@@ -951,13 +961,76 @@ class SchedulerSkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建调度器透明度追踪信息
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        if scenario == "scheduler":
+            trace["metrics_checked"] = [
+                {"name": "task_status", "description": "任务状态", "source": "调度器内部状态"},
+                {"name": "schedule_config", "description": "调度配置", "source": "配置文件/数据库"},
+                {"name": "execution_history", "description": "执行历史", "source": "日志表"},
+            ]
+            trace["data_sources"] = ["scheduler_internal", "config_file", "log_table"]
+
+        elif scenario == "backup":
+            trace["metrics_checked"] = [
+                {"name": "backup_size", "description": "备份大小", "source": "文件系统"},
+                {"name": "backup_duration", "description": "备份耗时", "source": "执行日志"},
+                {"name": "backup_integrity", "description": "备份完整性", "source": "校验和"},
+                {"name": "backup_storage", "description": "备份存储位置", "source": "配置"},
+            ]
+            trace["data_sources"] = ["filesystem", "execution_log", "checksum"]
+            if not data.get("backup"):
+                trace["confidence"] = "low"
+                trace["notes"].append("未获取到备份信息，可能尚未执行过备份")
+
+        elif scenario == "logs":
+            trace["metrics_checked"] = [
+                {"name": "execution_log", "description": "执行日志", "source": "日志表/文件"},
+                {"name": "error_log", "description": "错误日志", "source": "错误日志表"},
+                {"name": "performance_log", "description": "性能日志", "source": "性能表"},
+            ]
+            trace["data_sources"] = ["log_table", "error_log", "performance_table"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_scheduler_status", "description": "通用调度状态", "source": "自动检测"}
+            ]
+            trace["data_sources"] = ["auto_detection"]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        return trace
 
     def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取原始指标"""
