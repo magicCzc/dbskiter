@@ -35,6 +35,16 @@ class DiagnoseCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加诊断命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter --database=jump diagnose realtime                 # 实时诊断当前性能
+  dbskiter --database=jump diagnose top --limit=20           # TOP 20 SQL
+  dbskiter --database=jump diagnose locks --kill             # 锁分析并显示KILL语句
+  dbskiter --database=jump diagnose sql "SELECT * FROM users WHERE id = 1"
+  dbskiter --database=jump diagnose space --top=10           # 空间诊断，Top 10大表
+  dbskiter --database=jump diagnose slow-queries --top=10    # 慢查询分析
+  dbskiter --database=jump diagnose replication              # 复制延迟诊断
+        """
         subparsers = parser.add_subparsers(dest="diagnose_action", help="诊断操作")
 
         # ==================== P0: 高频场景（每天使用）====================
@@ -133,6 +143,12 @@ class DiagnoseCommand(BaseCommand):
             "slow-queries",
             aliases=["slowlog"],
             help="慢查询日志 - 分析历史慢查询（支持实时采集和日志文件解析）"
+        )
+        slowlog_parser.add_argument(
+            "--top",
+            type=int,
+            default=10,
+            help="显示TOP N条慢查询（默认10）"
         )
         slowlog_parser.add_argument(
             "--limit",
@@ -252,27 +268,49 @@ class DiagnoseCommand(BaseCommand):
             self._connector = MockConnector()
             self.output.info("演示模式：使用内置 Mock 数据")
         else:
-            # 需要数据库连接的命令
-            # 诊断命令必须直连数据库，不支持Zabbix/Prometheus外部监控
+            # 优先使用 self.config（已通过 Config.from_args 正确解析别名）
+            # self.config 包含了 --database 参数解析后的完整连接信息
             try:
-                db_name = getattr(self.args, 'database', None)
-                configs = self._load_all_configs()
-                connector = self._create_connector_for_diagnose(db_name, configs)
+                # 验证 self.config 是否包含有效的非默认配置
+                # 默认配置: host=localhost, username=root, password=""
+                has_valid_config = (
+                    self.config.host not in ("localhost", "127.0.0.1")
+                    or self.config.username != "root"
+                    or self.config.password != ""
+                )
 
-                if not connector:
-                    self.output.error(
-                        "无法找到可用的数据库直连配置。\n\n"
-                        "诊断命令（慢查询、锁分析、SQL诊断等）必须直连数据库，\n"
-                        "不支持通过Zabbix或Prometheus查询。\n\n"
-                        "请检查：\n"
-                        "1. .env 文件中是否配置了正确的数据库连接信息\n"
-                        "2. 使用 --database 参数指定正确的数据库名\n\n"
-                        "如需监控Oracle数据库的指标（CPU、内存、磁盘），请使用：\n"
-                        "  dbskiter --database=Z18 monitor health"
+                if has_valid_config:
+                    # self.config 已包含正确的连接信息，直接使用
+                    from dbskiter.shared.unified_connector import UnifiedConnector
+                    self._connector = UnifiedConnector(
+                        dialect=self.config.dialect,
+                        host=self.config.host,
+                        port=self.config.port,
+                        username=self.config.username,
+                        password=self.config.password,
+                        database=self.config.database,
+                        **self.config.extra
                     )
-                    return 1
+                else:
+                    # 回退：使用 MultiDBConfig 重新加载（兼容旧逻辑）
+                    db_name = getattr(self.args, 'database', None)
+                    configs = self._load_all_configs()
+                    connector = self._create_connector_for_diagnose(db_name, configs)
 
-                self._connector = connector
+                    if not connector:
+                        self.output.error(
+                            "无法找到可用的数据库直连配置。\n\n"
+                            "诊断命令（慢查询、锁分析、SQL诊断等）必须直连数据库，\n"
+                            "不支持通过Zabbix或Prometheus查询。\n\n"
+                            "请检查：\n"
+                            "1. .env 文件中是否配置了正确的数据库连接信息\n"
+                            "2. 使用 --database 参数指定正确的数据库名\n\n"
+                            "如需监控Oracle数据库的指标（CPU、内存、磁盘），请使用：\n"
+                            "  dbskiter --database=Z18 monitor health"
+                        )
+                        return 1
+
+                    self._connector = connector
 
             except Exception as e:
                 self.output.error(str(e))
@@ -344,13 +382,13 @@ class DiagnoseCommand(BaseCommand):
                     ),
                     "replication": lambda: skill.analyze_replication(),
                     "slow-queries": lambda: skill.analyze_slow_queries(
-                        limit=getattr(self.args, 'limit', 10),
+                        limit=getattr(self.args, 'top', getattr(self.args, 'limit', 10)),
                         min_time=getattr(self.args, 'min_time', 1.0),
                         log_file=getattr(self.args, 'log_file', None),
                         since=getattr(self.args, 'since', '24h'),
                     ),
                     "slowlog": lambda: skill.analyze_slow_queries(
-                        limit=getattr(self.args, 'limit', 10),
+                        limit=getattr(self.args, 'top', getattr(self.args, 'limit', 10)),
                         min_time=getattr(self.args, 'min_time', 1.0),
                         log_file=getattr(self.args, 'log_file', None),
                         since=getattr(self.args, 'since', '24h'),
@@ -538,6 +576,9 @@ class DiagnoseCommand(BaseCommand):
             order_by=self.args.by
         )
 
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
+
         if not result.get('success'):
             self.output.error(f"获取TOP SQL失败: {self._extract_error_message(result)}")
             return 1
@@ -581,6 +622,9 @@ class DiagnoseCommand(BaseCommand):
     def _analyze_locks(self, skill) -> int:
         """锁分析 - 有死锁/阻塞"""
         result = skill.analyze_locks()
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         if not result.get('success'):
             self.output.error(f"锁分析失败: {self._extract_error_message(result)}")
@@ -632,6 +676,9 @@ class DiagnoseCommand(BaseCommand):
             params = json.loads(self.args.params)
 
         result = skill.analyze_sql(self.args.sql, params)
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         # 处理标准响应格式
         if isinstance(result, dict) and 'data' in result:
@@ -699,6 +746,9 @@ class DiagnoseCommand(BaseCommand):
             top_n=self.args.top,
             min_size_mb=self.args.min_size
         )
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         if not result.get('success'):
             self.output.error(f"空间诊断失败: {self._extract_error_message(result)}")
@@ -772,6 +822,9 @@ class DiagnoseCommand(BaseCommand):
         """连接分析"""
         result = skill.analyze_connections(show_idle=self.args.idle)
 
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
+
         if not result.get('success'):
             self.output.error(f"连接分析失败: {self._extract_error_message(result)}")
             return 1
@@ -811,6 +864,9 @@ class DiagnoseCommand(BaseCommand):
     def _replication_diagnose(self, skill) -> int:
         """复制诊断"""
         result = skill.analyze_replication()
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         if not result.get('success'):
             self.output.error(f"复制诊断失败: {self._extract_error_message(result)}")
@@ -877,6 +933,9 @@ class DiagnoseCommand(BaseCommand):
                 limit=self.args.limit,
                 min_time=self.args.min_time
             )
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         if not result.get('success'):
             self.output.error(f"慢查询分析失败: {self._extract_error_message(result)}")
@@ -956,6 +1015,9 @@ class DiagnoseCommand(BaseCommand):
     def _recommend_indexes(self, skill) -> int:
         """索引建议"""
         result = skill.recommend_indexes(table=self.args.table)
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         if not result.get('success'):
             self.output.error(f"索引建议失败: {self._extract_error_message(result)}")
@@ -1407,9 +1469,16 @@ class DiagnoseCommand(BaseCommand):
         诊断命令（慢查询、锁分析、SQL诊断等）必须直连数据库，
         不支持通过Zabbix或Prometheus查询。
 
+        匹配优先级：
+            1. 按别名匹配（db_name 作为别名）
+            2. 按数据库名匹配
+            3. 按主机名匹配
+            4. Z 系列资产组使用 ORACLE 配置
+            5. 回退到标准连接器
+
         参数:
-            db_name: 数据库名称（如 'Z18', 'jump', 'chenzc'）
-            configs: 配置字典，key为实例名，value为Config对象
+            db_name: 数据库别名或名称（如 'jump', 'chenzc', 'Z18'）
+            configs: 配置字典，key为别名，value为Config对象
 
         返回:
             UnifiedConnector: 数据库连接器，或 None（如果无法直连）
@@ -1423,10 +1492,12 @@ class DiagnoseCommand(BaseCommand):
 
         # 1. 如果指定了 db_name，尝试在配置中查找匹配
         if db_name:
-            # 1.1 首先尝试匹配数据库名
+            db_name_lower = db_name.lower()
+
+            # 1.1 优先按别名匹配（db_name 作为别名）
             for instance_name, config in configs.items():
-                if config.database == db_name:
-                    logger.info(f"找到匹配配置 [{instance_name}]: {config.host}/{config.database}")
+                if instance_name.lower() == db_name_lower:
+                    logger.info(f"找到匹配配置 [别名={instance_name}]: {config.host}/{config.database}")
                     return UnifiedConnector(
                         dialect=config.dialect,
                         host=config.host,
@@ -1436,11 +1507,11 @@ class DiagnoseCommand(BaseCommand):
                         database=config.database,
                         **config.extra
                     )
-            
-            # 1.2 尝试匹配主机名
+
+            # 1.2 按数据库名匹配
             for instance_name, config in configs.items():
-                if config.host == db_name:
-                    logger.info(f"找到匹配配置 [{instance_name}] (by host): {config.host}/{config.database}")
+                if config.database.lower() == db_name_lower:
+                    logger.info(f"找到匹配配置 [数据库={config.database}]: {config.host}/{config.database}")
                     return UnifiedConnector(
                         dialect=config.dialect,
                         host=config.host,
@@ -1450,8 +1521,22 @@ class DiagnoseCommand(BaseCommand):
                         database=config.database,
                         **config.extra
                     )
-            
-            # 1.3 对于 Z 系列资产组，尝试使用 ORACLE 配置
+
+            # 1.3 按主机名匹配
+            for instance_name, config in configs.items():
+                if config.host.lower() == db_name_lower:
+                    logger.info(f"找到匹配配置 [主机={config.host}]: {config.host}/{config.database}")
+                    return UnifiedConnector(
+                        dialect=config.dialect,
+                        host=config.host,
+                        port=config.port,
+                        username=config.username,
+                        password=config.password,
+                        database=config.database,
+                        **config.extra
+                    )
+
+            # 1.4 对于 Z 系列资产组，尝试使用 ORACLE 配置
             if OracleHostMapping.is_oracle_group(db_name):
                 oracle_config = configs.get('ORACLE')
                 if oracle_config:

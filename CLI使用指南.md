@@ -553,6 +553,63 @@ black dbskiter/
 
 ---
 
+## Tab 补全配置
+
+DBSKiter 内置 `argcomplete` 支持，可为 bash/zsh/fish 提供命令和参数自动补全。
+
+### 快速配置
+
+```bash
+# 一键自动检测并配置（推荐）
+dbskiter shell-setup --auto
+
+# 手动交互式配置
+dbskiter shell-setup
+
+# 全局激活（所有用户可用，需要 sudo）
+dbskiter shell-setup --global
+```
+
+配置完成后，重新打开终端或执行 `source ~/.bashrc`（bash）/ `source ~/.zshrc`（zsh），即可使用 `dbskiter <Tab>` 补全命令和参数。
+
+---
+
+## 安全提示
+
+### 1. 命令行密码安全
+
+**警告**：使用 `--password` 参数直接在命令行中传递密码，存在以下风险：
+
+- 密码可能被记录到 shell 历史记录（`history`）中
+- 在多用户系统上，其他用户可能通过 `ps` 命令看到密码
+
+**建议做法**：
+
+```bash
+# 方法1：使用 --password-file（推荐）
+echo "your_password" > ~/.db_password
+dbskiter --password-file ~/.db_password --database=jump monitor health
+
+# 方法2：使用环境变量
+export DB_JUMP_PASSWORD=your_password
+dbskiter --database=jump monitor health
+
+# 方法3：使用 .env 文件（仅限本地开发）
+dbskiter --database=jump monitor health
+```
+
+### 2. 安全评分说明
+
+当执行 `security audit` 或 `security score` 时，如果数据库连接失败或部分安全检测模块无法执行：
+
+- **不会**显示满分（100分）
+- 会显示类似 `安全评分: 75/100 - 中危级（部分检测失败，结果不准确）` 的警告
+- 会明确列出哪些检测模块失败
+
+这是为了避免在连接异常时给出误导性的"安全"假象。如果看到此类警告，请检查数据库连接配置后再重新执行。
+
+---
+
 ## License
 
 MIT

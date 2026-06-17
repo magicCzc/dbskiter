@@ -29,6 +29,15 @@ class AuditCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加审核命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter audit sql "SELECT * FROM users WHERE id = 1"
+  dbskiter audit file queries.sql                              # 审核SQL文件
+  dbskiter audit ddl "ALTER TABLE users ADD COLUMN age INT"    # DDL影响分析
+  dbskiter audit rules                                         # 查看审核规则
+  dbskiter audit optimize "SELECT * FROM users WHERE age > 18"
+  dbskiter audit recommend-indexes "SELECT * FROM orders WHERE user_id = 1"
+        """
         subparsers = parser.add_subparsers(dest="audit_action", help="审核操作")
 
         # sql 子命令 - 审核SQL语句

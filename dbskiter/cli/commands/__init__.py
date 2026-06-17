@@ -16,6 +16,9 @@ from .inspector import InspectorCommand
 from .lock import LockCommand
 from .audit import AuditCommand
 from .init import InitCommand
+from .shell_setup import ShellSetupCommand
+from .config_cmd import ConfigCommand
+from .history_cmd import HistoryCommand
 
 __all__ = [
     "BaseCommand",
@@ -29,4 +32,7 @@ __all__ = [
     "LockCommand",
     "AuditCommand",
     "InitCommand",
+    "ShellSetupCommand",
+    "ConfigCommand",
+    "HistoryCommand",
 ]

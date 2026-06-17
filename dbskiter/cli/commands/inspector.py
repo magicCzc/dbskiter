@@ -26,6 +26,16 @@ class InspectorCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加巡检命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter --database=jump inspector run                       # 执行完整巡检
+  dbskiter --database=jump inspector run --format=html -o report.html
+  dbskiter --database=jump inspector report -o report.html     # 生成HTML报告
+  dbskiter --database=jump inspector baseline --create         # 创建性能基线
+  dbskiter --database=jump inspector intelligent               # 智能巡检
+  dbskiter --database=jump inspector anomalies --metric=cpu_usage --hours=24
+  dbskiter --database=jump inspector root-cause --issue="CPU飙升"
+        """
         subparsers = parser.add_subparsers(dest="inspector_action", help="巡检操作")
 
         # run 子命令 - 执行巡检

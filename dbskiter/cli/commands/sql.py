@@ -23,6 +23,17 @@ class SQLCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加SQL命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter --database=jump sql "SELECT * FROM users LIMIT 10"
+  dbskiter --database=jump sql execute "SELECT COUNT(*) FROM orders"
+  dbskiter --database=jump sql rewrite "SELECT * FROM users WHERE age > 18"
+  dbskiter --database=jump sql analyze "SELECT * FROM orders WHERE user_id = 1"
+  dbskiter --database=jump sql schema --table=users            # 查看表结构
+  dbskiter --database=jump sql export --table=users --output=users.csv
+  dbskiter --database=jump sql batch queries.sql               # 批量执行SQL文件
+  dbskiter --database=jump sql --read-only "SELECT * FROM users"  # 强制只读模式
+        """
         # 使用 --sql 参数来支持直接执行SQL，避免与子命令冲突
         parser.add_argument("--sql", help="直接执行SQL语句（简化写法）")
         parser.add_argument("--params", help="SQL参数（JSON格式）")
@@ -140,6 +151,7 @@ class SQLCommand(BaseCommand):
                         json.loads(self.args.params) if getattr(self.args, 'params', None) else None,
                         getattr(self.args, 'limit', 100),
                         allow_write=False,
+                        force=getattr(self.args, 'force', False),
                     ),
                     "rewrite": lambda: skill.rewrite_sql(getattr(self.args, 'sql', '')),
                     "analyze": lambda: skill.analyze_sql_quality(getattr(self.args, 'sql', '')),

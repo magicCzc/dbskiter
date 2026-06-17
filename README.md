@@ -153,6 +153,23 @@ dbskiter monitor health
 dbskiter --database=jump monitor health
 ```
 
+### 4. 启用 Tab 补全（推荐）
+
+DBSKiter 支持命令和参数的 Tab 自动补全，大幅提升使用效率：
+
+```bash
+# 一键自动检测并配置（推荐）
+dbskiter shell-setup --auto
+
+# 或手动配置（bash 示例）
+dbskiter shell-setup
+
+# 全局激活（所有用户可用，需要 sudo）
+dbskiter shell-setup --global
+```
+
+配置完成后，重新打开终端或执行 `source ~/.bashrc`（bash）/ `source ~/.zshrc`（zsh），即可使用 `dbskiter <Tab>` 补全命令和参数。
+
 ---
 
 ## 功能特性

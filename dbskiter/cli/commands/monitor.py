@@ -21,6 +21,15 @@ class MonitorCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加监控命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter --database=jump monitor health                    # 数据库健康检查
+  dbskiter --database=jump monitor anomalies --hours=6       # 检测最近6小时异常
+  dbskiter --database=jump monitor capacity --resource=disk  # 磁盘容量预测
+  dbskiter --database=jump monitor collect --source=prometheus  # 从Prometheus采集
+  dbskiter monitor health-all                                # 批量检查所有配置的数据库
+  dbskiter --demo monitor health                             # 演示模式（无需数据库）
+        """
         subparsers = parser.add_subparsers(dest="monitor_action", help="监控操作")
         
         # ==================== 核心命令（只保留5个） ====================
@@ -186,7 +195,15 @@ class MonitorCommand(BaseCommand):
         self.output.info(f"数据库健康评估 - {health.get('timestamp', '')}")
 
         # 总体评分
-        if score >= 90:
+        if not health.get('metrics_summary') and score == 0:
+            # 连接失败，没有采集到指标
+            self.output.error(f"\n总体评分: {score}/100 - 无法连接到数据库或采集指标")
+            self.output.info(f"\n请检查:")
+            self.output.info(f"  - 数据库服务是否运行")
+            self.output.info(f"  - 用户名和密码是否正确")
+            self.output.info(f"  - 网络连接是否正常")
+            self.output.info(f"  - 防火墙是否允许连接")
+        elif score >= 90:
             self.output.success(f"\n总体评分: {score}/100 - 状态良好")
         elif score >= 70:
             self.output.warning(f"\n总体评分: {score}/100 - 需要关注")

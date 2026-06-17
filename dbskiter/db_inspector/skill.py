@@ -499,38 +499,46 @@ class InspectorSkill:
         thresholds: Optional[Dict[str, float]] = None
     ) -> Dict[str, Any]:
         """
-        检测异常模式
+        检测异常模式（已接入多步骤计时）
 
         参数:
             metrics: 指标历史数据
             thresholds: 阈值配置
 
         返回:
-            Dict: 异常检测结果
+            Dict: 异常检测结果，包含 _execution_time 步骤耗时
         """
-        try:
-            events = self._intelligent_inspector.anomaly_detector.detect_patterns(
-                metrics, thresholds
-            )
+        from dbskiter.shared.execution_timer import ExecutionTimer
+        timer = ExecutionTimer().start()
 
-            return create_success_response(
-                data={
-                    "anomalies": [
-                        {
-                            "event_id": e.event_id,
-                            "pattern": e.pattern.value,
-                            "metric": e.metric_name,
-                            "value": e.metric_value,
-                            "severity": e.severity,
-                            "description": e.description,
-                            "timestamp": e.timestamp.isoformat()
-                        }
-                        for e in events
-                    ],
-                    "total": len(events)
-                },
-                message=f"检测到{len(events)}个异常模式"
-            )
+        try:
+            with timer.step("detect_patterns", "检测异常模式"):
+                events = self._intelligent_inspector.anomaly_detector.detect_patterns(
+                    metrics, thresholds
+                )
+
+            with timer.step("build_result", "构建结果数据"):
+                result = create_success_response(
+                    data={
+                        "anomalies": [
+                            {
+                                "event_id": e.event_id,
+                                "pattern": e.pattern.value,
+                                "metric": e.metric_name,
+                                "value": e.metric_value,
+                                "severity": e.severity,
+                                "description": e.description,
+                                "timestamp": e.timestamp.isoformat()
+                            }
+                            for e in events
+                        ],
+                        "total": len(events)
+                    },
+                    message=f"检测到{len(events)}个异常模式"
+                )
+
+            result["_execution_time"] = timer.to_summary()
+            return result
 
         except Exception as e:
             logger.error(f"异常检测失败: {e}")
@@ -861,13 +869,93 @@ class InspectorSkill:
         reference_values = self._build_reference_values(scenario)
         ai_hints = self._build_ai_hints(scenario, data)
 
+        inspection_trace = self._build_inspection_trace(scenario, data)
+
         return {
             "raw_metrics": raw_metrics,
             "rule_flags": rule_flags,
             "context": context,
             "reference_values": reference_values,
             "ai_hints": ai_hints,
+            "inspection_trace": inspection_trace,
         }
+
+    def _build_inspection_trace(
+        self,
+        scenario: str,
+        data: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """
+        构建巡检透明度追踪信息
+
+        参数:
+            scenario: 场景标识
+            data: Skill返回的data字段
+
+        返回:
+            Dict[str, Any]: 追踪信息
+        """
+        trace = {
+            "scenario": scenario,
+            "metrics_checked": [],
+            "data_sources": [],
+            "confidence": "high",
+            "notes": []
+        }
+
+        if scenario == "inspection":
+            trace["metrics_checked"] = [
+                {"name": "configuration_check", "description": "配置合规性检查", "source": "系统变量"},
+                {"name": "performance_check", "description": "性能指标检查", "source": "performance_schema"},
+                {"name": "security_check", "description": "安全配置检查", "source": "系统变量/权限表"},
+                {"name": "health_score", "description": "健康评分", "source": "综合计算"},
+            ]
+            trace["data_sources"] = ["system_variables", "performance_schema", "information_schema"]
+
+        elif scenario == "intelligent":
+            trace["metrics_checked"] = [
+                {"name": "baseline_comparison", "description": "基线对比", "source": "历史基线"},
+                {"name": "anomaly_detection", "description": "异常检测", "source": "统计模型"},
+                {"name": "trend_analysis", "description": "趋势分析", "source": "时序数据"},
+                {"name": "correlation_analysis", "description": "关联分析", "source": "多指标关联"},
+            ]
+            trace["data_sources"] = ["historical_baseline", "statistical_model", "time_series_data"]
+
+        elif scenario == "anomaly_detection":
+            trace["metrics_checked"] = [
+                {"name": "metric_deviation", "description": "指标偏差", "source": "实时监控"},
+                {"name": "threshold_violation", "description": "阈值违规", "source": "规则引擎"},
+                {"name": "pattern_anomaly", "description": "模式异常", "source": "机器学习模型"},
+            ]
+            trace["data_sources"] = ["real_time_monitoring", "rule_engine", "ml_model"]
+
+        elif scenario == "root_cause":
+            trace["metrics_checked"] = [
+                {"name": "causal_chain", "description": "因果链分析", "source": "事件关联"},
+                {"name": "impact_analysis", "description": "影响分析", "source": "依赖图谱"},
+                {"name": "timeline_reconstruction", "description": "时间线重构", "source": "审计日志"},
+            ]
+            trace["data_sources"] = ["event_correlation", "dependency_graph", "audit_log"]
+            if not data.get("root_causes"):
+                trace["confidence"] = "medium"
+                trace["notes"].append("根因分析基于当前可获取数据，可能遗漏历史上下文")
+
+        elif scenario == "risks":
+            trace["metrics_checked"] = [
+                {"name": "risk_factors", "description": "风险因素识别", "source": "配置+性能+安全"},
+                {"name": "probability_assessment", "description": "概率评估", "source": "历史数据+趋势"},
+                {"name": "impact_assessment", "description": "影响评估", "source": "业务依赖分析"},
+            ]
+            trace["data_sources"] = ["configuration", "performance_metrics", "security_audit"]
+
+        else:
+            trace["metrics_checked"] = [
+                {"name": "general_inspection", "description": "通用巡检指标", "source": "自动检测"}
+            ]
+            trace["data_sources"] = ["auto_detection"]
+            trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
+
+        return trace
 
     def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取原始指标"""

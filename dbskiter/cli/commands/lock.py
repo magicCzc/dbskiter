@@ -28,6 +28,14 @@ class LockCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加锁分析命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter --database=jump lock analyze                        # 分析当前锁情况
+  dbskiter --database=jump lock deadlocks                      # 检测死锁
+  dbskiter --database=jump lock chains                         # 追踪锁等待链
+  dbskiter --database=jump lock report                         # 生成锁分析报告
+  dbskiter --database=jump lock kill 12345                     # 终止指定事务
+        """
         subparsers = parser.add_subparsers(dest="lock_action", help="锁分析操作")
 
         # analyze 子命令 - 分析当前锁
@@ -129,6 +137,9 @@ class LockCommand(BaseCommand):
     def _analyze_locks(self, skill) -> int:
         """分析当前锁"""
         result = skill.analyze_current_locks()
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         if not result.get('success'):
             self.output.error(f"锁分析失败: {result.get('message', '未知错误')}")

@@ -62,6 +62,9 @@ setup(
         "jinja2>=3.0.0",
         "pydantic>=2.0.0",
         "sqlparse>=0.5.0",
+        "rich>=13.0.0",
+        "pyyaml>=5.0",
+        "argcomplete>=3.0.0",
     ],
     entry_points={
         "console_scripts": [

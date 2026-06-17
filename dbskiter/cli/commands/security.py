@@ -21,6 +21,16 @@ class SecurityCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加安全命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter --database=jump security audit                    # 完整安全审计
+  dbskiter --database=jump security score                    # 计算安全评分
+  dbskiter --database=jump security permissions              # 审计用户权限
+  dbskiter --database=jump security sql-injection "SELECT * FROM users WHERE name = 'test'"
+  dbskiter --database=jump security sensitive-data --tables=users,orders
+  dbskiter --database=jump security weak-passwords           # 检测弱密码
+  dbskiter --database=jump security high-risk --hours=48     # 检测48小时内高危操作
+        """
         subparsers = parser.add_subparsers(dest="security_action", help="安全操作")
         
         # ==================== 核心命令（只保留5个） ====================
@@ -170,6 +180,16 @@ class SecurityCommand(BaseCommand):
         level = audit_result.get('grade', 'unknown')
         risk_summary = audit_result.get('risk_summary', {})
         risk_count = risk_summary.get('total', 0)
+        failed_modules = audit_result.get('failed_modules', [])
+
+        # 如果有模块检测失败，显示明确警告
+        if failed_modules:
+            self.output.error(f"\n{'='*60}")
+            self.output.error(f"  ⚠ 部分检测模块执行失败")
+            self.output.error(f"{'='*60}")
+            self.output.error(f"  失败模块: {', '.join(failed_modules)}")
+            self.output.error(f"  安全评分可能不准确，请检查数据库连接和权限")
+            self.output.error(f"{'='*60}")
 
         summary = f"安全评分{score}分（{level}级），发现{risk_count}个风险项"
 
@@ -181,7 +201,10 @@ class SecurityCommand(BaseCommand):
         self.output.print(f"审计时间: {audit_result.get('audit_time', '')}")
 
         # 安全评分
-        if score >= 90:
+        if failed_modules:
+            # 有模块失败时，即使评分高也显示为警告
+            self.output.error(f"\n安全评分: {score}/100 - {level}级（部分检测失败，结果不准确）")
+        elif score >= 90:
             self.output.success(f"\n安全评分: {score}/100 - {level}级")
         elif score >= 80:
             self.output.warning(f"\n安全评分: {score}/100 - {level}级")
@@ -192,8 +215,10 @@ class SecurityCommand(BaseCommand):
 
         # 风险摘要
         total_risks = risk_summary.get('total', 0) if risk_summary else 0
-        if total_risks == 0:
+        if total_risks == 0 and not failed_modules:
             self.output.success(f"\n风险统计: 正常（未发现风险）")
+        elif failed_modules:
+            self.output.error(f"\n风险统计: 部分检测失败（{len(failed_modules)} 个模块未执行）")
         else:
             self.output.print(f"\n风险统计:")
             critical = risk_summary.get('critical', 0)
@@ -344,6 +369,9 @@ class SecurityCommand(BaseCommand):
         """敏感数据扫描"""
         tables = self.args.tables.split(',') if self.args.tables else None
         result = skill.scan_sensitive_data(tables=tables, sample_size=self.args.sample_size)
+
+        # 保存结果供 --show-trace 追踪展示
+        self._last_skill_result = result
 
         # 检查是否成功
         if not result.get('success'):

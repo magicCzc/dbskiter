@@ -23,6 +23,17 @@ class SchedulerCommand(BaseCommand):
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加调度命令参数"""
+        parser.epilog = """
+示例:
+  dbskiter --database=jump scheduler backup --type=full           # 全量备份
+  dbskiter --database=jump scheduler backup --compress            # 压缩备份
+  dbskiter scheduler backup-verify /path/to/backup.sql            # 验证备份文件
+  dbskiter scheduler task list                                    # 列出所有定时任务
+  dbskiter scheduler task add daily_backup "0 2 * * *" --type=backup
+  dbskiter scheduler task run daily_backup                        # 立即执行任务
+  dbskiter scheduler logs --task=daily_backup --limit=50          # 查看任务日志
+  dbskiter scheduler daemon start                                 # 启动调度器守护进程
+        """
         subparsers = parser.add_subparsers(dest="scheduler_action", help="调度操作")
         
         # ==================== 核心命令 ====================
