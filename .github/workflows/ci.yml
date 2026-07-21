@@ -25,7 +25,8 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+          pip install pymysql psycopg2-binary
 
       - name: Run tests
         run: |
-          python -m pytest tests/test_imports.py tests/test_models.py tests/test_error_handler.py tests/test_query_result.py tests/test_sql_dialect.py tests/test_validators.py tests/test_sql_fingerprint.py tests/test_sql_validation.py tests/test_security_injection.py tests/test_cache.py tests/test_report_generator.py tests/test_scheduler_backup.py tests/test_sql_validator.py tests/unit/ -v --tb=short
+          python -m pytest tests/test_imports.py tests/test_models.py tests/test_error_handler.py tests/test_query_result.py tests/test_sql_dialect.py tests/test_validators.py tests/test_sql_fingerprint.py tests/test_sql_validation.py tests/test_security_injection.py tests/test_cache.py tests/test_report_generator.py tests/test_scheduler_backup.py tests/test_sql_validator.py tests/unit/ -v --tb=short -p no:cacheprovider --override-ini="asyncio_mode=auto"
