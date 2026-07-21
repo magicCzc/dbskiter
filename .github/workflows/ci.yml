@@ -36,4 +36,4 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests/test_imports.py -v --tb=long
+          python -m pytest tests/test_imports.py -v --tb=short -o asyncio_mode=auto
