@@ -7,6 +7,7 @@ cli/commands/security.py
 
 import json
 from argparse import ArgumentParser
+from typing import Any, Dict, Optional
 
 from .base import BaseCommand
 

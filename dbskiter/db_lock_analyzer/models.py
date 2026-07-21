@@ -12,7 +12,7 @@ db_lock_analyzer 数据模型
     - DeadlockInfo: 死锁信息
     - LockWaitChain: 锁等待链
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 最后修改：2026-04-23
 版本：3.0.0（模块化重构版）
@@ -253,3 +253,7 @@ class LockStatistics:
             "avg_wait_time": self.avg_wait_time,
             "deadlock_count": self.deadlock_count
         }
+
+
+# 响应辅助函数（从 shared 模块导入，保持统一）
+from dbskiter.shared.error_handler import create_success_response, create_error_response

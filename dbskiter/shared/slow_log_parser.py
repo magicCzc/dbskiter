@@ -22,7 +22,7 @@
         print(f"SQL: {query.sql[:100]}")
         print(f"Time: {query.query_time}s")
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-29
 """
 

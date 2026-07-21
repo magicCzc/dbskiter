@@ -6,7 +6,7 @@ SQL Server巡检器
 文件功能：SQL Server特有的配置、性能、存储、安全检查
 主要类：MSSQLInspector - SQL Server数据库巡检器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 """
 

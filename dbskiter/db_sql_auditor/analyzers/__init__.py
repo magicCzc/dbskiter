@@ -4,7 +4,7 @@ db_sql_auditor analyzers 包 - DDL影响分析器
 文件功能：提供多数据库DDL影响分析器的工厂函数和导出
 
 版本: 2.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 最后修改: 2026-06-05
 """
@@ -29,7 +29,7 @@ db_sql_auditor analyzers 包 - DDL影响分析器
     analyzer = get_ddl_analyzer('mysql', connector)
     impact = analyzer.analyze_impact("ALTER TABLE users ADD COLUMN age INT")
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 """
 

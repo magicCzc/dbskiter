@@ -35,7 +35,7 @@
     >>> # 关闭连接池
     >>> pool.close()
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-21
 """
 

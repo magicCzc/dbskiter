@@ -8,7 +8,7 @@
     - truncate_text: 截断文本并添加省略号
 
 版本: 1.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-05-09
 """
 

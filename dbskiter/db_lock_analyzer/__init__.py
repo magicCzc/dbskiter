@@ -30,7 +30,7 @@ db_lock_analyzer - 数据库锁分析与死锁检测
     # 终止阻塞事务
     kill_result = skill.kill_blocking_transaction("transaction_id")
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 最后修改：2026-04-23
 版本：3.0.0（模块化重构版）

@@ -17,7 +17,7 @@ SQL Server指标采集器
 依赖：
     - pyodbc 或 pymssql 驱动
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 版本：1.0.0
 """

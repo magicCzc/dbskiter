@@ -291,7 +291,7 @@ class SecurityExecutorV2:
                 "execution_id": context.execution_id
             }
 
-        # 9. force参数检查
+        # 9. force参数检查（含二次验证）
         requires_force = self.policy.requires_force(risk_level)
         if requires_force and not force:
             return create_error_response(
@@ -303,6 +303,25 @@ class SecurityExecutorV2:
                     "execution_id": context.execution_id
                 }
             )
+
+        # 对 CRITICAL 级别的操作增加环境变量守卫
+        # 即使传了 --force，还需要 DBSKITER_FORCE_CONFIRMED=true 才能执行
+        # 防止脚本被篡改后自动执行高危操作
+        if requires_force and risk_level == SecurityLevel.CRITICAL:
+            import os
+            if os.getenv("DBSKITER_FORCE_CONFIRMED", "").lower() not in ("true", "1", "yes"):
+                return create_error_response(
+                    ErrorCode.PERMISSION_DENIED,
+                    f"极高风险操作需要额外的环境变量确认。"
+                    f"请设置 DBSKITER_FORCE_CONFIRMED=true 后重试，"
+                    f"以防止脚本误触发。",
+                    details={
+                        "risk_level": risk_level.value,
+                        "requires_force": True,
+                        "message": "这是最后一道安全栅栏，防止自动化脚本意外执行 CRITICAL 操作",
+                        "execution_id": context.execution_id
+                    }
+                )
 
         # 10. 执行并审计
         try:

@@ -17,7 +17,7 @@ db_scheduler/models.py
     - TaskGraph: 工作流图数据类
 
 版本: 1.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

@@ -13,7 +13,7 @@ sql_master/models.py
     - CacheStats: 缓存统计
 
 版本: 3.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

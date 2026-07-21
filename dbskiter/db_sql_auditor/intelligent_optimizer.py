@@ -14,7 +14,7 @@
     - CostEstimator: 成本估算器
     - IntelligentOptimizer: 智能优化器统一入口
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-24
 版本: 1.0.0
 """

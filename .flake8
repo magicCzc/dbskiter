@@ -1,0 +1,21 @@
+[flake8]
+max-line-length = 120
+exclude = .git,__pycache__,build,dist,*.egg-info,.pyc
+ignore =
+    # E203: whitespace before ':' (black compatibility)
+    E203,
+    # E266: too many leading '#' (block comments use ###)
+    E266,
+    # E501: line too long (handled by black)
+    E501,
+    # W503: line break before binary operator (black style)
+    W503,
+    # F401: module imported but unused (some modules import for re-export)
+    F401,
+    # E402: module level import not at top (some conditional imports)
+    E402,
+per-file-ignores =
+    # __init__.py files often have unused imports for re-export
+    */__init__.py: F401
+    # test files can use longer lines
+    tests/*: E501

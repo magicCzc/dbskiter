@@ -1731,12 +1731,12 @@ class DiagnoseCommand(BaseCommand):
                 if 'MB' in total_wasted:
                     try:
                         wasted_mb = float(total_wasted.replace('MB', '').strip())
-                    except:
+                    except Exception:
                         pass
                 elif 'GB' in total_wasted:
                     try:
                         wasted_mb = float(total_wasted.replace('GB', '').strip()) * 1024
-                    except:
+                    except Exception:
                         pass
             if wasted_mb > 100:
                 deductions.append(f"  - 可回收空间过大({total_wasted})(-10分)")

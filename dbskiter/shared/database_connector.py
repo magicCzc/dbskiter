@@ -405,7 +405,7 @@ class DatabaseConnector:
         start_time = time.time()
         
         try:
-            with self._engine.connect() as conn:
+            with self._engine.connect() as conn, conn.begin():
                 # 参数化查询
                 if params:
                     # SQLAlchemy 2.0+ 对参数格式有严格要求
@@ -433,9 +433,9 @@ class DatabaseConnector:
                     columns = []
                     rowcount = 0
                 
-                # 提交事务（对于非查询语句）
-                if not result.returns_rows:
-                    conn.commit()
+                # conn.begin() 上下文管理器自动处理 commit/rollback
+                # 查询语句的事务会自动回滚（无数据变更），非查询语句成功则自动提交
+                # 避免手动 conn.commit() 在 Ctrl+C 中断时导致事务残留
                 
                 execution_time_ms = (time.time() - start_time) * 1000
                 

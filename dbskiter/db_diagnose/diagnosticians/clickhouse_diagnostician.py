@@ -18,7 +18,7 @@ ClickHouse诊断器
     - clickhouse-driver 或 clickhouse-connect 驱动
     - ClickHouse 20.0+（支持query_log）
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 版本：1.0.0
 """

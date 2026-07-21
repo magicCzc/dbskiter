@@ -7,7 +7,7 @@ db_monitor collectors 基类模块
     - MetricPoint: 指标数据点
     - BaseMetricsCollector: 指标采集器基类
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 """
 

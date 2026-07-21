@@ -16,7 +16,7 @@ AI上下文构建器 - 标准结构定义与工具函数
     - AIOutputFormatter: AI输出格式化器
 
 版本: 1.1.0
-作者: dbskiter team
+作者: Magiczc
 创建时间: 2026-04-28
 最后修改: 2026-04-28
 """

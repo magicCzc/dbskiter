@@ -10,7 +10,7 @@ db_security/utils.py
     - ReportFormatter: 报告格式化器
 
 版本: 3.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

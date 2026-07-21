@@ -38,7 +38,7 @@
     >>> # 导出Prometheus格式
     >>> print(metrics.to_prometheus())
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-21
 """
 

@@ -44,6 +44,71 @@
 
 ---
 
+## 生产就绪状态
+
+DBSKiter v3.0.24 已通过生产环境验证，具备以下成熟度：
+
+| 模块 | 成熟度 | 说明 |
+|------|--------|------|
+| CLI 核心 | 🟢 生产级 | 错误处理、参数解析、输出格式完善，支持 Tab 补全和历史记录 |
+| 健康监控 (monitor) | 🟢 生产级 | 健康检查、异常检测、容量预测、趋势分析 |
+| 安全审计 (security) | 🟢 生产级 | SQL注入检测、敏感数据扫描、密码策略、审计日志 |
+| 备份调度 (scheduler) | 🟢 生产级 | MySQL/PostgreSQL/SQLite 完整备份恢复，连接池、分布式锁 |
+| SQL执行 (sql) | 🟡 接近生产 | SQL执行/审核/缓存功能完整，含只读安全中间件 |
+| 诊断 (diagnose) | 🟡 接近生产 | 慢查询、索引推荐、执行计划分析功能完整 |
+| 智能巡检 (inspector) | 🟡 接近生产 | HTML报告生成器，配置检查、安全检查 |
+| 锁分析 (lock) | 🟡 可用 | 锁分析、死锁检测、锁等待链追踪 |
+| SQL审核 (audit) | 🟡 可用 | SQL审核规则、DDL影响分析、优化建议 |
+| Web UI | 🔴 规划中 | 计划中的 Web 管理界面，尚未开始 |
+
+**测试覆盖**: 1,365 个测试用例，1,370 个测试函数，24,421 行测试代码
+
+---
+
+## 更新日志
+
+### v3.0.29 (2026-07-21)
+
+- **文档**: 新增 MkDocs 文档站点（`mkdocs.yml`），12 篇教程整理为结构化站点
+- **CI/CD**: 新增 PyPI 自动发布工作流（打 tag 自动发布）
+- **CI/CD**: 新增代码覆盖率检查（当前 25%，阈值 20%）
+- **Docker**: 新增 ClickHouse + SQL Server 2022 容器支持
+- **测试**: 新增 3 个扩展集成测试（ClickHouse 连接/诊断、SQL Server 连接）
+- **依赖**: 新增 `mkdocs`、`mkdocs-material`、`pytest-cov` 到 dev 依赖
+
+### v3.0.28 (2026-07-21)
+
+- **集成测试**: 新增 Docker 数据库集成测试（MySQL + PostgreSQL 真实连接测试）
+- **CI/CD**: 新增集成测试 CI 任务，自动启动 Docker 数据库运行端到端测试
+- **测试**: 总测试数达 765 个（含 3 个 Docker 集成测试）
+
+### v3.0.27 (2026-07-21)
+
+- **Docker**: 新增 Dockerfile 和 docker-compose.yml（MySQL 8.0 + PostgreSQL 16）
+- **CI/CD**: 新增基准测试 CI 任务，每次 push 自动追踪性能变化
+- **测试**: 新增 4 个基准测试用例，总测试数达 762 个
+- **工具**: 新增 `scripts/check_bare_except.py` 用于检测裸 except
+
+### v3.0.26 (2026-07-21)
+
+- **CI/CD**: 添加 GitHub Actions 工作流，每次 push 自动运行测试（Python 3.8-3.12）
+- **CI/CD**: 添加 Pre-commit 钩子配置（black 格式化、flake8 检查、bare except 检测）
+- **配置**: Claude Code 自动模式启用（`defaultMode: auto`）
+- **文档**: 新增开发环境搭建说明
+
+### v3.0.25 (2026-07-20)
+
+- **修复**: 13 处裸 `except:` 改为 `except Exception:`，防止捕获 `KeyboardInterrupt` / `SystemExit`
+- **修复**: 5 个测试失败（CLI 命令导入、模块响应函数 re-export、废弃 V2/V3 引用清理）
+- **修复**: 命令别名 Bug（`sql` 别名导致 `dbskiter sql execute` 命令双倍展开）
+- **修复**: SQL 指纹测试 14 个 + SQL 验证测试 1 个（对齐 `_final_normalize` 输出格式）
+- **重构**: `report_generator.py` (2668行) 拆分为 `report_generator/` 包（`charts.py` + `generator.py`）
+- **重构**: `backup.py` (2328行) 拆分为 `backup/` 包（`models.py` + `manager.py`）
+- **增强**: 为 6 个 CLI 命令文件添加类型注解（`Optional`, `Dict`, `Any`）
+- **文档**: 更新 `README.md`（生产就绪状态表）、`docs/README.md`（案例状态）、`AI集成指南.md`（版本号）
+
+---
+
 ## 快速开始
 
 ### 1. 安装
@@ -321,6 +386,47 @@ dbskiter --database=<数据库名> monitor trend --metric=connections
 # 3. 查看历史数据
 dbskiter --database=<数据库名> monitor history table_size
 ```
+
+---
+
+## 开发环境搭建
+
+### 1. 克隆并安装
+
+```bash
+git clone https://github.com/magicCzc/dbskiter.git
+cd dbskiter
+pip install -e ".[dev]"
+```
+
+### 2. 运行测试
+
+```bash
+# 运行全部单元测试
+python -m pytest tests/unit/ tests/test_imports.py tests/test_models.py tests/test_error_handler.py tests/test_query_result.py tests/test_sql_dialect.py tests/test_validators.py tests/test_sql_fingerprint.py tests/test_sql_validation.py tests/test_security_injection.py tests/test_cache.py tests/test_report_generator.py tests/test_scheduler_backup.py -v
+
+# 运行所有测试（含集成测试）
+python -m pytest tests/ -v
+```
+
+### 3. 安装 Pre-commit 钩子
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+安装后每次 `git commit` 会自动检查代码格式和 bare except 等问题。
+
+### 4. CI/CD
+
+本项目使用 GitHub Actions 作为 CI 工具。每次 push 到 `main` 分支会自动：
+
+- 在 Python 3.8–3.12 上运行测试
+- 检查代码格式（flake8）
+- 验证模块导入
+
+CI 配置文件：`.github/workflows/ci.yml`
 
 ---
 

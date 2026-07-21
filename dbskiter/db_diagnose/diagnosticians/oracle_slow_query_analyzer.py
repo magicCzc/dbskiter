@@ -22,7 +22,7 @@ Oracle慢查询分析器（增强版）
     # 分析实时慢SQL
     report = analyzer.analyze_realtime(limit=20, min_time=1.0)
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-29
 """
 

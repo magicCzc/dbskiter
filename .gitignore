@@ -82,3 +82,5 @@ test_report.html
 
 # Backup files
 backups/
+# MkDocs build output
+site/

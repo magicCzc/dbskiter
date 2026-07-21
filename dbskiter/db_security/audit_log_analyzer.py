@@ -14,7 +14,7 @@ db_security/audit_log_analyzer.py
     >>> high_risk = analyzer.detect_high_risk_operations()
 
 版本: 3.1.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 最后修改: 2026-04-23
 """

@@ -36,7 +36,7 @@
     if executor.is_cancelled():
         print("任务已取消")
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-21
 版本：1.0.0
 """

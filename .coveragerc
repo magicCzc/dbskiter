@@ -1,0 +1,18 @@
+[run]
+source = dbskiter
+omit =
+    */tests/*
+    *__init__.py*
+    *__main__.py*
+    *setup.py*
+    *conftest.py*
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    def __str__
+    raise NotImplementedError
+    if __name__ == "__main__":
+
+fail_under = 20

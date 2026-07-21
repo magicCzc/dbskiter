@@ -10,11 +10,21 @@ from abc import ABCMeta, abstractmethod
 from argparse import ArgumentParser, Namespace
 from typing import Dict, Type, Any, Optional
 import json
+import os
+import time
+from datetime import datetime
+from pathlib import Path
 
 from ..config import Config
 from ..output import OutputFormatter
 from ..exceptions import CommandError
 
+
+try:
+    from dbskiter.sql_master.audit_logger import AuditLogger, OperationStatus, StorageBackend
+    _HAS_AUDIT = True
+except ImportError:
+    _HAS_AUDIT = False
 
 # 全局命令注册表
 command_registry: Dict[str, Type["BaseCommand"]] = {}
@@ -64,7 +74,7 @@ class BaseCommand(metaclass=CommandMeta):
     def __init__(self, config: Config, output: OutputFormatter, args: Namespace):
         """
         初始化命令
-        
+
         参数:
             config: 配置对象
             output: 输出格式化器
@@ -75,6 +85,69 @@ class BaseCommand(metaclass=CommandMeta):
         self.args = args
         self._connector = None
         self._last_skill_result: Optional[Dict[str, Any]] = None
+        # 初始化审计日志（所有命令统一审计）
+        self._audit_logger = self._init_audit_logger()
+        self._audit_start_time: Optional[float] = None
+
+    def _init_audit_logger(self) -> Optional[Any]:
+        """初始化审计日志记录器（失败不阻断命令执行）"""
+        if not _HAS_AUDIT:
+            return None
+        try:
+            audit_path = os.getenv(
+                "DBSKITER_AUDIT_PATH",
+                str(Path.home() / ".dbskiter" / "audit" / "audit.db")
+            )
+            Path(audit_path).parent.mkdir(parents=True, exist_ok=True)
+            backend_str = os.getenv("DBSKITER_AUDIT_BACKEND", "sqlite")
+            backend = StorageBackend(backend_str)
+            return AuditLogger(backend=backend, storage_path=audit_path)
+        except Exception:
+            return None
+
+    def _record_audit(
+        self,
+        status: str,
+        error_message: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """记录命令执行审计日志（失败不阻断）"""
+        if not self._audit_logger:
+            return
+        try:
+            # 收集命令执行参数（排除敏感信息）
+            safe_args = {}
+            if self.args:
+                for attr in dir(self.args):
+                    if attr.startswith("_") or attr in ("password", "password_file"):
+                        continue
+                    val = getattr(self.args, attr, None)
+                    if val is not None and not callable(val):
+                        safe_args[attr] = str(val)[:200]  # 截断防注入
+
+            # 计算执行耗时
+            duration_ms = 0.0
+            if self._audit_start_time is not None:
+                duration_ms = round((time.time() - self._audit_start_time) * 1000, 2)
+
+            self._audit_logger.log(
+                sql="",
+                database=getattr(self.config, "database", "unknown") or "unknown",
+                risk_level="SAFE" if status == "EXECUTED" else "HIGH",
+                status=OperationStatus(status),
+                sql_type="COMMAND",
+                user=os.getenv("USER", "anonymous"),
+                metadata={
+                    "command": self.name,
+                    "args": safe_args,
+                    "exit_code": 0 if status == "EXECUTED" else 1,
+                    "error_message": error_message,
+                    "execution_time_ms": duration_ms,
+                    **(metadata or {})
+                }
+            )
+        except Exception:
+            pass
     
     @property
     def connector(self):
@@ -133,25 +206,31 @@ class BaseCommand(metaclass=CommandMeta):
     def run(self) -> int:
         """
         运行命令（包装 execute）
-        
-        处理异常和清理资源。
+
+        处理异常和清理资源，并记录审计日志。
         若用户指定了 --show-trace 且 execute() 中保存了 _last_skill_result，
         则在命令结束后统一展示诊断追踪信息（支持 rule / raw / ai 全模式）。
-        
+
         返回:
             int: 退出码
         """
+        self._audit_start_time = time.time()
+        self._record_audit("PENDING")
+
         try:
             exit_code = self.execute()
             # rule 模式下若指定了 --show-trace，统一展示追踪信息
             if self.show_trace and self._last_skill_result is not None:
                 self._print_inspection_trace(self._last_skill_result)
+            self._record_audit("EXECUTED")
             return exit_code
         except CommandError as e:
             self.output.error(e.message)
+            self._record_audit("FAILED", error_message=e.message)
             return e.exit_code
         except Exception as e:
             self.output.error(f"命令执行失败: {e}")
+            self._record_audit("FAILED", error_message=str(e))
             return 1
         finally:
             self.cleanup()

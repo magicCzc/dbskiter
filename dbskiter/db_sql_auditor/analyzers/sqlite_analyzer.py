@@ -10,7 +10,7 @@ SQLite DDL特性：
     - ALTER TABLE是立即执行的（非异步）
     - 复杂ALTER需要重建表
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 """
 

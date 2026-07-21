@@ -5,7 +5,7 @@
 主要类：
     - TableAnalyzer: 表诊断分析器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 最后修改：2026-04-23 - 重构使用DBMetadataService
 """

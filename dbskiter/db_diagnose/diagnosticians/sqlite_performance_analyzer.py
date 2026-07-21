@@ -9,7 +9,7 @@ SQLite性能分析器 - 基于统一性能模型
     2. 生产安全：内置超时、降级机制
     3. PRAGMA查询：基于SQLite特有PRAGMA命令
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-06-04
 版本: 1.0.0
 """

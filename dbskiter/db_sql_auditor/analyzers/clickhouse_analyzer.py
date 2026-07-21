@@ -10,7 +10,7 @@ ClickHouse DDL特性：
     - 不支持事务性DDL
     - 分布式表DDL需要ON CLUSTER
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 """
 

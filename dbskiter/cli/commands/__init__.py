@@ -14,7 +14,7 @@ from .scheduler import SchedulerCommand
 from .sql import SQLCommand
 from .inspector import InspectorCommand
 from .lock import LockCommand
-from .audit import AuditCommand
+from .audit import SQLAuditCommand
 from .init import InitCommand
 from .shell_setup import ShellSetupCommand
 from .config_cmd import ConfigCommand
@@ -30,7 +30,7 @@ __all__ = [
     "SQLCommand",
     "InspectorCommand",
     "LockCommand",
-    "AuditCommand",
+    "SQLAuditCommand",
     "InitCommand",
     "ShellSetupCommand",
     "ConfigCommand",

@@ -10,7 +10,7 @@ Mock 指标采集器
     >>> metrics = collector.collect_all_metrics()
 
 版本: 1.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-06-12
 """
 

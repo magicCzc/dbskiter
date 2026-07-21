@@ -11,7 +11,7 @@ db_scheduler/utils.py
     - DeadLetterQueueManager: 死信队列管理器
 
 版本: 1.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

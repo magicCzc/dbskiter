@@ -4,7 +4,7 @@ SQL Server DDL影响分析器
 文件功能：提供SQL Server特有的DDL影响分析
 主要类：MSSQLDDLAnalyzer - SQL Server DDL分析器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 """
 

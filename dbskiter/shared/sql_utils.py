@@ -9,7 +9,7 @@
     - extract_columns: 从 SQL 中提取列名
     - SQLTypeDetector: SQL 类型检测器（统一版本）
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-08
 最后修改：2026-06-08
 """

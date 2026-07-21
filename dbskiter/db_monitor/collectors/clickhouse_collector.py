@@ -18,7 +18,7 @@ ClickHouse监控指标采集器
     - clickhouse-driver 或 clickhouse-connect 驱动
     - ClickHouse 20.0+
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 版本：1.0.0
 """

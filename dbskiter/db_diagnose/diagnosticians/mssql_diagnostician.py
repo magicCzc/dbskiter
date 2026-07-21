@@ -18,7 +18,7 @@ SQL Server诊断器
     - pyodbc 或 pymssql 驱动
     - SQL Server 2016+（支持Query Store）
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 版本：1.0.0
 """

@@ -7,7 +7,7 @@ db_diagnose分析器模块
     - SQLAnalyzer: SQL分析器
     - BatchAnalyzer: 批量分析器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 """
 

@@ -14,7 +14,7 @@ shared - 共享模块
     >>> from dbskiter.shared.validators import validate_sql
 
 版本: 2.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-24
 """
 

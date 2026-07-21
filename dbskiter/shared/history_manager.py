@@ -13,7 +13,7 @@
     - ~/.config/dbskiter/history.jsonl
 
 版本: 1.0.0
-作者: dbskiter team
+作者: Magiczc
 创建时间: 2026-06-16
 最后修改: 2026-06-16
 """

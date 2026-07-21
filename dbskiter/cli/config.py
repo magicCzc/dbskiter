@@ -281,7 +281,14 @@ class Config:
 
         # 如果仍然没有找到任何配置，抛出错误
         if not kwargs:
-            raise ConfigError(f"未找到数据库配置，请设置 {prefix}_* 环境变量，或使用 --database 参数指定已配置的数据库")
+            raise ConfigError(
+                f"未找到数据库配置（缺少 {prefix}_* 环境变量）\n"
+                f"\n"
+                f"您可以通过以下方式配置：\n"
+                f"  1. 运行交互式向导：dbskiter init\n"
+                f"  2. 查看帮助：dbskiter welcome\n"
+                f"  3. 直接指定参数：dbskiter --host=xxx --user=xxx --password=xxx <命令>"
+            )
 
         # 添加 extra 和 prefix
         kwargs["extra"] = extra
@@ -586,12 +593,12 @@ class Config:
         
         # 安全警告：如果使用了 --password 参数，提示历史记录风险
         if overrides.get("password"):
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.warning(
-                "注意：密码通过命令行 --password 参数传入，可能被记录到 shell 历史记录（history）中。"
-                "建议使用 --password-file 或环境变量来提高安全性。"
+            import sys
+            sys.stderr.write(
+                "[SECURITY WARNING] 密码通过命令行 --password 参数传入，可能被记录到 shell 历史记录。\n"
+                "                 建议使用 --password-file 或环境变量 DBSKITER_PASSWORD 来提高安全性。\n"
             )
+            sys.stderr.flush()
         
         for field, value in overrides.items():
             if value:
@@ -607,12 +614,16 @@ class Config:
         如果指定了 --password-file，从文件中读取密码并覆盖 config.password。
         文件内容会被 strip() 去除首尾空白。
 
+        安全规则：如果指定了 --password-file 但读取失败（文件不存在、权限不足、
+        文件为空），程序必须**终止**并抛出错误，而不是静默忽略。
+        这是为了防止用户误以为使用了密码文件，实际却用了环境变量中的旧密码。
+
         参数说明：
             - config: 当前配置对象
             - args: argparse 解析后的参数对象
 
         返回说明：
-            - Config: 更新后的配置对象
+            - Config: 更新后的配置对象（仅读取成功时返回）
 
         使用示例：
             $ echo "my_secret_pass" > /tmp/db_pass.txt
@@ -622,19 +633,31 @@ class Config:
         if not password_file:
             return config
 
-        try:
-            pwd_path = Path(password_file)
-            if not pwd_path.exists():
-                logger.warning(f"密码文件不存在: {password_file}")
-                return config
-            password = pwd_path.read_text(encoding="utf-8").strip()
-            if password:
-                config.password = password
-                config._set_source("password", f"password_file:{password_file}")
-                logger.debug(f"已从 {password_file} 读取密码")
-        except Exception as e:
-            logger.warning(f"读取密码文件失败: {e}")
+        pwd_path = Path(password_file)
+        if not pwd_path.exists():
+            raise ConfigError(
+                f"密码文件不存在: {password_file}",
+            )
 
+        try:
+            password = pwd_path.read_text(encoding="utf-8").strip()
+        except PermissionError as e:
+            raise ConfigError(
+                f"密码文件权限不足，无法读取: {password_file}",
+            ) from e
+        except Exception as e:
+            raise ConfigError(
+                f"读取密码文件失败: {e}",
+            ) from e
+
+        if not password:
+            raise ConfigError(
+                f"密码文件内容为空: {password_file}",
+            )
+
+        config.password = password
+        config._set_source("password", f"password_file:{password_file}")
+        logger.debug(f"已从 {password_file} 读取密码")
         return config
 
     @staticmethod

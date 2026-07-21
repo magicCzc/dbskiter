@@ -34,7 +34,7 @@
     with LockManager(redis_client).lock("task_backup", timeout=30):
         execute_backup()
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-21
 版本：1.0.0
 """
@@ -387,7 +387,7 @@ class DatabaseDistributedLock(DistributedLock):
                 self.connector.execute("""
                     CREATE INDEX idx_locks_expires ON distributed_locks(expires_at)
                 """)
-            except:
+            except Exception:
                 pass  # 索引可能已存在
             
             logger.debug("分布式锁表已就绪")
@@ -553,7 +553,7 @@ class FileDistributedLock(DistributedLock):
                                     if timeout and (time.time() - start_time) > timeout:
                                         return False
                                     continue
-                    except:
+                    except Exception:
                         pass
                 
                 # 创建或覆盖锁文件
@@ -633,13 +633,13 @@ class FileDistributedLock(DistributedLock):
                     try:
                         self._file_handle.seek(0)
                         msvcrt.locking(self._file_handle.fileno(), msvcrt.LK_UNLCK, 1)
-                    except:
+                    except Exception:
                         pass
                 else:
                     import fcntl
                     try:
                         fcntl.flock(self._file_handle.fileno(), fcntl.LOCK_UN)
-                    except:
+                    except Exception:
                         pass
                 
                 self._file_handle.close()
@@ -649,7 +649,7 @@ class FileDistributedLock(DistributedLock):
                 try:
                     import os
                     os.remove(self.lock_file)
-                except:
+                except Exception:
                     pass
                 
                 return True
@@ -692,7 +692,7 @@ class FileDistributedLock(DistributedLock):
                                 # 锁已过期，删除文件
                                 os.remove(self.lock_file)
                                 logger.debug(f"清理过期锁文件: {self.lock_file}")
-                        except:
+                        except Exception:
                             pass
         except Exception as e:
             logger.warning(f"清理过期锁文件失败: {e}")
@@ -716,9 +716,9 @@ class FileDistributedLock(DistributedLock):
                         if time.time() - lock_time > lock_timeout:
                             # 锁已过期
                             return False
-                    except:
+                    except Exception:
                         pass
-        except:
+        except Exception:
             pass
         
         return True

@@ -10,7 +10,7 @@
     3. 缓存机制：避免重复查询
     4. 多数据库支持：MySQL、Oracle、PostgreSQL
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-27
 """
 

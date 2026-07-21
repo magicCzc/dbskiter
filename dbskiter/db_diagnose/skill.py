@@ -29,7 +29,7 @@ db_diagnose/skill.py
     >>> slow_queries = skill.analyze_slow_queries(limit=20)
 
 版本: 3.0.0（模块化重构版）
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

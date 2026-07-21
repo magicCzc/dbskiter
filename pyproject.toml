@@ -46,8 +46,11 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
     "black>=23.0.0",
     "flake8>=6.0.0",
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.0.0",
 ]
 oracle = [
     "oracledb>=1.4.0",

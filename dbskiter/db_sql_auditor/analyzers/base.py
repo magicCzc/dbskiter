@@ -6,7 +6,7 @@ db_sql_auditor analyzers 基类模块
     - DDLImpact: DDL影响分析结果
     - BaseDDLAnalyzer: DDL分析器基类
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 """
 

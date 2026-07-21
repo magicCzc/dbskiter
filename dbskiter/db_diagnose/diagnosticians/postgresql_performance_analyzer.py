@@ -10,7 +10,7 @@ PostgreSQL性能分析器 - 基于统一性能模型
     3. 多版本兼容：支持PostgreSQL 10/11/12/13/14/15/16
     4. pg_stat_statements集成：利用PostgreSQL原生统计功能
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-24
 版本: 1.0.0
 """

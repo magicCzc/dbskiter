@@ -19,7 +19,7 @@ db_security/skill.py
     >>> scan = skill.scan_sensitive_data()
 
 版本: 3.0.0（模块化重构版）
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

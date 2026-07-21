@@ -6,7 +6,7 @@ SQL方言管理器
     - SQLDialect: SQL方言枚举
     - SQLDialectManager: SQL方言管理器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-28
 """
 

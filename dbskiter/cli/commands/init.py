@@ -25,6 +25,7 @@ import re
 from argparse import ArgumentParser
 from pathlib import Path
 from typing import Dict, Any, Optional, List
+import getpass
 
 from .base import BaseCommand
 from dbskiter.cli.exceptions import ConfigError
@@ -332,7 +333,10 @@ class InitCommand(BaseCommand):
                 output.info("未配置任何数据库别名")
                 return 0
             for alias in aliases:
-                prefix = f"DB_{alias.upper()}"
+                if alias == "default":
+                    prefix = "DB"
+                else:
+                    prefix = f"DB_{alias.upper()}"
                 host = self._extract_env_value(content, f"{prefix}_HOST")
                 db_name = self._extract_env_value(content, f"{prefix}_NAME")
                 output.print(f"  {alias}")
@@ -448,8 +452,13 @@ class InitCommand(BaseCommand):
             if first_db:
                 output.print("")
                 output.print("第一个数据库将作为默认配置（无前缀）")
-                alias = "default"
-                prefix = "DB"
+                alias_input = input("  数据库别名（直接回车使用 'default'）：").strip()
+                if alias_input:
+                    alias = re.sub(r'[^a-zA-Z0-9_]', '_', alias_input)
+                    prefix = f"DB_{alias.upper()}"
+                else:
+                    alias = "default"
+                    prefix = "DB"
             else:
                 alias = input("  数据库别名（如 jump, prod, test）：").strip()
                 if not alias:
@@ -526,6 +535,9 @@ class InitCommand(BaseCommand):
         output.print("  - 使用 `dbskiter init add` 添加更多数据库")
         output.print("  - 使用 `dbskiter init list` 查看已配置的数据库")
 
+        # 自动测试连接（仅第一个数据库）
+        self._test_connection_after_init(all_configs[0])
+
         return 0
 
     # ======== 核心工具方法 ========
@@ -575,7 +587,7 @@ class InitCommand(BaseCommand):
         user = input(f"  用户名 [{template['user']}]: ").strip()
         config["user"] = user if user else template["user"]
 
-        password = input("  密码: ").strip()
+        password = getpass.getpass("  密码: ")
         config["password"] = password
 
         if db_type == "oracle":
@@ -688,14 +700,21 @@ class InitCommand(BaseCommand):
             return {"databases": []}
 
     def _scan_env_aliases(self, content: str) -> List[str]:
-        """扫描 .env 内容中的 DB_{ALIAS}_HOST 模式，返回别名列表"""
+        """扫描 .env 内容中的数据库配置，返回别名列表
+
+        返回说明：
+            - 包含默认配置(default)和所有带别名配置
+        """
         aliases = set()
         for line in content.splitlines():
+            # 匹配带别名的配置 DB_XXX_HOST
             match = re.match(r'^DB_([A-Z0-9_]+)_HOST=', line)
             if match:
                 alias = match.group(1).lower()
-                if alias != '':  # 排除 DB_HOST 本身
-                    aliases.add(alias)
+                aliases.add(alias)
+            # 匹配默认配置 DB_HOST（无前缀别名）
+            elif re.match(r'^DB_HOST=', line):
+                aliases.add("default")
         return sorted(aliases)
 
     def _extract_env_value(self, content: str, key: str) -> Optional[str]:
@@ -766,6 +785,64 @@ DB_PASSWORD=demo
 DB_NAME=demo
 DBSKITER_DEMO_MODE=true
 """
+
+    def _test_connection_after_init(self, item: Dict[str, Any]) -> None:
+        """
+        init 完成后自动测试数据库连接
+
+        参数说明:
+            - item: 配置项字典，包含 alias/prefix/config 等
+        """
+        output = self.output
+        cfg = item["config"]
+        alias = item["alias"]
+        prefix = item["prefix"]
+
+        output.print("")
+        output.info("正在测试数据库连接...")
+        output.print(f"  目标: {cfg['host']}:{cfg['port']} / {cfg['database']}")
+
+        try:
+            # 尝试导入连接器并测试连接
+            from dbskiter.shared.unified_connector import UnifiedConnector
+            connector = UnifiedConnector(
+                dialect=cfg["dialect"],
+                host=cfg["host"],
+                port=cfg["port"],
+                username=cfg["user"],
+                password=cfg["password"],
+                database=cfg["database"],
+            )
+            # 测试连接：执行简单查询
+            if "sqlite" in cfg["dialect"]:
+                connector.execute("SELECT 1")
+            else:
+                connector.execute("SELECT 1")
+            connector.close()
+            output.success("  连接成功！")
+            output.print("")
+            output.info("可以开始使用了：")
+            if alias == "default":
+                output.print("  dbskiter health")
+                output.print("  dbskiter top")
+                output.print("  dbskiter audit")
+            else:
+                output.print(f"  dbskiter --database={alias} health")
+                output.print(f"  dbskiter --database={alias} top")
+                output.print(f"  dbskiter --database={alias} audit")
+        except ImportError:
+            output.warning("  无法测试连接（缺少数据库驱动），请确保已安装对应驱动")
+        except Exception as e:
+            output.error(f"  连接失败: {e}")
+            output.print("")
+            output.info("排查建议：")
+            output.print("  1. 检查主机地址和端口是否正确")
+            output.print("  2. 检查用户名和密码是否正确")
+            output.print("  3. 检查数据库是否允许远程连接")
+            output.print("  4. 检查防火墙是否放行了数据库端口")
+            output.print("")
+            output.info("手动修改配置：")
+            output.print("  dbskiter init add 或 直接编辑 .env 文件")
 
     def _confirm(self, message: str) -> bool:
         """确认对话框"""

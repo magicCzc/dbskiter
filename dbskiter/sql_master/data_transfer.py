@@ -16,7 +16,7 @@ sql_master/data_transfer.py
     >>> importer.import_csv("users.csv", "users")
 
 版本: 1.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-24
 最后修改: 2026-04-24
 """

@@ -8,7 +8,7 @@
     - IndexSuggestion: 索引建议
     - PlanIssue: 执行计划问题
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 版本：3.0.0（生产级重构版）
 """
@@ -416,14 +416,14 @@ class ExecutionPlanAnalyzer:
                         rows_est = parts[3] if len(parts) > 3 else "0"
                         try:
                             rows = int(rows_est.replace(',', ''))
-                        except:
+                        except Exception:
                             rows = 0
 
                         # 提取成本
                         cost_str = parts[5] if len(parts) > 5 else "0"
                         try:
                             cost = int(cost_str.split()[0].replace(',', ''))
-                        except:
+                        except Exception:
                             cost = 0
 
                         # 提取访问方式

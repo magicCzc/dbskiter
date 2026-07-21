@@ -34,7 +34,7 @@ db_inspector - 数据库实例巡检与报告生成
     # 对比基线
     comparison = skill.compare_with_baseline(report)
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 最后修改：2026-04-23
 版本：3.0.0（模块化重构版）

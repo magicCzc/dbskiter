@@ -34,7 +34,7 @@
     # 启动自动清理
     cleanup.start_auto_cleanup(interval_hours=24)
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-21
 版本：1.0.0
 """

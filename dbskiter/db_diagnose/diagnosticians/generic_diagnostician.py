@@ -27,7 +27,7 @@
     >>> result = d.get_database_stats()
 
 版本: 2.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-06-05
 """
 

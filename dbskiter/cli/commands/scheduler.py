@@ -8,6 +8,7 @@ cli/commands/scheduler.py
 import json
 from argparse import ArgumentParser
 from datetime import datetime
+from typing import Any, Dict, Optional
 
 from .base import BaseCommand
 from dbskiter.shared.utils import format_bytes
@@ -163,7 +164,7 @@ class SchedulerCommand(BaseCommand):
                 if 'skill' in locals():
                     try:
                         skill.close()
-                    except:
+                    except Exception:
                         pass
 
         try:

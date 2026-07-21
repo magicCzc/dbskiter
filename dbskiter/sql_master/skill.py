@@ -21,7 +21,7 @@ SQL Master Skill 统一入口
     >>> result = skill.analyze_sql_quality("SELECT * FROM users")
 
 版本: 3.0.0（模块化重构版）
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

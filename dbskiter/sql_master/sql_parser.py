@@ -86,6 +86,8 @@ class ParsedSQL:
         where_clause: WHERE子句内容
         is_read_only: 是否为只读操作
         dialect: SQL方言
+        has_for_update: 是否有FOR UPDATE子句
+        has_into_outfile: 是否有INTO OUTFILE/DUMPFILE子句
     """
     original_sql: str
     sql_type: SQLType
@@ -96,6 +98,8 @@ class ParsedSQL:
     where_clause: Optional[str] = None
     is_read_only: bool = False
     dialect: SQLDialect = SQLDialect.GENERIC
+    has_for_update: bool = False
+    has_into_outfile: bool = False
 
     def get_main_table(self) -> Optional[str]:
         """获取主表名"""
@@ -555,6 +559,10 @@ class SQLParser:
         has_join = _ast_has_join(stmt)
         has_subquery = _ast_has_subquery(stmt)
 
+        # 新增：检测 FOR UPDATE 和 INTO OUTFILE/DUMPFILE
+        has_for_update = self._ast_has_for_update(stmt)
+        has_into_outfile = self._ast_has_into_outfile(stmt)
+
         where_clause = _ast_extract_where_text(stmt) if has_where else None
 
         return ParsedSQL(
@@ -567,6 +575,8 @@ class SQLParser:
             where_clause=where_clause,
             is_read_only=is_read_only,
             dialect=self.dialect,
+            has_for_update=has_for_update,
+            has_into_outfile=has_into_outfile,
         )
 
     @staticmethod
@@ -599,6 +609,18 @@ class SQLParser:
         }
         return manual_map.get(first_word, SQLType.UNKNOWN)
 
+    @staticmethod
+    def _ast_has_for_update(stmt) -> bool:
+        """检查是否有 FOR UPDATE 子句"""
+        stmt_str = str(stmt).upper()
+        return "FOR UPDATE" in stmt_str
+
+    @staticmethod
+    def _ast_has_into_outfile(stmt) -> bool:
+        """检查是否有 INTO OUTFILE 或 INTO DUMPFILE 子句"""
+        stmt_str = str(stmt).upper()
+        return "INTO OUTFILE" in stmt_str or "INTO DUMPFILE" in stmt_str
+
     # ────────────────────── 正则降级 ─────────────────────
 
     def _parse_with_regex(self, sql: str) -> ParsedSQL:
@@ -613,6 +635,10 @@ class SQLParser:
         has_subquery = self._has_subquery(normalized_sql)
         is_read_only = self._is_read_only(sql_type)
 
+        # 新增：正则降级检测 FOR UPDATE 和 INTO OUTFILE/DUMPFILE
+        has_for_update = "FOR UPDATE" in sql_upper
+        has_into_outfile = "INTO OUTFILE" in sql_upper or "INTO DUMPFILE" in sql_upper
+
         return ParsedSQL(
             original_sql=sql,
             sql_type=sql_type,
@@ -623,6 +649,8 @@ class SQLParser:
             where_clause=where_clause,
             is_read_only=is_read_only,
             dialect=self.dialect,
+            has_for_update=has_for_update,
+            has_into_outfile=has_into_outfile,
         )
 
     # ────────────── 正则方法 ──────────────

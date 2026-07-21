@@ -12,7 +12,7 @@ db_inspector 数据模型
     - InspectionReport: 巡检报告
     - PerformanceBaseline: 性能基线
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 最后修改：2026-04-23
 版本：3.0.0（模块化重构版）
@@ -305,3 +305,7 @@ class PerformanceBaseline:
             "connection_baseline": self.connection_baseline,
             "query_time_baseline": self.query_time_baseline
         }
+
+
+# 响应辅助函数（从 shared 模块导入，保持统一）
+from dbskiter.shared.error_handler import create_success_response, create_error_response

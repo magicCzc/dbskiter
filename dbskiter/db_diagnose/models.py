@@ -15,7 +15,7 @@ db_diagnose/models.py
     - PerformanceMetrics: 性能指标
 
 版本: 3.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 
@@ -280,5 +280,6 @@ class DiagnoseReport:
         }
 
 
-# 注意：create_success_response 和 create_error_response 已从 shared.error_handler 导入
-# 不再在此文件中重复定义
+# 注意：create_success_response 和 create_error_response 从 shared.error_handler 导入
+# 通过 re-export 保持向后兼容
+from dbskiter.shared.error_handler import create_success_response, create_error_response

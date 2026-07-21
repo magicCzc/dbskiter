@@ -14,7 +14,7 @@
     rows = service.get_table_row_count("users")
     indexes = service.get_table_indexes("users")
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 """
 

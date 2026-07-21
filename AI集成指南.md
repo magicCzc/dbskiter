@@ -42,7 +42,7 @@ AI 分析并生成回复
 # 验证 dbskiter 已安装
 dbskiter --version
 
-# 预期输出: dbskiter 3.0.19
+# 预期输出: dbskiter 3.0.24
 ```
 
 ### 3. 测试集成

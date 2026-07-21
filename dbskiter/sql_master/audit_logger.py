@@ -22,6 +22,7 @@
 import os
 import json
 import logging
+import re
 import threading
 from datetime import datetime, timedelta
 
@@ -116,6 +117,33 @@ class AuditLogEntry:
         return cls(**data)
 
 
+def _mask_quoted_value(match: "re.Match") -> str:
+    """
+    审计日志脱敏辅助函数（模块级）
+
+    匹配到引号内容后：
+    - 如果是纯数字且长度 >= 6（可能是卡号/身份证号），替换为 [REDACTED]
+    - 如果是字母数字混合且长度 >= 6，替换为 [REDACTED]
+    - 其他情况保留原样
+    """
+    content = match.group(0)
+    # 去掉首尾引号
+    inner = content[1:-1]
+    quote_char = content[0]
+
+    # 只对 >= 6 字符的内容进行脱敏
+    if len(inner) >= 6:
+        # 纯数字 → 卡号/身份证号
+        if inner.isdigit():
+            return f"{quote_char}[REDACTED]{quote_char}"
+        # 字母+数字混合（可能包含分隔符如空格、-）
+        alnum_count = sum(1 for c in inner if c.isalnum())
+        if alnum_count >= 6:
+            return f"{quote_char}[REDACTED]{quote_char}"
+
+    return content
+
+
 class AuditLogger:
     """
     审计日志记录器
@@ -144,7 +172,7 @@ class AuditLogger:
             row_count=1
         )
     """
-    
+
     def __init__(
         self,
         backend: StorageBackend = StorageBackend.FILE,
@@ -258,6 +286,38 @@ class AuditLogger:
         log_dir = Path(self.storage_path).parent
         log_dir.mkdir(parents=True, exist_ok=True)
     
+    @staticmethod
+    def _sanitize_sql_for_audit(sql: str) -> str:
+        """
+        脱敏审计日志中的SQL语句
+
+        1. 截断过长SQL（默认500字符，可通过 DBSKITER_AUDIT_SQL_MAX_LENGTH 配置）
+        2. 屏蔽引号中的敏感数据（长数字串、卡号、身份证号等）
+
+        参数:
+            sql: 原始SQL语句
+
+        返回:
+            str: 脱敏后的SQL语句
+        """
+        if not sql:
+            return ""
+
+        # 1. 屏蔽引号中可能的敏感数据
+        # 匹配单引号/双引号内的内容
+        sanitized = re.sub(
+            r"""(['"])(?=\S)(?:(?!\1).)*\1""",
+            _mask_quoted_value,
+            sql
+        )
+
+        # 2. 截断
+        max_length = int(os.getenv("DBSKITER_AUDIT_SQL_MAX_LENGTH", "500"))
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length] + "... [截断]"
+
+        return sanitized
+
     def log(
         self,
         sql: str,
@@ -301,10 +361,18 @@ class AuditLogger:
         返回：
             AuditLogEntry: 日志条目
         """
+        # SQL脱敏：审计日志中不保存完整SQL（避免敏感数据泄露）
+        sanitized_sql = self._sanitize_sql_for_audit(sql)
+        # 将原始SQL存入metadata（需要时可通过环境变量控制是否记录）
+        raw_sql_mode = os.getenv("DBSKITER_AUDIT_RAW_SQL", "").lower() in ("true", "1")
+        metadata = metadata or {}
+        if raw_sql_mode:
+            metadata["original_sql"] = sql
+
         entry = AuditLogEntry(
             id=self._generate_id(),
             timestamp=datetime.now(),
-            sql=sql,
+            sql=sanitized_sql,
             sql_type=sql_type,
             database=database,
             tables=tables or [],

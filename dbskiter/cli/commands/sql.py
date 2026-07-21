@@ -8,6 +8,7 @@ SQL Master 命令 - SQL执行、重写、分析、智能提示
 import json
 import os
 from argparse import ArgumentParser
+from typing import Any, Dict, Optional
 
 from .base import BaseCommand
 from dbskiter.cli.readonly_middleware import ReadOnlyEnforcer, is_readonly_mode

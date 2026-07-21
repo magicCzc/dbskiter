@@ -47,7 +47,7 @@ db_scheduler模块 - 任务调度与工作流管理
 - result_cleanup.py - 结果清理策略
 
 版本: 3.0.0（模块化重构版）
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

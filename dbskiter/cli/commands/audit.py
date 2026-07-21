@@ -1,14 +1,14 @@
 """
-cli/commands/audit.py
+cli/commands/sql-audit.py
 
 SQL审核命令 - SQL规范审核、性能评估、DDL影响分析
 核心功能：审核SQL、审核SQL文件、DDL影响分析、查看审核规则
 
 用法:
-    dbskiter audit sql "SELECT * FROM users"     # 审核SQL
-    dbskiter audit file queries.sql              # 审核SQL文件
-    dbskiter audit ddl "ALTER TABLE..."          # DDL影响分析
-    dbskiter audit rules                         # 查看审核规则
+    dbskiter sql-audit sql "SELECT * FROM users"     # 审核SQL
+    dbskiter sql-audit file queries.sql              # 审核SQL文件
+    dbskiter sql-audit ddl "ALTER TABLE..."          # DDL影响分析
+    dbskiter sql-audit rules                         # 查看审核规则
 """
 
 import json
@@ -19,10 +19,10 @@ from .base import BaseCommand
 from dbskiter.shared.error_handler import create_error_response, ErrorCode
 
 
-class AuditCommand(BaseCommand):
+class SQLAuditCommand(BaseCommand):
     """SQL审核命令"""
 
-    name = "audit"
+    name = "sql-audit"
     description = "SQL Auditor - SQL全生命周期审核"
     help_text = "SQL规范审核、性能评估、DDL影响分析"
 
@@ -31,12 +31,12 @@ class AuditCommand(BaseCommand):
         """添加审核命令参数"""
         parser.epilog = """
 示例:
-  dbskiter audit sql "SELECT * FROM users WHERE id = 1"
-  dbskiter audit file queries.sql                              # 审核SQL文件
-  dbskiter audit ddl "ALTER TABLE users ADD COLUMN age INT"    # DDL影响分析
-  dbskiter audit rules                                         # 查看审核规则
-  dbskiter audit optimize "SELECT * FROM users WHERE age > 18"
-  dbskiter audit recommend-indexes "SELECT * FROM orders WHERE user_id = 1"
+  dbskiter sql-audit sql "SELECT * FROM users WHERE id = 1"
+  dbskiter sql-audit file queries.sql                              # 审核SQL文件
+  dbskiter sql-audit ddl "ALTER TABLE users ADD COLUMN age INT"    # DDL影响分析
+  dbskiter sql-audit rules                                         # 查看审核规则
+  dbskiter sql-audit optimize "SELECT * FROM users WHERE age > 18"
+  dbskiter sql-audit recommend-indexes "SELECT * FROM orders WHERE user_id = 1"
         """
         subparsers = parser.add_subparsers(dest="audit_action", help="审核操作")
 

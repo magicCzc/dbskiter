@@ -5,7 +5,7 @@ db_diagnose报告生成模块
 导出内容：
     - ReportGenerator: 报告生成器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-22
 """
 

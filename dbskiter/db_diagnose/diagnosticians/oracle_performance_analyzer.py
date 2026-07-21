@@ -10,7 +10,7 @@ Oracle性能分析器 - 基于统一性能模型
     3. 多版本兼容：支持Oracle 11g/12c/19c/21c
     4. AWR/ASH集成：利用Oracle原生诊断能力
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-24
 版本: 1.0.0
 """

@@ -6,6 +6,8 @@ CLI 异常定义
 提供统一的异常层次结构，便于错误处理和用户提示
 """
 
+from typing import Optional
+
 
 class CLIError(Exception):
     """
@@ -19,7 +21,7 @@ class CLIError(Exception):
     """
     exit_code = 1
     
-    def __init__(self, message: str, exit_code: int = None):
+    def __init__(self, message: str, exit_code: Optional[int] = None):
         super().__init__(message)
         self.message = message
         if exit_code is not None:

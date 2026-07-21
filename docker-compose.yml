@@ -1,0 +1,129 @@
+services:
+  # ============================================================
+  # dbskiter - 数据库 AIOps 运维助手
+  # ============================================================
+  dbskiter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: dbskiter:latest
+    container_name: dbskiter
+    environment:
+      # 默认连接本地的 MySQL 和 PostgreSQL
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=test
+      - DB2_HOST=postgres
+      - DB2_PORT=5432
+      - DB2_USER=postgres
+      - DB2_PASSWORD=postgres
+      - DB2_NAME=test
+    volumes:
+      - ./backups:/app/backups
+      - ./runtime_data:/app/runtime_data
+      - ./logs:/app/logs
+      - ./.env:/app/.env:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    profiles:
+      - full
+    command: ["--help"]
+
+  # ============================================================
+  # MySQL 8.0 - 用于测试和开发
+  # ============================================================
+  mysql:
+    image: mysql:8.0
+    container_name: dbskiter-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: test
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - mysql_data:/var/lib/mysql
+    profiles:
+      - full
+      - test
+
+  # ============================================================
+  # PostgreSQL 16 - 用于测试和开发
+  # ============================================================
+  postgres:
+    image: postgres:16
+    container_name: dbskiter-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    profiles:
+      - full
+      - test
+
+  # ============================================================
+  # ClickHouse - 用于测试和开发
+  # ============================================================
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.3
+    container_name: dbskiter-clickhouse
+    environment:
+      CLICKHOUSE_DB: test
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ""
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8123/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
+    profiles:
+      - full
+
+  # ============================================================
+  # SQL Server 2022 - 用于测试和开发
+  # ============================================================
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: dbskiter-mssql
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Dbskiter123!"
+      MSSQL_PID: Developer
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Dbskiter123!' -C -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    profiles:
+      - full
+
+volumes:
+  mysql_data:
+  postgres_data:

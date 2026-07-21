@@ -16,7 +16,7 @@ SQLite监控指标采集器
     - sqlite3 标准库
     - SQLite 3.8+
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-06-03
 版本：1.0.0
 """

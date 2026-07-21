@@ -43,7 +43,7 @@ MySQL AAS (Average Active Sessions) 计算器 V2 - 企业级优化版
     report = calculator.generate_report(minutes=60)
     print(report)
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-21
 版本：2.0.0
 """

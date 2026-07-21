@@ -22,17 +22,21 @@ import inspect
 import os
 import sys
 import logging
+import threading
 from typing import Optional, List, Set
 from functools import wraps
 from pathlib import Path
 
 from dbskiter.sql_master.sql_parser import SQLParser, SQLType
+from dbskiter.sql_master.security_checker import SQLInjectionDetector
+from dbskiter.sql_master.audit_logger import AuditLogger, OperationStatus, StorageBackend
 from dbskiter.shared.error_handler import DBPermissionError
 
 logger = logging.getLogger(__name__)
 
 # 模块级单例缓存，避免重复加载 .env 和创建 SQLParser 实例
 _readonly_enforcer_instance: Optional[ReadOnlyEnforcer] = None
+_readonly_lock = threading.Lock()
 
 
 def _load_dotenv_if_available():
@@ -70,23 +74,66 @@ class ReadOnlyEnforcer:
         "GRANT", "REVOKE", "MERGE", "CALL"
     }
 
-    def __init__(self, enabled: bool = True):
+    def __init__(self, enabled: bool = True, audit_logger: Optional[AuditLogger] = None):
         """
         初始化只读执行器
 
         参数:
             enabled: 是否启用只读模式
+            audit_logger: 可选的审计日志记录器（None则使用默认配置）
         """
         self.enabled = enabled
         self.sql_parser = SQLParser()
+        self.injection_detector = SQLInjectionDetector()
+
+        # 初始化审计日志
+        if audit_logger:
+            self.audit_logger = audit_logger
+        else:
+            self.audit_logger = self._create_default_audit_logger()
 
         if enabled:
             logger.info("只读模式已启用")
 
+    def _create_default_audit_logger(self) -> Optional[AuditLogger]:
+        """创建默认审计日志记录器"""
+        try:
+            audit_path = os.getenv("DBSKITER_AUDIT_PATH", str(Path.home() / ".dbskiter" / "audit" / "audit.db"))
+            # 确保父目录存在
+            Path(audit_path).parent.mkdir(parents=True, exist_ok=True)
+            backend_str = os.getenv("DBSKITER_AUDIT_BACKEND", "sqlite")
+            backend = StorageBackend(backend_str)
+            return AuditLogger(backend=backend, storage_path=audit_path)
+        except Exception as e:
+            logger.warning(f"审计日志初始化失败: {e}")
+            return None
+
+    def _record_interception(
+        self, sql: str, reason: str, sql_type: str = "UNKNOWN", user: Optional[str] = None
+    ) -> None:
+        """记录拦截操作到审计日志（失败不抛异常，避免阻断安全流程）"""
+        if not self.audit_logger:
+            return
+        try:
+            self.audit_logger.log(
+                sql=sql,
+                database=os.getenv("DBSKITER_CURRENT_DATABASE", "unknown"),
+                risk_level="CRITICAL",
+                status=OperationStatus.BLOCKED,
+                sql_type=sql_type,
+                blocked_reason=reason,
+                user=user or os.getenv("USER", "anonymous"),
+                metadata={"source": "readonly_interceptor", "reason": reason}
+            )
+            # 安全拦截记录立即落盘，防止缓冲丢失
+            self.audit_logger._flush()
+        except Exception as e:
+            logger.error(f"审计日志记录失败: {e}")
+
     @classmethod
     def from_config(cls) -> "ReadOnlyEnforcer":
         """
-        从配置创建执行器（使用模块级单例缓存）
+        从配置创建执行器（使用模块级单例缓存，线程安全）
 
         检查顺序：
             1. 环境变量 DBSKITER_READ_ONLY
@@ -97,22 +144,26 @@ class ReadOnlyEnforcer:
         if _readonly_enforcer_instance is not None:
             return _readonly_enforcer_instance
 
-        # 确保已加载.env文件
-        _load_dotenv_if_available()
+        with _readonly_lock:
+            if _readonly_enforcer_instance is not None:
+                return _readonly_enforcer_instance
 
-        # 优先读取 DBSKITER_READ_ONLY
-        enabled = os.getenv("DBSKITER_READ_ONLY", "").lower() in ("true", "1", "yes")
+            # 确保已加载.env文件
+            _load_dotenv_if_available()
 
-        # 兼容：如果未设置，尝试读取 DBSKITER_DEFAULT_READ_ONLY
-        if not enabled:
-            enabled = os.getenv("DBSKITER_DEFAULT_READ_ONLY", "").lower() in ("true", "1", "yes")
+            # 优先读取 DBSKITER_READ_ONLY
+            enabled = os.getenv("DBSKITER_READ_ONLY", "").lower() in ("true", "1", "yes")
 
-        _readonly_enforcer_instance = cls(enabled=enabled)
-        return _readonly_enforcer_instance
+            # 兼容：如果未设置，尝试读取 DBSKITER_DEFAULT_READ_ONLY
+            if not enabled:
+                enabled = os.getenv("DBSKITER_DEFAULT_READ_ONLY", "").lower() in ("true", "1", "yes")
+
+            _readonly_enforcer_instance = cls(enabled=enabled)
+            return _readonly_enforcer_instance
 
     def check(self, sql: str) -> tuple[bool, Optional[str]]:
         """
-        检查SQL是否为只读
+        检查SQL是否为只读（含注入检测和危险SELECT子句拦截）
 
         参数:
             sql: SQL语句
@@ -124,21 +175,45 @@ class ReadOnlyEnforcer:
             return True, None
 
         if not sql or not sql.strip():
+            self._record_interception(sql, "SQL语句不能为空", "UNKNOWN")
             return False, "SQL语句不能为空"
+
+        # 注入检测：即使只读模式也禁止注入攻击
+        try:
+            injection_result = self.injection_detector.detect(sql)
+            if injection_result.is_injection:
+                reason = f"检测到SQL注入: {injection_result.description}"
+                self._record_interception(sql, reason, "UNKNOWN")
+                return False, reason
+        except Exception as e:
+            logger.warning(f"注入检测失败: {e}")
 
         try:
             parsed = self.sql_parser.parse(sql)
         except Exception as e:
             # 解析失败时，保守起见拒绝执行
-            logger.warning(f"SQL解析失败，拒绝执行: {sql}, 错误: {e}")
-            return False, f"SQL解析失败，为了安全起见拒绝执行: {str(e)}"
+            reason = f"SQL解析失败，为了安全起见拒绝执行: {str(e)}"
+            self._record_interception(sql, reason, "UNKNOWN")
+            return False, reason
 
         # 检查SQL类型
         if parsed.sql_type in self.READ_ONLY_TYPES:
+            # 对SELECT进一步检查危险子句
+            if parsed.sql_type == SQLType.SELECT:
+                if parsed.has_into_outfile:
+                    reason = "只读模式：禁止 SELECT INTO OUTFILE/DUMPFILE（可能泄露数据到文件系统）"
+                    self._record_interception(sql, reason, "SELECT")
+                    return False, reason
+                if parsed.has_for_update:
+                    reason = "只读模式：禁止 SELECT FOR UPDATE（会加行锁，影响业务）"
+                    self._record_interception(sql, reason, "SELECT")
+                    return False, reason
             return True, None
 
         # 未知或非只读类型，保守拒绝
-        return False, f"只读模式：禁止执行 {parsed.sql_type.value} 类型的SQL语句"
+        reason = f"只读模式：禁止执行 {parsed.sql_type.value} 类型的SQL语句"
+        self._record_interception(sql, reason, parsed.sql_type.value)
+        return False, reason
 
     def enforce(self, sql: str) -> None:
         """

@@ -97,14 +97,32 @@ class ErrorHandler:
     def _get_error_info(self, error: Exception) -> tuple[int, str]:
         """
         获取错误信息
-        
+
         返回:
             tuple: (退出码, 用户友好消息)
         """
-        # CLI 异常
+        # 配置错误 - 给出更友好的引导提示（ConfigError 继承自 CLIError，必须先检查）
+        if isinstance(error, ConfigError):
+            msg = str(error)
+            # 检测配置缺失场景，添加引导
+            if "未找到数据库配置" in msg or "未找到默认数据库配置" in msg or "请设置" in msg or "但检测到以下别名" in msg:
+                friendly = f"""{msg}
+
+┌──────────────────────────────────────────────┐
+│  如何解决？                                   │
+├──────────────────────────────────────────────┤
+│  1. 交互式配置向导: dbskiter init               │
+│  2. 快速生成模板: dbskiter init --quick        │
+│  3. 演示模式体验: dbskiter --demo health       │
+│  4. 查看帮助: dbskiter welcome                 │
+└──────────────────────────────────────────────┘"""
+                return error.exit_code, friendly
+            return error.exit_code, msg
+
+        # CLI 异常（ConfigError 之外的 CLI 错误）
         if isinstance(error, CLIError):
             return error.exit_code, error.message
-        
+
         # 常见 Python 异常
         if isinstance(error, KeyboardInterrupt):
             return 130, "操作已取消"

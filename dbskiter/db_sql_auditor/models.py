@@ -16,7 +16,7 @@ SQL审核数据模型
     - AuditConfig: 审核配置
 
 版本: 3.0.0（模块化重构版）
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

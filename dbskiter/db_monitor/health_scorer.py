@@ -15,7 +15,7 @@
     扣分 = 权重 × 偏离度 × 严重程度系数
     最终分 = max(60, 100 - 总扣分)
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-29
 """
 
@@ -299,7 +299,10 @@ class HealthScorer:
             return self.DEFAULT_CONFIGS["mysql"]
         elif "postgresql" in db_type_lower:
             return self.DEFAULT_CONFIGS["postgresql"]
-        
+        elif "mock" in db_type_lower:
+            # Mock 模式使用默认 MySQL 配置，无需告警
+            return self.DEFAULT_CONFIGS["mysql"]
+
         # 默认返回MySQL配置
         logger.warning(f"未知的数据库类型: {db_type}，使用默认配置")
         return self.DEFAULT_CONFIGS["mysql"]

@@ -16,7 +16,7 @@ db_monitor/models.py
     - HealthAssessment: 健康评估结果
 
 版本: 3.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 
@@ -338,6 +338,7 @@ class CapacityPrediction:
 
 
 # =============================================================================
-# 响应辅助函数
+# 响应辅助函数（从 shared 模块导入，保持统一）
 # =============================================================================
+from dbskiter.shared.error_handler import create_success_response, create_error_response
 

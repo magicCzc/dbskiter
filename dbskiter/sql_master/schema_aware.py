@@ -8,7 +8,7 @@ Schema 感知模块 - 智能 SQL 辅助功能
 3. SQL 限制 - 防止大查询，自动加 LIMIT
 4. 结果解释 - 生成自然语言摘要
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-17
 """
 

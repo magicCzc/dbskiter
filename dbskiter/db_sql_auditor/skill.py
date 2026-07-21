@@ -25,7 +25,7 @@ SQL审核 Skill 统一入口
     >>> impact = skill.analyze_ddl_impact("ALTER TABLE users ADD COLUMN age INT")
 
 版本: 3.0.0（模块化重构版）
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

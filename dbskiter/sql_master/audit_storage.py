@@ -12,7 +12,7 @@ SQL审计日志存储模块
     - SQLAuditStorage: 审计日志存储管理器
 
 版本: 1.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-28
 """
 

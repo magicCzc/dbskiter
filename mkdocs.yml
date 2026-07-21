@@ -1,0 +1,70 @@
+site_name: DBSKiter
+site_description: 数据库 AIOps 运维助手 - 监控、诊断、安全、调度、SQL执行
+site_author: MagiCzc
+site_url: https://magiczc.github.io/dbskiter
+
+repo_url: https://github.com/magicCzc/dbskiter
+repo_name: magicCzc/dbskiter
+
+theme:
+  name: material
+  language: zh
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: 切换暗色模式
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: 切换亮色模式
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.indexes
+    - content.code.copy
+
+nav:
+  - 首页: index.md
+  - 新手快速上手:
+    - 安装与配置: examples/01-新手快速上手/01-安装与配置.md
+    - 第一条命令: examples/01-新手快速上手/02-第一条命令.md
+    - 多数据库配置: examples/01-新手快速上手/03-多数据库配置.md
+  - 故障诊断:
+    - 业务卡顿查慢查询: examples/02-故障诊断/01-业务卡顿查慢查询.md
+    - CPU飙升根因分析: examples/02-故障诊断/02-CPU飙升根因分析.md
+    - 磁盘空间告警: examples/02-故障诊断/03-磁盘空间告警.md
+    - 连接数打满: examples/02-故障诊断/04-连接数打满.md
+  - 安全审计:
+    - 月度巡检实战: examples/03-安全审计/01-月度巡检实战.md
+    - 安全审计排查: examples/03-安全审计/02-安全审计排查.md
+  - 锁与死锁:
+    - 接口超时查锁等待: examples/04-锁与死锁/01-接口超时查锁等待.md
+  - 容量规划:
+    - 预判磁盘爆满: examples/05-容量规划/01-预判磁盘爆满.md
+    - 大表膨胀分析: examples/05-容量规划/02-大表膨胀分析.md
+  - 备份调度:
+    - 定时备份与恢复: examples/06-备份调度/01-定时备份与恢复.md
+  - 相关资源: resources.md
+
+markdown_extensions:
+  - admonition
+  - codehilite
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/magicCzc/dbskiter
+  generator: false
+
+copyright: Copyright &copy; 2026 MagiCzc

@@ -4,7 +4,7 @@ PostgreSQL DDL影响分析器
 文件功能：提供PostgreSQL特有的DDL影响分析
 主要类：PostgreSQLDDLAnalyzer - PostgreSQL DDL分析器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 """
 

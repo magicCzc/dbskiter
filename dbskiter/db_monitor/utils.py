@@ -14,7 +14,7 @@ db_monitor/utils.py
     - AlertManager: 告警管理器
 
 版本: 3.0.0
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-23
 """
 

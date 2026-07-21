@@ -24,7 +24,7 @@
     # 分析日志文件
     report = analyzer.analyze_log_file('/var/log/mysql/slow.log', since='24h')
 
-作者: AI Assistant
+作者: Magiczc
 创建时间: 2026-04-29
 """
 

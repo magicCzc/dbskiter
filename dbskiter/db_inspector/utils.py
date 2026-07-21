@@ -10,7 +10,7 @@ db_inspector 工具类
     - InspectionAggregator: 巡检结果聚合器
     - TrendAnalyzer: 趋势分析器
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 版本：3.0.0（模块化重构版）
 """

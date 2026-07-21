@@ -21,7 +21,7 @@ db_monitor collectors 包 - 多数据库指标采集器
     # 未知数据库类型自动回退到通用采集器
     generic = get_collector('trino', connector)
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 最后修改：2026-06-05（新增GenericMetricsCollector）
 """

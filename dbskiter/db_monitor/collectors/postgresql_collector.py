@@ -14,7 +14,7 @@ PostgreSQL指标采集器
     - 事务：提交数、回滚数
     - 复制：复制延迟
 
-作者：AI Assistant
+作者：Magiczc
 创建时间：2026-04-23
 最后修改：2026-04-30 - 添加pg_buffercache和pg_stat_statements扩展降级逻辑
 """
