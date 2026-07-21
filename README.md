@@ -75,6 +75,13 @@ DBSKiter v3.0.24 已通过生产环境验证，具备以下成熟度：
 
 ## 更新日志
 
+### v3.0.31 (2026-07-21)
+
+- **备份**: 新增 Oracle 专用备份（exp/imp 原生工具 + SQL 分页降级）
+- **备份**: 新增 SQL Server 专用备份（bcp/sqlcmd 原生工具 + SQL 分页降级）
+- **测试**: 新增 30 个 Oracle/MSSQL 备份测试用例，总测试数达 792 个
+- **覆盖**: 7 种数据库全部支持专用备份（MySQL/PG/SQLite/Oracle/MSSQL/ClickHouse/Generic）
+
 ### v3.0.29 (2026-07-21)
 
 - **文档**: 新增 MkDocs 文档站点（`mkdocs.yml`），12 篇教程整理为结构化站点
