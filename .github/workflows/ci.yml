@@ -36,4 +36,5 @@ jobs:
 
       - name: Run tests
         run: |
-          python -m pytest tests/test_imports.py -v --tb=short -o asyncio_mode=auto
+          python -m unittest discover -s tests/unit -p "*.py" -v
+          python -m unittest tests.test_imports tests.test_models tests.test_error_handler tests.test_query_result tests.test_sql_dialect tests.test_validators tests.test_sql_fingerprint tests.test_sql_validation tests.test_security_injection tests.test_cache tests.test_report_generator tests.test_scheduler_backup tests.test_sql_validator -v
