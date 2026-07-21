@@ -5,11 +5,19 @@
 </p>
 
 <p align="center">
+  <a href="https://pypi.org/project/dbskiter/"><img src="https://img.shields.io/pypi/v/dbskiter" alt="PyPI version"></a>
+  <a href="https://github.com/magicCzc/dbskiter/actions"><img src="https://img.shields.io/github/actions/workflow/status/magicCzc/dbskiter/ci.yml" alt="CI Status"></a>
+  <a href="https://github.com/magicCzc/dbskiter/blob/main/LICENSE"><img src="https://img.shields.io/github/license/magicCzc/dbskiter" alt="License"></a>
+  <a href="https://pypi.org/project/dbskiter/"><img src="https://img.shields.io/pypi/pyversions/dbskiter" alt="Python versions"></a>
+</p>
+
+<p align="center">
   <a href="#快速开始">快速开始</a> |
   <a href="#功能特性">功能特性</a> |
   <a href="#使用示例">使用示例</a> |
   <a href="#项目架构">项目架构</a> |
-  <a href="#ai集成">AI集成</a>
+  <a href="#ai集成">AI集成</a> |
+  <a href="https://magicCzc.github.io/dbskiter/">文档站点</a>
 </p>
 
 ---
