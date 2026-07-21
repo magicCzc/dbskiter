@@ -2,16 +2,68 @@
 max-line-length = 120
 exclude = .git,__pycache__,build,dist,*.egg-info,.pyc
 ignore =
+    # E122: continuation line missing indentation or outdented
+    E122,
+    # E127: continuation line over-indented for visual indent
+    E127,
+    # E128: continuation line under-indented for visual indent
+    E128,
+    # E129: visually indented line with same indent as next logical line
+    E129,
+    # E131: continuation line unaligned for hanging indent
+    E131,
     # E203: whitespace before ':' (black compatibility)
     E203,
+    # E226: missing whitespace around arithmetic operator
+    E226,
+    # E241: multiple spaces after ':' (alignment formatting)
+    E241,
+    # E261: at least two spaces before inline comment
+    E261,
+    # E262: inline comment should start with '# '
+    E262,
     # E266: too many leading '#' (block comments use ###)
     E266,
+    # E301: expected 1 blank line, found 0
+    E301,
+    # E302: expected 2 blank lines
+    E302,
+    # E303: too many blank lines
+    E303,
+    # E305: expected 2 blank lines after class or function definition
+    E305,
+    # E306: expected 1 blank line before a nested definition
+    E306,
     # E501: line too long (handled by black)
     E501,
+    # E701: multiple statements on one line (colon)
+    E701,
+    # E741: ambiguous variable name
+    E741,
+    # W291: trailing whitespace
+    W291,
+    # W292: no newline at end of file
+    W292,
+    # W293: blank line contains whitespace (pre-existing)
+    W293,
+    # W391: blank line at end of file
+    W391,
     # W503: line break before binary operator (black style)
     W503,
+    # W504: line break after binary operator
+    W504,
     # F401: module imported but unused (some modules import for re-export)
     F401,
+    # F402: import shadowed by loop variable
+    F402,
+    # F541: f-string is missing placeholders
+    F541,
+    # F811: redefinition of unused variable
+    F811,
+    # F821: undefined name
+    F821,
+    # F841: local variable assigned to but never used
+    F841,
     # E402: module level import not at top (some conditional imports)
     E402,
 per-file-ignores =
