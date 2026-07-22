@@ -29,6 +29,7 @@ jobs:
 
       - name: Run tests
         run: |
+          set -x  # Print each command before executing for debugging
           echo "=== Python info ==="
           python --version
           which python
@@ -48,5 +49,5 @@ print('OK')
           echo "=== pytest version ==="
           python -m pytest --version
           echo "=== Run test_imports ==="
-          cd /home/runner/work/dbskiter/dbskiter 2>/dev/null || cd ${{ github.workspace }}
-          python -m pytest tests/test_imports.py -v --tb=long 2>&1 | head -50
+          python -m pytest tests/test_imports.py -v --tb=long 2>&1
+          echo "=== Exit code: $? ==="
