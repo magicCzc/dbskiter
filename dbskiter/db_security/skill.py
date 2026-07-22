@@ -38,8 +38,8 @@ from .models import (
 from .utils import (
     RiskScorer, ReportFormatter, SecurityAuditor
 )
-from .sql_injection_detector_v2 import SQLInjectionDetectorV2
-from .sensitive_data_scanner_v2 import SensitiveDataScannerV2
+from .sql_injection_detector import SQLInjectionDetector
+from .sensitive_data_scanner import SensitiveDataScanner
 from .login_security_monitor import LoginSecurityMonitor
 from .audit_log_analyzer import AuditLogAnalyzer
 from .password_policy_checker import PasswordPolicyChecker
@@ -97,8 +97,8 @@ class SecuritySkill:
         )
 
         # 初始化检测器
-        self.sql_detector = SQLInjectionDetectorV2()
-        self.data_scanner = SensitiveDataScannerV2(connector)
+        self.sql_detector = SQLInjectionDetector()
+        self.data_scanner = SensitiveDataScanner(connector)
         self.auditor = SecurityAuditor(connector)
 
         # 初始化新增的安全监控器

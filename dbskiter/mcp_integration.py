@@ -30,7 +30,7 @@ from typing import Dict, Any, Optional
 from datetime import datetime
 
 from dbskiter.shared.unified_connector import UnifiedConnector
-from dbskiter.sql_master.security_executor_v2 import SecurityExecutorV2
+from dbskiter.sql_master.security_executor import SecurityExecutor
 from dbskiter.sql_master.sql_parser import SQLParser, is_dangerous_without_where
 from dbskiter.config.security_config import SecurityLevel, get_security_policy
 from dbskiter.cli.readonly_middleware import ReadOnlyEnforcer, is_readonly_mode
@@ -79,7 +79,7 @@ class MCPSecurityWrapper:
             enable_audit: 是否启用审计日志
         """
         self.connector = connector
-        self.security_executor = SecurityExecutorV2(
+        self.security_executor = SecurityExecutor(
             connector=connector
         )
         self.sql_parser = SQLParser()

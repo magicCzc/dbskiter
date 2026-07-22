@@ -32,7 +32,7 @@ from dbskiter.config.security_config import SecurityLevel, SecurityConfig
 
 # 复用db_security的SQL注入检测器（避免重复造轮子）
 try:
-    from dbskiter.db_security.sql_injection_detector_v2 import SQLInjectionDetectorV2
+    from dbskiter.db_security.sql_injection_detector import SQLInjectionDetector
     _HAS_V2_DETECTOR = True
 except ImportError:
     _HAS_V2_DETECTOR = False
@@ -167,7 +167,7 @@ class SQLInjectionDetector:
                 logger.warning(f"编译正则表达式失败: {regex}, 错误: {e}")
 
         # 复用db_security的V2检测器
-        self._v2_detector = SQLInjectionDetectorV2() if _HAS_V2_DETECTOR else None
+        self._v2_detector = SQLInjectionDetector() if _HAS_V2_DETECTOR else None
 
     def detect(self, sql: str) -> InjectionCheckResult:
         """

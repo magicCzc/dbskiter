@@ -10,7 +10,7 @@ from datetime import datetime
 
 from dbskiter.shared.unified_connector import UnifiedConnector
 from dbskiter.shared.mysql_slow_query_collector import MySQLSlowQueryCollector
-from dbskiter.shared.mysql_aas_calculator_v2 import MySQLAASCalculatorV2 as MySQLAASCalculator
+from dbskiter.shared.mysql_aas_calculator import MySQLAASCalculator
 from dbskiter.shared.sql_fingerprint import SQLFingerprinter
 from .base import BaseDiagnostician
 

@@ -96,7 +96,7 @@ except ImportError as _e:
 try:
     from .executor import SQLExecutor
     from .analyzer import DataAnalyzer
-    from .sql_rewriter_v2 import SQLRewriterV2, RewriteResult, RewriteSuggestion as RewriteResultSuggestion
+    from .sql_rewriter import SQLRewriter, RewriteResult, RewriteSuggestion as RewriteResultSuggestion
     from .cache_manager import SQLCacheManager
     from .cache_invalidator import SmartCachedExecutor
 except ImportError as _e:
@@ -104,7 +104,7 @@ except ImportError as _e:
 
 # 安全执行组件
 try:
-    from .security_executor_v2 import SecurityExecutorV2, ExecutionContext, SecurityCheckResult
+    from .security_executor import SecurityExecutor, ExecutionContext, SecurityCheckResult
     from .security_checker import (
         SecurityChecker,
         SQLInjectionDetector,
@@ -168,13 +168,13 @@ __all__ = [
     # 高级组件
     "SQLExecutor",
     "DataAnalyzer",
-    "SQLRewriterV2",
+    "SQLRewriter",
     "RewriteResult",
     "RewriteResultSuggestion",
     "SQLCacheManager",
     "SmartCachedExecutor",
     # 安全执行组件
-    "SecurityExecutorV2",
+    "SecurityExecutor",
     "ExecutionContext",
     "SecurityCheckResult",
     "SecurityChecker",

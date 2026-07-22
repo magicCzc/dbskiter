@@ -64,16 +64,24 @@ from .utils import (
     SecurityAuditor,
 )
 
-# 检测器
-from .sql_injection_detector_v2 import (
-    SQLInjectionDetectorV2,
+# 检测器（新命名）
+from .sql_injection_detector import (
+    SQLInjectionDetector,
     RiskLevel as DetectorRiskLevel,
     InjectionType as DetectorInjectionType,
 )
-from .sensitive_data_scanner_v2 import (
-    SensitiveDataScannerV2,
+from .sensitive_data_scanner import (
+    SensitiveDataScanner,
     SensitivityLevel as ScannerSensitivityLevel,
     DataCategory as ScannerDataCategory,
+)
+
+# 向后兼容（V2 别名）
+from .sql_injection_detector_v2 import (
+    SQLInjectionDetectorV2,
+)
+from .sensitive_data_scanner_v2 import (
+    SensitiveDataScannerV2,
 )
 
 # 主Skill类

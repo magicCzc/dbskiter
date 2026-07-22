@@ -54,7 +54,7 @@ from .utils import (
 # 导入核心组件
 from .executor import SQLExecutor
 from .analyzer import DataAnalyzer
-from .sql_rewriter_v2 import SQLRewriterV2
+from .sql_rewriter import SQLRewriter
 from .intelligent_intellisense import SQLIntelliSense
 from .schema_aware import SchemaAwareOptimizer
 from .cache_manager import SQLCacheManager
@@ -134,7 +134,7 @@ class SQLMasterSkill:
 
         # 初始化核心组件
         self.executor = SQLExecutor(connector)
-        self.rewriter = SQLRewriterV2(connector) if self.config.enable_rewriter else None
+        self.rewriter = SQLRewriter(connector) if self.config.enable_rewriter else None
         self.analyzer = DataAnalyzer(connector) if self.config.enable_analyzer else None
         self.schema_optimizer = SchemaAwareOptimizer(connector)
         self.intellisense = SQLIntelliSense(self.schema_optimizer.schema_cache) if self.config.enable_intellisense else None
