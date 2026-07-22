@@ -12,7 +12,7 @@ DBSKiter - 数据库AIOps运维助手
 最后修改：2026-06-17
 """
 
-__version__ = "3.0.33"
+__version__ = "3.0.34"
 __all__ = [
     "DiagnoseSkill",
     "MonitorSkill",

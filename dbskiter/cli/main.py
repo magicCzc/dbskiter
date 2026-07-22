@@ -128,7 +128,7 @@ def create_parser() -> argparse.ArgumentParser:
         help="从文件读取数据库密码（优先于 --password，适合生产环境安全传密）"
     )
     parser.add_argument(
-        "--database", "-d",
+        "--database", "-d", "--db", "--db",
         help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
     )
     parser.add_argument(
@@ -216,7 +216,7 @@ def _add_connection_args(parser: argparse.ArgumentParser) -> None:
         help="从文件读取数据库密码"
     )
     conn_group.add_argument(
-        "--database", "-d",
+        "--database", "-d", "--db",
         help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
     )
     conn_group.add_argument(
