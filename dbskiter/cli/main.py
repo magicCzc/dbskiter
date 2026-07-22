@@ -24,14 +24,14 @@ except ImportError:
     HAS_ARGCOMPLETE = False
 
 from .. import __version__
-from .config import Config, MultiDBConfig
+from .config import Config
 from .output import OutputFormatter
 from .exceptions import CLIError, ConfigError
 from .commands import command_registry, BaseCommand
 from .error_handler import ErrorHandler
 from .banner import print_banner, print_minimal_banner
 from .style import get_console
-from .command_aliases import expand_alias, get_alias_help, COMMAND_ALIASES
+from .command_aliases import expand_alias
 from ..shared import HistoryManager
 
 

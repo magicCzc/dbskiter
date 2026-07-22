@@ -92,8 +92,6 @@ def expand_alias(raw_args: List[str]) -> List[str]:
         "--config", "-c",
         "--log-level",
         "--output-mode",
-        "--output",
-        "--env-file",
     }
 
     i = 0
