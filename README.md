@@ -9,7 +9,10 @@
   <a href="https://github.com/magicCzc/dbskiter/actions"><img src="https://img.shields.io/github/actions/workflow/status/magicCzc/dbskiter/ci.yml" alt="CI Status"></a>
   <a href="https://github.com/magicCzc/dbskiter/blob/main/LICENSE"><img src="https://img.shields.io/github/license/magicCzc/dbskiter" alt="License"></a>
   <a href="https://pypi.org/project/dbskiter/"><img src="https://img.shields.io/pypi/pyversions/dbskiter" alt="Python versions"></a>
+  <a href="https://magicCzc.github.io/dbskiter/"><img src="https://img.shields.io/badge/docs-mkdocs-brightgreen" alt="Docs"></a>
 </p>
+
+> **项目成熟度说明**：DBSKiter 是一个仍在快速迭代中的开源项目。核心功能（MySQL 诊断/监控/备份）已达到生产可用状态；Oracle、SQL Server、ClickHouse 等功能已实现但尚未经过大规模生产验证。详见下方的[生产就绪状态](#生产就绪状态)表格。
 
 <p align="center">
   <a href="#快速开始">快速开始</a> |
