@@ -30,4 +30,4 @@ jobs:
           python -c "import dbskiter; print('dbskiter version:', dbskiter.__version__)"
 
       - name: Run tests
-        run: PYTHONPATH=tests python -m unittest test_imports -v
+        run: PYTHONPATH=tests python scripts/ci_test_runner.py
