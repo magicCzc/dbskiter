@@ -1,0 +1,2095 @@
+
+<!doctype html>
+<html lang="zh" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="数据库 AIOps 运维助手 - 监控、诊断、安全、调度、SQL执行">
+      
+      
+        <meta name="author" content="MagiCzc">
+      
+      
+        <link rel="canonical" href="https://magiczc.github.io/dbskiter/examples/01-%E6%96%B0%E6%89%8B%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B/01-%E5%AE%89%E8%A3%85%E4%B8%8E%E9%85%8D%E7%BD%AE/">
+      
+      
+        <link rel="prev" href="../../..">
+      
+      
+        <link rel="next" href="../02-%E7%AC%AC%E4%B8%80%E6%9D%A1%E5%91%BD%E4%BB%A4/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>安装与配置 - DBSKiter</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#_1" class="md-skip">
+          跳转至
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="页眉">
+    <a href="../../.." title="DBSKiter" class="md-header__button md-logo" aria-label="DBSKiter" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DBSKiter
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              安装与配置
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换暗色模式"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="切换暗色模式" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="切换亮色模式"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="切换亮色模式" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="搜索" placeholder="搜索" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="查找">
+        
+        <button type="reset" class="md-search__icon md-icon" title="清空当前内容" aria-label="清空当前内容" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            正在初始化搜索引擎
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/magicCzc/dbskiter" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    magicCzc/dbskiter
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="导航栏" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../../.." title="DBSKiter" class="md-nav__button md-logo" aria-label="DBSKiter" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    DBSKiter
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/magicCzc/dbskiter" title="前往仓库" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    magicCzc/dbskiter
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    首页
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    新手快速上手
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    新手快速上手
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安装与配置
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安装与配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        场景背景
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 1：安装（2 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 1：安装（2 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        检查 Python 版本
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dbskiter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装 dbskiter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验证安装
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 2：配置数据库（3 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 2：配置数据库（3 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方案 A：交互式向导（推荐新手）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方案 B：手动配置文件（适合多数据库环境）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ccicd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方案 C：环境变量（CI/CD 场景）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 3：执行第一条命令（2 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 3：执行第一条命令（2 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        健康检查
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 4：快速体验其他命令（5 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 4：快速体验其他命令（5 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 巡检报告
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 慢查询分析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 安全审计
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 查看所有命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 5：无数据库体验（Demo 模式）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#faq" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        常见问题（FAQ）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="常见问题（FAQ）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#q1pip-install-dbskiter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q1：安装失败，pip install dbskiter 报错
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q2access-denied-for-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q2：连接失败，Access denied for user
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q3dbskiter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q3：命令找不到，dbskiter 不是内部命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q4：连接远程数据库失败
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q5：如何查看配置文件路径？
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        下一步学习路径
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令速查卡
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../02-%E7%AC%AC%E4%B8%80%E6%9D%A1%E5%91%BD%E4%BB%A4/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    第一条命令
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../03-%E5%A4%9A%E6%95%B0%E6%8D%AE%E5%BA%93%E9%85%8D%E7%BD%AE/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    多数据库配置
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    故障诊断
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    故障诊断
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../02-%E6%95%85%E9%9A%9C%E8%AF%8A%E6%96%AD/01-%E4%B8%9A%E5%8A%A1%E5%8D%A1%E9%A1%BF%E6%9F%A5%E6%85%A2%E6%9F%A5%E8%AF%A2/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    业务卡顿查慢查询
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../02-%E6%95%85%E9%9A%9C%E8%AF%8A%E6%96%AD/02-CPU%E9%A3%99%E5%8D%87%E6%A0%B9%E5%9B%A0%E5%88%86%E6%9E%90/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CPU飙升根因分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../02-%E6%95%85%E9%9A%9C%E8%AF%8A%E6%96%AD/03-%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%91%8A%E8%AD%A6/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    磁盘空间告警
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../02-%E6%95%85%E9%9A%9C%E8%AF%8A%E6%96%AD/04-%E8%BF%9E%E6%8E%A5%E6%95%B0%E6%89%93%E6%BB%A1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    连接数打满
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全审计
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    安全审计
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-%E5%AE%89%E5%85%A8%E5%AE%A1%E8%AE%A1/01-%E6%9C%88%E5%BA%A6%E5%B7%A1%E6%A3%80%E5%AE%9E%E6%88%98/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    月度巡检实战
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../03-%E5%AE%89%E5%85%A8%E5%AE%A1%E8%AE%A1/02-%E5%AE%89%E5%85%A8%E5%AE%A1%E8%AE%A1%E6%8E%92%E6%9F%A5/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    安全审计排查
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    锁与死锁
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    锁与死锁
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../04-%E9%94%81%E4%B8%8E%E6%AD%BB%E9%94%81/01-%E6%8E%A5%E5%8F%A3%E8%B6%85%E6%97%B6%E6%9F%A5%E9%94%81%E7%AD%89%E5%BE%85/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    接口超时查锁等待
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    容量规划
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    容量规划
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-%E5%AE%B9%E9%87%8F%E8%A7%84%E5%88%92/01-%E9%A2%84%E5%88%A4%E7%A3%81%E7%9B%98%E7%88%86%E6%BB%A1/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    预判磁盘爆满
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../05-%E5%AE%B9%E9%87%8F%E8%A7%84%E5%88%92/02-%E5%A4%A7%E8%A1%A8%E8%86%A8%E8%83%80%E5%88%86%E6%9E%90/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    大表膨胀分析
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_7" id="__nav_7_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    备份调度
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    备份调度
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../06-%E5%A4%87%E4%BB%BD%E8%B0%83%E5%BA%A6/01-%E5%AE%9A%E6%97%B6%E5%A4%87%E4%BB%BD%E4%B8%8E%E6%81%A2%E5%A4%8D/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    定时备份与恢复
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../../resources/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    相关资源
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="目录">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      目录
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#_2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        场景背景
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 1：安装（2 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 1：安装（2 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        检查 Python 版本
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dbskiter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        安装 dbskiter
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#_3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        验证安装
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#23" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 2：配置数据库（3 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 2：配置数据库（3 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#a" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方案 A：交互式向导（推荐新手）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#b" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方案 B：手动配置文件（适合多数据库环境）
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#ccicd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        方案 C：环境变量（CI/CD 场景）
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#32" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 3：执行第一条命令（2 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 3：执行第一条命令（2 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#_4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        健康检查
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#45" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 4：快速体验其他命令（5 分钟）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="步骤 4：快速体验其他命令（5 分钟）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. 巡检报告
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. 慢查询分析
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. 安全审计
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. 查看所有命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5demo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        步骤 5：无数据库体验（Demo 模式）
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#faq" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        常见问题（FAQ）
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="常见问题（FAQ）">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#q1pip-install-dbskiter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q1：安装失败，pip install dbskiter 报错
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q2access-denied-for-user" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q2：连接失败，Access denied for user
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q3dbskiter" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q3：命令找不到，dbskiter 不是内部命令
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q4：连接远程数据库失败
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#q5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Q5：如何查看配置文件路径？
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_5" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        下一步学习路径
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#_6" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        命令速查卡
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<!--
+文件功能：dbskiter 新手快速上手案例 - 安装与配置
+主要类/函数：无（文档案例）
+作者：MagiCzc
+创建时间：2026-06-18
+最后修改：2026-06-18
+-->
+
+<h1 id="_1">案例：从零安装到执行第一条命令<a class="headerlink" href="#_1" title="Permanent link">&para;</a></h1>
+<h2 id="_2">场景背景<a class="headerlink" href="#_2" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>角色</strong>：后端开发工程师，第一次接触 dbskiter</li>
+<li><strong>目标</strong>：15 分钟内完成安装、配置、执行第一条命令</li>
+<li><strong>环境</strong>：Windows 10/11，已有 Python 3.10+</li>
+<li><strong>数据库</strong>：本地 MySQL 8.0，测试库 <code>jump</code></li>
+</ul>
+<blockquote>
+<p>生活化比喻：dbskiter 就像新买的电动螺丝刀。开箱 → 装电池（安装）→ 调档位（配置）→ 拧第一颗螺丝（执行命令）。本案例带你完整走一遍。</p>
+</blockquote>
+<hr />
+<h2 id="12">步骤 1：安装（2 分钟）<a class="headerlink" href="#12" title="Permanent link">&para;</a></h2>
+<h3 id="python">检查 Python 版本<a class="headerlink" href="#python" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>python<span class="w"> </span>--version
+<span class="c1"># 预期输出: Python 3.10.x 或更高</span>
+
+<span class="c1"># 如果版本低于 3.8，需要升级</span>
+<span class="c1"># 下载地址: https://www.python.org/downloads/</span>
+</code></pre></div>
+<h3 id="dbskiter">安装 dbskiter<a class="headerlink" href="#dbskiter" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>pip<span class="w"> </span>install<span class="w"> </span>dbskiter
+</code></pre></div>
+<p><strong>预期输出</strong>：</p>
+<div class="highlight"><pre><span></span><code>Collecting dbskiter
+  Downloading dbskiter-3.0.19-py3-none-any.whl
+...
+Successfully installed dbskiter-3.0.19
+</code></pre></div>
+<h3 id="_3">验证安装<a class="headerlink" href="#_3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>--version
+</code></pre></div>
+<p><strong>预期输出</strong>：</p>
+<div class="highlight"><pre><span></span><code>dbskiter 3.0.19
+</code></pre></div>
+<blockquote>
+<p>如果提示 <code>dbskiter 不是内部或外部命令</code>，说明 Python Scripts 目录不在 PATH 中。</p>
+</blockquote>
+<p><strong>Windows 修复 PATH</strong>：</p>
+<div class="highlight"><pre><span></span><code><span class="c"># 临时添加（当前终端有效）</span>
+<span class="nv">$env:PATH</span> <span class="p">+=</span> <span class="s2">&quot;;C:\Users\你的用户名\AppData\Local\Programs\Python\Python310\Scripts&quot;</span>
+
+<span class="c"># 永久添加（添加到系统环境变量）</span>
+<span class="c"># 控制面板 → 系统 → 高级系统设置 → 环境变量 → Path → 添加 Python Scripts 路径</span>
+</code></pre></div>
+<hr />
+<h2 id="23">步骤 2：配置数据库（3 分钟）<a class="headerlink" href="#23" title="Permanent link">&para;</a></h2>
+<h3 id="a">方案 A：交互式向导（推荐新手）<a class="headerlink" href="#a" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>init
+</code></pre></div>
+<p><strong>交互过程</strong>：</p>
+<div class="highlight"><pre><span></span><code>欢迎使用 dbskiter 配置向导！
+
+? 数据库类型: (使用方向键选择)
+  MySQL
+&gt; PostgreSQL
+  Oracle
+  SQL Server
+  ClickHouse
+  SQLite
+
+? 主机地址: localhost
+? 端口: 3306
+? 用户名: root
+? 密码: [输入时隐藏]
+? 数据库名称: jump
+? 配置名称: jump_local（用于 --database=jump_local 指定）
+? 保存为默认配置? (Y/n) Y
+
+配置已保存: ~/.dbskiter/config.yaml
+</code></pre></div>
+<h3 id="b">方案 B：手动配置文件（适合多数据库环境）<a class="headerlink" href="#b" title="Permanent link">&para;</a></h3>
+<p>创建配置文件 <code>~/.dbskiter/config.yaml</code>：</p>
+<div class="highlight"><pre><span></span><code><span class="nt">databases</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">jump_local</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">localhost</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3306</span>
+<span class="w">    </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">root</span>
+<span class="w">    </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_password</span>
+<span class="w">    </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jump</span>
+
+<span class="w">  </span><span class="nt">jump_prod</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">mysql</span>
+<span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.100</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3306</span>
+<span class="w">    </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dbskiter_readonly</span>
+<span class="w">    </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_password</span>
+<span class="w">    </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jump</span>
+
+<span class="w">  </span><span class="nt">oracle_erp</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">oracle</span>
+<span class="w">    </span><span class="nt">host</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">192.168.1.200</span>
+<span class="w">    </span><span class="nt">port</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1521</span>
+<span class="w">    </span><span class="nt">user</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">erp_reader</span>
+<span class="w">    </span><span class="nt">password</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your_password</span>
+<span class="w">    </span><span class="nt">database</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ORCL</span>
+
+<span class="c1"># 默认使用的数据库</span>
+<span class="nt">default</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jump_local</span>
+</code></pre></div>
+<blockquote>
+<p>注意：配置文件中包含密码，<strong>切勿提交到 Git 仓库</strong>。建议在 <code>.gitignore</code> 中添加 <code>~/.dbskiter/</code>。</p>
+</blockquote>
+<h3 id="ccicd">方案 C：环境变量（CI/CD 场景）<a class="headerlink" href="#ccicd" title="Permanent link">&para;</a></h3>
+<p>创建 <code>.env</code> 文件（项目目录下）：</p>
+<div class="highlight"><pre><span></span><code><span class="nv">DB_HOST</span><span class="o">=</span>localhost
+<span class="nv">DB_PORT</span><span class="o">=</span><span class="m">3306</span>
+<span class="nv">DB_USER</span><span class="o">=</span>root
+<span class="nv">DB_PASSWORD</span><span class="o">=</span>your_password
+<span class="nv">DB_NAME</span><span class="o">=</span>jump
+</code></pre></div>
+<p>或者在命令行直接指定：</p>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>--host<span class="o">=</span>localhost<span class="w"> </span>--port<span class="o">=</span><span class="m">3306</span><span class="w"> </span>--user<span class="o">=</span>root<span class="w"> </span>--password<span class="o">=</span>your_password<span class="w"> </span>--database<span class="o">=</span>jump<span class="w"> </span>monitor<span class="w"> </span>health
+</code></pre></div>
+<hr />
+<h2 id="32">步骤 3：执行第一条命令（2 分钟）<a class="headerlink" href="#32" title="Permanent link">&para;</a></h2>
+<h3 id="_4">健康检查<a class="headerlink" href="#_4" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code><span class="c1"># 如果配置了 default，直接执行</span>
+dbskiter<span class="w"> </span>monitor<span class="w"> </span>health
+
+<span class="c1"># 如果配置了多个数据库，指定名称</span>
+dbskiter<span class="w"> </span>--database<span class="o">=</span>jump_local<span class="w"> </span>monitor<span class="w"> </span>health
+
+<span class="c1"># 或者命令行传参数（无需配置文件）</span>
+dbskiter<span class="w"> </span>--host<span class="o">=</span>localhost<span class="w"> </span>--port<span class="o">=</span><span class="m">3306</span><span class="w"> </span>--user<span class="o">=</span>root<span class="w"> </span>--password<span class="o">=</span>your_password<span class="w"> </span>--database<span class="o">=</span>jump<span class="w"> </span>monitor<span class="w"> </span>health
+</code></pre></div>
+<p><strong>预期输出</strong>：</p>
+<div class="highlight"><pre><span></span><code>============================================================
+数据库健康检查: jump
+============================================================
+数据采集时间: 2026-06-18 14:30:22
+
+健康评分: 66.4/100
+
+性能指标:
+  [绿色] 连接数使用率: 2.6%   正常
+  [绿色] 缓冲池命中率: 99.90%  优秀
+  [黄色] 临时表磁盘使用率: 61.96% 警告
+  [黄色] 行锁等待次数: 147 警告
+
+配置检查:
+  [绿色] 配置检查: 18 项通过
+  [黄色] 慢查询阈值: 10.0s 警告
+
+安全状态:
+  [绿色] 无空密码用户
+  [黄色] SUPER 权限用户: 4 个
+</code></pre></div>
+<blockquote>
+<p>恭喜！你的第一条命令执行成功了。绿色 = 正常，黄色 = 警告，红色 = 严重。</p>
+</blockquote>
+<hr />
+<h2 id="45">步骤 4：快速体验其他命令（5 分钟）<a class="headerlink" href="#45" title="Permanent link">&para;</a></h2>
+<h3 id="2">2. 巡检报告<a class="headerlink" href="#2" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>--database<span class="o">=</span>jump_local<span class="w"> </span>inspector<span class="w"> </span>report<span class="w"> </span>--output<span class="w"> </span>jump_report.html
+</code></pre></div>
+<p>然后打开 <code>jump_report.html</code>，你会看到：
+- 健康评分大图
+- 雷达图（5 维度评分）
+- 详细检查项列表
+- 优化建议</p>
+<h3 id="3">3. 慢查询分析<a class="headerlink" href="#3" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>--database<span class="o">=</span>jump_local<span class="w"> </span>diagnose<span class="w"> </span>slow-queries
+</code></pre></div>
+<h3 id="4">4. 安全审计<a class="headerlink" href="#4" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>--database<span class="o">=</span>jump_local<span class="w"> </span>security<span class="w"> </span>audit
+</code></pre></div>
+<h3 id="5">5. 查看所有命令<a class="headerlink" href="#5" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>--help
+</code></pre></div>
+<hr />
+<h2 id="5demo">步骤 5：无数据库体验（Demo 模式）<a class="headerlink" href="#5demo" title="Permanent link">&para;</a></h2>
+<p>如果你暂时没有数据库，可以用内置 Mock 数据体验：</p>
+<div class="highlight"><pre><span></span><code><span class="c1"># 演示模式，无需配置数据库</span>
+dbskiter<span class="w"> </span>--demo<span class="w"> </span>monitor<span class="w"> </span>health
+dbskiter<span class="w"> </span>--demo<span class="w"> </span>diagnose<span class="w"> </span>slow-queries
+dbskiter<span class="w"> </span>--demo<span class="w"> </span>inspector<span class="w"> </span>run
+</code></pre></div>
+<blockquote>
+<p>Mock 数据模拟了一个有问题的数据库，你可以看到各种警告和严重问题，学习排查思路。</p>
+</blockquote>
+<hr />
+<h2 id="faq">常见问题（FAQ）<a class="headerlink" href="#faq" title="Permanent link">&para;</a></h2>
+<h3 id="q1pip-install-dbskiter">Q1：安装失败，<code>pip install dbskiter</code> 报错<a class="headerlink" href="#q1pip-install-dbskiter" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>ERROR: Could not find a version that satisfies the requirement dbskiter
+</code></pre></div>
+<p><strong>解决</strong>：
+- 升级 pip：<code>pip install --upgrade pip</code>
+- 检查 Python 版本：<code>python --version</code>（需 &gt;= 3.8）
+- 使用国内镜像：<code>pip install dbskiter -i https://pypi.tuna.tsinghua.edu.cn/simple</code></p>
+<h3 id="q2access-denied-for-user">Q2：连接失败，<code>Access denied for user</code><a class="headerlink" href="#q2access-denied-for-user" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>ConfigError: 数据库连接失败: (1045, &quot;Access denied for user &#39;root&#39;@&#39;localhost&#39;&quot;)
+</code></pre></div>
+<p><strong>解决</strong>：
+- 检查密码是否正确
+- 检查用户是否有权限：<code>GRANT ALL ON jump.* TO 'root'@'localhost';</code>
+- 检查 MySQL 是否允许本地连接</p>
+<h3 id="q3dbskiter">Q3：命令找不到，<code>dbskiter 不是内部命令</code><a class="headerlink" href="#q3dbskiter" title="Permanent link">&para;</a></h3>
+<p><strong>解决</strong>：
+- Windows：添加 Python Scripts 目录到 PATH（见步骤 1）
+- Linux/macOS：<code>export PATH="$PATH:$(python -m site --user-base)/bin"</code></p>
+<h3 id="q4">Q4：连接远程数据库失败<a class="headerlink" href="#q4" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>ConfigError: 数据库连接失败: (2003, &quot;Can&#39;t connect to MySQL server&quot;)
+</code></pre></div>
+<p><strong>解决</strong>：
+- 检查网络连通性：<code>ping 192.168.1.100</code>
+- 检查 MySQL 端口：<code>telnet 192.168.1.100 3306</code>
+- 检查 MySQL 是否允许远程连接：<code>bind-address</code> 不是 <code>127.0.0.1</code>
+- 检查防火墙：云服务器安全组是否开放 3306 端口</p>
+<h3 id="q5">Q5：如何查看配置文件路径？<a class="headerlink" href="#q5" title="Permanent link">&para;</a></h3>
+<div class="highlight"><pre><span></span><code>dbskiter<span class="w"> </span>--config-path
+<span class="c1"># 输出: ~/.dbskiter/config.yaml</span>
+</code></pre></div>
+<hr />
+<h2 id="_5">下一步学习路径<a class="headerlink" href="#_5" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>你的需求</th>
+<th>推荐案例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>业务变慢，查原因</td>
+<td><a href="../../02-%E6%95%85%E9%9A%9C%E8%AF%8A%E6%96%AD/01-%E4%B8%9A%E5%8A%A1%E5%8D%A1%E9%A1%BF%E6%9F%A5%E6%85%A2%E6%9F%A5%E8%AF%A2/">业务卡顿查慢查询</a></td>
+</tr>
+<tr>
+<td>磁盘快满了</td>
+<td><a href="../../02-%E6%95%85%E9%9A%9C%E8%AF%8A%E6%96%AD/03-%E7%A3%81%E7%9B%98%E7%A9%BA%E9%97%B4%E5%91%8A%E8%AD%A6/">磁盘空间告警</a></td>
+</tr>
+<tr>
+<td>接口超时</td>
+<td><a href="../../04-%E9%94%81%E4%B8%8E%E6%AD%BB%E9%94%81/01-%E6%8E%A5%E5%8F%A3%E8%B6%85%E6%97%B6%E6%9F%A5%E9%94%81%E7%AD%89%E5%BE%85/">接口超时查锁等待</a></td>
+</tr>
+<tr>
+<td>每月巡检</td>
+<td><a href="../../03-%E5%AE%89%E5%85%A8%E5%AE%A1%E8%AE%A1/01-%E6%9C%88%E5%BA%A6%E5%B7%A1%E6%A3%80%E5%AE%9E%E6%88%98/">月度巡检实战</a></td>
+</tr>
+<tr>
+<td>安全合规</td>
+<td><a href="../../03-%E5%AE%89%E5%85%A8%E5%AE%A1%E8%AE%A1/02-%E5%AE%89%E5%85%A8%E5%AE%A1%E8%AE%A1%E6%8E%92%E6%9F%A5/">安全审计排查</a></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="_6">命令速查卡<a class="headerlink" href="#_6" title="Permanent link">&para;</a></h2>
+<div class="highlight"><pre><span></span><code><span class="c1"># 健康检查</span>
+dbskiter<span class="w"> </span>monitor<span class="w"> </span>health
+
+<span class="c1"># 巡检报告</span>
+dbskiter<span class="w"> </span>inspector<span class="w"> </span>report<span class="w"> </span>--output<span class="w"> </span>report.html
+
+<span class="c1"># 慢查询</span>
+dbskiter<span class="w"> </span>diagnose<span class="w"> </span>slow-queries
+
+<span class="c1"># 安全审计</span>
+dbskiter<span class="w"> </span>security<span class="w"> </span>audit
+
+<span class="c1"># 锁分析</span>
+dbskiter<span class="w"> </span>lock<span class="w"> </span>analyze
+
+<span class="c1"># 容量预测</span>
+dbskiter<span class="w"> </span>monitor<span class="w"> </span>capacity<span class="w"> </span>--resource<span class="o">=</span>disk
+
+<span class="c1"># 所有命令帮助</span>
+dbskiter<span class="w"> </span>--help
+dbskiter<span class="w"> </span>monitor<span class="w"> </span>--help
+dbskiter<span class="w"> </span>diagnose<span class="w"> </span>--help
+</code></pre></div>
+<hr />
+<p><em>恭喜完成新手教程！你已经可以独立使用 dbskiter 进行数据库运维了。</em></p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2026 MagiCzc
+    </div>
+  
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/magicCzc/dbskiter" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../../..", "features": ["navigation.instant", "navigation.tracking", "navigation.indexes", "content.code.copy"], "search": "../../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "\u5df2\u590d\u5236", "clipboard.copy": "\u590d\u5236", "search.result.more.one": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.more.other": "\u5728\u8be5\u9875\u4e0a\u8fd8\u6709 # \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.none": "\u6ca1\u6709\u627e\u5230\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.one": "\u627e\u5230 1 \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.other": "# \u4e2a\u7b26\u5408\u6761\u4ef6\u7684\u7ed3\u679c", "search.result.placeholder": "\u952e\u5165\u4ee5\u5f00\u59cb\u641c\u7d22", "search.result.term.missing": "\u7f3a\u5c11", "select.version": "\u9009\u62e9\u5f53\u524d\u7248\u672c"}, "version": null}</script>
+    
+    
+      <script src="../../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
