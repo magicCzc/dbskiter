@@ -12,7 +12,6 @@ cli/config.py
 import logging
 import os
 import re
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from dotenv import dotenv_values
@@ -131,7 +130,6 @@ def _find_env_file(env_file: Optional[Path] = None) -> Optional[Path]:
     return None
 
 
-@dataclass
 class Config:
     """数据库连接配置"""
 
@@ -146,6 +144,7 @@ class Config:
         service: str = "",
         source: str = "default",
         source_map: Optional[Dict[str, str]] = None,
+        extra: Optional[Dict[str, Any]] = None,
     ):
         self.dialect = dialect
         self.host = host
@@ -156,6 +155,7 @@ class Config:
         self.service = service
         self.source = source
         self.source_map = source_map or {}
+        self.extra = extra or {}
 
     @classmethod
     def from_url(cls, url: str) -> "Config":
@@ -188,56 +188,6 @@ class Config:
             database=parsed.get("database", ""),
             source="url",
         )
-    """
-    配置类
-    
-    统一管理所有配置项
-    
-    属性:
-        dialect: 数据库类型
-        host: 数据库主机
-        port: 数据库端口
-        username: 用户名
-        password: 密码
-        database: 数据库名
-        extra: 额外配置
-    """
-    dialect: str = "mysql"
-    host: str = "localhost"
-    port: int = 3306
-    username: str = "root"
-    password: str = ""
-    database: str = "test"
-    extra: Dict[str, Any] = field(default_factory=dict)
-    prefix: str = "DB"  # 环境变量前缀，用于多数据库支持
-    source_map: Dict[str, str] = field(default_factory=dict, repr=False)  # 配置溯源：字段 -> 来源
-
-    def __post_init__(self):
-        """初始化时记录默认值来源"""
-        if not self.source_map:
-            for key in ("dialect", "host", "port", "username", "password", "database"):
-                self.source_map[key] = "default"
-
-    # 类变量：默认配置值
-    DEFAULTS = {
-        "dialect": "mysql",
-        "host": "localhost",
-        "port": 3306,
-        "username": "root",
-        "password": "",
-        "database": "test",
-    }
-    
-    # 类变量：环境变量映射
-    ENV_MAPPING = {
-        "dialect": "DB_DIALECT",
-        "host": "DB_HOST",
-        "port": "DB_PORT",
-        "username": "DB_USER",
-        "password": "DB_PASSWORD",
-        "database": "DB_NAME",
-    }
-    
     @classmethod
     def from_env(cls, env_file: Optional[Path] = None, prefix: str = "DB") -> "Config":
         """
