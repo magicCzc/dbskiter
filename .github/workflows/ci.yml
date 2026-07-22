@@ -29,6 +29,24 @@ jobs:
 
       - name: Run tests
         run: |
+          echo "=== Python info ==="
+          python --version
+          which python
+          pwd
+          ls -la
+          echo "=== dbskiter info ==="
+          python -c "import dbskiter; print('Version:', dbskiter.__version__)"
+          echo "=== Simple test ==="
+          python -c "
+from dbskiter.shared.sql_fingerprint import SQLFingerprinter
+fp = SQLFingerprinter()
+result = fp.fingerprint('SELECT * FROM users WHERE id = 123')
+print('Fingerprint:', result.fingerprint)
+assert result.fingerprint == 'SELECT * FROM users WHERE id=?', f'Got: {result.fingerprint}'
+print('OK')
+"
+          echo "=== pytest version ==="
           python -m pytest --version
-          python -c "import dbskiter; print('dbskiter OK')"
-          python -m pytest tests/test_imports.py -v --tb=long -p no:asyncio -o asyncio_mode=auto --rootdir=.
+          echo "=== Run test_imports ==="
+          cd /home/runner/work/dbskiter/dbskiter 2>/dev/null || cd ${{ github.workspace }}
+          python -m pytest tests/test_imports.py -v --tb=long 2>&1 | head -50
