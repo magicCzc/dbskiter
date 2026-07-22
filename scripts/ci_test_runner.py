@@ -29,6 +29,13 @@ def run_tests():
             print(f"Loaded: {module_name}")
         except Exception as e:
             print(f"SKIP {module_name}: {e}")
+
+    # Discover and add unit tests
+    unit_dir = os.path.join(os.path.dirname(__file__), "..", "tests", "unit")
+    unit_suite = loader.discover(unit_dir, pattern="*.py", top_level_dir=unit_dir)
+    suite.addTests(unit_suite)
+    print(f"Discovered tests from: {unit_dir}")
+
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     return result.wasSuccessful()
