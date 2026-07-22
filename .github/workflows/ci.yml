@@ -28,26 +28,21 @@ jobs:
           pip install pymysql psycopg2-binary
 
       - name: Run tests
+        id: run_tests
         run: |
-          set -x  # Print each command before executing for debugging
-          echo "=== Python info ==="
-          python --version
-          which python
-          pwd
-          ls -la
-          echo "=== dbskiter info ==="
-          python -c "import dbskiter; print('Version:', dbskiter.__version__)"
-          echo "=== Simple test ==="
-          python -c "
-from dbskiter.shared.sql_fingerprint import SQLFingerprinter
-fp = SQLFingerprinter()
-result = fp.fingerprint('SELECT * FROM users WHERE id = 123')
-print('Fingerprint:', result.fingerprint)
-assert result.fingerprint == 'SELECT * FROM users WHERE id=?', f'Got: {result.fingerprint}'
-print('OK')
-"
-          echo "=== pytest version ==="
-          python -m pytest --version
-          echo "=== Run test_imports ==="
+          set -x
           python -m pytest tests/test_imports.py -v --tb=long 2>&1
-          echo "=== Exit code: $? ==="
+          echo "EXIT_CODE=$?" >> $GITHUB_ENV
+
+      - name: Show test output on failure
+        if: failure()
+        run: |
+          echo "Test step failed. Full output saved as artifact."
+
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-logs-${{ matrix.python-version }}
+          path: /tmp/pytest.log
+          if-no-files-found: ignore
