@@ -29,4 +29,6 @@ jobs:
 
       - name: Run tests
         run: |
+          python -m pytest --version
+          python -c "import dbskiter; print('dbskiter OK')"
           python -m pytest tests/test_imports.py -v --tb=long -p no:asyncio -o asyncio_mode=auto --rootdir=.
