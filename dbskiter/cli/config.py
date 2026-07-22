@@ -358,15 +358,14 @@ class Config:
         检查命令行参数是否提供了足够的连接信息
 
         满足以下任一条件即视为"有足够连接信息"：
-        1. 提供了 --host 且 --database
-        2. 提供了 --dialect 且 --host 且 --database
-
-        参数说明：
-            - args: argparse 解析后的参数对象
-
-        返回说明：
-            - bool: 是否有足够的连接信息
+        1. 提供了 --url 连接字符串
+        2. 提供了 --host 且 --database
+        3. 提供了 --dialect 且 --host 且 --database
         """
+        # --url 直接提供完整连接信息
+        if getattr(args, "url", None):
+            return True
+
         host = getattr(args, "host", None)
         database = getattr(args, "database", None)
         dialect = getattr(args, "dialect", None)

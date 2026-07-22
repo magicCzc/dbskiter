@@ -49,7 +49,8 @@ def parse_url(url: str) -> Dict[str, any]:
 
         # 解析数据库名
         database = parsed.path.lstrip("/") if parsed.path else None
-        if database and "/" in database:
+        # SQLite 路径可能包含 /，不要截断
+        if database and "/" in database and parsed.scheme != "sqlite":
             database = database.split("/")[0]
 
         # 解析查询参数

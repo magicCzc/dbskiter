@@ -13,6 +13,7 @@ import os
 import sys
 import logging
 import argparse
+from pathlib import Path
 from typing import List, Optional
 
 try:
@@ -105,11 +106,11 @@ def create_parser() -> argparse.ArgumentParser:
         help="数据库类型 (mysql, postgresql, sqlite, oracle)"
     )
     parser.add_argument(
-        "--host",
+        "--host", "-H",
         help="数据库主机"
     )
     parser.add_argument(
-        "--port",
+        "--port", "-P",
         type=int,
         help="数据库端口"
     )
@@ -208,11 +209,11 @@ def _add_connection_args(parser: argparse.ArgumentParser) -> None:
         help="数据库类型 (mysql, postgresql, sqlite, oracle)"
     )
     conn_group.add_argument(
-        "--host",
+        "--host", "-H",
         help="数据库主机"
     )
     conn_group.add_argument(
-        "--port",
+        "--port", "-P",
         type=int,
         help="数据库端口"
     )
