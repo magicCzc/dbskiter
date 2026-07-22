@@ -128,7 +128,16 @@ def create_parser() -> argparse.ArgumentParser:
         help="从文件读取数据库密码（优先于 --password，适合生产环境安全传密）"
     )
     parser.add_argument(
-        "--database", "-d", "--db", "--db",
+        "--password-stdin",
+        action="store_true",
+        help="从标准输入读取数据库密码（适合管道传密，避免shell历史记录泄露）"
+    )
+    parser.add_argument(
+        "--url",
+        help="数据库连接字符串，如 mysql://root:pass@localhost:3306/test"
+    )
+    parser.add_argument(
+        "--database", "-d", "--db",
         help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
     )
     parser.add_argument(
@@ -138,7 +147,11 @@ def create_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--profile",
-        help="配置文件中的 profile 名称"
+        help="配置文件中 profile 名称（如 local, production）"
+    )
+    parser.add_argument(
+        "--env",
+        help="环境名称（如 development, production），对应配置文件中 environments 下的配置"
     )
     parser.add_argument(
         "--prefix",
@@ -216,6 +229,15 @@ def _add_connection_args(parser: argparse.ArgumentParser) -> None:
         help="从文件读取数据库密码"
     )
     conn_group.add_argument(
+        "--password-stdin",
+        action="store_true",
+        help="从标准输入读取数据库密码"
+    )
+    conn_group.add_argument(
+        "--url",
+        help="数据库连接字符串，如 mysql://root:pass@localhost:3306/test"
+    )
+    conn_group.add_argument(
         "--database", "-d", "--db",
         help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
     )
@@ -225,7 +247,11 @@ def _add_connection_args(parser: argparse.ArgumentParser) -> None:
     )
     conn_group.add_argument(
         "--profile",
-        help="配置文件中的 profile 名称"
+        help="配置文件中 profile 名称"
+    )
+    conn_group.add_argument(
+        "--env",
+        help="环境名称（如 development, production）"
     )
 
 
@@ -297,7 +323,8 @@ def _add_output_mode_args(parser: argparse.ArgumentParser) -> None:
 # 会覆盖主解析器的实际值，需要特殊处理
 _MERGEABLE_ARGS = [
     "dialect", "host", "port", "user", "password",
-    "password_file", "database", "config", "profile",
+    "password_file", "password_stdin", "url",
+    "database", "config", "profile", "env",
     "show_trace", "ai_depth", "mask_sensitive", "no_mask",
     "output_mode",
 ]

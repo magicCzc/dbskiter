@@ -133,6 +133,61 @@ def _find_env_file(env_file: Optional[Path] = None) -> Optional[Path]:
 
 @dataclass
 class Config:
+    """数据库连接配置"""
+
+    def __init__(
+        self,
+        dialect: str = "",
+        host: str = "",
+        port: int = 0,
+        username: str = "",
+        password: str = "",
+        database: str = "",
+        service: str = "",
+        source: str = "default",
+        source_map: Optional[Dict[str, str]] = None,
+    ):
+        self.dialect = dialect
+        self.host = host
+        self.port = port
+        self.username = username
+        self.password = password
+        self.database = database
+        self.service = service
+        self.source = source
+        self.source_map = source_map or {}
+
+    @classmethod
+    def from_url(cls, url: str) -> "Config":
+        """
+        从连接字符串创建配置
+
+        参数:
+            url: 数据库连接字符串
+
+        返回:
+            Config: 配置对象
+        """
+        from .url_parser import parse_url, normalize_dialect
+
+        parsed = parse_url(url)
+        if "error" in parsed:
+            raise ValueError(parsed["error"])
+
+        dialect = parsed.get("dialect", "")
+        # 规范化 dialect
+        if "+" not in dialect:
+            dialect = normalize_dialect(dialect)
+
+        return cls(
+            dialect=dialect,
+            host=parsed.get("host", ""),
+            port=parsed.get("port", 0),
+            username=parsed.get("user", ""),
+            password=parsed.get("password", ""),
+            database=parsed.get("database", ""),
+            source="url",
+        )
     """
     配置类
     
@@ -357,7 +412,20 @@ class Config:
             >>> Config.from_args(args)  # args 来自 -u root -p xxx -h localhost -d mydb
             >>> Config.from_args(args)  # args 来自 --database=jump（匹配 .env 中的 DB_JUMP_* 别名）
         """
-        # ── 策略1：CLI 参数足够，直接构建（最高优先级，不依赖任何文件） ──
+        # ── 策略0：连接字符串（最高优先级） ──
+        url = getattr(args, "url", None)
+        if url:
+            config = cls.from_url(url)
+            # 密码从 stdin 读取
+            if getattr(args, "password_stdin", False):
+                import sys
+                config.password = sys.stdin.readline().strip()
+            # CLI 参数覆盖 URL 中的值
+            config = cls._apply_cli_overrides(config, args)
+            config = cls._apply_password_file(config, args)
+            return config
+
+        # ── 策略1：CLI 参数足够，直接构建（不依赖任何文件） ──
         if cls._has_cli_connection(args):
             config = cls._build_from_cli(args)
             # 如果同时指定了 --password-file，读取密码
@@ -415,6 +483,11 @@ class Config:
         username = getattr(args, "user", None) or "root"
         password = getattr(args, "password", None) or ""
         database = getattr(args, "database", None) or "test"
+
+        # 从 stdin 读取密码
+        if getattr(args, "password_stdin", False):
+            import sys
+            password = sys.stdin.readline().strip()
 
         # 端口类型转换
         if isinstance(port, str):
