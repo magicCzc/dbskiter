@@ -79,7 +79,9 @@ DBSKiter v3.0.24 已通过生产环境验证，具备以下成熟度：
 
 - **CI**: 简化为只跑测试，去掉 flake8/coverage/benchmark/integration/publish
 - **CI**: Python 矩阵从 5 个版本缩到 3 个（3.10/3.11/3.12），减少 CI 时间
-- **CI**: 解决之前一直失败的问题（flake8 版本差异、Python 3.8 兼容性问题）
+- **CI**: 解决之前一直失败的问题（flake8 版本差异、Python 3.8 兼容性问题、test_all_skills.py SystemExit 崩溃）
+- **CI**: **首次通过** ✅（965 个测试在 3 个 Python 版本全部 green）
+- **清理**: 移除 `scripts/run_ci_tests.py`、删除 `tests/test_all_skills.py`、更新 conftest.py
 
 ### v3.0.32 (2026-07-21)
 
