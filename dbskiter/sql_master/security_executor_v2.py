@@ -23,6 +23,14 @@
 创建时间：2026-05-20
 最后修改：2026-05-20
 """
+import warnings
+warnings.warn(
+    'This module is deprecated. Use the non-v2 version instead.',
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+
 
 import uuid
 import logging

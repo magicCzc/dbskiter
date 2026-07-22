@@ -47,6 +47,14 @@ MySQL AAS (Average Active Sessions) 计算器 V2 - 企业级优化版
 创建时间：2026-04-21
 版本：2.0.0
 """
+import warnings
+warnings.warn(
+    'This module is deprecated. Use the non-v2 version instead.',
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+
 
 import logging
 import time

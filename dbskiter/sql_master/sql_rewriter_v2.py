@@ -13,6 +13,14 @@ SQL 重写器 V2 - 真正的 SQL 优化重写
 作者：Trae AI
 创建时间：2026-04-20
 """
+import warnings
+warnings.warn(
+    'This module is deprecated. Use the non-v2 version instead.',
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+
 
 import logging
 import re

@@ -10,6 +10,14 @@
 作者：Trae AI
 创建时间：2026-04-20
 """
+import warnings
+warnings.warn(
+    'This module is deprecated. Use the non-v2 version instead.',
+    DeprecationWarning,
+    stacklevel=2,
+)
+
+
 
 import re
 import math
