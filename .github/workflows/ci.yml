@@ -30,16 +30,4 @@ jobs:
           python -c "import dbskiter; print('dbskiter version:', dbskiter.__version__)"
 
       - name: Run tests
-        run: |
-          python -c "
-import sys
-sys.path.insert(0, 'tests')
-import test_imports
-import unittest
-loader = unittest.TestLoader()
-suite = unittest.TestSuite()
-suite.addTests(loader.loadTestsFromModule(test_imports))
-runner = unittest.TextTestRunner(verbosity=2)
-result = runner.run(suite)
-sys.exit(0 if result.wasSuccessful() else 1)
-"
+        run: PYTHONPATH=tests python -m unittest test_imports -v
