@@ -78,6 +78,21 @@ DBSKiter v3.0.24 已通过生产环境验证，具备以下成熟度：
 
 ## 更新日志
 
+### v3.0.36 (2026-07-22)
+
+- **配置**: 新增 `--url` 连接字符串支持（`mysql://root@localhost/test`）
+- **配置**: 新增 `--password-stdin` 安全密码输入（适合管道传密）
+- **配置**: 新增 `Config.from_url()` 方法，支持 dialect 缩写自动补全
+- **配置**: 新增 `--env` 环境选择参数（development/production）
+- **文档**: 新增配置指南页面（`.env` / `config.yaml` / `--url` 三种方式详解）
+- **重构**: 抽取 URL 解析器到 `url_parser.py`，独立可测试
+
+### v3.0.35 (2026-07-22)
+
+- **重构**: 抽取 HTML 模板到 `templates.py`，`generator.py` 从 2427 行降到 909 行
+- **清理**: 5 个 V2 文件添加 `DeprecationWarning` 废弃警告
+- **测试**: 978 个测试全部通过
+
 ### v3.0.33 (2026-07-22)
 
 - **CI**: 彻底修复 CI 问题（YAML 语法错误、pytest-asyncio 冲突、test_all_skills.py SystemExit 崩溃）

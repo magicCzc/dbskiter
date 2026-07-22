@@ -32,6 +32,7 @@ theme:
 
 nav:
   - 首页: index.md
+  - 配置指南: configuration.md
   - 新手快速上手:
     - 安装与配置: examples/01-新手快速上手/01-安装与配置.md
     - 第一条命令: examples/01-新手快速上手/02-第一条命令.md
