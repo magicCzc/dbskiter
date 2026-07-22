@@ -48,6 +48,10 @@ COMMAND_ALIASES: Dict[str, Tuple[str, List[str]]] = {
     # 高频 SQL 相关（sql 本身已是命令名，不需要别名）
     "explain":      ("sql", ["explain"]),
 
+    # 高频调度
+    "backup":       ("scheduler", ["backup"]),
+    "restore":      ("scheduler", ["restore"]),
+
     # 新手引导
     "welcome":      ("_welcome", []),
     "hello":        ("_welcome", []),

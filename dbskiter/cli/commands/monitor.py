@@ -177,6 +177,8 @@ class MonitorCommand(BaseCommand):
     
     def _assess_health(self, skill) -> int:
         """健康评估"""
+        is_demo = getattr(self.args, 'demo', False)
+
         result = skill.assess_health()
 
         # 获取实际数据（标准响应格式）
@@ -187,6 +189,29 @@ class MonitorCommand(BaseCommand):
         issues = health.get('issues', [])
 
         summary = f"健康评分{score}分，状态{status}"
+
+        # 在 demo 模式下直接使用 print 确保输出可见
+        if is_demo:
+            print(f"\n{'='*60}")
+            print(f"【演示模式】DBSKiter 数据库健康检查")
+            print(f"{'='*60}")
+            print(f"摘要: {summary}")
+            print(f"数据库健康评估 - {health.get('timestamp', '')}")
+            if score >= 90:
+                print(f"\n总体评分: {score}/100 - 状态良好")
+            elif score >= 70:
+                print(f"\n总体评分: {score}/100 - 需要关注")
+            else:
+                print(f"\n总体评分: {score}/100 - 严重问题")
+            key_metrics = health.get('metrics_summary', {})
+            if key_metrics:
+                print(f"\n关键指标:")
+                for metric, value in key_metrics.items():
+                    print(f"  {metric}: {value}")
+            print(f"\n{'='*60}")
+            print(f"提示: 使用 --database=别名 或 --url 连接真实数据库")
+            print(f"{'='*60}\n")
+            return 0
 
         self.output.info(f"\n{'='*60}")
         self.output.info(f"摘要: {summary}")
