@@ -992,6 +992,20 @@ class DiagnoseSkill:
     def close(self):
         """关闭Skill，释放资源"""
         logger.info("关闭 DiagnoseSkill...")
+        # 关闭子组件（如有 close 方法）
+        for attr in ('fingerprinter', 'issue_classifier', 'table_analyzer', 'sql_analyzer'):
+            comp = getattr(self, attr, None)
+            if comp and hasattr(comp, 'close'):
+                try:
+                    comp.close()
+                except Exception as e:
+                    logger.debug(f"关闭 {attr} 失败: {e}")
+        # 关闭底层连接器
+        if self.connector and hasattr(self.connector, 'close'):
+            try:
+                self.connector.close()
+            except Exception as e:
+                logger.debug(f"关闭 connector 失败: {e}")
         logger.info("DiagnoseSkill 已关闭")
 
 

@@ -769,6 +769,11 @@ class SecuritySkill:
     def close(self) -> None:
         """关闭Skill，释放资源"""
         logger.info("关闭 SecuritySkill...")
+        # 关闭子组件
+        if hasattr(self, 'sql_detector') and hasattr(self.sql_detector, 'close'):
+            self.sql_detector.close()
+        if hasattr(self, 'data_scanner') and hasattr(self.data_scanner, 'close'):
+            self.data_scanner.close()
         logger.info("SecuritySkill 已关闭")
 
     # ==================== AI上下文构建 ====================

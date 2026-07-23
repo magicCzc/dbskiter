@@ -834,6 +834,20 @@ class InspectorSkill:
     def close(self):
         """关闭Skill，释放资源"""
         logger.info("关闭 InspectorSkill...")
+        # 关闭子组件
+        for attr in ('_inspector', '_intelligent_inspector', '_score_calculator', '_baseline_manager'):
+            comp = getattr(self, attr, None)
+            if comp and hasattr(comp, 'close'):
+                try:
+                    comp.close()
+                except Exception as e:
+                    logger.debug(f"关闭 {attr} 失败: {e}")
+        # 关闭底层连接器
+        if self.connector and hasattr(self.connector, 'close'):
+            try:
+                self.connector.close()
+            except Exception as e:
+                logger.debug(f"关闭 connector 失败: {e}")
         logger.info("InspectorSkill 已关闭")
 
     # ==================== AI上下文构建 ====================

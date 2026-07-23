@@ -78,6 +78,14 @@ DBSKiter v3.0.24 已通过生产环境验证，具备以下成熟度：
 
 ## 更新日志
 
+### v3.0.41 (2026-07-22)
+
+- **修复**: ConnectionPool 创建新连接（之前返回同一 connector 引用）
+- **修复**: `DiagnoseSkill.close()` 关闭子组件
+- **修复**: `SecuritySkill.close()` 关闭 sql_detector/data_scanner
+- **修复**: `InspectorSkill.close()` 关闭 intelligent_inspector
+- **文档**: CHANGELOG 补充 v3.0.30-v3.0.40 共 11 个版本记录
+
 ### v3.0.36 (2026-07-22)
 
 - **配置**: 新增 `--url` 连接字符串支持（`mysql://root@localhost/test`）
