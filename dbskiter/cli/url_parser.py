@@ -44,8 +44,17 @@ def parse_url(url: str) -> Dict[str, any]:
         password = unquote(parsed.password) if parsed.password else None
 
         # 解析主机和端口
-        hostname = parsed.hostname or ""
-        port = parsed.port
+        try:
+            hostname = parsed.hostname or ""
+        except (TypeError, ValueError):
+            hostname = ""
+        # parsed.port 在没有显式端口时会抛 ValueError
+        port = None
+        try:
+            if parsed.port is not None and str(parsed.port) != str(hostname):
+                port = int(parsed.port)
+        except (ValueError, TypeError):
+            port = None
 
         # 解析数据库名
         database = parsed.path.lstrip("/") if parsed.path else None

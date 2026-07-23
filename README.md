@@ -78,6 +78,12 @@ DBSKiter v3.0.24 已通过生产环境验证，具备以下成熟度：
 
 ## 更新日志
 
+### v3.0.42 (2026-07-22)
+
+- **修复**: `parse_url` 处理没有显式端口的 URL（`mysql://user:pass@host/db`）
+- **修复**: `Config.from_url('mysql://user:pass@host/db')` 现在正常工作
+- **验证**: 全场景测试通过（demo 模式、URL 解析、7 种数据库、所有命令别名）
+
 ### v3.0.41 (2026-07-22)
 
 - **修复**: ConnectionPool 创建新连接（之前返回同一 connector 引用）
