@@ -83,11 +83,20 @@ class ConnectionPool:
                 logger.error(f"创建初始连接失败: {e}")
 
     def _create_connection(self) -> Dict[str, Any]:
-        """创建新连接"""
+        """创建新连接（深拷贝 UnifiedConnector，共享底层连接池但不共享对象）"""
         self._connection_id += 1
+        # 创建新连接对象（深拷贝参数而非 connector 实例本身）
+        new_connector = self.connector.__class__(
+            dialect=self.connector.dialect,
+            host=self.connector.host,
+            port=self.connector.port,
+            username=self.connector.username,
+            password=self.connector.password,
+            database=self.connector.database,
+        )
         return {
             "id": self._connection_id,
-            "connector": self.connector,
+            "connector": new_connector,
             "created_at": time.time(),
             "last_used": time.time(),
             "in_use": False

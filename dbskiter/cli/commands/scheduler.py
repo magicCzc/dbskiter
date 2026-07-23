@@ -150,6 +150,7 @@ class SchedulerCommand(BaseCommand):
                 daemon_action = getattr(self.args, 'daemon_action', None)
                 if daemon_action == "status":
                     skill = SchedulerSkill.__new__(SchedulerSkill)
+                    # 注意：跳过 __init__ 因为不需要完整初始化
                     skill._tasks = {}
                     skill._running = False
                     skill._scheduler_thread = None

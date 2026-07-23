@@ -4,6 +4,33 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [3.0.30-3.0.40] - 2026-07-21 to 2026-07-22
+
+### 🐛 Bug 修复 (v3.0.40)
+- 修复 config.py 中 @dataclass 与手动 __init__ 冲突，移除 50 行死代码
+- 移除 Config 类中的 DEFAULTS/ENV_MAPPING 死代码
+
+### ✨ 新增 (v3.0.36-v3.0.39)
+- 配置系统新增 --url 连接字符串（mysql://root@localhost/test）
+- 配置系统新增 --password-stdin（安全密码输入）
+- 配置系统新增 --profile 和 --env 参数
+- 7 种数据库全部支持专用备份（MySQL/PG/SQLite/Oracle/MSSQL/CH/Generic）
+
+### ♻️ 重构 (v3.0.34-v3.0.35)
+- report_generator.py 从 2427 行降到 909 行（HTML 模板抽取到 templates.py）
+- 5 个 V2 文件重命名为清晰名称，旧文件保留向后兼容
+- 添加 DeprecationWarning 到 V2 文件
+
+### 🧪 测试 (v3.0.32)
+- 新增 207 个测试用例
+- 6 个 0% 覆盖模块提升到 60-100%（sql_validator 99%, host_mapping 92%, schema_detector 93%）
+- 总测试数从 762 增长到 1000
+
+### 📝 文档 (v3.0.30-v3.0.34)
+- MkDocs 文档站点部署到 GitHub Pages
+- 新增配置指南（docs/configuration.md）
+- CHANGELOG 更新到 v3.0.40
+
 ## [3.0.29] - 2026-07-21
 
 ### 🐛 Bug 修复
