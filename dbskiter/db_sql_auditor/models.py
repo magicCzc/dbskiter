@@ -169,7 +169,7 @@ class AuditConfig:
     """
     审核配置
 
-    属性:
+    Attributes:
         enable_syntax_check: 是否启用语法检查
         enable_performance_check: 是否启用性能检查
         enable_security_check: 是否启用安全检查
@@ -207,7 +207,7 @@ class AuditIssue:
     """
     审核发现的问题
 
-    属性:
+    Attributes:
         rule_id: 规则ID
         rule_name: 规则名称
         audit_type: 审核类型
@@ -248,7 +248,7 @@ class AuditResult:
     """
     审核结果
 
-    属性:
+    Attributes:
         audit_id: 审核ID
         sql_content: SQL内容
         sql_type: SQL类型
@@ -313,7 +313,7 @@ class AuditRule:
     """
     审核规则
 
-    属性:
+    Attributes:
         rule_id: 规则ID
         rule_name: 规则名称
         audit_type: 审核类型
@@ -348,7 +348,7 @@ class DDLImpact:
     """
     DDL变更影响分析
 
-    属性:
+    Attributes:
         ddl_sql: DDL语句
         table_name: 表名
         operation: 操作类型
@@ -389,7 +389,7 @@ class BatchAuditResult:
     """
     批量审核结果
 
-    属性:
+    Attributes:
         batch_id: 批次ID
         total_count: 总SQL数
         success_count: 成功数

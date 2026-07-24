@@ -129,7 +129,15 @@ class DataCategory(Enum):
 
 @dataclass
 class Risk:
-    """安全风险"""
+    """安全风险
+
+    Attributes:
+        severity: 严重级别（critical/high/medium/low）
+        description: 风险描述
+        category: 风险分类（"password"/"permission"/"injection"/...）
+        current_value: 当前配置值
+        recommended_value: 推荐配置值
+    """
     severity: str
     description: str
     category: str = ""
@@ -152,7 +160,18 @@ class Risk:
 
 @dataclass
 class RiskReport:
-    """风险检测报告"""
+    """风险检测报告
+
+    Attributes:
+        total_risks: 风险总数
+        critical_count: 严重风险数
+        high_count: 高风险数
+        medium_count: 中风险数
+        low_count: 低风险数
+        risks: 风险列表
+        failed_modules: 检测失败的模块名列表
+        generated_at: 报告生成时间（ISO 8601）
+    """
     total_risks: int = 0
     critical_count: int = 0
     high_count: int = 0
@@ -178,7 +197,15 @@ class RiskReport:
 
 @dataclass
 class SecurityConfig:
-    """安全配置"""
+    """安全扫描配置
+
+    Attributes:
+        enable_sql_injection_detection: 是否启用 SQL 注入检测
+        enable_sensitive_data_scan: 是否启用敏感数据扫描
+        enable_permission_audit: 是否启用权限审计
+        enable_config_audit: 是否启用配置审计
+        sample_size: 敏感数据扫描采样行数
+    """
     enable_sql_injection_detection: bool = True
     enable_sensitive_data_scan: bool = True
     enable_permission_audit: bool = True
@@ -198,7 +225,14 @@ class SecurityConfig:
 
 @dataclass
 class InjectionPattern:
-    """注入模式"""
+    """SQL 注入模式
+
+    Attributes:
+        pattern_type: 注入类型（UNION/TIME_BLIND/BOOLEAN_BLIND/...）
+        description: 模式描述
+        severity: 风险等级
+        regex_patterns: 用于匹配的正则表达式列表
+    """
     pattern_type: InjectionType
     description: str
     severity: RiskLevel
@@ -216,7 +250,18 @@ class InjectionPattern:
 
 @dataclass
 class SensitiveColumn:
-    """敏感列信息"""
+    """敏感列信息
+
+    Attributes:
+        table_name: 表名
+        column_name: 列名
+        data_type: 数据类型（VARCHAR/INT/...）
+        sensitivity_level: 敏感等级（CRITICAL/HIGH/MEDIUM/LOW）
+        data_category: 数据分类（PII/FINANCIAL/HEALTH/...）
+        sample_data: 脱敏后的样例数据（前 5 条）
+        row_count: 总行数
+        confidence_score: 识别置信度（0-1）
+    """
     table_name: str
     column_name: str
     data_type: str
@@ -242,7 +287,17 @@ class SensitiveColumn:
 
 @dataclass
 class SQLInjectionResult:
-    """SQL注入检测结果"""
+    """SQL 注入检测结果
+
+    Attributes:
+        is_injection: 是否检测到注入
+        risk_score: 风险评分（0-100）
+        risk_level: 风险等级
+        injection_type: 注入类型（None 表示未检测到）
+        description: 人类可读描述
+        affected_params: 受影响的参数列表
+        recommendations: 修复建议
+    """
     is_injection: bool
     risk_score: float
     risk_level: RiskLevel
@@ -266,7 +321,14 @@ class SQLInjectionResult:
 
 @dataclass
 class SensitiveDataResult:
-    """敏感数据扫描结果"""
+    """敏感数据扫描结果
+
+    Attributes:
+        total_tables: 扫描表总数
+        total_columns: 扫描列总数
+        sensitive_columns: 识别出的敏感列列表
+        scan_duration: 扫描耗时（秒）
+    """
     total_tables: int = 0
     total_columns: int = 0
     sensitive_columns: List[SensitiveColumn] = field(default_factory=list)

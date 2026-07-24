@@ -175,7 +175,18 @@ class WorkflowStatus(str, Enum):
 
 @dataclass
 class BackupResult:
-    """备份结果"""
+    """备份结果
+
+    Attributes:
+        success: 是否成功
+        backup_id: 备份任务唯一 ID
+        file_path: 备份文件路径
+        file_size: 备份文件大小（字节）
+        duration_ms: 备份耗时（毫秒）
+        tables: 备份的表名列表
+        backup_type: 备份类型（"full"/"incremental"/"table"）
+        error: 错误信息（成功时为 None）
+    """
     success: bool
     backup_id: str
     file_path: str
@@ -200,7 +211,22 @@ class BackupResult:
 
 @dataclass
 class ScheduledTask:
-    """定时任务"""
+    """定时任务
+
+    Attributes:
+        task_id: 任务唯一 ID
+        name: 任务名称（人类可读）
+        task_type: 任务类型（BACKUP/HEALTH_CHECK/CLEANUP/...）
+        schedule: Cron 表达式（如 ``"0 2 * * *"``）
+        params: 任务参数
+        enabled: 是否启用
+        last_run: 上次执行时间
+        next_run: 下次计划执行时间
+        status: 任务状态
+        retry_count: 已重试次数
+        max_retries: 最大重试次数
+        priority: 任务优先级
+    """
     task_id: str
     name: str
     task_type: TaskType
@@ -239,7 +265,19 @@ class ScheduledTask:
 
 @dataclass
 class TaskResult:
-    """任务执行结果（支持错误码）"""
+    """任务执行结果（支持错误码）
+
+    Attributes:
+        task_id: 任务 ID
+        task_name: 任务名称
+        status: 执行状态（SUCCESS/FAILED/RUNNING/...）
+        start_time: 开始时间
+        end_time: 结束时间
+        result: 任务返回数据
+        error: 错误信息
+        error_code: 错误码（成功时为 ``ErrorCode.SUCCESS``）
+        retry_count: 已重试次数
+    """
     task_id: str
     task_name: str
     status: TaskStatus
@@ -272,7 +310,17 @@ class TaskResult:
 
 @dataclass
 class TaskNode:
-    """DAG任务节点"""
+    """DAG 任务节点
+
+    Attributes:
+        task_id: 节点 ID（在工作流内唯一）
+        task_type: 任务类型
+        params: 任务参数
+        depends_on: 依赖的其他节点 ID 集合
+        priority: 优先级
+        timeout: 超时时间（秒）
+        retry_count: 重试次数
+    """
     task_id: str
     task_type: TaskType
     params: Dict[str, Any] = field(default_factory=dict)
@@ -299,7 +347,18 @@ class TaskNode:
 
 @dataclass
 class TaskGraph:
-    """工作流任务图（DAG）"""
+    """工作流任务图（DAG）
+
+    Attributes:
+        workflow_id: 工作流 ID
+        description: 工作流描述
+        tasks: 任务节点字典（key=task_id）
+        status: 工作流状态
+        created_at: 创建时间
+        started_at: 开始执行时间
+        completed_at: 完成时间
+        results: 各任务的执行结果
+    """
     workflow_id: str
     description: str = ""
     tasks: Dict[str, TaskNode] = field(default_factory=dict)
@@ -366,7 +425,14 @@ class TaskGraph:
 
 @dataclass
 class PrioritizedTask:
-    """带优先级的任务（用于优先队列）"""
+    """带优先级的任务（用于优先队列）
+
+    Attributes:
+        priority: 优先级数值（越小越优先）
+        scheduled_time: 计划执行时间
+        task_id: 任务 ID
+        task: 关联的 ScheduledTask
+    """
     priority: int
     scheduled_time: datetime
     task_id: str

@@ -136,7 +136,17 @@ class DiagnoseConfig:
 
 @dataclass
 class DiagnoseResult:
-    """诊断结果"""
+    """诊断结果
+
+    Attributes:
+        sql: 被诊断的 SQL 文本（已规范化）
+        sql_type: SQL 类型（SELECT/INSERT/UPDATE/DELETE/DDL）
+        score: 诊断评分（0-100，越高越健康）
+        issues: 发现的问题列表，每项为 ``{"level": str, "description": str, "location": str}``
+        suggestions: 优化建议列表，每项为 ``{"action": str, "reason": str, "sql": str}``
+        summary: 人类可读的总结
+        diagnosed_at: 诊断时间（ISO 8601 格式）
+    """
     sql: str = ""
     sql_type: str = ""
     score: float = 0.0
@@ -160,7 +170,16 @@ class DiagnoseResult:
 
 @dataclass
 class IndexSuggestion:
-    """索引建议"""
+    """索引建议
+
+    Attributes:
+        table: 目标表名
+        columns: 建议建立索引的列名列表
+        index_type: 索引类型（btree/hash/gin/...）
+        reason: 推荐理由（"WHERE 子句频繁过滤"等）
+        priority: 优先级（critical/high/medium/low）
+        create_sql: 创建索引的 SQL 语句
+    """
     table: str = ""
     columns: List[str] = field(default_factory=list)
     index_type: str = "btree"
@@ -182,7 +201,23 @@ class IndexSuggestion:
 
 @dataclass
 class SlowQuery:
-    """慢查询"""
+    """慢查询信息
+
+    数据来源：
+        - MySQL: ``performance_schema.events_statements_summary_by_digest``
+        - PostgreSQL: ``pg_stat_statements``
+        - Oracle: ``V$SQL``
+        - MSSQL: ``sys.dm_exec_query_stats``
+
+    Attributes:
+        sql: SQL 文本（已规范化，可能含占位符）
+        execution_time: 总执行时间（秒）
+        execution_count: 执行次数
+        avg_time: 平均执行时间（秒）
+        max_time: 最大执行时间（秒）
+        rows_examined: 扫描行数
+        rows_sent: 返回行数
+    """
     sql: str = ""
     execution_time: float = 0.0
     execution_count: int = 0
@@ -206,7 +241,18 @@ class SlowQuery:
 
 @dataclass
 class PerformanceMetrics:
-    """性能指标"""
+    """性能指标快照
+
+    Attributes:
+        cpu_usage: CPU 使用率（百分比，0-100）
+        memory_usage: 内存使用率（百分比，0-100）
+        disk_io: 磁盘 IO（MB/s）
+        connections: 当前连接数
+        active_queries: 活跃查询数
+        qps: 每秒查询数
+        tps: 每秒事务数
+        collected_at: 采集时间（ISO 8601 格式）
+    """
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
     disk_io: float = 0.0
@@ -232,7 +278,16 @@ class PerformanceMetrics:
 
 @dataclass
 class TableDiagnoseResult:
-    """表诊断结果"""
+    """表诊断结果
+
+    Attributes:
+        table_name: 表名
+        row_count: 行数
+        size_mb: 大小（MB）
+        index_count: 索引数
+        issues: 发现的问题（碎片、膨胀、缺失索引等）
+        suggestions: 优化建议（OPTIMIZE TABLE、ADD INDEX 等）
+    """
     table_name: str = ""
     row_count: int = 0
     size_mb: float = 0.0
@@ -254,7 +309,19 @@ class TableDiagnoseResult:
 
 @dataclass
 class DiagnoseReport:
-    """诊断报告"""
+    """诊断报告
+
+    Attributes:
+        title: 报告标题
+        total_sqls: 诊断的 SQL 总数
+        total_issues: 发现的问题总数
+        critical_count: 严重问题数
+        high_count: 高风险问题数
+        medium_count: 中等问题数
+        low_count: 低风险问题数
+        results: 各 SQL 的诊断结果列表
+        generated_at: 报告生成时间（ISO 8601 格式）
+    """
     title: str = "SQL诊断报告"
     total_sqls: int = 0
     total_issues: int = 0

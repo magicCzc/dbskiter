@@ -113,7 +113,19 @@ class InspectionType(str, Enum):
 
 @dataclass
 class InspectionItem:
-    """巡检项"""
+    """巡检项
+
+    Attributes:
+        name: 巡检项名称
+        inspection_type: 巡检类型（CONFIG/PERFORMANCE/SECURITY/...）
+        risk_level: 风险等级
+        status: 状态（"pass"/"warning"/"fail"）
+        description: 巡检项描述
+        details: 详细信息字典
+        suggestion: 优化建议
+        reference: 参考值
+        actual_value: 实际值
+    """
     name: str                            # 巡检项名称
     inspection_type: InspectionType      # 巡检类型
     risk_level: RiskLevel                # 风险等级
@@ -140,7 +152,24 @@ class InspectionItem:
 
 @dataclass
 class InspectionReport:
-    """巡检报告"""
+    """巡检报告
+
+    Attributes:
+        report_id: 报告唯一 ID
+        instance_name: 数据库实例名
+        database_type: 数据库类型
+        database_version: 数据库版本
+        inspection_time: 巡检时间
+        duration_seconds: 巡检耗时（秒）
+        total_items: 巡检项总数
+        pass_count: 通过项数
+        warning_count: 警告项数
+        fail_count: 失败项数
+        items: 各巡检项详情
+        health_score: 健康评分（0-100）
+        risk_summary: 风险摘要
+        generated_at: 报告生成时间
+    """
     report_id: str                       # 报告ID
     instance_name: str                   # 实例名称
     database_type: str                   # 数据库类型
@@ -282,7 +311,18 @@ class InspectionReport:
 
 @dataclass
 class PerformanceBaseline:
-    """性能基线"""
+    """性能基线
+
+    Attributes:
+        baseline_id: 基线 ID
+        instance_name: 数据库实例名
+        created_at: 基线创建时间
+        metrics: 通用指标基线字典
+        qps_baseline: QPS 基线
+        tps_baseline: TPS 基线
+        connection_baseline: 连接数基线
+        query_time_baseline: 查询耗时基线（秒）
+    """
     baseline_id: str                     # 基线ID
     instance_name: str                   # 实例名称
     created_at: datetime                 # 创建时间

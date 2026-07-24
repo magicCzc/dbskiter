@@ -207,7 +207,16 @@ class MetricType(str, Enum):
 
 @dataclass
 class MetricPoint:
-    """指标数据点"""
+    """指标数据点
+
+    Attributes:
+        timestamp: 数据点时间
+        metric_type: 指标类型（CPU/MEMORY/QPS/...）
+        value: 指标值
+        unit: 单位（"%"、"MB/s"、"次/s"）
+        tags: 标签（如 ``{"database": "jump", "host": "10.0.0.1"}``）
+        source: 数据来源（"direct"/"prometheus"/"zabbix"）
+    """
     timestamp: datetime
     metric_type: MetricType
     value: float
@@ -229,7 +238,20 @@ class MetricPoint:
 
 @dataclass
 class AnomalyAlert:
-    """异常告警"""
+    """异常告警
+
+    Attributes:
+        alert_id: 告警唯一 ID
+        anomaly_type: 异常类型（SPIKE/DIP/DRIFT/...）
+        severity: 严重级别（CRITICAL/HIGH/MEDIUM/LOW）
+        metric_type: 关联的指标类型
+        current_value: 当前实测值
+        expected_value: 期望值（基于历史预测）
+        deviation_percent: 偏差百分比
+        message: 人类可读的告警信息
+        timestamp: 告警时间
+        tags: 标签
+    """
     alert_id: str
     anomaly_type: AnomalyType
     severity: Severity
@@ -259,7 +281,18 @@ class AnomalyAlert:
 
 @dataclass
 class MonitorConfig:
-    """监控配置"""
+    """监控配置
+
+    Attributes:
+        collection_interval: 指标采集间隔（秒）
+        max_history_size: 最大历史数据点数（默认 10080 = 7 天 × 24h × 60min）
+        max_alerts: 最大告警保留数
+        enable_prediction: 是否启用容量预测
+        enable_persistent_storage: 是否启用持久化存储
+        storage_path: 持久化存储路径
+        alert_cooldown: 同一告警冷却时间（秒）
+        anomaly_threshold: 异常检测 Z-score 阈值
+    """
     collection_interval: int = 60              # 采集间隔(秒)
     max_history_size: int = 10080             # 最大历史数据点数(7天)
     max_alerts: int = 1000                     # 最大告警数
@@ -285,7 +318,15 @@ class MonitorConfig:
 
 @dataclass
 class HealthAssessment:
-    """健康评估结果"""
+    """健康评估结果
+
+    Attributes:
+        status: 健康状态（HEALTHY/WARNING/CRITICAL）
+        score: 健康评分（0-100）
+        issues: 问题列表
+        metrics_summary: 关键指标摘要
+        timestamp: 评估时间
+    """
     status: HealthStatus
     score: int                                 # 0-100
     issues: List[str] = field(default_factory=list)
@@ -305,7 +346,22 @@ class HealthAssessment:
 
 @dataclass
 class CapacityPrediction:
-    """容量预测结果"""
+    """容量预测结果
+
+    Attributes:
+        metric: 被预测的指标（如 ``"disk_usage"``）
+        current_value: 当前实测值
+        current_time: 预测起点时间
+        predictions: 未来多时间点的预测值（``{"7d": 75.5, "30d": 82.3}``）
+        days_to_threshold: 达到阈值所需的天数（None 表示不会达到）
+        threshold: 告警阈值
+        growth_rate_daily: 日均增长率（小数，如 0.02 表示 2%/天）
+        trend_direction: 趋势方向（"up"/"down"/"stable"）
+        confidence: 预测置信度（0-1）
+        recommendation: 建议文本
+        urgency: 紧急程度（"low"/"medium"/"high"/"critical"）
+        predictable: 是否可预测
+    """
     metric: str
     current_value: float
     current_time: datetime

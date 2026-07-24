@@ -128,7 +128,17 @@ class TransactionState(str, Enum):
 
 @dataclass
 class LockInfo:
-    """锁信息"""
+    """锁信息
+
+    Attributes:
+        lock_id: 锁 ID
+        transaction_id: 所属事务 ID
+        lock_type: 锁类型（ROW/TABLE/METADATA/...）
+        lock_mode: 锁模式（SHARED/EXCLUSIVE/...）
+        lock_status: 锁状态（GRANTED/WAITING）
+        thread_id: 线程 ID
+        table_schema: 数据库名
+    """
     lock_id: str                 # 锁ID
     transaction_id: str          # 事务ID
     lock_type: LockType          # 锁类型
@@ -171,7 +181,15 @@ class LockInfo:
 
 @dataclass
 class DeadlockInfo:
-    """死锁信息"""
+    """死锁信息
+
+    Attributes:
+        deadlock_id: 死锁事件 ID
+        detected_at: 检测时间
+        transactions: 涉及的事务列表
+        victim_transaction: 被数据库回滚的牺牲事务 ID
+        resolution: 解决方案（自动/手动）
+    """
     deadlock_id: str             # 死锁ID
     detected_at: datetime        # 检测时间
     transactions: List[Dict]     # 涉及的事务列表
@@ -190,7 +208,16 @@ class DeadlockInfo:
 
 @dataclass
 class LockWaitNode:
-    """锁等待链节点"""
+    """锁等待链节点
+
+    Attributes:
+        transaction_id: 事务 ID
+        connection_id: 连接 ID
+        wait_time: 等待时间（秒）
+        query_sql: 正在执行的 SQL
+        waiting_for: 等待的事务 ID
+        blocking: 阻塞该事务的事务 ID 列表
+    """
     transaction_id: str          # 事务ID
     connection_id: int           # 连接ID
     wait_time: float             # 等待时间
@@ -201,7 +228,15 @@ class LockWaitNode:
 
 @dataclass
 class LockWaitChain:
-    """锁等待链"""
+    """锁等待链
+
+    Attributes:
+        chain_id: 等待链 ID
+        root_transaction: 根事务（阻塞源头）
+        nodes: 链节点列表
+        total_wait_time: 总等待时间（秒）
+        depth: 链深度（节点数）
+    """
     chain_id: str                # 链ID
     root_transaction: str        # 根事务（阻塞源头）
     nodes: List[LockWaitNode]    # 链节点
@@ -230,7 +265,17 @@ class LockWaitChain:
 
 @dataclass
 class LockStatistics:
-    """锁统计信息"""
+    """锁统计信息
+
+    Attributes:
+        total_locks: 总锁数
+        waiting_locks: 等待中的锁数
+        granted_locks: 已授予的锁数
+        row_locks: 行锁数
+        table_locks: 表锁数
+        metadata_locks: 元数据锁数
+        max_wait_time: 最大等待时间（秒）
+    """
     total_locks: int = 0             # 总锁数
     waiting_locks: int = 0           # 等待中的锁
     granted_locks: int = 0           # 已授予的锁

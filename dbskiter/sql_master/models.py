@@ -116,7 +116,17 @@ class OptimizationLevel(Enum):
 
 @dataclass
 class SQLOptimizationReport:
-    """SQL优化报告"""
+    """SQL 优化报告
+
+    Attributes:
+        total_sqls: 待优化 SQL 总数
+        can_optimize: 可优化数量
+        total_suggestions: 优化建议总数
+        high_impact: 高影响建议数
+        medium_impact: 中影响建议数
+        low_impact: 低影响建议数
+        optimized_sqls: 优化后的 SQL 详情列表
+    """
     total_sqls: int = 0
     can_optimize: int = 0
     total_suggestions: int = 0
@@ -142,7 +152,17 @@ class SQLOptimizationReport:
 
 @dataclass
 class SQLMasterConfig:
-    """SQL Master配置"""
+    """SQL Master 配置
+
+    Attributes:
+        enable_rewriter: 启用 SQL 重写器
+        enable_analyzer: 启用 SQL 分析器
+        enable_intellisense: 启用智能补全
+        enable_cache: 启用结果缓存
+        max_rows: 单次返回最大行数
+        cache_size: 缓存容量
+        cache_ttl: 缓存过期时间（秒）
+    """
     enable_rewriter: bool = True
     enable_analyzer: bool = True
     enable_intellisense: bool = True
@@ -166,7 +186,16 @@ class SQLMasterConfig:
 
 @dataclass
 class SQLAnalysisResult:
-    """SQL分析结果"""
+    """SQL 分析结果
+
+    Attributes:
+        sql: 被分析的 SQL 文本
+        sql_type: SQL 类型（SELECT/INSERT/...）
+        score: 质量评分（0-100）
+        issues: 发现的问题列表
+        suggestions: 优化建议列表
+        complexity: 复杂度（"low"/"medium"/"high"）
+    """
     sql: str = ""
     sql_type: SQLType = SQLType.UNKNOWN
     score: float = 0.0
@@ -188,7 +217,15 @@ class SQLAnalysisResult:
 
 @dataclass
 class CacheStats:
-    """缓存统计"""
+    """缓存统计
+
+    Attributes:
+        total_entries: 当前缓存条目数
+        hit_count: 总命中次数
+        miss_count: 总未命中次数
+        hit_rate: 命中率（0-1）
+        memory_usage: 内存占用（字节）
+    """
     total_entries: int = 0
     hit_count: int = 0
     miss_count: int = 0
@@ -208,7 +245,16 @@ class CacheStats:
 
 @dataclass
 class ExecutionResult:
-    """执行结果"""
+    """SQL 执行结果
+
+    Attributes:
+        success: 是否成功
+        row_count: 返回行数
+        columns: 列名列表
+        rows: 行数据（二维数组）
+        execution_time: 执行耗时（秒）
+        cached: 是否来自缓存
+    """
     success: bool = True
     row_count: int = 0
     columns: List[str] = field(default_factory=list)
@@ -230,7 +276,14 @@ class ExecutionResult:
 
 @dataclass
 class RewriteSuggestion:
-    """重写建议"""
+    """SQL 重写建议
+
+    Attributes:
+        original_sql: 原始 SQL
+        optimized_sql: 优化后的 SQL
+        reason: 重写理由
+        impact: 影响程度（"low"/"medium"/"high"）
+    """
     original_sql: str = ""
     optimized_sql: str = ""
     reason: str = ""
