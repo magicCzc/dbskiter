@@ -57,6 +57,7 @@ nav:
     - 定时备份与恢复: examples/06-备份调度/01-定时备份与恢复.md
   - 实战指南:
     - 故障排查: guides/troubleshooting.md
+    - 性能调优: guides/performance-tuning.md
     - v3→v4 迁移: guides/migration-v3-to-v4.md
   - 相关资源: resources.md
 
