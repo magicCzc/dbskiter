@@ -59,6 +59,9 @@ nav:
     - 故障排查: guides/troubleshooting.md
     - 性能调优: guides/performance-tuning.md
     - v3→v4 迁移: guides/migration-v3-to-v4.md
+  - English:
+    - CLI Guide: guides/cli_guide_en.md
+    - README (EN): ../README_EN.md
   - 相关资源: resources.md
 
 markdown_extensions:
