@@ -9,10 +9,16 @@ SQL 注入检测器 V2 - 基于 AST 的深度分析
 
 作者：Trae AI
 创建时间：2026-04-20
+
+⚠️ 弃用提示：本模块已弃用，将于 v4.0 移除（预计 2026-12-31）。
+   请迁移到 dbskiter.db_security.sql_injection_detector。
+   迁移路径见：docs/guides/migration-v3-to-v4.md
 """
 import warnings
 warnings.warn(
-    'This module is deprecated. Use the non-v2 version instead.',
+    'sql_injection_detector_v2 is deprecated and will be removed in v4.0. '
+    'Use dbskiter.db_security.sql_injection_detector instead. '
+    'See docs/guides/migration-v3-to-v4.md for migration guide.',
     DeprecationWarning,
     stacklevel=2,
 )

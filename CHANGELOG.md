@@ -4,6 +4,29 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [3.0.43] - 2026-07-24
+
+### 🐛 Bug 修复
+- 同步版本号到 3.0.43（之前 `__init__.py` 卡在 3.0.34）
+- 同步 README.md 测试用例数（1,370+ → 1,641）
+- 清理 D 状态文件（`dbskiter/cli/commands/diagnose.py` 已迁移到 `diagnose_pkg.py`）
+
+### 📝 文档
+- 补全 v3.0.41、v3.0.42 详细变更条目
+- 同步文档与代码版本
+
+## [3.0.42] - 2026-07-23
+
+### 🐛 Bug 修复
+- 修复 `url_parser` 缺失端口的解析问题，添加无端口 URL 测试用例
+
+## [3.0.41] - 2026-07-22
+
+### 🐛 Bug 修复
+- 在 `DiagnoseSkill` / `SecuritySkill` / `InspectorSkill` 中实现正确的 `close()` 方法
+- 修复 `resource_manager` 连接池问题
+- 添加 CHANGELOG v3.0.30-3.0.40 历史记录
+
 ## [3.0.30-3.0.40] - 2026-07-21 to 2026-07-22
 
 ### 🐛 Bug 修复 (v3.0.40)

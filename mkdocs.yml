@@ -33,6 +33,9 @@ theme:
 nav:
   - 首页: index.md
   - 配置指南: configuration.md
+  - 架构详解: architecture.md
+  - 安全模型: security.md
+  - 常见问题: faq.md
   - 新手快速上手:
     - 安装与配置: examples/01-新手快速上手/01-安装与配置.md
     - 第一条命令: examples/01-新手快速上手/02-第一条命令.md
@@ -52,6 +55,9 @@ nav:
     - 大表膨胀分析: examples/05-容量规划/02-大表膨胀分析.md
   - 备份调度:
     - 定时备份与恢复: examples/06-备份调度/01-定时备份与恢复.md
+  - 实战指南:
+    - 故障排查: guides/troubleshooting.md
+    - v3→v4 迁移: guides/migration-v3-to-v4.md
   - 相关资源: resources.md
 
 markdown_extensions:

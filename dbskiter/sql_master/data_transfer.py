@@ -360,7 +360,7 @@ class DataExporter:
         try:
             import pandas as pd
         except ImportError:
-            raise ImportError("导出Excel需要pandas和openpyxl，请安装: pip install pandas openpyxl")
+            raise ImportError("导出Excel需要pandas和openpyxl，请安装: pip install pandas openpyxl") from None
         
         # 转换数据为DataFrame
         data = []

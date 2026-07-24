@@ -123,7 +123,7 @@ class ConnectionPool:
                 if current_size < self.config.max_connections:
                     return self._create_connection()
 
-            raise TimeoutError("获取连接超时，连接池已满")
+            raise TimeoutError("获取连接超时，连接池已满") from None
 
     def release_connection(self, conn: Dict[str, Any]):
         """释放连接回池"""

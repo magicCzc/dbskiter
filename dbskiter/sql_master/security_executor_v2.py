@@ -22,10 +22,16 @@
 作者：Security Team
 创建时间：2026-05-20
 最后修改：2026-05-20
+
+⚠️ 弃用提示：本模块已弃用，将于 v4.0 移除（预计 2026-12-31）。
+   请迁移到 dbskiter.sql_master.security_executor。
+   迁移路径见：docs/guides/migration-v3-to-v4.md
 """
 import warnings
 warnings.warn(
-    'This module is deprecated. Use the non-v2 version instead.',
+    'security_executor_v2 is deprecated and will be removed in v4.0. '
+    'Use dbskiter.sql_master.security_executor instead. '
+    'See docs/guides/migration-v3-to-v4.md for migration guide.',
     DeprecationWarning,
     stacklevel=2,
 )

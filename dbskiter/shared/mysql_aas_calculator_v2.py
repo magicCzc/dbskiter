@@ -46,10 +46,16 @@ MySQL AAS (Average Active Sessions) 计算器 V2 - 企业级优化版
 作者：Magiczc
 创建时间：2026-04-21
 版本：2.0.0
+
+⚠️ 弃用提示：本模块已弃用，将于 v4.0 移除（预计 2026-12-31）。
+   请迁移到 dbskiter.shared.mysql_aas_calculator。
+   迁移路径见：docs/guides/migration-v3-to-v4.md
 """
 import warnings
 warnings.warn(
-    'This module is deprecated. Use the non-v2 version instead.',
+    'mysql_aas_calculator_v2 is deprecated and will be removed in v4.0. '
+    'Use dbskiter.shared.mysql_aas_calculator instead. '
+    'See docs/guides/migration-v3-to-v4.md for migration guide.',
     DeprecationWarning,
     stacklevel=2,
 )
