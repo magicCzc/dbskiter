@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务调度 - DBSKiter</title>
+    <link rel="stylesheet" href="/ui/css/style.css">
+</head>
+<body>
+    <nav>
+        <a href="/ui/" class="logo">DBSKiter</a>
+        <a href="/ui/">仪表盘</a>
+        <a href="/ui/slow-queries.html">慢查询</a>
+        <a href="/ui/security.html">安全审计</a>
+        <a href="/ui/backup.html">备份管理</a>
+        <a href="/ui/scheduler.html" class="active">任务调度</a>
+    </nav>
+
+    <div class="container">
+        <div id="error" class="error"></div>
+        <div id="loading" class="loading">加载中...</div>
+
+        <div class="card">
+            <h2>⏰ 定时任务</h2>
+            <div class="toolbar">
+                <label>数据库：</label>
+                <input type="text" id="db-input" value="default" style="max-width:200px;">
+                <button class="btn-primary" onclick="loadTasks()">刷新</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>任务列表</h2>
+            <table>
+                <thead>
+                    <tr><th>任务名</th><th>类型</th><th>调度计划</th><th>状态</th><th>上次执行</th><th>下次执行</th></tr>
+                </thead>
+                <tbody id="tasks-table"></tbody>
+            </table>
+        </div>
+
+        <!-- 操作日志 -->
+        <div class="card">
+            <h2>📋 最近操作日志</h2>
+            <div class="toolbar">
+                <label>时间范围：</label>
+                <select id="hours-select">
+                    <option value="24">24 小时</option>
+                    <option value="72" selected>3 天</option>
+                    <option value="168">7 天</option>
+                </select>
+                <button class="btn-primary" onclick="loadLogs()">刷新</button>
+            </div>
+            <table>
+                <thead>
+                    <tr><th>时间</th><th>命令</th><th>数据库</th><th>状态</th><th>耗时</th></tr>
+                </thead>
+                <tbody id="logs-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>DBSKiter v3.0.43 &middot; 数据库 AIOps 运维助手</footer>
+
+    <script>
+        async function loadTasks() {
+            const db = document.getElementById('db-input').value || 'default';
+            showLoading(true);
+
+            try {
+                const data = await apiFetch(`/tasks?database=${encodeURIComponent(db)}`);
+                const tasks = data.data?.tasks || data.tasks || [];
+                const tbody = document.getElementById('tasks-table');
+
+                if (tasks.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b;">暂无定时任务</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = tasks.map(t => {
+                    const status = t.status || 'PENDING';
+                    const statusClass = status === 'SUCCESS' || status === 'ENABLED' ? 'badge-low'
+                        : status === 'RUNNING' ? 'badge-medium'
+                        : 'badge-critical';
+                    return `<tr>
+                        <td>${escapeHtml(t.name || t.task_name || '-')}</td>
+                        <td>${escapeHtml(t.task_type || t.type || '-')}</td>
+                        <td><code>${escapeHtml(t.schedule || '-')}</code></td>
+                        <td><span class="badge ${statusClass}">${status}</span></td>
+                        <td>${t.last_run ? new Date(t.last_run).toLocaleString() : '-'}</td>
+                        <td>${t.next_run ? new Date(t.next_run).toLocaleString() : '-'}</td>
+                    </tr>`;
+                }).join('');
+
+            } catch (err) {
+                document.getElementById('tasks-table').innerHTML =
+                    '<tr><td colspan="6" style="text-align:center;color:#64748b;">加载失败</td></tr>';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function loadLogs() {
+            const db = document.getElementById('db-input').value || 'default';
+            const hours = document.getElementById('hours-select').value;
+
+            try {
+                const data = await apiFetch(`/logs?database=${encodeURIComponent(db)}&hours=${hours}`);
+                const logs = data.data?.logs || data.logs || data.history || [];
+                const tbody = document.getElementById('logs-table');
+
+                if (logs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#64748b;">暂无操作日志</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = logs.map(l => {
+                    const status = l.status_code === 0 || l.status === 'success' ? 'success' : 'failed';
+                    return `<tr>
+                        <td style="font-size:13px;">${l.timestamp || l.time || '-'}</td>
+                        <td><code style="font-size:12px;">${escapeHtml(l.command || l.action || '-')}</code></td>
+                        <td>${escapeHtml(l.database || '-')}</td>
+                        <td><span class="badge badge-${status === 'success' ? 'low' : 'critical'}">${status}</span></td>
+                        <td>${l.execution_time_ms ? formatDuration(l.execution_time_ms) : '-'}</td>
+                    </tr>`;
+                }).join('');
+
+            } catch (err) {
+                // 静默
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTasks();
+            loadLogs();
+        });
+    </script>
+</body>
+</html>

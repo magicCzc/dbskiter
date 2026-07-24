@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DBSKiter - 数据库运维仪表盘</title>
+    <link rel="stylesheet" href="/ui/css/style.css">
+</head>
+<body>
+    <nav>
+        <a href="/ui/" class="logo">DBSKiter</a>
+        <a href="/ui/" class="active">仪表盘</a>
+        <a href="/ui/slow-queries.html">慢查询</a>
+        <a href="/ui/security.html">安全审计</a>
+        <a href="/ui/backup.html">备份管理</a>
+        <a href="/ui/scheduler.html">任务调度</a>
+    </nav>
+
+    <div class="container">
+        <div id="error" class="error"></div>
+        <div id="loading" class="loading">加载中...</div>
+
+        <!-- 数据库选择 -->
+        <div class="card">
+            <div class="toolbar">
+                <label style="font-weight:600;font-size:14px;">数据库：</label>
+                <input type="text" id="db-input" value="default" placeholder="数据库别名 (如 jump, prod)" style="max-width:200px;">
+                <button class="btn-primary" onclick="refreshDashboard()">刷新</button>
+                <span id="status-text" class="status" style="display:none;"></span>
+            </div>
+        </div>
+
+        <!-- 概览指标 -->
+        <div class="metrics-grid" id="metrics-grid">
+            <div class="metric-card"><div class="value" id="health-score">-</div><div class="label">健康评分</div></div>
+            <div class="metric-card"><div class="value" id="total-issues">-</div><div class="label">问题数</div></div>
+            <div class="metric-card"><div class="value" id="slow-queries">-</div><div class="label">慢查询</div></div>
+            <div class="metric-card"><div class="value" id="security-risks">-</div><div class="label">安全风险</div></div>
+        </div>
+
+        <!-- 快速操作 -->
+        <div class="card">
+            <h2>⚡ 快速操作</h2>
+            <div class="toolbar">
+                <button class="btn-primary" onclick="runQuickAction('health')">🏥 健康检查</button>
+                <button class="btn-primary" onclick="runQuickAction('slow')">🐢 慢查询分析</button>
+                <button class="btn-primary" onclick="runQuickAction('security')">🔒 安全审计</button>
+                <button class="btn-primary" onclick="runQuickAction('diagnose')">🔍 实时诊断</button>
+            </div>
+            <div id="quick-result" style="margin-top:16px;display:none;">
+                <pre id="quick-output" style="background:#f1f5f9;padding:12px;border-radius:4px;font-size:13px;overflow-x:auto;max-height:300px;"></pre>
+            </div>
+        </div>
+
+        <!-- 服务状态 -->
+        <div class="card">
+            <h2>🔧 API 服务状态</h2>
+            <table>
+                <thead>
+                    <tr><th>端点</th><th>方法</th><th>说明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>/api/health</td><td>GET</td><td>健康检查</td></tr>
+                    <tr><td>/api/slow-queries</td><td>GET</td><td>慢查询分析</td></tr>
+                    <tr><td>/api/security</td><td>GET</td><td>安全审计</td></tr>
+                    <tr><td>/api/diagnose/realtime</td><td>GET</td><td>实时诊断</td></tr>
+                    <tr><td>/api/inspector/report</td><td>GET</td><td>巡检报告</td></tr>
+                    <tr><td>/api/backup</td><td>POST</td><td>创建备份</td></tr>
+                    <tr><td>/api/backups</td><td>GET</td><td>备份列表</td></tr>
+                    <tr><td>/api/tasks</td><td>GET</td><td>任务列表</td></tr>
+                    <tr><td>/api/logs</td><td>GET</td><td>操作日志</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <footer>
+        DBSKiter v3.0.43 &middot; 数据库 AIOps 运维助手 &middot;
+        <a href="/docs" target="_blank">API 文档</a>
+    </footer>
+
+    <script>
+        async function refreshDashboard() {
+            const db = document.getElementById('db-input').value || 'default';
+            showLoading(true);
+            document.getElementById('error').classList.remove('show');
+
+            try {
+                // 1. 健康检查
+                const health = await apiFetch(`/health?database=${encodeURIComponent(db)}`);
+                document.getElementById('health-score').textContent = health.score?.toFixed(0) || '-';
+                document.getElementById('total-issues').textContent = health.issues?.length || 0;
+
+                // 状态提示
+                const statusEl = document.getElementById('status-text');
+                statusEl.style.display = 'inline-block';
+                statusEl.className = 'status ' + (
+                    health.status === 'HEALTHY' ? 'status-healthy' :
+                    health.status === 'WARNING' ? 'status-warning' : 'status-critical'
+                );
+                statusEl.textContent = health.status || 'UNKNOWN';
+
+                if (health.issues?.length) {
+                    const issues = health.issues.join('; ');
+                    if (issues.length > 50) {
+                        statusEl.title = issues;
+                    }
+                }
+
+                // 2. 慢查询
+                const slow = await apiFetch(`/slow-queries?database=${encodeURIComponent(db)}&top=5`);
+                document.getElementById('slow-queries').textContent = slow.total || 0;
+
+                // 3. 安全风险
+                const sec = await apiFetch(`/security?database=${encodeURIComponent(db)}`);
+                document.getElementById('security-risks').textContent = sec.total_risks || 0;
+
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function runQuickAction(action) {
+            const db = document.getElementById('db-input').value || 'default';
+            const resultDiv = document.getElementById('quick-result');
+            const output = document.getElementById('quick-output');
+            resultDiv.style.display = 'block';
+            output.textContent = '正在执行...';
+
+            try {
+                let data;
+                switch (action) {
+                    case 'health':
+                        data = await apiFetch(`/health?database=${encodeURIComponent(db)}`);
+                        output.textContent = JSON.stringify(data, null, 2);
+                        break;
+                    case 'slow':
+                        data = await apiFetch(`/slow-queries?database=${encodeURIComponent(db)}&top=5`);
+                        output.textContent = JSON.stringify(data, null, 2);
+                        break;
+                    case 'security':
+                        data = await apiFetch(`/security?database=${encodeURIComponent(db)}`);
+                        output.textContent = JSON.stringify(data, null, 2);
+                        break;
+                    case 'diagnose':
+                        data = await apiFetch(`/diagnose/realtime?database=${encodeURIComponent(db)}`);
+                        output.textContent = JSON.stringify(data, null, 2);
+                        break;
+                }
+            } catch (err) {
+                output.textContent = `错误: ${err.message}`;
+            }
+        }
+
+        // 页面加载时自动刷新
+        document.addEventListener('DOMContentLoaded', refreshDashboard);
+    </script>
+</body>
+</html>
