@@ -47,8 +47,11 @@ dev = [
     "pytest>=7.0.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.0.0",
+    "hypothesis>=6.100.0",
     "black>=23.0.0",
     "flake8>=6.0.0",
+    "flake8-bugbear>=24.0.0",
+    "mypy>=1.0.0",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.0.0",
 ]
@@ -76,3 +79,55 @@ include = ["dbskiter*"]
 [tool.setuptools.dynamic]
 version = {attr = "dbskiter.__version__"}
 readme = {file = "README.md", content-type = "text/markdown"}
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+strict_optional = true
+no_implicit_optional = true
+check_untyped_defs = true
+disallow_untyped_defs = false
+warn_redundant_casts = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pymysql.*",
+    "psycopg2.*",
+    "pandas.*",
+    "numpy.*",
+    "sqlalchemy.*",
+    "jinja2.*",
+    "pydantic.*",
+    "sqlparse.*",
+    "dotenv.*",
+    "argcomplete.*",
+    "oracledb.*",
+    "JayDeBeApi.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::DeprecationWarning:dbskiter.db_security.*:",
+]
+
+[tool.coverage.run]
+source = ["dbskiter"]
+omit = ["*/tests/*", "*__init__.py*", "*__main__.py*", "*setup.py*", "*conftest.py*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "def __str__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]
+fail_under = 30
