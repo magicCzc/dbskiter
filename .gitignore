@@ -70,7 +70,7 @@ data/
 monitor_data/
 
 # Tests (may contain sensitive data)
-tests/
+# tests/  # 已从 gitignore 移除，确保 CI 可运行测试
 # docs
 docs/
 backup/

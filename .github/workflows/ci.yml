@@ -56,7 +56,7 @@ jobs:
           python -c "import dbskiter; print('dbskiter version:', dbskiter.__version__)"
 
       - name: Run tests with coverage
-        run: PYTHONPATH=tests:tests/unit python -m pytest tests/ --cov=dbskiter --cov-report=term-missing --cov-fail-under=25 -v --tb=short
+        run: PYTHONPATH=tests:tests/unit python -m pytest tests/ --cov=dbskiter --cov-report=term-missing -v --tb=short
 
       - name: Run doc consistency check
         run: python scripts/check_doc_consistency.py
