@@ -100,3 +100,8 @@ test_report.html
 backups/
 # MkDocs build output
 site/
+
+# Node.js
+node_modules/
+dbskiter/webui/node_modules/
+dbskiter/webui/dist/

@@ -64,6 +64,9 @@ web:  ## 启动 Web UI
 web-dev:  ## 启动 Web UI（开发模式，自动重载）
 	python scripts/run_web.py --reload
 
+web-build:  ## 构建 Vue 3 前端
+	cd dbskiter/webui && npm install && npm run build
+
 # ── 发布 ──────────────────────────────────────────────────────────
 
 build:  ## 构建发布包
