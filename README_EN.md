@@ -193,7 +193,7 @@ dbskiter/
 | Lock Analysis | 🟡 Usable | Lock analysis/deadlock detection/wait chain tracking |
 | Web UI | 🔴 Planned | 2026 Q3 roadmap |
 
-**Test coverage**: 1,641+ test cases, 27% coverage (core modules 60-100%)
+**Test coverage**: 1,672+ test cases, 30% coverage (core modules 60-100%)
 
 ---
 
