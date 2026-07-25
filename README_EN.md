@@ -191,7 +191,7 @@ dbskiter/
 | Diagnose | 🟡 Near Production | Slow query/index recommendation/execution plan |
 | Inspector | 🟡 Near Production | HTML report, config/security check |
 | Lock Analysis | 🟡 Usable | Lock analysis/deadlock detection/wait chain tracking |
-| Web UI | 🔴 Planned | 2026 Q3 roadmap |
+| Web UI | 🟢 Available | Vue 3 SPA, FastAPI backend |
 
 **Test coverage**: 1,672+ test cases, 30% coverage (core modules 60-100%)
 
