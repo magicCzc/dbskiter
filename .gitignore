@@ -71,9 +71,25 @@ monitor_data/
 
 # Tests (may contain sensitive data)
 # tests/  # 已从 gitignore 移除，确保 CI 可运行测试
-# docs
+
+# Docs (track source files, ignore generated site)
 docs/
+!docs/source/
+!docs/guides/
+!docs/examples/
+!docs/archive/
+!docs/configuration.md
+!docs/index.md
+!docs/resources.md
+!docs/architecture.md
+!docs/faq.md
+!docs/security.md
+
+# Backup files
 backup/
+
+# MkDocs build output
+site/
 
 # Runtime generated reports
 db_performance_report_*.md
