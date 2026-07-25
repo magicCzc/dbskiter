@@ -12,6 +12,18 @@ repos:
       - id: flake8
         args: [--config=.flake8]
 
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
   - repo: local
     hooks:
       - id: check-bare-except
@@ -20,3 +32,11 @@ repos:
         entry: python scripts/check_bare_except.py
         language: python
         types: [python]
+
+      - id: check-doc-consistency
+        name: Check doc consistency
+        description: Ensure version numbers and test counts are in sync
+        entry: python scripts/check_doc_consistency.py
+        language: python
+        pass_filenames: false
+        always_run: true
