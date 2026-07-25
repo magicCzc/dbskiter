@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import NavBar from '@/components/NavBar.vue'
+import Toast from '@/components/Toast.vue'
 </script>
 
 <template>
   <NavBar />
+  <Toast />
   <main class="container">
     <router-view v-slot="{ Component }">
       <transition name="fade" mode="out-in">
@@ -25,17 +27,11 @@ import NavBar from '@/components/NavBar.vue'
 <style scoped>
 .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
 footer {
-  text-align: center;
-  padding: 24px;
-  color: var(--text-secondary);
-  font-size: 13px;
-  border-top: 1px solid var(--border);
-  margin-top: 40px;
+  text-align: center; padding: 24px; color: var(--text-secondary);
+  font-size: 13px; border-top: 1px solid var(--border); margin-top: 40px;
 }
 footer a { color: var(--primary); text-decoration: none; }
 .sep { margin: 0 8px; color: var(--border); }
-
-/* 页面过渡动画 */
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>

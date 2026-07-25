@@ -1,7 +1,19 @@
 <script setup lang="ts">
 import { useRoute } from 'vue-router'
+import { ref, watch } from 'vue'
 
 const route = useRoute()
+const isDark = ref(localStorage.getItem('dbskiter-theme') === 'dark')
+
+function toggleTheme() {
+  isDark.value = !isDark.value
+  document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
+  localStorage.setItem('dbskiter-theme', isDark.value ? 'dark' : 'light')
+}
+
+// 初始化主题
+watch(isDark, () => {}, { immediate: true })
+document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'light')
 
 const navItems = [
   { path: '/', label: '仪表盘', icon: '📊' },
@@ -16,16 +28,23 @@ const navItems = [
 <template>
   <nav>
     <router-link to="/" class="logo">DBSKiter</router-link>
-    <router-link
-      v-for="item in navItems"
-      :key="item.path"
-      :to="item.path"
-      :class="{ active: route.path === item.path }"
-      :title="item.label"
-    >
-      <span class="nav-icon">{{ item.icon }}</span>
-      <span class="nav-label">{{ item.label }}</span>
-    </router-link>
+    <div class="nav-links">
+      <router-link
+        v-for="item in navItems"
+        :key="item.path"
+        :to="item.path"
+        :class="{ active: route.path === item.path }"
+        :title="item.label"
+      >
+        <span class="nav-icon">{{ item.icon }}</span>
+        <span class="nav-label">{{ item.label }}</span>
+      </router-link>
+    </div>
+    <div class="nav-actions">
+      <button class="theme-btn" @click="toggleTheme" :title="isDark ? '切换亮色模式' : '切换暗色模式'">
+        {{ isDark ? '☀️' : '🌙' }}
+      </button>
+    </div>
   </nav>
 </template>
 
@@ -39,7 +58,7 @@ nav {
   height: 56px;
   gap: 2px;
   box-shadow: var(--shadow);
-  overflow-x: auto;
+  transition: background 0.3s, border-color 0.3s;
 }
 .logo {
   font-weight: 700;
@@ -49,6 +68,8 @@ nav {
   text-decoration: none;
   white-space: nowrap;
 }
+.nav-links { display: flex; gap: 2px; flex: 1; overflow-x: auto; }
+.nav-actions { margin-left: auto; display: flex; align-items: center; }
 a {
   display: flex;
   align-items: center;
@@ -61,10 +82,20 @@ a {
   transition: all 0.2s;
   white-space: nowrap;
 }
-a:hover { background: #f1f5f9; color: var(--text); }
+a:hover { background: var(--table-hover); color: var(--text); }
 a.active { background: var(--primary); color: white; }
 .nav-icon { font-size: 16px; }
 .nav-label { font-size: 13px; }
+.theme-btn {
+  background: var(--table-hover);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.theme-btn:hover { border-color: var(--primary); }
 
 @media (max-width: 768px) {
   nav { padding: 0 8px; gap: 0; }
