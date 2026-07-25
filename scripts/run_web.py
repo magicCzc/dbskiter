@@ -8,8 +8,15 @@ Run DBSKiter Web UI
 """
 
 import sys
-import uvicorn
+import os
+
+# 确保项目根目录在 sys.path 中（解决未安装时的导入问题）
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 import argparse
+import uvicorn
 
 
 def main():
@@ -28,8 +35,11 @@ def main():
     print(f"  ╚══════════════════════════════════════════╝")
     print()
 
+    # 使用 app 对象而非字符串引用，避免 import 路径问题
+    from dbskiter.web.app import app
+
     uvicorn.run(
-        "dbskiter.web.app:app",
+        app,
         host=args.host,
         port=args.port,
         reload=args.reload,

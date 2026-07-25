@@ -44,9 +44,19 @@ app.add_middleware(
 # 注册 API 路由
 app.include_router(api_router)
 
-# 挂载静态文件（前端页面）- 使用 /ui 前缀避免与 API 路由冲突
+# 挂载静态文件（Vue 构建产物）
 if STATIC_DIR.exists():
-    app.mount("/ui", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+    app.mount("/ui/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
+
+
+@app.get("/ui/{full_path:path}")
+async def serve_ui(full_path: str):
+    """SPA fallback: 所有 /ui/* 路由返回 index.html"""
+    from fastapi.responses import FileResponse
+    index_path = STATIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    return {"error": "UI not built yet. Run: cd dbskiter/webui && npm run build"}
 
 
 @app.on_event("startup")
