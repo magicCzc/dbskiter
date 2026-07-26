@@ -71,18 +71,23 @@ class ErrorResponse(BaseModel):
 
 # ── CLI 执行器 ─────────────────────────────────────────────────────
 
-def _run_cli(args: list) -> dict:
+def _run_cli(args: list, database: str = "default") -> dict:
     """
     执行 dbskiter CLI 命令并返回 JSON 结果
 
     Args:
-        args: CLI 参数列表，如 ["monitor", "health", "--database=jump"]
+        args: CLI 参数列表，如 ["monitor", "health"]
+        database: 数据库别名
 
     Returns:
         dict: 解析后的 JSON 结果
     """
-    # 构建 CLI 命令
-    cmd = ["dbskiter", "--output-mode=ai"] + args
+    # 构建 CLI 命令：--database 必须放在子命令之前
+    cmd = [
+        "dbskiter",
+        "--output-mode=ai",
+        "--database", database,
+    ] + args
 
     try:
         result = subprocess.run(
@@ -132,7 +137,7 @@ async def get_health(
 
     返回健康评分、状态、问题列表。
     """
-    result = _run_cli(["monitor", "health", "--database", database])
+    result = _run_cli(["monitor", "health"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
@@ -160,10 +165,9 @@ async def get_slow_queries(
     db = database_name or database
     result = _run_cli([
         "diagnose", "slow-queries",
-        "--database", db,
         "--top", str(top),
         "--hours", str(hours),
-    ])
+    ], db)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
@@ -185,10 +189,7 @@ async def run_security_audit(
 
     执行 SQL 注入检测、敏感数据扫描、密码策略检查。
     """
-    result = _run_cli([
-        "security", "audit",
-        "--database", database,
-    ])
+    result = _run_cli(["security", "audit"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
@@ -215,10 +216,7 @@ async def get_realtime_diagnose(
 
     快速诊断数据库当前状态（慢查询、锁、连接、空间）。
     """
-    result = _run_cli([
-        "diagnose", "realtime",
-        "--database", database,
-    ])
+    result = _run_cli(["diagnose", "realtime"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -234,11 +232,7 @@ async def generate_inspector_report(
 
     生成综合巡检报告（配置、性能、安全、存储）。
     """
-    result = _run_cli([
-        "inspector", "run",
-        "--database", database,
-        "--type", report_type,
-    ])
+    result = _run_cli(["inspector", "run", "--type", report_type], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -257,13 +251,12 @@ async def create_backup(
     """
     args = [
         "scheduler", "backup",
-        "--database", database,
         "--type", backup_type,
     ]
     if tables:
         args.extend(["--tables", tables])
 
-    result = _run_cli(args)
+    result = _run_cli(args, database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
@@ -286,10 +279,7 @@ async def list_backups(
 
     查看所有备份记录。
     """
-    result = _run_cli([
-        "scheduler", "backup", "list",
-        "--database", database,
-    ])
+    result = _run_cli(["scheduler", "backup", "list"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -304,10 +294,7 @@ async def list_tasks(
 
     查看所有已配置的定时任务。
     """
-    result = _run_cli([
-        "scheduler", "task", "list",
-        "--database", database,
-    ])
+    result = _run_cli(["scheduler", "task", "list"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -323,11 +310,7 @@ async def get_recent_logs(
 
     查看最近执行的历史命令和审计日志。
     """
-    result = _run_cli([
-        "history",
-        "--database", database,
-        "--hours", str(hours),
-    ])
+    result = _run_cli(["history", "--hours", str(hours)], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
