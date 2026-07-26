@@ -21,6 +21,7 @@ const navItems = [
   { path: '/security', label: '安全审计', icon: '🔒' },
   { path: '/backup', label: '备份管理', icon: '💾' },
   { path: '/scheduler', label: '任务调度', icon: '⏰' },
+  { path: '/databases', label: '数据库', icon: '🗄️' },
   { path: '/configuration', label: '配置', icon: '⚙️' },
 ]
 </script>

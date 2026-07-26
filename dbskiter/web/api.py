@@ -333,3 +333,18 @@ async def list_databases():
     if not databases:
         databases = ["default"]
     return {"databases": sorted(databases)}
+
+
+@router.get("/diagnose/connection", response_model=dict)
+async def test_connection(
+    database: str = Query("default", description="数据库别名"),
+):
+    """测试数据库连接"""
+    result = _run_cli(["diagnose", "realtime"], database)
+    success = result.get("success", False)
+    return {
+        "success": success,
+        "database": database,
+        "message": "连接成功" if success else (result.get("error", "连接失败")),
+        "data": result.get("data", {}) if success else None,
+    }
