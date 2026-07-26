@@ -3,7 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { api } from '@/api'
 import type { SlowQuery } from '@/types'
 
-const db = ref('default')
+const db = ref("default")
+const databases = ref<string[]>(["default"])
 const top = ref(10)
 const hours = ref(6)
 const queries = ref<SlowQuery[]>([])
@@ -60,7 +61,10 @@ function formatSql(sql: string, maxLen = 60): string {
   return sql.length > maxLen ? sql.substring(0, maxLen) + '...' : sql
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
+})
 </script>
 
 <template>
@@ -68,7 +72,7 @@ onMounted(load)
     <h2>🐢 慢查询分析</h2>
     <div class="toolbar">
       <label>数据库：</label>
-      <input v-model="db" style="max-width:200px" />
+      <select v-model="db" style="max-width:200px"><option v-for="d in databases" :key="d" :value="d">{{ d }}</option></select>
       <label>数量：</label>
       <select v-model="top">
         <option :value="5">Top 5</option>

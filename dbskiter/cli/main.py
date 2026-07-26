@@ -532,6 +532,41 @@ def _check_has_shell_completion() -> bool:
     return False
 
 
+def _fix_windows_stdio() -> None:
+    """
+    Windows 平台修复：强制 stdout/stderr 使用 UTF-8 编码
+
+    在 Windows 上，默认终端编码是 GBK（cp936），
+    当输出包含 emoji 或非 GBK 字符时会导致 UnicodeEncodeError。
+
+    本函数在 Python >= 3.7 上有效：
+    - 重新包装 stdout/stderr 为 UTF-8 编码的 TextIOWrapper
+    - 如果已为 UTF-8 编码则跳过（避免重复包装）
+    """
+    import io
+
+    for stream_name in ("stdout", "stderr"):
+        stream = getattr(sys, stream_name, None)
+        if stream is None:
+            continue
+        # 如果已经修复过或本身就是 UTF-8，跳过
+        if stream.encoding and stream.encoding.upper() == "UTF-8":
+            continue
+        if stream.buffer is not None:
+            wrapped = io.TextIOWrapper(
+                stream.buffer,
+                encoding="utf-8",
+                errors="replace",
+                line_buffering=True,
+            )
+            # flush 原 stream 避免数据丢失
+            try:
+                stream.flush()
+            except (OSError, ValueError):
+                pass
+            setattr(sys, stream_name, wrapped)
+
+
 def main(args: Optional[List[str]] = None) -> int:
     """
     CLI 主入口
@@ -546,6 +581,12 @@ def main(args: Optional[List[str]] = None) -> int:
         >>> main(["monitor", "--database", "test"])
         0
     """
+    # Windows 平台修复：强制 stdout/stderr 使用 UTF-8 编码
+    # 防止 MCP over stdio 通信时出现 UnicodeEncodeError
+    # 特别是 emoji 和其他非 GBK 字符
+    if sys.platform == "win32":
+        _fix_windows_stdio()
+
     # 获取原始参数
     raw_args = args if args is not None else sys.argv[1:]
 

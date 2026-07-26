@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import { api, formatDuration, severityClass } from '@/api'
 import type { Task, LogEntry } from '@/types'
 
-const db = ref('default')
+const db = ref("default")
+const databases = ref<string[]>(["default"])
 const hours = ref(72)
 const tasks = ref<Task[]>([])
 const logs = ref<LogEntry[]>([])
@@ -30,7 +31,10 @@ function statusClass(status: string) {
   return 'badge-medium'
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
+})
 </script>
 
 <template>
@@ -38,7 +42,7 @@ onMounted(load)
     <h2>⏰ 任务调度</h2>
     <div class="toolbar">
       <label>数据库：</label>
-      <input v-model="db" style="max-width:200px" />
+      <select v-model="db" style="max-width:200px"><option v-for="d in databases" :key="d" :value="d">{{ d }}</option></select>
       <button class="btn-primary" @click="load" :disabled="loading">刷新</button>
     </div>
   </div>

@@ -314,3 +314,22 @@ async def get_recent_logs(
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
+
+
+@router.get("/databases", response_model=dict)
+async def list_databases():
+    """可用数据库列表"""
+    from pathlib import Path
+    databases = []
+    env_path = Path.cwd() / ".env"
+    if env_path.exists():
+        with open(env_path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("DB_") and line.endswith("_HOST="):
+                    alias = line.split("=")[0].replace("DB_", "").replace("_HOST", "").lower()
+                    if alias and alias not in databases:
+                        databases.append(alias)
+    if not databases:
+        databases = ["default"]
+    return {"databases": sorted(databases)}

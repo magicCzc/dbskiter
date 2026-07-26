@@ -680,7 +680,7 @@ class InitCommand(BaseCommand):
             path.write_text(yaml_content, encoding="utf-8")
         except ImportError:
             self.output.error("需要 PyYAML 才能生成 YAML 配置: pip install pyyaml")
-            raise ConfigError("缺少 PyYAML 依赖")
+            raise ConfigError("缺少 PyYAML 依赖") from None
 
     def _read_existing_yaml(self, path: Path) -> Dict[str, Any]:
         """读取现有 YAML 配置"""

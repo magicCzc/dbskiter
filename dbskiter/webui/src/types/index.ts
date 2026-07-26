@@ -72,3 +72,7 @@ export interface ApiStatus {
   version: string
   api_endpoints: string[]
 }
+
+export interface DatabasesResponse {
+  databases: string[]
+}

@@ -1,6 +1,6 @@
 import type {
   HealthResponse, SlowQueryResponse, SecurityResponse,
-  BackupResult, BackupRecord, Task, LogEntry, ApiStatus,
+  BackupResult, BackupRecord, Task, LogEntry, ApiStatus, DatabasesResponse,
 } from '@/types'
 
 const API_BASE = '/api'
@@ -49,6 +49,9 @@ export const api = {
 
   logs: (db = 'default', hours = 24) =>
     request<{ logs: LogEntry[] }>(`/logs?database=${encodeURIComponent(db)}&hours=${hours}`),
+
+  databases: () =>
+    request<DatabasesResponse>('/databases'),
 }
 
 export function formatBytes(bytes: number): string {

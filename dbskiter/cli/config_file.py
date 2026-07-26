@@ -162,11 +162,11 @@ class ConfigFileManager:
             self._config_data = self._parse_content(content, config_file.suffix)
             return self._config_data
         except json.JSONDecodeError as e:
-            raise ConfigError(f"JSON 解析错误 ({config_file}): {e}")
+            raise ConfigError(f"JSON 解析错误 ({config_file}): {e}") from e
         except yaml.YAMLError as e:
-            raise ConfigError(f"YAML 解析错误 ({config_file}): {e}")
+            raise ConfigError(f"YAML 解析错误 ({config_file}): {e}") from e
         except Exception as e:
-            raise ConfigError(f"配置文件读取失败 ({config_file}): {e}")
+            raise ConfigError(f"配置文件读取失败 ({config_file}): {e}") from e
 
     @staticmethod
     def _parse_content(content: str, suffix: str) -> Dict[str, Any]:

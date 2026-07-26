@@ -71,3 +71,11 @@ per-file-ignores =
     */__init__.py: F401
     # test files can use longer lines
     tests/*: E501
+
+# flake8-bugbear 扩展配置
+# B904: 在 except 中 raise 时使用 raise ... from e
+# B007: 循环变量被外部作用域使用
+# B008: 不能使用可变的函数默认值
+extend-ignore =
+    # B007: 循环变量被外部作用域使用（现有代码较多，逐步修复）
+    B007,

@@ -449,7 +449,7 @@ class ConnectionPool:
         except Exception as e:
             logger.error(f"连接池初始化失败: {e}")
             self.state = PoolState.CLOSED
-            raise
+            raise RuntimeError(f"连接池初始化失败: {e}") from e
     
     def _create_connection(self) -> Optional[PooledConnection]:
         """
@@ -522,10 +522,10 @@ class ConnectionPool:
             return engine.raw_connection()
         except ImportError:
             logger.error("未安装 sqlalchemy，无法创建通用数据库连接")
-            raise
+            raise  # 保持 ImportError 原样
         except Exception as e:
             logger.error(f"创建通用数据库连接失败: {e}")
-            raise
+            raise RuntimeError(f"创建通用数据库连接失败: {e}") from e
     
     def _create_mysql_connection(self) -> Any:
         """创建MySQL连接"""

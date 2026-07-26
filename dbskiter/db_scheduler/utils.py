@@ -101,7 +101,7 @@ class TimeoutExecutor:
             return result
         except FutureTimeoutError:
             future.cancel()
-            raise TimeoutError(f"任务 {task_id} 执行超时（超过 {self.timeout} 秒）")
+            raise TimeoutError(f"任务 {task_id} 执行超时（超过 {self.timeout} 秒）") from None
         except Exception as e:
             raise e
         finally:

@@ -444,7 +444,7 @@ class OutputFormatter:
                     print(json_str)
                     self.print("=" * 60)
         except Exception as e:
-            raise OutputError(f"JSON 序列化失败: {e}")
+            raise OutputError(f"JSON 序列化失败: {e}") from e
 
     def output_table(self, formatter: TableFormatter) -> None:
         """

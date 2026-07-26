@@ -4,23 +4,27 @@ URL 连接字符串解析器
 解析 SQLAlchemy 风格的连接字符串：
     dialect+driver://user:password@host:port/database?param=value
 
+使用 SQLAlchemy 的 make_url() 替代手写 urlparse 解析器，
+避免边界 case 处理遗漏（如无端口、特殊编码、SQLite 路径等）。
+
 示例:
     mysql+pymysql://root:pass@localhost:3306/test
     postgresql://user@host:5432/db?sslmode=require
     sqlite:///path/to/db.sqlite3
 """
 
-import re
-from typing import Dict, Optional, Tuple
-from urllib.parse import unquote, urlparse
+from typing import Any, Dict
+
+from sqlalchemy.engine.url import make_url as _sa_make_url
+from sqlalchemy.exc import ArgumentError
 
 
-def parse_url(url: str) -> Dict[str, any]:
+def parse_url(url: str) -> Dict[str, Any]:
     """
-    解析数据库连接字符串
+    解析数据库连接字符串（委托给 SQLAlchemy make_url）
 
     参数:
-        url: 连接字符串
+        url: 连接字符串，如 mysql+pymysql://root:pass@localhost:3306/test
 
     返回:
         Dict: 包含 dialect, host, port, user, password, database, query 的字典
@@ -34,60 +38,28 @@ def parse_url(url: str) -> Dict[str, any]:
         return {"error": f"无效的连接字符串: {url}"}
 
     try:
-        parsed = urlparse(url)
+        parsed = _sa_make_url(url)
 
-        # 解析 dialect
-        dialect = parsed.scheme or ""
-
-        # 解析认证信息
-        username = unquote(parsed.username) if parsed.username else None
-        password = unquote(parsed.password) if parsed.password else None
-
-        # 解析主机和端口
-        try:
-            hostname = parsed.hostname or ""
-        except (TypeError, ValueError):
-            hostname = ""
-        # parsed.port 在没有显式端口时会抛 ValueError
-        port = None
-        try:
-            if parsed.port is not None and str(parsed.port) != str(hostname):
-                port = int(parsed.port)
-        except (ValueError, TypeError):
-            port = None
-
-        # 解析数据库名
-        database = parsed.path.lstrip("/") if parsed.path else None
-        # SQLite 路径可能包含 /，不要截断
-        if database and "/" in database and parsed.scheme != "sqlite":
-            database = database.split("/")[0]
-
-        # 解析查询参数
-        query_params = {}
+        result: Dict[str, Any] = {"dialect": parsed.drivername}
+        if parsed.username:
+            result["user"] = parsed.username
+        if parsed.password:
+            result["password"] = parsed.password
+        if parsed.host:
+            result["host"] = parsed.host
+        if parsed.port is not None:
+            result["port"] = parsed.port
+        if parsed.database:
+            result["database"] = parsed.database
         if parsed.query:
-            for part in parsed.query.split("&"):
-                if "=" in part:
-                    k, v = part.split("=", 1)
-                    query_params[k] = unquote(v)
-
-        result = {"dialect": dialect}
-        if username:
-            result["user"] = username
-        if password:
-            result["password"] = password
-        if hostname:
-            result["host"] = hostname
-        if port:
-            result["port"] = port
-        if database:
-            result["database"] = database
-        if query_params:
-            result["query"] = query_params
+            result["query"] = dict(parsed.query)
 
         return result
 
-    except Exception as e:
+    except ArgumentError as e:
         return {"error": f"解析连接字符串失败: {e}"}
+    except Exception as e:
+        return {"error": f"解析连接字符串时发生意外错误: {e}"}
 
 
 def normalize_dialect(url_or_dialect: str) -> str:

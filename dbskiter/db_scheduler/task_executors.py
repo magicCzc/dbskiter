@@ -270,7 +270,7 @@ class BaseTaskExecutor(ABC):
             try:
                 return future.result(timeout=timeout_seconds)
             except concurrent.futures.TimeoutError:
-                raise TimeoutError(f"任务执行超时（{timeout_seconds}秒）")
+                raise TimeoutError(f"任务执行超时（{timeout_seconds}秒）") from None
 
 
 # =============================================================================

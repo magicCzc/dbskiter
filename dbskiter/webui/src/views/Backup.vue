@@ -3,7 +3,8 @@ import { ref, onMounted } from 'vue'
 import { api, formatBytes } from '@/api'
 import type { BackupRecord } from '@/types'
 
-const db = ref('default')
+const db = ref("default")
+const databases = ref<string[]>(["default"])
 const backupType = ref('full')
 const tables = ref('')
 const backups = ref<BackupRecord[]>([])

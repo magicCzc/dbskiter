@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Callable, Set
 from datetime import datetime
 

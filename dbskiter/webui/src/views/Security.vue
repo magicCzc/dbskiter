@@ -3,7 +3,8 @@ import { ref, computed, onMounted } from 'vue'
 import { api, severityClass } from '@/api'
 import type { Risk } from '@/types'
 
-const db = ref('default')
+const db = ref("default")
+const databases = ref<string[]>(["default"])
 const risks = ref<Risk[]>([])
 const loading = ref(false)
 const error = ref('')
@@ -39,7 +40,10 @@ async function load() {
   }
 }
 
-onMounted(load)
+onMounted(() => {
+  load()
+  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
+})
 </script>
 
 <template>
@@ -47,7 +51,7 @@ onMounted(load)
     <h2>🔒 安全审计</h2>
     <div class="toolbar">
       <label>数据库：</label>
-      <input v-model="db" style="max-width:200px" />
+      <select v-model="db" style="max-width:200px"><option v-for="d in databases" :key="d" :value="d">{{ d }}</option></select>
       <button class="btn-primary" @click="load" :disabled="loading">执行审计</button>
     </div>
   </div>

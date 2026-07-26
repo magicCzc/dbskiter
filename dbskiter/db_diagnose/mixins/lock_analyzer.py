@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Set, Tuple
 
 from dbskiter.db_diagnose.models import (

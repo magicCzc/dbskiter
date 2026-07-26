@@ -226,7 +226,7 @@ class PerformanceAnalyzer(ABC):
             logger.info(f"权限检查通过: {self.dialect}")
         except Exception as e:
             logger.warning(f"权限检查失败: {e}")
-            raise PermissionError(f"数据库连接或权限不足: {e}")
+            raise PermissionError(f"数据库连接或权限不足: {e}") from e
 
     def _execute_with_timeout(self, sql: str, params: Optional[Union[Tuple, Dict]] = None,
                               timeout: Optional[int] = None) -> Optional[List]:
@@ -260,7 +260,7 @@ class PerformanceAnalyzer(ABC):
                 return future.result(timeout=timeout)
             except concurrent.futures.TimeoutError:
                 logger.warning(f"SQL执行超时({timeout}秒): {sql[:100]}")
-                raise TimeoutError(f"查询执行超时({timeout}秒)")
+                raise TimeoutError(f"查询执行超时({timeout}秒)") from None
 
     @abstractmethod
     def collect_metrics(self) -> List[PerformanceMetric]:

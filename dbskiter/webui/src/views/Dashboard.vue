@@ -7,6 +7,7 @@ import ChartWidget from '@/components/ChartWidget.vue'
 const toast = inject('toast') as ((msg: string, type?: string) => void) | undefined
 
 const db = ref('default')
+const databases = ref<string[]>(['default'])
 const health = ref<HealthResponse | null>(null)
 const slowTotal = ref(0)
 const securityRisks = ref(0)
@@ -129,7 +130,10 @@ async function runQuickAction(key: string) {
   }
 }
 
-onMounted(refresh)
+onMounted(() => {
+  refresh()
+  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
+})
 onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 </script>
 
@@ -138,7 +142,9 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
     <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
       <div class="toolbar" style="margin-bottom:0;">
         <label>数据库：</label>
-        <input v-model="db" placeholder="别名" style="max-width:200px" />
+        <select v-model="db" style="max-width:200px">
+          <option v-for="d in databases" :key="d" :value="d">{{ d }}</option>
+        </select>
         <button class="btn-primary" @click="refresh" :disabled="loading">刷新</button>
         <button :class="['btn-ghost', { 'btn-active': autoRefresh }]" @click="toggleAutoRefresh">
           {{ autoRefresh ? '⏹' : '🔄' }} 自动

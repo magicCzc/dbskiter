@@ -5,6 +5,7 @@ Auto-extracted from manager.py.
 """
 
 import logging
+logger = logging.getLogger(__name__)
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 

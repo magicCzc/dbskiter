@@ -8,7 +8,7 @@ cli/commands/__init__.py
 
 from .base import BaseCommand, command_registry
 from .monitor import MonitorCommand
-from .diagnose import DiagnoseCommand
+from .diagnose_pkg import DiagnoseCommand
 from .security import SecurityCommand
 from .scheduler import SchedulerCommand
 from .sql import SQLCommand

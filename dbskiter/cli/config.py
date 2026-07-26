@@ -243,8 +243,8 @@ class Config:
                 if key == "port":
                     try:
                         value = int(value)
-                    except ValueError:
-                        raise ValidationError(f"环境变量 {env_var} 必须是整数")
+                    except ValueError as e:
+                        raise ValidationError(f"环境变量 {env_var} 必须是整数") from e
                 kwargs[key] = value
 
         # Oracle 特殊处理：读取 SERVICE 和 JDBC 驱动配置
@@ -280,8 +280,8 @@ class Config:
                     if key == "port":
                         try:
                             value = int(value)
-                        except ValueError:
-                            raise ValidationError(f"环境变量 {env_var} 必须是整数")
+                        except ValueError as e:
+                            raise ValidationError(f"环境变量 {env_var} 必须是整数") from e
                     kwargs[key] = value
 
         # 如果仍然没有找到任何配置，抛出错误

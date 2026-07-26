@@ -261,7 +261,7 @@ class BaseCommand(metaclass=CommandMeta):
         try:
             _ = self.connector
         except Exception as e:
-            raise CommandError(f"数据库连接失败: {e}")
+            raise CommandError(f"数据库连接失败: {e}") from e
 
     @property
     def output_mode(self) -> str:
