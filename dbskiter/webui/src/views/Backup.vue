@@ -1,95 +1,153 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { api, formatBytes } from '@/api'
+import { ref, onMounted, h } from 'vue'
+import {
+  NCard, NDataTable, NButton, NSpace, NSelect, NInput, NForm, NFormItem,
+  NGrid, NGi, NEmpty, NTag, NText, useMessage, NIcon, NAlert, NSpin,
+} from 'naive-ui'
+import { CloudUploadOutline, RefreshOutline } from '@vicons/ionicons5'
+import { api, formatBytes, severityClass } from '@/api'
+import { useDatabaseStore } from '@/stores/database'
 import type { BackupRecord } from '@/types'
 
-const db = ref("default")
-const databases = ref<string[]>(["default"])
+const dbStore = useDatabaseStore()
+const message = useMessage()
+
 const backupType = ref('full')
 const tables = ref('')
 const backups = ref<BackupRecord[]>([])
 const loading = ref(false)
-const result = ref<{ type: string; msg: string } | null>(null)
+const backing = ref(false)
+const result = ref<{ type: 'success' | 'error' | 'info'; msg: string } | null>(null)
 
 async function createBackup() {
-  result.value = { type: 'loading', msg: '备份执行中...' }
+  backing.value = true
+  result.value = null
   try {
-    const data = await api.createBackup(db.value, backupType.value, tables.value || undefined)
+    const data = await api.createBackup(dbStore.current, backupType.value, tables.value || undefined)
     if (data.success) {
       result.value = { type: 'success', msg: `备份成功！\nID: ${data.backup_id}\n文件: ${data.file_path}\n大小: ${formatBytes(data.file_size)}` }
+      message.success('备份创建成功')
     } else {
       result.value = { type: 'error', msg: `备份失败: ${data.error || '未知错误'}` }
+      message.error('备份失败')
     }
     await loadBackups()
   } catch (e: any) {
     result.value = { type: 'error', msg: `错误: ${e.message}` }
+  } finally {
+    backing.value = false
   }
 }
 
 async function loadBackups() {
   loading.value = true
   try {
-    const data = await api.listBackups(db.value)
+    const data = await api.listBackups(dbStore.current)
     backups.value = data.backups || []
-  } catch { /* 静默 */ }
-  finally { loading.value = false }
+  } catch (e: any) {
+    // 静默
+  } finally {
+    loading.value = false
+  }
 }
+
+const columns = [
+  {
+    title: '备份 ID',
+    key: 'backup_id',
+    width: 200,
+    ellipsis: { tooltip: true },
+    render: (row: BackupRecord) => h('code', { style: 'font-size:11px' }, row.backup_id || '-'),
+  },
+  {
+    title: '类型',
+    key: 'backup_type',
+    width: 100,
+    render: (row: BackupRecord) => h(NTag, { type: 'info', size: 'small' }, { default: () => row.backup_type || 'full' }),
+  },
+  {
+    title: '文件路径',
+    key: 'file_path',
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: '大小',
+    key: 'file_size',
+    width: 100,
+    render: (row: BackupRecord) => formatBytes(row.file_size || 0),
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 100,
+    render: (row: BackupRecord) => h(NTag, {
+      type: row.success ? 'success' : 'error', size: 'small',
+    }, { default: () => row.success ? '✅ 成功' : '❌ 失败' }),
+  },
+  {
+    title: '操作',
+    key: 'actions',
+    width: 120,
+    render: () => h(NButton, { size: 'tiny', quaternary: true }, { default: () => '验证' }),
+  },
+]
 
 onMounted(loadBackups)
 </script>
 
 <template>
-  <div class="card">
-    <h2>💾 创建备份</h2>
-    <div class="form-row">
-      <div class="form-group">
-        <label>数据库</label>
-        <input v-model="db" />
-      </div>
-      <div class="form-group">
-        <label>备份类型</label>
-        <select v-model="backupType">
-          <option value="full">全量备份</option>
-          <option value="table">表级备份</option>
-          <option value="incremental">增量备份</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label>表名（可选）</label>
-        <input v-model="tables" placeholder="users,orders" />
-      </div>
-      <div class="form-group" style="align-self:flex-end;">
-        <button class="btn-primary" @click="createBackup" :disabled="loading">开始备份</button>
-      </div>
-    </div>
-    <div v-if="result" :class="result.type" style="margin-top:12px;white-space:pre-line;">{{ result.msg }}</div>
-  </div>
+  <NSpace vertical :size="16">
+    <NCard>
+      <NSpace align="center" wrap>
+        <NIcon size="20" color="#4F46E5"><CloudUploadOutline /></NIcon>
+        <NText style="font-weight:600;font-size:16px">创建备份</NText>
+      </NSpace>
+      <NDivider style="margin: 16px 0 12px 0" />
+      <NGrid :cols="4" :x-gap="12" :y-gap="12" responsive="screen" item-responsive>
+        <NGi span="4 m:1">
+          <NFormItem label="数据库">
+            <NSelect v-model:value="dbStore.current" :options="dbStore.databases.map((d: string) => ({ label: d, value: d }))" size="small" />
+          </NFormItem>
+        </NGi>
+        <NGi span="4 m:1">
+          <NFormItem label="备份类型">
+            <NSelect v-model:value="backupType" :options="[
+              { label: '全量备份', value: 'full' },
+              { label: '增量备份', value: 'incremental' },
+              { label: '表级备份', value: 'table' },
+            ]" size="small" />
+          </NFormItem>
+        </NGi>
+        <NGi span="4 m:1">
+          <NFormItem label="表名（可选）">
+            <NInput v-model:value="tables" placeholder="users,orders" size="small" />
+          </NFormItem>
+        </NGi>
+        <NGi span="4 m:1" style="display:flex;align-items:flex-end">
+          <NButton type="primary" size="small" :loading="backing" @click="createBackup" block>
+            <template #icon><NIcon><CloudUploadOutline /></NIcon></template>
+            开始备份
+          </NButton>
+        </NGi>
+      </NGrid>
+      <NAlert v-if="result" :type="result.type" :title="result.type === 'success' ? '备份成功' : '备份失败'" style="margin-top:16px;white-space:pre-line">
+        {{ result.msg }}
+      </NAlert>
+    </NCard>
 
-  <div class="card">
-    <h2>备份记录 <span class="count-badge">{{ backups.length }}</span></h2>
-    <table>
-      <thead><tr><th>备份 ID</th><th>类型</th><th>文件路径</th><th>大小</th><th>状态</th><th>操作</th></tr></thead>
-      <tbody>
-        <tr v-if="backups.length === 0"><td colspan="6" class="empty">暂无备份记录</td></tr>
-        <tr v-for="b in backups" :key="b.backup_id || b.file_path">
-          <td><code>{{ b.backup_id || '-' }}</code></td>
-          <td><span class="badge badge-medium">{{ b.backup_type || 'full' }}</span></td>
-          <td>{{ b.file_path || '-' }}</td>
-          <td>{{ formatBytes(b.file_size || 0) }}</td>
-          <td><span :class="'badge ' + (b.success ? 'badge-low' : 'badge-critical')">{{ b.success ? '✅ 成功' : '❌ 失败' }}</span></td>
-          <td><button class="btn-sm" @click="console.log('verify', b.backup_id)">验证</button></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <NCard>
+      <NSpace align="center" justify="space-between" style="margin-bottom:16px">
+        <NSpace align="center">
+          <NText style="font-weight:600">备份记录</NText>
+          <NTag size="small">{{ backups.length }}</NTag>
+        </NSpace>
+        <NButton size="small" @click="loadBackups" :loading="loading">
+          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          刷新
+        </NButton>
+      </NSpace>
+      <NDataTable :columns="columns" :data="backups" :loading="loading" :bordered="false" size="medium" />
+      <NEmpty v-if="!loading && backups.length === 0" description="暂无备份记录" />
+    </NCard>
+  </NSpace>
 </template>
-
-<style scoped>
-.form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
-.form-group { display: flex; flex-direction: column; gap: 4px; }
-.form-group input, .form-group select { width: 100%; }
-.count-badge { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 8px; }
-.btn-sm { padding: 4px 12px; font-size: 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-card); cursor: pointer; }
-.btn-sm:hover { background: #f1f5f9; }
-.empty { text-align: center; color: #64748b; padding: 40px; }
-</style>

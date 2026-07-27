@@ -1,18 +1,26 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import {
+  NCard, NDataTable, NButton, NSpace, NTag, NSelect, NGrid, NGi,
+  NStatistic, NEmpty, NDivider, NText, useMessage, NIcon,
+} from 'naive-ui'
+import { ShieldCheckmarkOutline, ReloadOutline } from '@vicons/ionicons5'
+import { useDatabaseStore } from '@/stores/database'
 import { api, severityClass } from '@/api'
 import type { Risk } from '@/types'
 
-const db = ref("default")
-const databases = ref<string[]>(["default"])
+const dbStore = useDatabaseStore()
+const message = useMessage()
+
 const risks = ref<Risk[]>([])
 const loading = ref(false)
-const error = ref('')
-const filterLevel = ref('all')
+const filterLevel = ref<string>('all')
 
 const totalRisks = computed(() => risks.value.length)
 const criticalCount = computed(() => risks.value.filter(r => r.severity === 'critical').length)
 const highCount = computed(() => risks.value.filter(r => r.severity === 'high').length)
+const mediumCount = computed(() => risks.value.filter(r => r.severity === 'medium').length)
+const lowCount = computed(() => risks.value.filter(r => r.severity === 'low').length)
 const score = computed(() => Math.max(0, 100 - criticalCount.value * 20 - highCount.value * 10 - risks.value.length * 2))
 
 const filteredRisks = computed(() => {
@@ -20,94 +28,131 @@ const filteredRisks = computed(() => {
   return risks.value.filter(r => r.severity === filterLevel.value)
 })
 
-const riskSummary = computed(() => ({
-  critical: criticalCount.value,
-  high: highCount.value,
-  medium: risks.value.filter(r => r.severity === 'medium').length,
-  low: risks.value.filter(r => r.severity === 'low').length,
-}))
-
 async function load() {
   loading.value = true
-  error.value = ''
   try {
-    const data = await api.security(db.value)
+    const data = await api.security(dbStore.current)
     risks.value = data.risks
   } catch (e: any) {
-    error.value = e.message
+    message.error(`加载失败: ${e.message}`)
   } finally {
     loading.value = false
   }
 }
 
-onMounted(() => {
-  load()
-  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
-})
+const columns = [
+  {
+    title: '级别',
+    key: 'severity',
+    width: 100,
+    render: (row: Risk) => h(NTag, { type: severityClass(row.severity) as any, size: 'small' }, { default: () => row.severity }),
+  },
+  {
+    title: '描述',
+    key: 'description',
+    ellipsis: { tooltip: true },
+  },
+  {
+    title: '分类',
+    key: 'category',
+    width: 150,
+  },
+  {
+    title: '当前值',
+    key: 'current_value',
+    width: 200,
+    render: (row: Risk) => h('code', { style: 'font-size:12px' }, row.current_value || '-'),
+  },
+  {
+    title: '建议值',
+    key: 'recommended_value',
+    width: 200,
+    render: (row: Risk) => h('code', { style: 'font-size:12px;color:#22C55E' }, row.recommended_value || '-'),
+  },
+]
+
+import { h } from 'vue'
+onMounted(load)
 </script>
 
 <template>
-  <div class="card">
-    <h2>🔒 安全审计</h2>
-    <div class="toolbar">
-      <label>数据库：</label>
-      <select v-model="db" style="max-width:200px"><option v-for="d in databases" :key="d" :value="d">{{ d }}</option></select>
-      <button class="btn-primary" @click="load" :disabled="loading">执行审计</button>
-    </div>
-  </div>
+  <NSpace vertical :size="16">
+    <NCard>
+      <NSpace align="center" justify="space-between">
+        <NSpace align="center">
+          <NIcon size="20" color="#4F46E5"><ShieldCheckmarkOutline /></NIcon>
+          <NText style="font-weight:600;font-size:16px">安全审计</NText>
+        </NSpace>
+        <NSpace align="center">
+          <NText>数据库:</NText>
+          <NSelect
+            :value="dbStore.current"
+            :options="dbStore.databases.map((d: string) => ({ label: d, value: d }))"
+            style="width:160px" size="small"
+            @update:value="(v: string) => { dbStore.setCurrent(v); load() }"
+          />
+          <NButton type="primary" size="small" :loading="loading" @click="load">
+            <template #icon><NIcon><ReloadOutline /></NIcon></template>
+            执行审计
+          </NButton>
+        </NSpace>
+      </NSpace>
+    </NCard>
 
-  <div class="metrics-grid">
-    <div class="metric-card">
-      <div class="value" :style="{ color: score < 60 ? '#ef4444' : score < 80 ? '#f59e0b' : '#22c55e' }">{{ score }}</div>
-      <div class="label">安全评分</div>
-    </div>
-    <div class="metric-card"><div class="value">{{ totalRisks }}</div><div class="label">风险总数</div></div>
-    <div class="metric-card"><div class="value">{{ criticalCount }}</div><div class="label">严重风险</div></div>
-    <div class="metric-card"><div class="value">{{ highCount }}</div><div class="label">高风险</div></div>
-  </div>
+    <NGrid :cols="4" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
+      <NGi span="4 m:1">
+        <NCard>
+          <NStatistic label="安全评分" :value="score">
+            <template #prefix>
+              <span :style="{ color: score < 60 ? '#EF4444' : score < 80 ? '#F59E0B' : '#22C55E', fontSize: '32px' }">🛡️</span>
+            </template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi span="4 m:1"><NCard><NStatistic label="风险总数" :value="totalRisks" /></NCard></NGi>
+      <NGi span="4 m:1"><NCard><NStatistic label="严重风险" :value="criticalCount" /></NCard></NGi>
+      <NGi span="4 m:1"><NCard><NStatistic label="高风险" :value="highCount" /></NCard></NGi>
+    </NGrid>
 
-  <!-- 风险分布 -->
-  <div class="card">
-    <h2>风险分布</h2>
-    <div class="dist-bar">
-      <div v-if="criticalCount > 0" class="dist-seg" style="background:#ef4444;flex:{{ criticalCount }}">{{ criticalCount }} 严重</div>
-      <div v-if="highCount > 0" class="dist-seg" style="background:#f59e0b;flex:{{ highCount }}">{{ highCount }} 高</div>
-      <div v-if="riskSummary.medium > 0" class="dist-seg" style="background:#3b82f6;flex:{{ riskSummary.medium }}">{{ riskSummary.medium }} 中</div>
-      <div v-if="riskSummary.low > 0" class="dist-seg" style="background:#22c55e;flex:{{ riskSummary.low }}">{{ riskSummary.low }} 低</div>
-      <div v-if="totalRisks === 0" class="dist-seg" style="background:#e2e8f0;flex:1">无风险</div>
-    </div>
-  </div>
+    <NCard title="风险分布">
+      <div style="display:flex;height:32px;border-radius:8px;overflow:hidden">
+        <div v-if="criticalCount > 0" :style="{ background: '#EF4444', flex: criticalCount, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: 600, minWidth: '60px' }">
+          {{ criticalCount }} 严重
+        </div>
+        <div v-if="highCount > 0" :style="{ background: '#F59E0B', flex: highCount, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: 600, minWidth: '60px' }">
+          {{ highCount }} 高
+        </div>
+        <div v-if="mediumCount > 0" :style="{ background: '#3B82F6', flex: mediumCount, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: 600, minWidth: '60px' }">
+          {{ mediumCount }} 中
+        </div>
+        <div v-if="lowCount > 0" :style="{ background: '#22C55E', flex: lowCount, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontSize: '12px', fontWeight: 600, minWidth: '60px' }">
+          {{ lowCount }} 低
+        </div>
+        <div v-if="totalRisks === 0" style="background:#E2E8F0;flex:1;display:flex;align-items:center;justify-content:center;color:#64748B;font-size:13px">
+          ✅ 未发现风险
+        </div>
+      </div>
+    </NCard>
 
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h2 style="margin:0;">风险列表</h2>
-      <select v-model="filterLevel" style="width:auto;">
-        <option value="all">全部级别</option>
-        <option value="critical">严重</option>
-        <option value="high">高</option>
-        <option value="medium">中</option>
-        <option value="low">低</option>
-      </select>
-    </div>
-    <table>
-      <thead><tr><th>级别</th><th>描述</th><th>分类</th><th>当前值</th><th>建议值</th></tr></thead>
-      <tbody>
-        <tr v-if="filteredRisks.length === 0"><td colspan="5" class="empty">未发现匹配的风险</td></tr>
-        <tr v-for="(r, i) in filteredRisks" :key="i">
-          <td><span :class="'badge ' + severityClass(r.severity)">{{ r.severity }}</span></td>
-          <td>{{ r.description }}</td>
-          <td><span class="cat-tag">{{ r.category }}</span></td>
-          <td><code>{{ r.current_value }}</code></td>
-          <td><code>{{ r.recommended_value }}</code></td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <NCard title="风险列表">
+      <NSpace style="margin-bottom:16px">
+        <NText>筛选级别:</NText>
+        <NSelect v-model:value="filterLevel" :options="[
+          { label: '全部', value: 'all' },
+          { label: '严重', value: 'critical' },
+          { label: '高', value: 'high' },
+          { label: '中', value: 'medium' },
+          { label: '低', value: 'low' },
+        ]" size="small" style="width:120px" />
+      </NSpace>
+      <NDataTable
+        :columns="columns"
+        :data="filteredRisks"
+        :loading="loading"
+        :bordered="false"
+        size="medium"
+      />
+      <NEmpty v-if="!loading && filteredRisks.length === 0" description="未发现匹配的风险" />
+    </NCard>
+  </NSpace>
 </template>
-
-<style scoped>
-.dist-bar { display: flex; height: 32px; border-radius: 8px; overflow: hidden; }
-.dist-seg { display: flex; align-items: center; justify-content: center; color: white; font-size: 12px; font-weight: 600; min-width: 60px; }
-.cat-tag { background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-.empty { text-align: center; color: #64748b; padding: 40px; }
-</style>

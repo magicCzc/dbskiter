@@ -1,114 +1,177 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { api, formatDuration, severityClass } from '@/api'
+import { ref, onMounted, h } from 'vue'
+import {
+  NCard, NDataTable, NButton, NSpace, NTag, NSelect, NTabs, NTabPane,
+  NEmpty, NText, useMessage, NIcon, NGrid, NGi, NStatistic,
+} from 'naive-ui'
+import { TimeOutline, RefreshOutline } from '@vicons/ionicons5'
+import { api, formatDuration } from '@/api'
+import { useDatabaseStore } from '@/stores/database'
 import type { Task, LogEntry } from '@/types'
 
-const db = ref("default")
-const databases = ref<string[]>(["default"])
-const hours = ref(72)
+const dbStore = useDatabaseStore()
+const message = useMessage()
+
 const tasks = ref<Task[]>([])
 const logs = ref<LogEntry[]>([])
+const hours = ref(72)
+const activeTab = ref('tasks')
 const loading = ref(false)
-const activeTab = ref<'tasks' | 'logs'>('tasks')
 
 async function load() {
   loading.value = true
   try {
     const [td, ld] = await Promise.all([
-      api.tasks(db.value),
-      api.logs(db.value, hours.value),
+      api.tasks(dbStore.current),
+      api.logs(dbStore.current, hours.value),
     ])
     tasks.value = td.tasks || []
     logs.value = ld.logs || []
-  } catch { /* 静默 */ }
-  finally { loading.value = false }
+  } catch (e: any) {
+    message.error(`加载失败: ${e.message}`)
+  } finally {
+    loading.value = false
+  }
 }
 
-function statusClass(status: string) {
-  const s = status.toUpperCase()
-  if (s === 'SUCCESS' || s === 'ENABLED' || s === 'RUNNING') return 'badge-low'
-  if (s === 'FAILED' || s === 'DISABLED') return 'badge-critical'
-  return 'badge-medium'
+function statusClass(status: string): string {
+  const s = status?.toUpperCase() || ''
+  if (s === 'SUCCESS' || s === 'ENABLED' || s === 'RUNNING') return 'success'
+  if (s === 'FAILED' || s === 'DISABLED') return 'error'
+  return 'warning'
 }
 
-onMounted(() => {
-  load()
-  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
-})
+const taskColumns = [
+  {
+    title: '任务名',
+    key: 'name',
+    width: 200,
+    render: (row: Task) => h('strong', null, row.name || '-'),
+  },
+  {
+    title: '类型',
+    key: 'task_type',
+    width: 120,
+  },
+  {
+    title: '调度计划',
+    key: 'schedule',
+    width: 150,
+    render: (row: Task) => h('code', { style: 'font-size:12px' }, row.schedule || '-'),
+  },
+  {
+    title: '状态',
+    key: 'status',
+    width: 100,
+    render: (row: Task) => h(NTag, { type: statusClass(row.status) as any, size: 'small' }, { default: () => row.status }),
+  },
+  {
+    title: '上次执行',
+    key: 'last_run',
+    width: 180,
+  },
+  {
+    title: '下次执行',
+    key: 'next_run',
+    width: 180,
+  },
+]
+
+const logColumns = [
+  { title: '时间', key: 'timestamp', width: 200 },
+  {
+    title: '命令',
+    key: 'command',
+    ellipsis: { tooltip: true },
+    render: (row: LogEntry) => h('code', { style: 'font-size:11px' }, row.command || '-'),
+  },
+  { title: '数据库', key: 'database', width: 120 },
+  {
+    title: '状态',
+    key: 'status_code',
+    width: 100,
+    render: (row: LogEntry) => h(NTag, {
+      type: row.status_code === 0 ? 'success' : 'error', size: 'small',
+    }, { default: () => row.status_code === 0 ? '✅ 成功' : '❌ 失败' }),
+  },
+  {
+    title: '耗时',
+    key: 'execution_time_ms',
+    width: 100,
+    render: (row: LogEntry) => row.execution_time_ms ? formatDuration(row.execution_time_ms) : '-',
+  },
+]
+
+onMounted(load)
 </script>
 
 <template>
-  <div class="card">
-    <h2>⏰ 任务调度</h2>
-    <div class="toolbar">
-      <label>数据库：</label>
-      <select v-model="db" style="max-width:200px"><option v-for="d in databases" :key="d" :value="d">{{ d }}</option></select>
-      <button class="btn-primary" @click="load" :disabled="loading">刷新</button>
-    </div>
-  </div>
+  <NSpace vertical :size="16">
+    <NCard>
+      <NSpace align="center" justify="space-between">
+        <NSpace align="center">
+          <NIcon size="20" color="#4F46E5"><TimeOutline /></NIcon>
+          <NText style="font-weight:600;font-size:16px">任务调度</NText>
+        </NSpace>
+        <NSpace align="center">
+          <NText>数据库:</NText>
+          <NSelect
+            :value="dbStore.current"
+            :options="dbStore.databases.map((d: string) => ({ label: d, value: d }))"
+            style="width:160px" size="small"
+            @update:value="(v: string) => { dbStore.setCurrent(v); load() }"
+          />
+          <NButton type="primary" size="small" :loading="loading" @click="load">
+            <template #icon><NIcon><RefreshOutline /></NIcon></template>
+            刷新
+          </NButton>
+        </NSpace>
+      </NSpace>
+    </NCard>
 
-  <!-- Tab 切换 -->
-  <div class="tabs">
-    <button :class="['tab', { active: activeTab === 'tasks' }]" @click="activeTab = 'tasks'">📋 定时任务</button>
-    <button :class="['tab', { active: activeTab === 'logs' }]" @click="activeTab = 'logs'">📝 操作日志</button>
-  </div>
+    <NGrid :cols="3" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
+      <NGi span="3 m:1">
+        <NCard>
+          <NStatistic label="定时任务" :value="tasks.length">
+            <template #prefix><span style="font-size:24px">📋</span></template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi span="3 m:1">
+        <NCard>
+          <NStatistic label="操作日志" :value="logs.length">
+            <template #prefix><span style="font-size:24px">📝</span></template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+      <NGi span="3 m:1">
+        <NCard>
+          <NStatistic label="时间范围" :value="`${hours}h`">
+            <template #prefix><span style="font-size:24px">⏱️</span></template>
+          </NStatistic>
+        </NCard>
+      </NGi>
+    </NGrid>
 
-  <!-- 任务列表 -->
-  <div v-if="activeTab === 'tasks'" class="card">
-    <h2>任务列表 <span class="count-badge">{{ tasks.length }}</span></h2>
-    <div v-if="loading" class="loading">
-      <div class="skeleton-row" v-for="i in 3" :key="i"></div>
-    </div>
-    <table v-else>
-      <thead><tr><th>任务名</th><th>类型</th><th>调度计划</th><th>状态</th><th>上次执行</th><th>下次执行</th></tr></thead>
-      <tbody>
-        <tr v-if="tasks.length === 0"><td colspan="6" class="empty">暂无定时任务</td></tr>
-        <tr v-for="t in tasks" :key="t.name">
-          <td><strong>{{ t.name || '-' }}</strong></td>
-          <td><span class="cat-tag">{{ t.task_type || '-' }}</span></td>
-          <td><code>{{ t.schedule || '-' }}</code></td>
-          <td><span :class="'badge ' + statusClass(t.status)">{{ t.status }}</span></td>
-          <td style="font-size:13px;">{{ t.last_run || '-' }}</td>
-          <td style="font-size:13px;">{{ t.next_run || '-' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- 操作日志 -->
-  <div v-if="activeTab === 'logs'" class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-      <h2 style="margin:0;">操作日志</h2>
-      <select v-model="hours" @change="load" style="width:auto;">
-        <option :value="24">24 小时</option>
-        <option :value="72">3 天</option>
-        <option :value="168">7 天</option>
-      </select>
-    </div>
-    <table>
-      <thead><tr><th>时间</th><th>命令</th><th>数据库</th><th>状态</th><th>耗时</th></tr></thead>
-      <tbody>
-        <tr v-if="logs.length === 0"><td colspan="5" class="empty">暂无操作日志</td></tr>
-        <tr v-for="(l, i) in logs.slice(0, 30)" :key="i">
-          <td style="font-size:13px;">{{ l.timestamp }}</td>
-          <td><code style="font-size:12px;">{{ l.command }}</code></td>
-          <td>{{ l.database }}</td>
-          <td><span :class="'badge ' + (l.status_code === 0 ? 'badge-low' : 'badge-critical')">{{ l.status_code === 0 ? '✅ 成功' : '❌ 失败' }}</span></td>
-          <td>{{ l.execution_time_ms ? formatDuration(l.execution_time_ms) : '-' }}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
+    <NCard>
+      <NTabs v-model:value="activeTab" type="line" animated>
+        <NTabPane name="tasks" tab="📋 定时任务">
+          <NDataTable :columns="taskColumns" :data="tasks" :loading="loading" :bordered="false" size="medium" />
+          <NEmpty v-if="!loading && tasks.length === 0" description="暂无定时任务" />
+        </NTabPane>
+        <NTabPane name="logs" tab="📝 操作日志">
+          <NSpace align="center" style="margin-bottom:12px">
+            <NText>时间范围:</NText>
+            <NSelect v-model:value="hours" :options="[
+              { label: '24 小时', value: 24 },
+              { label: '3 天', value: 72 },
+              { label: '7 天', value: 168 },
+            ]" size="small" style="width:120px" @update:value="load" />
+          </NSpace>
+          <NDataTable :columns="logColumns" :data="logs.slice(0, 30)" :loading="loading" :bordered="false" size="medium" />
+          <NEmpty v-if="!loading && logs.length === 0" description="暂无操作日志" />
+        </NTabPane>
+      </NTabs>
+    </NCard>
+  </NSpace>
 </template>
-
-<style scoped>
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; background: var(--bg-card); border-radius: 8px; padding: 4px; border: 1px solid var(--border); }
-.tab { flex: 1; padding: 10px; border: none; border-radius: 6px; background: transparent; cursor: pointer; font-size: 14px; color: var(--text-secondary); transition: all 0.2s; }
-.tab.active { background: var(--primary); color: white; }
-.tab:hover:not(.active) { background: #f1f5f9; }
-.count-badge { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 8px; }
-.cat-tag { background: #f1f5f9; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
-.empty { text-align: center; color: #64748b; padding: 40px; }
-.skeleton-row { height: 48px; background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200%; border-radius: 4px; margin-bottom: 8px; animation: shimmer 1.5s infinite; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-</style>
