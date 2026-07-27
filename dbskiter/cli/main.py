@@ -389,23 +389,31 @@ def _extract_trace_flags_from_raw_args(parsed_args, raw_args: list) -> None:
         parsed_args.no_mask = True
         parsed_args.mask_sensitive = False
 
-    # --ai-depth: 需要取下一个参数作为值
-    if "--ai-depth" in raw_args:
-        try:
-            idx = raw_args.index("--ai-depth")
-            if idx + 1 < len(raw_args) and not raw_args[idx + 1].startswith("-"):
-                parsed_args.ai_depth = raw_args[idx + 1]
-        except (ValueError, IndexError):
-            pass
+    # --ai-depth: 需要取下一个参数作为值（支持 --ai-depth=full 和 --ai-depth full 两种格式）
+    matched_depth = None
+    for i, arg in enumerate(raw_args):
+        if arg == "--ai-depth":
+            if i + 1 < len(raw_args) and not raw_args[i + 1].startswith("-"):
+                matched_depth = raw_args[i + 1]
+                break
+        elif arg.startswith("--ai-depth="):
+            matched_depth = arg.split("=", 1)[1]
+            break
+    if matched_depth:
+        parsed_args.ai_depth = matched_depth
 
-    # --output-mode: 需要取下一个参数作为值
-    if "--output-mode" in raw_args:
-        try:
-            idx = raw_args.index("--output-mode")
-            if idx + 1 < len(raw_args) and not raw_args[idx + 1].startswith("-"):
-                parsed_args.output_mode = raw_args[idx + 1]
-        except (ValueError, IndexError):
-            pass
+    # --output-mode: 需要取下一个参数作为值（支持 --output-mode=ai 和 --output-mode ai 两种格式）
+    matched_output_mode = None
+    for i, arg in enumerate(raw_args):
+        if arg == "--output-mode":
+            if i + 1 < len(raw_args) and not raw_args[i + 1].startswith("-"):
+                matched_output_mode = raw_args[i + 1]
+                break
+        elif arg.startswith("--output-mode="):
+            matched_output_mode = arg.split("=", 1)[1]
+            break
+    if matched_output_mode:
+        parsed_args.output_mode = matched_output_mode
 
 
 def add_subcommands(parser: argparse.ArgumentParser) -> None:
