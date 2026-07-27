@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, inject, computed, h } from 'vue'
+import { ref, inject, computed, watch, h } from 'vue'
 import {
   NConfigProvider, NMessageProvider, NDialogProvider, NNotificationProvider,
   NLayout, NLayoutHeader, NLayoutSider, NLayoutContent, NLayoutFooter,
   NMenu, NIcon, NSwitch, NSpace, NSelect, NText, NSpin, darkTheme,
-  zhCN, dateZhCN,
+  zhCN, dateZhCN, NButton,
 } from 'naive-ui'
 import { RouterView, useRoute, useRouter } from 'vue-router'
 import {
@@ -23,7 +23,6 @@ const databaseStore = useDatabaseStore()
 const message = inject('naive-message') as any
 
 const collapsed = ref(false)
-const showNotifications = ref(false)
 
 // 菜单配置
 const menuOptions = [
@@ -37,14 +36,21 @@ const menuOptions = [
   { label: '配置', key: '/configuration', icon: () => h(NIcon, null, { default: () => h(SettingsOutline) }) },
 ]
 
+// 使用 v-model:value + watch 替代 @update:value，确保路由切换可靠
+const menuValue = ref(route.path)
+watch(menuValue, (val) => {
+  if (val !== route.path) {
+    router.push(val)
+  }
+})
+watch(() => route.path, (val) => {
+  menuValue.value = val
+})
+
 // 顶部下拉菜单
 const databaseOptions = computed(() =>
   databaseStore.databases.map(d => ({ label: d, value: d }))
 )
-
-function handleMenuSelect(key: string) {
-  router.push(key)
-}
 
 function handleDbChange(value: string) {
   databaseStore.setCurrent(value)
@@ -57,6 +63,9 @@ function toggleTheme() {
   userStore.toggleTheme()
   message?.info(userStore.isDark ? '已切换到暗色模式' : '已切换到亮色模式')
 }
+
+// 初始化加载数据库列表
+databaseStore.loadDatabases()
 </script>
 
 <template>
@@ -84,12 +93,11 @@ function toggleTheme() {
                 <span v-if="!collapsed" class="logo-text">DBSKiter</span>
               </div>
               <NMenu
-                :value="route.path"
+                v-model:value="menuValue"
                 :options="menuOptions"
                 :collapsed="collapsed"
                 :collapsed-width="64"
                 :collapsed-icon-size="22"
-                @update:value="handleMenuSelect"
               />
             </NLayoutSider>
 
