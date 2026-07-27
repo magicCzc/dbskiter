@@ -9,6 +9,7 @@ Web API 端点 - 8 个核心数据库运维能力
 import subprocess
 import json
 import asyncio
+from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
 
 # 线程池：避免同步 subprocess 阻塞 FastAPI 事件循环
@@ -76,6 +77,55 @@ class ErrorResponse(BaseModel):
 
 # ── CLI 执行器 ─────────────────────────────────────────────────────
 
+def _diagnose_error(stderr: str) -> Optional[str]:
+    """
+    识别常见错误并给出可操作的提示
+
+    Args:
+        stderr: CLI 的 stderr 输出
+
+    Returns:
+        Optional[str]: 友好的错误提示，无法识别时返回 None
+    """
+    if not stderr:
+        return None
+
+    s = stderr.lower()
+
+    # 权限不足
+    if "process privilege" in s or "1227" in s:
+        return (
+            "数据库用户权限不足：缺少 PROCESS 权限。\n"
+            "解决方法（在数据库执行）：\n"
+            "  GRANT PROCESS ON *.* TO 'your_user'@'%';\n"
+            "  FLUSH PRIVILEGES;"
+        )
+    if "access denied" in s and "user" in s:
+        return "数据库认证失败：用户名或密码错误，请检查 .env 配置。"
+    if "select command denied" in s or "1142" in s:
+        return (
+            "数据库用户缺少 SELECT 权限。\n"
+            "解决方法：GRANT SELECT ON *.* TO 'your_user'@'%';"
+        )
+
+    # 连接问题
+    if "can't connect" in s or "2003" in s or "10061" in s:
+        return "无法连接到数据库：请检查主机地址、端口和网络连通性。"
+    if "unknown database" in s or "1049" in s:
+        return "数据库不存在：请检查 .env 中的数据库名配置。"
+    if "timed out" in s or "timeout" in s:
+        return "数据库连接超时：请检查网络或增加超时设置。"
+
+    # performance_schema 未启用
+    if "performance_schema" in s:
+        return (
+            "performance_schema 未启用或无权访问。\n"
+            "解决方法（my.cnf）：performance_schema = ON"
+        )
+
+    return None
+
+
 def _run_cli(args: list, database: str = "default") -> dict:
     """
     执行 dbskiter CLI 命令并返回 JSON 结果
@@ -115,10 +165,15 @@ def _run_cli(args: list, database: str = "default") -> dict:
 
         # 解析 JSON 输出（可能为空）
         stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+
         if not stdout:
+            # 识别常见错误类型，给出可操作的提示
+            hint = _diagnose_error(stderr)
             return {
                 "success": False,
-                "error": f"CLI returned empty output. stderr: {(result.stderr or '').strip()[:200]}",
+                "error": hint or f"CLI 未返回数据。详情: {stderr[:300]}",
+                "raw_error": stderr[:500],
             }
 
         # CLI 可能在 JSON 前后输出日志/错误信息，提取第一个完整的 JSON 对象
