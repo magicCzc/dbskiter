@@ -245,10 +245,11 @@ async def get_health(
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
     data = result.get("data", {})
+    raw = data.get("raw_metrics", {})
     return HealthResponse(
-        status=data.get("status", "UNKNOWN"),
-        score=data.get("score", 0),
-        issues=data.get("issues", []),
+        status=raw.get("status", data.get("status", "UNKNOWN")),
+        score=raw.get("score", data.get("score", 0)),
+        issues=raw.get("issues", data.get("issues", [])),
         collected_at=result.get("collected_at", ""),
     )
 
@@ -297,15 +298,36 @@ async def run_security_audit(
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
     data = result.get("data", {})
+    raw = data.get("raw_metrics", {})
+
+    # 从 raw_metrics 中提取风险数据
+    risk_summary = raw.get("risk_summary", {})
     risks = []
-    for r in data.get("risks", []):
-        if isinstance(r, dict):
-            risks.append(r)
+    if isinstance(risk_summary, dict):
+        total_risks = risk_summary.get("total", 0)
+        critical_count = risk_summary.get("critical", 0)
+        high_count = risk_summary.get("high", 0)
+    else:
+        total_risks = len(risks)
+        critical_count = 0
+        high_count = 0
+
+    # 尝试从 modules 中提取详细风险
+    modules = raw.get("modules", {})
+    if isinstance(modules, dict):
+        for module_name, module_data in modules.items():
+            if isinstance(module_data, dict):
+                module_risks = module_data.get("risks", module_data.get("findings", []))
+                if isinstance(module_risks, list):
+                    for r in module_risks:
+                        if isinstance(r, dict):
+                            r["module"] = module_name
+                            risks.append(r)
 
     return SecurityResponse(
-        total_risks=len(risks),
-        critical_count=sum(1 for r in risks if r.get("severity") == "critical"),
-        high_count=sum(1 for r in risks if r.get("severity") == "high"),
+        total_risks=total_risks,
+        critical_count=critical_count,
+        high_count=high_count,
         risks=risks[:50],
     )
 

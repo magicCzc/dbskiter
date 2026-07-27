@@ -1,35 +1,28 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, h } from 'vue'
-import {
-  NCard, NDataTable, NButton, NSpace, NTag, NSelect,
-  NStatistic, NGrid, NGi, NEmpty, NInput,
-} from 'naive-ui'
-import { SearchOutline, RefreshOutline } from '@vicons/ionicons5'
+import { ref, computed, onMounted } from 'vue'
 import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
+import { ElMessage } from 'element-plus'
+import { Search } from '@element-plus/icons-vue'
 import type { SlowQuery } from '@/types'
-import {  } from 'naive-ui'
 
 const dbStore = useDatabaseStore()
-
 const queries = ref<SlowQuery[]>([])
 const top = ref(10)
-const hours = ref(1)
+const hours = ref(6)
 const loading = ref(false)
 const searchText = ref('')
 
-const filteredQueries = computed(() => {
+const filtered = computed(() => {
   if (!searchText.value) return queries.value
   return queries.value.filter(q => q.sql?.toLowerCase().includes(searchText.value.toLowerCase()))
 })
 
 const summary = computed(() => {
-  const total = filteredQueries.value.length
-  const maxTime = total ? Math.max(...filteredQueries.value.map(q => q.execution_time || 0)) : 0
-  const avgTime = total
-    ? filteredQueries.value.reduce((s, q) => s + (q.execution_time || 0), 0) / total
-    : 0
-  const totalRows = filteredQueries.value.reduce((s, q) => s + (q.rows_examined || 0), 0)
+  const total = filtered.value.length
+  const maxTime = total ? Math.max(...filtered.value.map(q => q.execution_time || 0)) : 0
+  const avgTime = total ? filtered.value.reduce((s, q) => s + (q.execution_time || 0), 0) / total : 0
+  const totalRows = filtered.value.reduce((s, q) => s + (q.rows_examined || 0), 0)
   return { total, maxTime, avgTime, totalRows }
 })
 
@@ -38,111 +31,70 @@ async function load() {
   try {
     const data = await api.slowQueries(dbStore.current, top.value, hours.value)
     queries.value = data.queries
-  } catch (e: any) {
-    console.error("ERROR:", `加载失败: ${e.message}`)
-  } finally {
-    loading.value = false
-  }
+  } catch (e: any) { ElMessage.error(`加载失败: ${e.message}`) }
+  finally { loading.value = false }
 }
-
-const columns = [
-  {
-    title: '#',
-    key: 'index',
-    width: 60,
-    render: (_: any, index: number) => index + 1,
-  },
-  {
-    title: 'SQL',
-    key: 'sql',
-    ellipsis: { tooltip: true },
-    render: (row: SlowQuery) => h('code', { style: 'font-size:12px;' }, row.sql),
-  },
-  {
-    title: '总耗时',
-    key: 'execution_time',
-    width: 110,
-    sorter: (a: any, b: any) => a.execution_time - b.execution_time,
-    render: (row: SlowQuery) => h('span', {
-      style: `color: ${row.execution_time > 5 ? '#EF4444' : row.execution_time > 2 ? '#F59E0B' : '#22C55E'}; font-weight: 600;`,
-    }, `${row.execution_time.toFixed(2)}s`),
-  },
-  {
-    title: '次数',
-    key: 'execution_count',
-    width: 80,
-    sorter: (a: any, b: any) => a.execution_count - b.execution_count,
-  },
-  {
-    title: '平均耗时',
-    key: 'avg_time',
-    width: 100,
-    render: (row: SlowQuery) => `${row.avg_time.toFixed(2)}s`,
-  },
-  {
-    title: '扫描行数',
-    key: 'rows_examined',
-    width: 100,
-    sorter: (a: any, b: any) => a.rows_examined - b.rows_examined,
-    render: (row: SlowQuery) => row.rows_examined.toLocaleString(),
-  },
-]
 
 onMounted(load)
 </script>
 
 <template>
-  <NSpace vertical :size="16">
-    <NCard>
-      <NSpace align="center" wrap>
-        <NText>数据库:</NText>
-        <NSelect
-          :value="dbStore.current"
-          :options="dbStore.databases.map((d: string) => ({ label: d, value: d }))"
-          style="width:160px" size="small"
-          @update:value="(v: string) => { dbStore.setCurrent(v); load() }"
-        />
-        <NText>数量:</NText>
-        <NSelect v-model:value="top" :options="[
-          { label: 'Top 5', value: 5 },
-          { label: 'Top 10', value: 10 },
-          { label: 'Top 20', value: 20 },
-          { label: 'Top 50', value: 50 },
-        ]" style="width:100px" size="small" @update:value="load" />
-        <NText>时间:</NText>
-        <NSelect v-model:value="hours" :options="[
-          { label: '1 小时', value: 1 },
-          { label: '6 小时', value: 6 },
-          { label: '24 小时', value: 24 },
-          { label: '3 天', value: 72 },
-        ]" style="width:100px" size="small" @update:value="load" />
-        <NButton type="primary" size="small" :loading="loading" @click="load">
-          <template #icon><NIcon><RefreshOutline /></NIcon></template>
-          查询
-        </NButton>
-        <NInput v-model:value="searchText" placeholder="搜索 SQL" size="small" style="width:200px" clearable>
-          <template #prefix><NIcon><SearchOutline /></NIcon></template>
-        </NInput>
-      </NSpace>
-    </NCard>
+  <div class="page">
+    <el-card shadow="never" class="filter-card">
+      <div class="filter-row">
+        <label>数据库：</label>
+        <el-select v-model="dbStore.current" size="small" style="width:160px" @change="load">
+          <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
+        </el-select>
+        <label>数量：</label>
+        <el-select v-model="top" size="small" style="width:100px" @change="load">
+          <el-option v-for="n in [5,10,20,50]" :key="n" :label="'Top '+n" :value="n" />
+        </el-select>
+        <label>时间：</label>
+        <el-select v-model="hours" size="small" style="width:100px" @change="load">
+          <el-option v-for="[v,l] of [[1,'1小时'],[6,'6小时'],[24,'24小时'],[72,'3天']]" :key="v" :value="v" :label="l" />
+        </el-select>
+        <el-button type="primary" size="small" :loading="loading" @click="load">查询</el-button>
+        <el-input v-model="searchText" placeholder="搜索 SQL" size="small" style="width:200px" clearable :prefix-icon="Search" />
+      </div>
+    </el-card>
 
-    <NGrid :cols="4" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
-      <NGi span="4 m:1"><NCard><NStatistic label="慢查询数" :value="summary.total" /></NCard></NGi>
-      <NGi span="4 m:1"><NCard><NStatistic label="最慢耗时" :value="summary.maxTime ? summary.maxTime.toFixed(2) + 's' : '-'" /></NCard></NGi>
-      <NGi span="4 m:1"><NCard><NStatistic label="平均耗时" :value="summary.avgTime ? summary.avgTime.toFixed(2) + 's' : '-'" /></NCard></NGi>
-      <NGi span="4 m:1"><NCard><NStatistic label="总扫描行" :value="summary.totalRows.toLocaleString()" /></NCard></NGi>
-    </NGrid>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kpi-value">{{ summary.total }}</div><div class="kpi-label">慢查询总数</div></div>
+      <div class="kpi-card"><div class="kpi-value">{{ summary.maxTime ? summary.maxTime.toFixed(2)+'s' : '-' }}</div><div class="kpi-label">最慢耗时</div></div>
+      <div class="kpi-card"><div class="kpi-value">{{ summary.avgTime ? summary.avgTime.toFixed(2)+'s' : '-' }}</div><div class="kpi-label">平均耗时</div></div>
+      <div class="kpi-card"><div class="kpi-value">{{ summary.totalRows.toLocaleString() }}</div><div class="kpi-label">总扫描行数</div></div>
+    </div>
 
-    <NCard title="慢查询列表">
-      <NDataTable
-        :columns="columns"
-        :data="filteredQueries"
-        :loading="loading"
-        :pagination="{ pageSize: 20 }"
-        :bordered="false"
-        size="medium"
-      />
-      <NEmpty v-if="!loading && filteredQueries.length === 0" description="暂无慢查询数据" />
-    </NCard>
-  </NSpace>
+    <el-card shadow="never">
+      <template #header><span>慢查询列表</span></template>
+      <el-table :data="filtered" v-loading="loading" stripe style="width:100%">
+        <el-table-column type="index" label="#" width="50" />
+        <el-table-column prop="sql" label="SQL" min-width="300" show-overflow-tooltip>
+          <template #default="{row}"><code style="font-size:12px">{{ row.sql }}</code></template>
+        </el-table-column>
+        <el-table-column prop="execution_time" label="总耗时" width="100" sortable>
+          <template #default="{row}"><span :style="{color:row.execution_time>5?'#ef4444':row.execution_time>2?'#f59e0b':'#22c55e',fontWeight:600}">{{ row.execution_time.toFixed(2) }}s</span></template>
+        </el-table-column>
+        <el-table-column prop="execution_count" label="次数" width="80" sortable />
+        <el-table-column prop="avg_time" label="平均耗时" width="90">
+          <template #default="{row}">{{ row.avg_time.toFixed(2) }}s</template>
+        </el-table-column>
+        <el-table-column prop="rows_examined" label="扫描行数" width="110" sortable>
+          <template #default="{row}">{{ row.rows_examined.toLocaleString() }}</template>
+        </el-table-column>
+      </el-table>
+    </el-card>
+  </div>
 </template>
+
+<style scoped>
+.page { max-width:1200px; margin:0 auto; }
+.filter-card { margin-bottom:16px; }
+.filter-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.filter-row label { font-size:14px; color:var(--el-text-color-secondary); }
+.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:16px; }
+.kpi-card { background:var(--el-bg-color); border-radius:8px; padding:20px; border:1px solid var(--el-border-color-light); text-align:center; }
+.kpi-value { font-size:28px; font-weight:700; color:var(--el-color-primary); }
+.kpi-label { font-size:14px; color:var(--el-text-color-secondary); margin-top:4px; }
+</style>
