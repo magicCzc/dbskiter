@@ -507,3 +507,71 @@ async def test_connection(
         "message": "连接成功 🎉" if success else (result.get("error", "连接失败")),
         "data": result.get("data", {}) if success else None,
     }
+@router.get("/monitor/anomalies", response_model=dict)
+async def get_anomalies(
+    database: str = Query("default"),
+    hours: int = Query(6, ge=1, le=168),
+):
+    """异常检测"""
+    result = await _run_cli_async(["monitor", "anomalies", "--hours", str(hours)], database)
+    if not result.get("success"):
+        raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@router.get("/monitor/capacity", response_model=dict)
+async def get_capacity(
+    database: str = Query("default"),
+    resource: str = Query("disk", description="资源类型: disk/cpu/memory"),
+):
+    """容量预测"""
+    result = await _run_cli_async(["monitor", "capacity", "--resource", resource], database)
+    if not result.get("success"):
+        raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@router.get("/diagnose/top", response_model=dict)
+async def get_top_sql(
+    database: str = Query("default"),
+    limit: int = Query(10, ge=1, le=100),
+):
+    """TOP SQL 分析"""
+    result = await _run_cli_async(["diagnose", "top", "--limit", str(limit)], database)
+    if not result.get("success"):
+        raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@router.get("/diagnose/locks", response_model=dict)
+async def get_locks(
+    database: str = Query("default"),
+):
+    """锁分析"""
+    result = await _run_cli_async(["diagnose", "locks"], database)
+    if not result.get("success"):
+        raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@router.get("/diagnose/space", response_model=dict)
+async def get_space(
+    database: str = Query("default"),
+    top: int = Query(20, ge=1, le=100),
+):
+    """空间诊断"""
+    result = await _run_cli_async(["diagnose", "space", "--top", str(top)], database)
+    if not result.get("success"):
+        raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
+    return result
+
+
+@router.get("/diagnose/connections", response_model=dict)
+async def get_connections(
+    database: str = Query("default"),
+):
+    """连接分析"""
+    result = await _run_cli_async(["diagnose", "connections"], database)
+    if not result.get("success"):
+        raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
+    return result

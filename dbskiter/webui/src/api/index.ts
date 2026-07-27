@@ -52,6 +52,24 @@ export const api = {
 
   databases: () =>
     request<DatabasesResponse>('/databases'),
+
+  anomalies: (db = 'default', hours = 6) =>
+    request<any>(`/monitor/anomalies?database=${encodeURIComponent(db)}&hours=${hours}`),
+
+  capacity: (db = 'default', resource = 'disk') =>
+    request<any>(`/monitor/capacity?database=${encodeURIComponent(db)}&resource=${resource}`),
+
+  topSql: (db = 'default', limit = 10) =>
+    request<any>(`/diagnose/top?database=${encodeURIComponent(db)}&limit=${limit}`),
+
+  locks: (db = 'default') =>
+    request<any>(`/diagnose/locks?database=${encodeURIComponent(db)}`),
+
+  space: (db = 'default', top = 20) =>
+    request<any>(`/diagnose/space?database=${encodeURIComponent(db)}&top=${top}`),
+
+  connections: (db = 'default') =>
+    request<any>(`/diagnose/connections?database=${encodeURIComponent(db)}`),
 }
 
 export function formatBytes(bytes: number): string {
