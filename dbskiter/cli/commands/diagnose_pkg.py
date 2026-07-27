@@ -162,7 +162,7 @@ class DiagnoseCommand(
             skill = DiagnoseSkill(self.connector)
 
             if self.output_mode != "rule":
-                method_map, scenario_map = self._build_ai_dispatch_maps()
+                method_map, scenario_map = self._build_ai_dispatch_maps(skill)
                 return self._execute_ai_mode(skill, action, method_map, scenario_map)
 
             return self._dispatch_action(action, skill)
@@ -342,54 +342,54 @@ class DiagnoseCommand(
         )
         return 1
 
-    def _build_ai_dispatch_maps(self):
+    def _build_ai_dispatch_maps(self, skill):
         """构建 AI 模式下的 method_map 和 scenario_map"""
         method_map = {
-            "realtime": lambda: skill.realtime_diagnose(  # noqa: F821 — skill 由调用方闭包
+            "realtime": lambda: skill.realtime_diagnose(
                 threshold=getattr(self.args, 'threshold', 5)
             ),
-            "top": lambda: skill.get_top_sql(  # noqa: F821
+            "top": lambda: skill.get_top_sql(
                 limit=getattr(self.args, 'limit', 10),
                 order_by=getattr(self.args, 'by', 'time'),
             ),
-            "locks": lambda: skill.analyze_locks(),  # noqa: F821
-            "sql": lambda: skill.analyze_sql(self.args.sql),  # noqa: F821
-            "space": lambda: skill.analyze_space(  # noqa: F821
+            "locks": lambda: skill.analyze_locks(),
+            "sql": lambda: skill.analyze_sql(self.args.sql),
+            "space": lambda: skill.analyze_space(
                 top_n=getattr(self.args, 'top', 20),
                 min_size_mb=getattr(self.args, 'min_size', 100),
             ),
-            "connections": lambda: skill.analyze_connections(  # noqa: F821
+            "connections": lambda: skill.analyze_connections(
                 show_idle=getattr(self.args, 'idle', False),
             ),
-            "replication": lambda: skill.analyze_replication(),  # noqa: F821
-            "slow-queries": lambda: skill.analyze_slow_queries(  # noqa: F821
+            "replication": lambda: skill.analyze_replication(),
+            "slow-queries": lambda: skill.analyze_slow_queries(
                 limit=getattr(self.args, 'top', getattr(self.args, 'limit', 10)),
                 min_time=getattr(self.args, 'min_time', 1.0),
                 log_file=getattr(self.args, 'log_file', None),
                 since=getattr(self.args, 'since', '24h'),
             ),
-            "slowlog": lambda: skill.analyze_slow_queries(  # noqa: F821
+            "slowlog": lambda: skill.analyze_slow_queries(
                 limit=getattr(self.args, 'top', getattr(self.args, 'limit', 10)),
                 min_time=getattr(self.args, 'min_time', 1.0),
                 log_file=getattr(self.args, 'log_file', None),
                 since=getattr(self.args, 'since', '24h'),
             ),
-            "recommend-indexes": lambda: skill.recommend_indexes(  # noqa: F821
+            "recommend-indexes": lambda: skill.recommend_indexes(
                 table=getattr(self.args, 'table', None),
             ),
-            "indexes": lambda: skill.recommend_indexes(  # noqa: F821
+            "indexes": lambda: skill.recommend_indexes(
                 table=getattr(self.args, 'table', None),
             ),
-            "report": lambda: self._generate_report_for_ai_mode(skill),  # noqa: F821
-            "table": lambda: skill.diagnose_table(self.args.table_name),  # noqa: F821
-            "performance-snapshot": lambda: skill.take_performance_snapshot(),  # noqa: F821
-            "bottleneck": lambda: skill.analyze_performance_bottleneck(),  # noqa: F821
-            "vacuum": lambda: skill.analyze_vacuum(),  # noqa: F821
-            "bloat": lambda: skill.analyze_bloat(  # noqa: F821
+            "report": lambda: self._generate_report_for_ai_mode(skill),
+            "table": lambda: skill.diagnose_table(self.args.table_name),
+            "performance-snapshot": lambda: skill.take_performance_snapshot(),
+            "bottleneck": lambda: skill.analyze_performance_bottleneck(),
+            "vacuum": lambda: skill.analyze_vacuum(),
+            "bloat": lambda: skill.analyze_bloat(
                 threshold=getattr(self.args, 'threshold', 30),
             ),
-            "index-usage": lambda: skill.analyze_index_usage(),  # noqa: F821
-            "tablespace-fragmentation": lambda: skill.analyze_tablespace_fragmentation(),  # noqa: F821
+            "index-usage": lambda: skill.analyze_index_usage(),
+            "tablespace-fragmentation": lambda: skill.analyze_tablespace_fragmentation(),
         }
         scenario_map = {
             "realtime": "realtime",
