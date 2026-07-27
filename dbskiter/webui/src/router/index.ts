@@ -1,4 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -50,3 +51,5 @@ export const routes: RouteRecordRaw[] = [
     meta: { title: '诊断', icon: '🔍' },
   },
 ]
+
+export const router = createRouter({ history: createWebHistory('/ui/'), routes })

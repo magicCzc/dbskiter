@@ -1,12 +1,12 @@
 import { createApp } from 'vue'
-import { createRouter, createWebHistory } from 'vue-router'
+import { createPinia } from 'pinia'
+import naive from 'naive-ui'
 import App from './App.vue'
-import { routes } from './router'
+import { router } from './router'
 import './style.css'
 
-const router = createRouter({
-  history: createWebHistory('/ui/'),
-  routes,
-})
-
-createApp(App).use(router).mount('#app')
+const app = createApp(App)
+app.use(createPinia())
+app.use(router)
+app.use(naive)
+app.mount('#app')

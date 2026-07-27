@@ -1,154 +1,149 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, h } from 'vue'
+import {
+  NCard, NDataTable, NButton, NSpace, NTag, NSelect,
+  NStatistic, NGrid, NGi, NEmpty, NInput,
+} from 'naive-ui'
+import { SearchOutline, RefreshOutline } from '@vicons/ionicons5'
+import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
 import type { SlowQuery } from '@/types'
+import { useMessage } from 'naive-ui'
 
-const db = ref("default")
-const databases = ref<string[]>(["default"])
-const top = ref(10)
-const hours = ref(6)
+const dbStore = useDatabaseStore()
+const message = useMessage()
+
 const queries = ref<SlowQuery[]>([])
+const top = ref(10)
+const hours = ref(1)
 const loading = ref(false)
-const error = ref('')
-const sortField = ref<'execution_time' | 'execution_count' | 'avg_time' | 'rows_examined'>('execution_time')
-const sortDir = ref<'desc' | 'asc'>('desc')
-const expandedSql = ref<number | null>(null)
+const searchText = ref('')
 
-const sortedQueries = computed(() => {
-  return [...queries.value].sort((a, b) => {
-    const val = (a[sortField.value] || 0) - (b[sortField.value] || 0)
-    return sortDir.value === 'desc' ? -val : val
-  })
+const filteredQueries = computed(() => {
+  if (!searchText.value) return queries.value
+  return queries.value.filter(q => q.sql?.toLowerCase().includes(searchText.value.toLowerCase()))
 })
 
-function toggleSort(field: typeof sortField.value) {
-  if (sortField.value === field) {
-    sortDir.value = sortDir.value === 'desc' ? 'asc' : 'desc'
-  } else {
-    sortField.value = field
-    sortDir.value = 'desc'
-  }
-}
-
-function sortIcon(field: string) {
-  if (sortField.value !== field) return '↕'
-  return sortDir.value === 'desc' ? '↓' : '↑'
-}
-
-const summary = computed(() => ({
-  total: queries.value.length,
-  maxTime: queries.value.length ? Math.max(...queries.value.map(q => q.execution_time || 0)) : 0,
-  avgTime: queries.value.length
-    ? queries.value.reduce((s, q) => s + (q.execution_time || 0), 0) / queries.value.length
-    : 0,
-  totalRows: queries.value.reduce((s, q) => s + (q.rows_examined || 0), 0),
-}))
+const summary = computed(() => {
+  const total = filteredQueries.value.length
+  const maxTime = total ? Math.max(...filteredQueries.value.map(q => q.execution_time || 0)) : 0
+  const avgTime = total
+    ? filteredQueries.value.reduce((s, q) => s + (q.execution_time || 0), 0) / total
+    : 0
+  const totalRows = filteredQueries.value.reduce((s, q) => s + (q.rows_examined || 0), 0)
+  return { total, maxTime, avgTime, totalRows }
+})
 
 async function load() {
   loading.value = true
-  error.value = ''
   try {
-    const data = await api.slowQueries(db.value, top.value, hours.value)
+    const data = await api.slowQueries(dbStore.current, top.value, hours.value)
     queries.value = data.queries
   } catch (e: any) {
-    error.value = e.message
+    message.error(`加载失败: ${e.message}`)
   } finally {
     loading.value = false
   }
 }
 
-function formatSql(sql: string, maxLen = 60): string {
-  return sql.length > maxLen ? sql.substring(0, maxLen) + '...' : sql
-}
+const columns = [
+  {
+    title: '#',
+    key: 'index',
+    width: 60,
+    render: (_: any, index: number) => index + 1,
+  },
+  {
+    title: 'SQL',
+    key: 'sql',
+    ellipsis: { tooltip: true },
+    render: (row: SlowQuery) => h('code', { style: 'font-size:12px;' }, row.sql),
+  },
+  {
+    title: '总耗时',
+    key: 'execution_time',
+    width: 110,
+    sorter: (a: any, b: any) => a.execution_time - b.execution_time,
+    render: (row: SlowQuery) => h('span', {
+      style: `color: ${row.execution_time > 5 ? '#EF4444' : row.execution_time > 2 ? '#F59E0B' : '#22C55E'}; font-weight: 600;`,
+    }, `${row.execution_time.toFixed(2)}s`),
+  },
+  {
+    title: '次数',
+    key: 'execution_count',
+    width: 80,
+    sorter: (a: any, b: any) => a.execution_count - b.execution_count,
+  },
+  {
+    title: '平均耗时',
+    key: 'avg_time',
+    width: 100,
+    render: (row: SlowQuery) => `${row.avg_time.toFixed(2)}s`,
+  },
+  {
+    title: '扫描行数',
+    key: 'rows_examined',
+    width: 100,
+    sorter: (a: any, b: any) => a.rows_examined - b.rows_examined,
+    render: (row: SlowQuery) => row.rows_examined.toLocaleString(),
+  },
+]
 
-onMounted(() => {
-  load()
-  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
-})
+onMounted(load)
 </script>
 
 <template>
-  <div class="card">
-    <h2>🐢 慢查询分析</h2>
-    <div class="toolbar">
-      <label>数据库：</label>
-      <select v-model="db" style="max-width:200px"><option v-for="d in databases" :key="d" :value="d">{{ d }}</option></select>
-      <label>数量：</label>
-      <select v-model="top">
-        <option :value="5">Top 5</option>
-        <option :value="10">Top 10</option>
-        <option :value="20">Top 20</option>
-        <option :value="50">Top 50</option>
-      </select>
-      <label>时间：</label>
-      <select v-model="hours">
-        <option :value="1">1 小时</option>
-        <option :value="6">6 小时</option>
-        <option :value="24">24 小时</option>
-        <option :value="72">3 天</option>
-      </select>
-      <button class="btn-primary" @click="load" :disabled="loading">查询</button>
-    </div>
-  </div>
+  <NSpace vertical :size="16">
+    <NCard>
+      <NSpace align="center" wrap>
+        <NText>数据库:</NText>
+        <NSelect
+          :value="dbStore.current"
+          :options="dbStore.databases.map((d: string) => ({ label: d, value: d }))"
+          style="width:160px" size="small"
+          @update:value="(v: string) => { dbStore.setCurrent(v); load() }"
+        />
+        <NText>数量:</NText>
+        <NSelect v-model:value="top" :options="[
+          { label: 'Top 5', value: 5 },
+          { label: 'Top 10', value: 10 },
+          { label: 'Top 20', value: 20 },
+          { label: 'Top 50', value: 50 },
+        ]" style="width:100px" size="small" @update:value="load" />
+        <NText>时间:</NText>
+        <NSelect v-model:value="hours" :options="[
+          { label: '1 小时', value: 1 },
+          { label: '6 小时', value: 6 },
+          { label: '24 小时', value: 24 },
+          { label: '3 天', value: 72 },
+        ]" style="width:100px" size="small" @update:value="load" />
+        <NButton type="primary" size="small" :loading="loading" @click="load">
+          <template #icon><NIcon><RefreshOutline /></NIcon></template>
+          查询
+        </NButton>
+        <NInput v-model:value="searchText" placeholder="搜索 SQL" size="small" style="width:200px" clearable>
+          <template #prefix><NIcon><SearchOutline /></NIcon></template>
+        </NInput>
+      </NSpace>
+    </NCard>
 
-  <div class="metrics-grid">
-    <div class="metric-card"><div class="value">{{ summary.total }}</div><div class="label">慢查询总数</div></div>
-    <div class="metric-card"><div class="value">{{ summary.maxTime ? summary.maxTime.toFixed(2) + 's' : '-' }}</div><div class="label">最慢耗时</div></div>
-    <div class="metric-card"><div class="value">{{ summary.avgTime ? summary.avgTime.toFixed(2) + 's' : '-' }}</div><div class="label">平均耗时</div></div>
-    <div class="metric-card"><div class="value">{{ summary.totalRows.toLocaleString() }}</div><div class="label">总扫描行数</div></div>
-  </div>
+    <NGrid :cols="4" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
+      <NGi span="4 m:1"><NCard><NStatistic label="慢查询数" :value="summary.total" /></NCard></NGi>
+      <NGi span="4 m:1"><NCard><NStatistic label="最慢耗时" :value="summary.maxTime ? summary.maxTime.toFixed(2) + 's' : '-'" /></NCard></NGi>
+      <NGi span="4 m:1"><NCard><NStatistic label="平均耗时" :value="summary.avgTime ? summary.avgTime.toFixed(2) + 's' : '-'" /></NCard></NGi>
+      <NGi span="4 m:1"><NCard><NStatistic label="总扫描行" :value="summary.totalRows.toLocaleString()" /></NCard></NGi>
+    </NGrid>
 
-  <div class="card">
-    <h2>慢查询列表 <span class="count-badge">{{ queries.length }}</span></h2>
-    <div v-if="loading" class="loading">
-      <div class="skeleton-row" v-for="i in 5" :key="i"></div>
-    </div>
-    <table v-else>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>SQL</th>
-          <th class="sortable" @click="toggleSort('execution_time')">总耗时 {{ sortIcon('execution_time') }}</th>
-          <th class="sortable" @click="toggleSort('execution_count')">次数 {{ sortIcon('execution_count') }}</th>
-          <th class="sortable" @click="toggleSort('avg_time')">平均耗时 {{ sortIcon('avg_time') }}</th>
-          <th class="sortable" @click="toggleSort('rows_examined')">扫描行数 {{ sortIcon('rows_examined') }}</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-if="queries.length === 0"><td colspan="6" class="empty">暂无数据</td></tr>
-        <template v-for="(q, i) in sortedQueries" :key="i">
-          <tr @click="expandedSql = expandedSql === i ? null : i" class="clickable">
-            <td>{{ i + 1 }}</td>
-            <td><code>{{ formatSql(q.sql || '') }}</code></td>
-            <td class="num">{{ q.execution_time.toFixed(2) }}s</td>
-            <td class="num">{{ q.execution_count }}</td>
-            <td class="num">{{ q.avg_time.toFixed(2) }}s</td>
-            <td class="num">{{ q.rows_examined.toLocaleString() }}</td>
-          </tr>
-          <tr v-if="expandedSql === i" class="expanded-row">
-            <td colspan="6">
-              <div class="expanded-sql">
-                <strong>完整 SQL:</strong>
-                <pre>{{ q.sql }}</pre>
-              </div>
-            </td>
-          </tr>
-        </template>
-      </tbody>
-    </table>
-  </div>
+    <NCard title="慢查询列表">
+      <NDataTable
+        :columns="columns"
+        :data="filteredQueries"
+        :loading="loading"
+        :pagination="{ pageSize: 20 }"
+        :bordered="false"
+        size="medium"
+      />
+      <NEmpty v-if="!loading && filteredQueries.length === 0" description="暂无慢查询数据" />
+    </NCard>
+  </NSpace>
 </template>
-
-<style scoped>
-.count-badge { background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; margin-left: 8px; }
-.sortable { cursor: pointer; user-select: none; }
-.sortable:hover { color: var(--primary); }
-.num { text-align: right; font-variant-numeric: tabular-nums; }
-.clickable { cursor: pointer; }
-.expanded-row td { background: #f8fafc; padding: 0; }
-.expanded-sql { padding: 16px; }
-.expanded-sql pre { background: #f1f5f9; padding: 12px; border-radius: 4px; font-size: 13px; overflow-x: auto; margin-top: 8px; white-space: pre-wrap; }
-.empty { text-align: center; color: #64748b; padding: 40px; }
-.skeleton-row { height: 48px; background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200%; border-radius: 4px; margin-bottom: 8px; animation: shimmer 1.5s infinite; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-</style>

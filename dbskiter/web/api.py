@@ -81,6 +81,9 @@ def _run_cli(args: list, database: str = "default") -> dict:
 
     Returns:
         dict: 解析后的 JSON 结果
+
+    Note:
+        Windows GBK 编码问题：通过 encoding="utf-8" + errors="replace" 解决
     """
     # 构建 CLI 命令：--database 必须放在子命令之前
     cmd = [
@@ -94,24 +97,34 @@ def _run_cli(args: list, database: str = "default") -> dict:
             cmd,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
 
         if result.returncode != 0:
             return {
                 "success": False,
-                "error": result.stderr.strip() or "CLI returned non-zero exit code",
+                "error": (result.stderr or "CLI returned non-zero exit code").strip()[:500],
+            }
+
+        # 解析 JSON 输出（可能为空）
+        stdout = (result.stdout or "").strip()
+        if not stdout:
+            return {
+                "success": False,
+                "error": f"CLI returned empty output. stderr: {(result.stderr or '').strip()[:200]}",
             }
 
         # 解析 JSON 输出
         try:
-            data = json.loads(result.stdout)
+            data = json.loads(stdout)
             data["success"] = True
             return data
         except json.JSONDecodeError:
             return {
                 "success": False,
-                "error": f"Failed to parse CLI output: {result.stdout[:200]}",
+                "error": f"Failed to parse CLI output: {stdout[:200]}",
             }
 
     except subprocess.TimeoutExpired:
@@ -166,7 +179,7 @@ async def get_slow_queries(
     result = _run_cli([
         "diagnose", "slow-queries",
         "--top", str(top),
-        "--hours", str(hours),
+        "--since", f"{hours}h",
     ], db)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))

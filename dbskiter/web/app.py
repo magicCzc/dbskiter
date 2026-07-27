@@ -49,14 +49,18 @@ if STATIC_DIR.exists():
     app.mount("/ui/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
 
-@app.get("/ui/{full_path:path}")
-async def serve_ui(full_path: str):
-    """SPA fallback: 所有 /ui/* 路由返回 index.html"""
-    from fastapi.responses import FileResponse
-    index_path = STATIC_DIR / "index.html"
-    if index_path.exists():
-        return FileResponse(str(index_path))
-    return {"error": "UI not built yet. Run: cd dbskiter/webui && npm run build"}
+from fastapi import Request
+from fastapi.responses import FileResponse, JSONResponse
+
+@app.middleware("http")
+async def spa_fallback(request: Request, call_next):
+    """SPA fallback middleware: 非 /ui/assets 的 /ui/* 返回 index.html"""
+    path = request.url.path
+    if path.startswith("/ui/") and not path.startswith("/ui/assets"):
+        index_path = STATIC_DIR / "index.html"
+        if index_path.exists():
+            return FileResponse(str(index_path))
+    return await call_next(request)
 
 
 @app.on_event("startup")
