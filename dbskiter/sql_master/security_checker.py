@@ -31,10 +31,15 @@ from dbskiter.sql_master.sql_parser import SQLParser, SQLType, ParsedSQL
 from dbskiter.config.security_config import SecurityLevel, SecurityConfig
 
 # 复用db_security的SQL注入检测器（避免重复造轮子）
+# 注意：必须使用别名导入，否则会与本文件定义的同名 SQLInjectionDetector 冲突，
+# 导致 self._v2_detector = SQLInjectionDetector() 无限递归
 try:
-    from dbskiter.db_security.sql_injection_detector import SQLInjectionDetector
+    from dbskiter.db_security.sql_injection_detector import (
+        SQLInjectionDetector as _DBSecurityInjectionDetector,
+    )
     _HAS_V2_DETECTOR = True
 except ImportError:
+    _DBSecurityInjectionDetector = None
     _HAS_V2_DETECTOR = False
 
 logger = logging.getLogger(__name__)
@@ -166,8 +171,8 @@ class SQLInjectionDetector:
             except re.error as e:
                 logger.warning(f"编译正则表达式失败: {regex}, 错误: {e}")
 
-        # 复用db_security的V2检测器
-        self._v2_detector = SQLInjectionDetector() if _HAS_V2_DETECTOR else None
+        # 复用db_security的V2检测器（使用别名，避免与本类同名导致递归）
+        self._v2_detector = _DBSecurityInjectionDetector() if _HAS_V2_DETECTOR else None
 
     def detect(self, sql: str) -> InjectionCheckResult:
         """

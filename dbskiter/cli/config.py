@@ -145,6 +145,7 @@ class Config:
         source: str = "default",
         source_map: Optional[Dict[str, str]] = None,
         extra: Optional[Dict[str, Any]] = None,
+        prefix: str = "DB",
     ):
         self.dialect = dialect
         self.host = host
@@ -156,6 +157,7 @@ class Config:
         self.source = source
         self.source_map = source_map or {}
         self.extra = extra or {}
+        self.prefix = prefix
 
     @classmethod
     def from_url(cls, url: str) -> "Config":

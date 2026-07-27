@@ -16,6 +16,7 @@ from dbskiter.db_monitor.models import (
 )
 from dbskiter.shared.error_handler import create_success_response, create_error_response
 from dbskiter.shared.validators import validate_params, Validator
+from dbskiter.db_monitor.health_scorer import get_health_scorer
 
 
 class HealthMixin:

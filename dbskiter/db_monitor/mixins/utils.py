@@ -17,6 +17,16 @@ from dbskiter.db_monitor.models import (
 from dbskiter.shared.error_handler import create_success_response, create_error_response
 from dbskiter.shared.validators import validate_params, Validator
 
+# 外部监控系统客户端（可选导入）
+try:
+    from dbskiter.shared.prometheus_client import PrometheusClient, RDSMetrics
+    from dbskiter.shared.zabbix_client import ZabbixClient, ZabbixMySQLMetrics
+    _EXTERNAL_MONITORING_OK = True
+except ImportError:
+    _EXTERNAL_MONITORING_OK = False
+    PrometheusClient = None
+    ZabbixClient = None
+
 
 class MonitorUtilsMixin:
     """utils for MonitorSkill"""
