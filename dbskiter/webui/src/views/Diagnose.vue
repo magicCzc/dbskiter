@@ -1,20 +1,26 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import {
+  NCard, NButton, NSpace, NSelect, NText, NTag, NSpin, NEmpty,
+  NGrid, NGi, NStatistic, useMessage, NIcon, NAlert, NCode,
+} from 'naive-ui'
+import { SearchOutline, ReloadOutline } from '@vicons/ionicons5'
+import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
 
-const db = ref('default')
-const databases = ref<string[]>(['default'])
+const dbStore = useDatabaseStore()
+const message = useMessage()
+
 const loading = ref(false)
 const error = ref('')
 const result = ref<any>(null)
-const activeTab = ref<'realtime' | 'locks' | 'connections' | 'space'>('realtime')
 
 async function runDiagnose() {
   loading.value = true
   error.value = ''
   result.value = null
   try {
-    const data = await api.diagnose(db.value)
+    const data = await api.diagnose(dbStore.current)
     result.value = data
   } catch (e: any) {
     error.value = e.message
@@ -23,88 +29,73 @@ async function runDiagnose() {
   }
 }
 
-function formatJson(data: any): string {
-  return JSON.stringify(data, null, 2)
-}
-
-const tabs = [
-  { key: 'realtime' as const, label: '实时诊断', icon: '🔍' },
-  { key: 'locks' as const, label: '锁分析', icon: '🔒' },
-  { key: 'connections' as const, label: '连接', icon: '🔗' },
-  { key: 'space' as const, label: '空间', icon: '💾' },
-]
-
 onMounted(() => {
-  api.databases().then(d => { if (d.databases?.length) databases.value = d.databases }).catch(() => {})
+  dbStore.loadDatabases()
 })
 </script>
 
 <template>
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
-      <h2 style="margin:0;">🔍 数据库诊断</h2>
-      <div class="toolbar" style="margin-bottom:0;">
-        <label>数据库：</label>
-        <select v-model="db" style="max-width:200px">
-          <option v-for="d in databases" :key="d" :value="d">{{ d }}</option>
-        </select>
-        <button class="btn-primary" @click="runDiagnose" :disabled="loading">
-          {{ loading ? '诊断中...' : '▶ 开始诊断' }}
-        </button>
+  <NSpace vertical :size="16">
+    <NCard>
+      <NSpace align="center" justify="space-between">
+        <NSpace align="center">
+          <NIcon size="20" color="#4F46E5"><SearchOutline /></NIcon>
+          <NText style="font-weight:600;font-size:16px">实时诊断</NText>
+        </NSpace>
+        <NSpace align="center">
+          <NText>数据库:</NText>
+          <NSelect
+            :value="dbStore.current"
+            :options="dbStore.databases.map((d: string) => ({ label: d, value: d }))"
+            style="width:160px" size="small"
+            @update:value="(v: string) => dbStore.setCurrent(v)"
+          />
+          <NButton type="primary" size="small" :loading="loading" @click="runDiagnose">
+            <template #icon><NIcon><SearchOutline /></NIcon></template>
+            开始诊断
+          </NButton>
+        </NSpace>
+      </NSpace>
+    </NCard>
+
+    <NAlert v-if="error" type="error" closable>{{ error }}</NAlert>
+
+    <!-- 诊断结果摘要 -->
+    <NGrid v-if="result?.data" :cols="4" :x-gap="16" :y-gap="16" responsive="screen" item-responsive>
+      <NGi span="4 m:1">
+        <NCard><NStatistic label="健康评分" :value="result.data.score || result.data.health_score || '-'">
+          <template #prefix><span style="font-size:24px">🏥</span></template>
+        </NStatistic></NCard>
+      </NGi>
+      <NGi span="4 m:1">
+        <NCard><NStatistic label="问题数" :value="result.data.issues?.length || result.data.warnings?.length || 0" /></NCard>
+      </NGi>
+      <NGi span="4 m:1">
+        <NCard><NStatistic label="慢查询" :value="result.data.slow_queries?.length || 0" /></NCard>
+      </NGi>
+      <NGi span="4 m:1">
+        <NCard><NStatistic label="锁等待" :value="result.data.locks?.length || result.data.lock_waits || 0" /></NCard>
+      </NGi>
+    </NGrid>
+
+    <!-- 诊断原始数据 -->
+    <NCard v-if="result" title="诊断数据">
+      <pre style="font-size:13px;max-height:500px;overflow:auto;background:var(--table-hover);padding:16px;border-radius:8px;margin:0">{{ JSON.stringify(result, null, 2) }}</pre>
+    </NCard>
+
+    <!-- 空状态 -->
+    <NCard v-if="!result && !loading && !error" style="text-align:center;padding:60px">
+      <div style="font-size:48px;margin-bottom:16px">🔍</div>
+      <NText depth="3" style="font-size:16px">选择数据库并点击"开始诊断"</NText>
+      <div style="margin-top:8px"><NText depth="3">将显示数据库实时健康状态</NText></div>
+    </NCard>
+
+    <!-- 加载中 -->
+    <NCard v-if="loading">
+      <div style="padding:40px;text-align:center">
+        <NSpin size="large" />
+        <div style="margin-top:12px;color:var(--text-secondary)">诊断中...</div>
       </div>
-    </div>
-  </div>
-
-  <div v-if="error" class="error">{{ error }}</div>
-
-  <!-- 诊断结果 -->
-  <div v-if="result" class="card">
-    <h2>诊断结果</h2>
-
-    <!-- 摘要指标 -->
-    <div class="metrics-grid" v-if="result.data">
-      <div class="metric-card">
-        <div class="value">{{ result.data.score || result.data.health_score || '-' }}</div>
-        <div class="label">健康评分</div>
-      </div>
-      <div class="metric-card">
-        <div class="value">{{ result.data.issues?.length || result.data.warnings?.length || 0 }}</div>
-        <div class="label">问题数</div>
-      </div>
-      <div class="metric-card">
-        <div class="value">{{ result.data.slow_queries?.length || 0 }}</div>
-        <div class="label">慢查询</div>
-      </div>
-      <div class="metric-card">
-        <div class="value">{{ result.data.locks?.length || result.data.lock_waits || 0 }}</div>
-        <div class="label">锁等待</div>
-      </div>
-    </div>
-
-    <!-- 原始数据 -->
-    <div class="result-box">
-      <pre>{{ formatJson(result) }}</pre>
-    </div>
-  </div>
-
-  <!-- 无结果提示 -->
-  <div v-if="!result && !loading && !error" class="card" style="text-align:center;padding:60px;color:var(--text-secondary);">
-    <div style="font-size:48px;margin-bottom:16px;">🔍</div>
-    <div style="font-size:16px;">选择数据库并点击"开始诊断"</div>
-    <div style="font-size:14px;margin-top:8px;">将显示数据库实时健康状态、锁、连接和空间信息</div>
-  </div>
-
-  <!-- 加载中 -->
-  <div v-if="loading" class="card">
-    <div class="loading">
-      <div class="skeleton" style="height:200px;width:100%;"></div>
-    </div>
-  </div>
+    </NCard>
+  </NSpace>
 </template>
-
-<style scoped>
-.result-box { margin-top: 16px; background: var(--table-hover); padding: 16px; border-radius: 8px; overflow-x: auto; }
-.result-box pre { font-size: 13px; margin: 0; max-height: 500px; overflow-y: auto; }
-.skeleton { background: linear-gradient(90deg, var(--skeleton-from) 25%, var(--skeleton-to) 50%, var(--skeleton-from) 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 8px; }
-@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
-</style>
