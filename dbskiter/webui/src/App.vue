@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { useDatabaseStore } from '@/stores/database'
-import { ElMessage } from 'element-plus'
 import {
   Monitor, Search, Warning, WarningFilled, Download,
   Clock, Monitor as ServerIcon, Setting, Expand, Fold, Moon, Sunny,
@@ -42,25 +41,18 @@ function handleDbChange(val: string) {
   window.dispatchEvent(new CustomEvent('db-changed', { detail: val }))
 }
 
-// 初始化数据库列表
 databaseStore.loadDatabases()
 </script>
 
 <template>
   <div :class="['app-container', { dark: userStore.isDark }]">
     <el-container style="height: 100vh">
-      <!-- 侧边栏 -->
       <el-aside :width="isCollapsed ? '64px' : '220px'" class="sidebar">
         <div class="logo" :class="{ collapsed: isCollapsed }">
           <span class="logo-icon">🗄️</span>
           <span v-if="!isCollapsed" class="logo-text">DBSKiter</span>
         </div>
-        <el-menu
-          :default-active="route.path"
-          :collapse="isCollapsed"
-          :router="true"
-          class="sidebar-menu"
-        >
+        <el-menu :default-active="route.path" :collapse="isCollapsed" :router="true" class="sidebar-menu">
           <el-menu-item v-for="item in menuItems" :key="item.path" :index="item.path">
             <el-icon><component :is="item.icon" /></el-icon>
             <template #title>{{ item.label }}</template>
@@ -72,7 +64,6 @@ databaseStore.loadDatabases()
       </el-aside>
 
       <el-container>
-        <!-- 顶部栏 -->
         <el-header class="topbar">
           <div class="topbar-left">
             <el-button text @click="isCollapsed = !isCollapsed">
@@ -80,12 +71,7 @@ databaseStore.loadDatabases()
             </el-button>
           </div>
           <div class="topbar-right">
-            <el-select
-              :model-value="databaseStore.current"
-              size="small"
-              style="width:180px"
-              @change="handleDbChange"
-            >
+            <el-select :model-value="databaseStore.current" size="small" style="width:180px" @change="handleDbChange">
               <el-option v-for="o in dbOptions" :key="o.value" :label="o.label" :value="o.value" />
             </el-select>
             <el-button text @click="userStore.toggleTheme()">
@@ -98,7 +84,6 @@ databaseStore.loadDatabases()
           </div>
         </el-header>
 
-        <!-- 主内容 -->
         <el-main class="main-content">
           <router-view v-slot="{ Component }">
             <transition name="fade" mode="out-in">
@@ -107,7 +92,6 @@ databaseStore.loadDatabases()
           </router-view>
         </el-main>
 
-        <!-- 底部 -->
         <el-footer class="footer">
           DBSKiter v{{ userStore.version }} · 数据库 AIOps 运维助手 ·
           <a href="/docs" target="_blank">API 文档</a> ·
@@ -119,12 +103,11 @@ databaseStore.loadDatabases()
 </template>
 
 <style scoped>
-.app-container { height: 100vh; }
 .sidebar {
   background: var(--el-bg-color);
   border-right: 1px solid var(--el-border-color-light);
   display: flex; flex-direction: column;
-  transition: width 0.3s; overflow: hidden;
+  transition: width var(--transition-normal); overflow: hidden;
 }
 .logo {
   height: 56px; display: flex; align-items: center; gap: 8px;
@@ -137,7 +120,7 @@ databaseStore.loadDatabases()
 .collapse-btn {
   padding: 12px; text-align: center; cursor: pointer;
   border-top: 1px solid var(--el-border-color-light);
-  color: var(--el-text-color-secondary);
+  color: var(--el-text-color-secondary); transition: color var(--transition-fast);
 }
 .collapse-btn:hover { color: var(--el-color-primary); }
 
@@ -156,6 +139,7 @@ databaseStore.loadDatabases()
   height: 40px; display: flex; align-items: center; justify-content: center;
   font-size: 13px; color: var(--el-text-color-secondary);
   border-top: 1px solid var(--el-border-color-light);
+  background: var(--el-bg-color);
 }
 .footer a { color: var(--el-color-primary); text-decoration: none; }
 
