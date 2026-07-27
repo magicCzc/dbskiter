@@ -344,7 +344,21 @@ async def get_realtime_diagnose(
     result = await _run_cli_async(["diagnose", "realtime"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
-    return result
+
+    # 提取 AI envelope 中的实际数据
+    data = result.get("data", {})
+    raw = data.get("raw_metrics", {})
+    hints = data.get("ai_hints", {})
+
+    return {
+        "success": True,
+        "database": database,
+        "score": raw.get("score", data.get("score", 0)),
+        "status": raw.get("status", data.get("status", "unknown")),
+        "issues": raw.get("issues", data.get("issues", [])),
+        "ai_hints": hints,
+        "raw_data": raw,
+    }
 
 
 @router.get("/inspector/report", response_model=dict)
