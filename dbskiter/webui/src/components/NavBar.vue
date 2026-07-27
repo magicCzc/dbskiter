@@ -17,6 +17,7 @@ document.documentElement.setAttribute('data-theme', isDark.value ? 'dark' : 'lig
 
 const navItems = [
   { path: '/', label: '仪表盘', icon: '📊' },
+  { path: '/diagnose', label: '诊断', icon: '🔍' },
   { path: '/slow-queries', label: '慢查询', icon: '🐢' },
   { path: '/security', label: '安全审计', icon: '🔒' },
   { path: '/backup', label: '备份管理', icon: '💾' },

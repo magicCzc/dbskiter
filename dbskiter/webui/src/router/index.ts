@@ -43,4 +43,10 @@ export const routes: RouteRecordRaw[] = [
     component: () => import('@/views/Databases.vue'),
     meta: { title: '数据库管理', icon: '🗄️' },
   },
+  {
+    path: '/diagnose',
+    name: 'Diagnose',
+    component: () => import('@/views/Diagnose.vue'),
+    meta: { title: '诊断', icon: '🔍' },
+  },
 ]
