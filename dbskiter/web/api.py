@@ -8,6 +8,11 @@ Web API 端点 - 8 个核心数据库运维能力
 
 import subprocess
 import json
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+
+# 线程池：避免同步 subprocess 阻塞 FastAPI 事件循环
+_executor = ThreadPoolExecutor(max_workers=4)
 from typing import Optional, List
 from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
@@ -116,15 +121,32 @@ def _run_cli(args: list, database: str = "default") -> dict:
                 "error": f"CLI returned empty output. stderr: {(result.stderr or '').strip()[:200]}",
             }
 
-        # 解析 JSON 输出
-        try:
-            data = json.loads(stdout)
-            data["success"] = True
-            return data
-        except json.JSONDecodeError:
+        # CLI 可能在 JSON 前后输出日志/错误信息，提取第一个完整的 JSON 对象
+        json_str = stdout
+        first_brace = stdout.find("{")
+        if first_brace > 0:
+            # JSON 前有其他内容，从 { 开始提取
+            json_str = stdout[first_brace:]
+        elif first_brace == -1:
+            # 没有 JSON，返回原始输出作为错误信息
             return {
                 "success": False,
-                "error": f"Failed to parse CLI output: {stdout[:200]}",
+                "error": stdout[:300],
+            }
+
+        # 从末尾找最后一个 }，去掉 JSON 后的日志
+        last_brace = json_str.rfind("}")
+        if last_brace > 0:
+            json_str = json_str[:last_brace + 1]
+
+        try:
+            data = json.loads(json_str)
+            data["success"] = True
+            return data
+        except json.JSONDecodeError as e:
+            return {
+                "success": False,
+                "error": f"CLI output not valid JSON: {stdout[:300]}",
             }
 
     except subprocess.TimeoutExpired:
@@ -139,6 +161,17 @@ def _run_cli(args: list, database: str = "default") -> dict:
         }
 
 
+async def _run_cli_async(args: list, database: str = "default") -> dict:
+    """
+    异步执行 CLI 命令（在线程池中运行，避免阻塞事件循环）
+
+    这是关键优化：同步 subprocess.run 在 async 端点中会阻塞整个
+    FastAPI 事件循环，导致其他请求（包括静态页面）全部排队等待。
+    """
+    loop = asyncio.get_event_loop()
+    return await loop.run_in_executor(_executor, _run_cli, args, database)
+
+
 # ── API 端点 ───────────────────────────────────────────────────────
 
 @router.get("/health", response_model=HealthResponse)
@@ -150,7 +183,7 @@ async def get_health(
 
     返回健康评分、状态、问题列表。
     """
-    result = _run_cli(["monitor", "health"], database)
+    result = await _run_cli_async(["monitor", "health"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
@@ -176,7 +209,7 @@ async def get_slow_queries(
     返回 TOP N 慢查询，含执行时间、次数、扫描行数。
     """
     db = database_name or database
-    result = _run_cli([
+    result = await _run_cli_async([
         "diagnose", "slow-queries",
         "--top", str(top),
         "--since", f"{hours}h",
@@ -202,7 +235,7 @@ async def run_security_audit(
 
     执行 SQL 注入检测、敏感数据扫描、密码策略检查。
     """
-    result = _run_cli(["security", "audit"], database)
+    result = await _run_cli_async(["security", "audit"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
@@ -229,7 +262,7 @@ async def get_realtime_diagnose(
 
     快速诊断数据库当前状态（慢查询、锁、连接、空间）。
     """
-    result = _run_cli(["diagnose", "realtime"], database)
+    result = await _run_cli_async(["diagnose", "realtime"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -245,7 +278,7 @@ async def generate_inspector_report(
 
     生成综合巡检报告（配置、性能、安全、存储）。
     """
-    result = _run_cli(["inspector", "run", "--type", report_type], database)
+    result = await _run_cli_async(["inspector", "run", "--type", report_type], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -269,7 +302,7 @@ async def create_backup(
     if tables:
         args.extend(["--tables", tables])
 
-    result = _run_cli(args, database)
+    result = await _run_cli_async(args, database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
 
@@ -292,7 +325,7 @@ async def list_backups(
 
     查看所有备份记录。
     """
-    result = _run_cli(["scheduler", "backup", "list"], database)
+    result = await _run_cli_async(["scheduler", "backup", "list"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -307,7 +340,7 @@ async def list_tasks(
 
     查看所有已配置的定时任务。
     """
-    result = _run_cli(["scheduler", "task", "list"], database)
+    result = await _run_cli_async(["scheduler", "task", "list"], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -323,7 +356,7 @@ async def get_recent_logs(
 
     查看最近执行的历史命令和审计日志。
     """
-    result = _run_cli(["history", "--hours", str(hours)], database)
+    result = await _run_cli_async(["history", "--hours", str(hours)], database)
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
@@ -331,20 +364,33 @@ async def get_recent_logs(
 
 @router.get("/databases", response_model=dict)
 async def list_databases():
-    """可用数据库列表"""
+    """
+    可用数据库列表
+
+    扫描 .env 中的 DB_{ALIAS}_HOST 配置，提取数据库别名。
+    同时检查 DB_HOST（默认配置）。
+    """
+    import re
     from pathlib import Path
+
     databases = []
     env_path = Path.cwd() / ".env"
+
     if env_path.exists():
-        with open(env_path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith("DB_") and line.endswith("_HOST="):
-                    alias = line.split("=")[0].replace("DB_", "").replace("_HOST", "").lower()
-                    if alias and alias not in databases:
-                        databases.append(alias)
+        content = env_path.read_text(encoding="utf-8", errors="replace")
+        # 匹配 DB_{ALIAS}_HOST=value （别名配置）
+        for match in re.finditer(r"^DB_([A-Z0-9_]+)_HOST\s*=", content, re.MULTILINE):
+            alias = match.group(1).lower()
+            if alias and alias not in databases:
+                databases.append(alias)
+        # 检查默认配置 DB_HOST=value
+        if re.search(r"^DB_HOST\s*=", content, re.MULTILINE):
+            if "default" not in databases:
+                databases.append("default")
+
     if not databases:
         databases = ["default"]
+
     return {"databases": sorted(databases)}
 
 
@@ -353,7 +399,7 @@ async def test_connection(
     database: str = Query("default", description="数据库别名"),
 ):
     """测试数据库连接"""
-    result = _run_cli(["diagnose", "realtime"], database)
+    result = await _run_cli_async(["diagnose", "realtime"], database)
     success = result.get("success", False)
     return {
         "success": success,
