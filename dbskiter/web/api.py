@@ -575,3 +575,43 @@ async def get_connections(
     if not result.get("success"):
         raise HTTPException(status_code=502, detail=result.get("error", "Unknown error"))
     return result
+
+@router.get("/health/all", response_model=dict)
+async def get_all_health():
+    """所有数据库健康状态概览"""
+    from dbskiter.cli.config import MultiDBConfig
+    import asyncio
+
+    try:
+        mc = MultiDBConfig()
+        aliases = mc.list_aliases()
+    except Exception:
+        aliases = []
+
+    if not aliases:
+        aliases = ["default"]
+
+    tasks = []
+    for alias in aliases:
+        tasks.append(_run_cli_async(["monitor", "health"], alias))
+
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    databases = []
+    for i, alias in enumerate(aliases):
+        result = results[i]
+        if isinstance(result, Exception):
+            databases.append({"name": alias, "status": "ERROR", "score": 0, "error": str(result)})
+        elif result.get("success"):
+            data = result.get("data", {})
+            raw = data.get("raw_metrics", {})
+            databases.append({
+                "name": alias,
+                "status": raw.get("status", "UNKNOWN"),
+                "score": raw.get("score", 0),
+                "issues": raw.get("issues", []),
+            })
+        else:
+            databases.append({"name": alias, "status": "ERROR", "score": 0, "error": result.get("error", "Unknown")})
+
+    return {"databases": databases}
