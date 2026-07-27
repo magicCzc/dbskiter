@@ -2,14 +2,13 @@
 import { ref, onMounted } from 'vue'
 import {
   NCard, NButton, NSpace, NSelect, NText, NGrid, NGi, NStatistic,
-  NTag, NEmpty, NSpin, NAlert, useMessage, NIcon, NDataTable,
+  NTag, NEmpty, NSpin, NAlert, NIcon, NDataTable,
 } from 'naive-ui'
 import { ServerOutline, ReloadOutline } from '@vicons/ionicons5'
 import { api } from '@/api'
 import { useDatabaseStore } from '@/stores/database'
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 interface DbInfo {
   name: string
@@ -42,8 +41,8 @@ async function testOne(name: string) {
     const data = await resp.json()
     db.status = data.success ? 'online' : 'offline'
     db.message = data.message || (data.success ? '连接正常' : '连接失败')
-    if (data.success) message.success(`${name}: 连接正常`)
-    else message.warning(`${name}: ${data.message}`)
+    if (data.success) console.log("SUCCESS:", `${name}: 连接正常`)
+    else console.warn("WARN:", `${name}: ${data.message}`)
   } catch {
     db.status = 'offline'
     db.message = '请求失败'

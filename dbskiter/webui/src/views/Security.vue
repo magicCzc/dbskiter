@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import {
   NCard, NDataTable, NButton, NSpace, NTag, NSelect, NGrid, NGi,
-  NStatistic, NEmpty, NDivider, NText, useMessage, NIcon,
+  NStatistic, NEmpty, NDivider, NText, NIcon,
 } from 'naive-ui'
 import { ShieldCheckmarkOutline, ReloadOutline } from '@vicons/ionicons5'
 import { useDatabaseStore } from '@/stores/database'
@@ -10,7 +10,6 @@ import { api, severityClass } from '@/api'
 import type { Risk } from '@/types'
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 const risks = ref<Risk[]>([])
 const loading = ref(false)
@@ -34,7 +33,7 @@ async function load() {
     const data = await api.security(dbStore.current)
     risks.value = data.risks
   } catch (e: any) {
-    message.error(`加载失败: ${e.message}`)
+    console.error("ERROR:", `加载失败: ${e.message}`)
   } finally {
     loading.value = false
   }

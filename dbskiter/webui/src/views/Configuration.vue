@@ -2,14 +2,13 @@
 import { ref, onMounted } from 'vue'
 import {
   NCard, NButton, NSpace, NSelect, NText, NTag, NAlert, NSpin,
-  useMessage, NIcon, NDivider, NList, NListItem, NThing,
+  NIcon, NDivider, NList, NListItem, NThing,
 } from 'naive-ui'
 import { SettingsOutline, ReloadOutline, CodeSlashOutline, BookOutline } from '@vicons/ionicons5'
 import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 const status = ref<any>(null)
 const testResult = ref<{ success: boolean; message: string } | null>(null)
@@ -35,8 +34,8 @@ async function testConnection() {
       success: data.success,
       message: data.message || (data.success ? '连接成功' : '连接失败：无法连接到数据库'),
     }
-    if (data.success) message.success('连接成功')
-    else message.warning('连接失败')
+    if (data.success) console.log("SUCCESS:", '连接成功')
+    else console.warn("WARN:", '连接失败')
   } catch (e: any) {
     testResult.value = { success: false, message: `请求失败: ${e.message}` }
   } finally {

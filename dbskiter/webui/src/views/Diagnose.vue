@@ -2,14 +2,13 @@
 import { ref, onMounted } from 'vue'
 import {
   NCard, NButton, NSpace, NSelect, NText, NTag, NSpin, NEmpty,
-  NGrid, NGi, NStatistic, useMessage, NIcon, NAlert, NCode,
+  NGrid, NGi, NStatistic, NIcon, NAlert, NCode,
 } from 'naive-ui'
 import { SearchOutline, ReloadOutline } from '@vicons/ionicons5'
 import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 const loading = ref(false)
 const error = ref('')

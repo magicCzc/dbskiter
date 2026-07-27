@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
-import { useMessage, useDialog } from 'naive-ui'
+import { useDialog } from 'naive-ui'
 import {
   NCard, NStatistic, NGrid, NGi, NSpace, NTag, NButton, NSelect, NSwitch,
   NIcon, NText, NSpin, NDivider, NEmpty, NProgress, NTooltip,
@@ -22,7 +22,6 @@ import { api } from '@/api'
 use([CanvasRenderer, LineChart, PieChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 // 数据状态
 const health = ref<any>(null)
@@ -96,7 +95,7 @@ async function refresh() {
     slowTotal.value = s.total
     securityRisks.value = sec.total_risks
   } catch (e: any) {
-    message.error(`数据加载失败: ${e.message}`)
+    console.error("ERROR:", `数据加载失败: ${e.message}`)
   } finally {
     loading.value = false
   }
@@ -105,10 +104,10 @@ async function refresh() {
 function toggleAutoRefresh() {
   autoRefresh.value = !autoRefresh.value
   if (autoRefresh.value) {
-    message.info('自动刷新已开启 (15s)')
+    console.info("INFO:", '自动刷新已开启 (15s)')
     refreshTimer = setInterval(refresh, 15000)
   } else {
-    message.info('自动刷新已关闭')
+    console.info("INFO:", '自动刷新已关闭')
     if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null }
   }
 }

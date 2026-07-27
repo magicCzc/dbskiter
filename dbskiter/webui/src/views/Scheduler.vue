@@ -2,7 +2,7 @@
 import { ref, onMounted, h } from 'vue'
 import {
   NCard, NDataTable, NButton, NSpace, NTag, NSelect, NTabs, NTabPane,
-  NEmpty, NText, useMessage, NIcon, NGrid, NGi, NStatistic,
+  NEmpty, NText, NIcon, NGrid, NGi, NStatistic,
 } from 'naive-ui'
 import { TimeOutline, RefreshOutline } from '@vicons/ionicons5'
 import { api, formatDuration } from '@/api'
@@ -10,7 +10,6 @@ import { useDatabaseStore } from '@/stores/database'
 import type { Task, LogEntry } from '@/types'
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 const tasks = ref<Task[]>([])
 const logs = ref<LogEntry[]>([])
@@ -28,7 +27,7 @@ async function load() {
     tasks.value = td.tasks || []
     logs.value = ld.logs || []
   } catch (e: any) {
-    message.error(`加载失败: ${e.message}`)
+    console.error("ERROR:", `加载失败: ${e.message}`)
   } finally {
     loading.value = false
   }

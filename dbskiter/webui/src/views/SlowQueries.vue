@@ -8,10 +8,9 @@ import { SearchOutline, RefreshOutline } from '@vicons/ionicons5'
 import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
 import type { SlowQuery } from '@/types'
-import { useMessage } from 'naive-ui'
+import {  } from 'naive-ui'
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 const queries = ref<SlowQuery[]>([])
 const top = ref(10)
@@ -40,7 +39,7 @@ async function load() {
     const data = await api.slowQueries(dbStore.current, top.value, hours.value)
     queries.value = data.queries
   } catch (e: any) {
-    message.error(`加载失败: ${e.message}`)
+    console.error("ERROR:", `加载失败: ${e.message}`)
   } finally {
     loading.value = false
   }

@@ -2,7 +2,7 @@
 import { ref, onMounted, h } from 'vue'
 import {
   NCard, NDataTable, NButton, NSpace, NSelect, NInput, NForm, NFormItem,
-  NGrid, NGi, NEmpty, NTag, NText, useMessage, NIcon, NAlert, NSpin,
+  NGrid, NGi, NEmpty, NTag, NText, NIcon, NAlert, NSpin,
 } from 'naive-ui'
 import { CloudUploadOutline, RefreshOutline } from '@vicons/ionicons5'
 import { api, formatBytes, severityClass } from '@/api'
@@ -10,7 +10,6 @@ import { useDatabaseStore } from '@/stores/database'
 import type { BackupRecord } from '@/types'
 
 const dbStore = useDatabaseStore()
-const message = useMessage()
 
 const backupType = ref('full')
 const tables = ref('')
@@ -26,10 +25,10 @@ async function createBackup() {
     const data = await api.createBackup(dbStore.current, backupType.value, tables.value || undefined)
     if (data.success) {
       result.value = { type: 'success', msg: `备份成功！\nID: ${data.backup_id}\n文件: ${data.file_path}\n大小: ${formatBytes(data.file_size)}` }
-      message.success('备份创建成功')
+      console.log("SUCCESS:", '备份创建成功')
     } else {
       result.value = { type: 'error', msg: `备份失败: ${data.error || '未知错误'}` }
-      message.error('备份失败')
+      console.error("ERROR:", '备份失败')
     }
     await loadBackups()
   } catch (e: any) {
