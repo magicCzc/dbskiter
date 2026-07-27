@@ -187,6 +187,7 @@ def _run_cli(args: list, database: str = "default") -> dict:
             return {
                 "success": False,
                 "error": stdout[:300],
+                "raw_stdout": stdout[:1000],
             }
 
         # 从末尾找最后一个 }，去掉 JSON 后的日志
@@ -202,6 +203,7 @@ def _run_cli(args: list, database: str = "default") -> dict:
             return {
                 "success": False,
                 "error": f"CLI output not valid JSON: {stdout[:300]}",
+                "raw_stdout": stdout[:1000],
             }
 
     except subprocess.TimeoutExpired:
@@ -453,12 +455,19 @@ async def list_databases():
 async def test_connection(
     database: str = Query("default", description="数据库别名"),
 ):
-    """测试数据库连接"""
-    result = await _run_cli_async(["diagnose", "realtime"], database)
+    """测试数据库连接（仅执行 SELECT 1，无需特殊权限）"""
+    result = await _run_cli_async(["sql", "execute", "SELECT 1 AS test"], database)
     success = result.get("success", False)
+
+    # 即使 JSON 解析失败，returncode=0 且 stdout 包含"行数"也表示成功
+    if not success:
+        raw_stdout = result.get("raw_stdout", "")
+        if "行数: 1" in raw_stdout or "1 rows" in raw_stdout:
+            success = True
+
     return {
         "success": success,
         "database": database,
-        "message": "连接成功" if success else (result.get("error", "连接失败")),
+        "message": "连接成功 🎉" if success else (result.get("error", "连接失败")),
         "data": result.get("data", {}) if success else None,
     }
