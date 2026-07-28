@@ -20,11 +20,13 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Install dependencies
+        working-directory: dbskiter/webui
+        run: npm install --no-audit --no-fund
+
       - name: Build Vue (Demo Mode)
-        run: |
-          cd dbskiter/webui
-          npm ci
-          VITE_DEMO_MODE=true npm run build
+        working-directory: dbskiter/webui
+        run: VITE_DEMO_MODE=true npm run build
 
       - name: Deploy to gh-pages branch
         run: |
