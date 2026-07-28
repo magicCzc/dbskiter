@@ -29,7 +29,9 @@ jobs:
 
       - name: Build Vue (Demo Mode)
         working-directory: dbskiter/webui
-        run: VITE_DEMO_MODE=true npm run build
+        env:
+          VITE_DEMO_MODE: 'true'
+        run: npm run build
 
       - name: Checkout gh-pages branch
         uses: actions/checkout@v4
