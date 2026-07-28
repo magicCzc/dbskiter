@@ -21,9 +21,21 @@ from typing import Optional, List, Dict, Any
 from contextlib import contextmanager
 
 from sqlalchemy import (
-    create_engine, Column, Integer, String, Float, Text,
-    DateTime, Boolean, JSON, ForeignKey, UniqueConstraint,
-    Index, desc, func, and_
+    create_engine,
+    Column,
+    Integer,
+    String,
+    Float,
+    Text,
+    DateTime,
+    Boolean,
+    JSON,
+    ForeignKey,
+    UniqueConstraint,
+    Index,
+    desc,
+    func,
+    and_,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, Session, relationship
 
@@ -42,6 +54,7 @@ Base = declarative_base()
 
 class User(Base):
     """用户"""
+
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -56,6 +69,7 @@ class User(Base):
 
 class DbConfig(Base):
     """数据库配置"""
+
     __tablename__ = "db_configs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -87,6 +101,7 @@ class DbConfig(Base):
 
 class MetricHistory(Base):
     """指标历史数据"""
+
     __tablename__ = "metric_history"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -96,13 +111,12 @@ class MetricHistory(Base):
     unit = Column(String(32), default="")
     collected_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
-    __table_args__ = (
-        Index("idx_metric_db_time", "db_alias", "metric", "collected_at"),
-    )
+    __table_args__ = (Index("idx_metric_db_time", "db_alias", "metric", "collected_at"),)
 
 
 class Alert(Base):
     """告警记录"""
+
     __tablename__ = "alerts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -119,6 +133,7 @@ class Alert(Base):
 
 class ScheduledTask(Base):
     """定时任务"""
+
     __tablename__ = "scheduled_tasks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -136,6 +151,7 @@ class ScheduledTask(Base):
 
 class AuditLog(Base):
     """操作审计日志"""
+
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -150,6 +166,7 @@ class AuditLog(Base):
 
 class Report(Base):
     """报告记录"""
+
     __tablename__ = "reports"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -210,9 +227,15 @@ def get_user_by_username(username: str) -> Optional[dict]:
     with session_scope() as session:
         user = session.query(User).filter(User.username == username).first()
         if user:
-            return {"id": user.id, "username": user.username, "password_hash": user.password_hash,
-                    "role": user.role, "email": user.email, "is_active": user.is_active,
-                    "last_login": user.last_login}
+            return {
+                "id": user.id,
+                "username": user.username,
+                "password_hash": user.password_hash,
+                "role": user.role,
+                "email": user.email,
+                "is_active": user.is_active,
+                "last_login": user.last_login,
+            }
         return None
 
 
@@ -221,9 +244,15 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
     with session_scope() as session:
         user = session.query(User).filter(User.id == user_id).first()
         if user:
-            return {"id": user.id, "username": user.username, "password_hash": user.password_hash,
-                    "role": user.role, "email": user.email, "is_active": user.is_active,
-                    "last_login": user.last_login}
+            return {
+                "id": user.id,
+                "username": user.username,
+                "password_hash": user.password_hash,
+                "role": user.role,
+                "email": user.email,
+                "is_active": user.is_active,
+                "last_login": user.last_login,
+            }
         return None
 
 
@@ -273,11 +302,18 @@ def get_all_db_configs() -> Dict[str, dict]:
     """获取所有数据库配置"""
     with session_scope() as session:
         configs = session.query(DbConfig).filter(DbConfig.is_active == True).all()
-        return {c.alias: {
-            "host": c.host, "port": c.port, "user": c.user,
-            "password": c.password, "database": c.database,
-            "dialect": c.dialect, "pool_size": c.pool_size,
-        } for c in configs}
+        return {
+            c.alias: {
+                "host": c.host,
+                "port": c.port,
+                "user": c.user,
+                "password": c.password,
+                "database": c.database,
+                "dialect": c.dialect,
+                "pool_size": c.pool_size,
+            }
+            for c in configs
+        }
 
 
 def _sync_config_to_json():
@@ -304,6 +340,7 @@ def get_metric_history(db_alias: str, metric: str, hours: int = 24) -> List[dict
     with session_scope() as session:
         since = datetime.utcnow().replace(second=0, microsecond=0)
         from datetime import timedelta
+
         since = since - timedelta(hours=hours)
         records = (
             session.query(MetricHistory)
@@ -321,12 +358,17 @@ def get_metric_history(db_alias: str, metric: str, hours: int = 24) -> List[dict
 # ── 告警操作 ──────────────────────────────────────────
 
 
-def create_alert(db_alias: str, metric: str, level: str, current_value: float, threshold: float, message: str = "") -> Alert:
+def create_alert(
+    db_alias: str, metric: str, level: str, current_value: float, threshold: float, message: str = ""
+) -> Alert:
     """创建告警"""
     with session_scope() as session:
         alert = Alert(
-            db_alias=db_alias, metric=metric, level=level,
-            current_value=current_value, threshold=threshold,
+            db_alias=db_alias,
+            metric=metric,
+            level=level,
+            current_value=current_value,
+            threshold=threshold,
             message=message,
         )
         session.add(alert)
@@ -360,8 +402,12 @@ def log_audit(user_id: Optional[int], username: str, action: str, target: str = 
     """记录审计日志"""
     with session_scope() as session:
         log = AuditLog(
-            user_id=user_id, username=username, action=action,
-            target=target, detail=detail, ip_address=ip,
+            user_id=user_id,
+            username=username,
+            action=action,
+            target=target,
+            detail=detail,
+            ip_address=ip,
         )
         session.add(log)
 
@@ -378,6 +424,7 @@ def get_audit_logs(limit: int = 50) -> List[AuditLog]:
 def init_default_admin():
     """创建默认管理员（如果不存在）"""
     from werkzeug.security import generate_password_hash
+
     with session_scope() as session:
         admin = session.query(User).filter(User.username == "admin").first()
         if not admin:

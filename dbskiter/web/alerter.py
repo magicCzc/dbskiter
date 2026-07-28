@@ -17,8 +17,11 @@ from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel
 
 from .database import (
-    get_open_alerts, acknowledge_alert, session_scope,
-    Alert, log_audit,
+    get_open_alerts,
+    acknowledge_alert,
+    session_scope,
+    Alert,
+    log_audit,
 )
 
 router = APIRouter(prefix="/api/alerts", tags=["alerts"])
@@ -60,9 +63,13 @@ async def list_alerts(
         "total": len(alerts),
         "alerts": [
             {
-                "id": a.id, "db_alias": a.db_alias, "metric": a.metric,
-                "level": a.level, "current_value": a.current_value,
-                "threshold": a.threshold, "message": a.message,
+                "id": a.id,
+                "db_alias": a.db_alias,
+                "metric": a.metric,
+                "level": a.level,
+                "current_value": a.current_value,
+                "threshold": a.threshold,
+                "message": a.message,
                 "status": a.status,
                 "created_at": a.created_at.isoformat(),
                 "resolved_at": a.resolved_at.isoformat() if a.resolved_at else None,
@@ -78,12 +85,8 @@ async def get_alert_stats():
     with session_scope() as session:
         total = session.query(Alert).count()
         open_count = session.query(Alert).filter(Alert.status == "open").count()
-        critical = session.query(Alert).filter(
-            Alert.level == "critical", Alert.status == "open"
-        ).count()
-        warning = session.query(Alert).filter(
-            Alert.level == "warning", Alert.status == "open"
-        ).count()
+        critical = session.query(Alert).filter(Alert.level == "critical", Alert.status == "open").count()
+        warning = session.query(Alert).filter(Alert.level == "warning", Alert.status == "open").count()
 
     return {
         "success": True,
@@ -139,6 +142,7 @@ async def get_alert_history(
 ):
     """告警历史"""
     from datetime import timedelta
+
     since = datetime.utcnow() - timedelta(hours=hours)
 
     with session_scope() as session:
@@ -152,9 +156,13 @@ async def get_alert_history(
         "total": len(alerts),
         "alerts": [
             {
-                "id": a.id, "db_alias": a.db_alias, "metric": a.metric,
-                "level": a.level, "current_value": a.current_value,
-                "threshold": a.threshold, "message": a.message,
+                "id": a.id,
+                "db_alias": a.db_alias,
+                "metric": a.metric,
+                "level": a.level,
+                "current_value": a.current_value,
+                "threshold": a.threshold,
+                "message": a.message,
                 "status": a.status,
                 "created_at": a.created_at.isoformat(),
             }

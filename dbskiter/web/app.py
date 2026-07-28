@@ -60,6 +60,7 @@ if STATIC_DIR.exists():
 from fastapi import Request
 from fastapi.responses import FileResponse, JSONResponse
 
+
 @app.middleware("http")
 async def spa_fallback(request: Request, call_next):
     """SPA fallback middleware: 非 /ui/assets 的 /ui/* 返回 index.html"""
@@ -89,6 +90,7 @@ async def startup():
 async def get_status():
     """API 健康检查"""
     from .database import get_session, User
+
     db_ok = False
     try:
         with get_session() as s:
@@ -101,11 +103,19 @@ async def get_status():
         "auth": "enabled",
         "database": "ok" if db_ok else "error",
         "api_endpoints": [
-            "/api/health", "/api/slow-queries", "/api/security",
-            "/api/diagnose/realtime", "/api/inspector/report",
-            "/api/backup (POST)", "/api/backups", "/api/tasks",
-            "/api/logs", "/api/config/databases",
-            "/api/auth/login", "/api/auth/register", "/api/auth/me",
+            "/api/health",
+            "/api/slow-queries",
+            "/api/security",
+            "/api/diagnose/realtime",
+            "/api/inspector/report",
+            "/api/backup (POST)",
+            "/api/backups",
+            "/api/tasks",
+            "/api/logs",
+            "/api/config/databases",
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/me",
         ],
     }
 
@@ -114,4 +124,5 @@ async def get_status():
 async def root():
     """重定向到 UI 首页"""
     from fastapi.responses import RedirectResponse
+
     return RedirectResponse(url="/ui/index.html")

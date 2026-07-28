@@ -18,13 +18,18 @@ from pydantic import BaseModel
 
 try:
     import jwt
+
     JWT_AVAILABLE = True
 except ImportError:
     JWT_AVAILABLE = False
 
 from .database import (
-    init_db, init_default_admin, get_session, session_scope,
-    log_audit, User,
+    init_db,
+    init_default_admin,
+    get_session,
+    session_scope,
+    log_audit,
+    User,
 )
 
 # 密钥
@@ -73,6 +78,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     """验证密码"""
     try:
         from werkzeug.security import check_password_hash
+
         return check_password_hash(hashed_password, plain_password)
     except ImportError:
         # 没有 werkzeug，用简单 hash
@@ -83,6 +89,7 @@ def hash_password(password: str) -> str:
     """哈希密码"""
     try:
         from werkzeug.security import generate_password_hash
+
         return generate_password_hash(password)
     except ImportError:
         return hashlib.sha256(password.encode()).hexdigest()
@@ -218,7 +225,9 @@ async def get_me(payload: dict = Depends(require_user)):
         if not user:
             raise HTTPException(status_code=404, detail="用户不存在")
         return UserInfo(
-            id=user.id, username=user.username, role=user.role,
+            id=user.id,
+            username=user.username,
+            role=user.role,
             email=user.email or "",
             last_login=user.last_login.isoformat() if user.last_login else None,
         )
@@ -240,8 +249,11 @@ async def list_users(payload: dict = Depends(require_admin)):
         users = session.query(User).order_by(User.created_at.desc()).all()
         result = [
             {
-                "id": u.id, "username": u.username, "role": u.role,
-                "email": u.email, "is_active": u.is_active,
+                "id": u.id,
+                "username": u.username,
+                "role": u.role,
+                "email": u.email,
+                "is_active": u.is_active,
                 "created_at": u.created_at.isoformat() if u.created_at else None,
                 "last_login": u.last_login.isoformat() if u.last_login else None,
             }

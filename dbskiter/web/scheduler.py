@@ -21,13 +21,18 @@ try:
     from apscheduler.schedulers.asyncio import AsyncIOScheduler
     from apscheduler.triggers.cron import CronTrigger
     from apscheduler.jobstores.memory import MemoryJobStore
+
     APSCHEDULER_AVAILABLE = True
 except ImportError:
     APSCHEDULER_AVAILABLE = False
 
 from .database import (
-    get_session, ScheduledTask, session_scope,
-    log_audit, save_metric, create_alert,
+    get_session,
+    ScheduledTask,
+    session_scope,
+    log_audit,
+    save_metric,
+    create_alert,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,8 +80,12 @@ def _run_cli_sync(db_alias: str, args: list) -> dict:
     try:
         cmd = ["dbskiter", "--output-mode=raw", "--database", db_alias] + args
         result = subprocess.run(
-            cmd, capture_output=True, text=True,
-            encoding="utf-8", errors="replace", timeout=120,
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
         )
         stdout = result.stdout.strip()
         if not stdout:
@@ -86,7 +95,7 @@ def _run_cli_sync(db_alias: str, args: list) -> dict:
             stdout = stdout[first:]
         last = stdout.rfind("}")
         if last >= 0:
-            stdout = stdout[:last + 1]
+            stdout = stdout[: last + 1]
         return json.loads(stdout)
     except Exception as e:
         return {"success": False, "error": str(e)}
@@ -116,6 +125,7 @@ def execute_task(task_type: str, db_alias: str, task_id: str):
 
     elif task_type == "collect":
         from .collector import collect_metrics
+
         try:
             loop = asyncio.new_event_loop()
             metrics = collect_metrics(db_alias)
@@ -185,9 +195,13 @@ async def list_tasks():
         "success": True,
         "tasks": [
             {
-                "id": t.id, "name": t.name, "task_type": t.task_type,
-                "db_alias": t.db_alias, "cron_expr": t.cron_expr,
-                "params": t.params, "is_enabled": t.is_enabled,
+                "id": t.id,
+                "name": t.name,
+                "task_type": t.task_type,
+                "db_alias": t.db_alias,
+                "cron_expr": t.cron_expr,
+                "params": t.params,
+                "is_enabled": t.is_enabled,
                 "last_run": t.last_run.isoformat() if t.last_run else None,
                 "next_run": _get_next_run(t.cron_expr) if t.is_enabled else None,
                 "created_at": t.created_at.isoformat() if t.created_at else None,
@@ -218,8 +232,11 @@ async def create_task(config: dict):
 
     with session_scope() as session:
         task = ScheduledTask(
-            name=name, task_type=task_type, db_alias=db_alias,
-            cron_expr=cron_expr, params=config.get("params", {}),
+            name=name,
+            task_type=task_type,
+            db_alias=db_alias,
+            cron_expr=cron_expr,
+            params=config.get("params", {}),
             is_enabled=True,
         )
         session.add(task)
