@@ -106,5 +106,26 @@ node_modules/
 dbskiter/webui/node_modules/
 dbskiter/webui/dist/
 
-# DBSKiter Web build output
+# DBSKiter Web build output (CI 在 deploy 前会重新生成)
+dbskiter/web/static/
+dbskiter/web/static/index.html
 dbskiter/web/static/assets/
+
+# pytest-cov 运行时产物(包含主机名,绝对不该进版本库)
+.coverage
+.coverage.*
+htmlcov/
+
+# 本地数据库连接配置(可能含密码,不入库)
+dbskiter/config/databases.json
+dbskiter/config/*.local.json
+dbskiter/config/secrets.json
+
+# 本地启动脚本
+start.bat
+start.sh
+
+# Python 字节码(任何 .pyc 都不应入库,虽然 GitHub 默认忽略但兜底)
+__pycache__/
+*.py[cod]
+*.pyo
