@@ -1,0 +1,76 @@
+/* ============================================================
+ * Element Plus 主题映射
+ * 把 EP 默认的 CSS 变量指到我们的 design token
+ * 顺序:此文件必须在 element-plus 主题之后,tokens.css 之后引入
+ * ============================================================ */
+
+:root {
+  /* ---------- 品牌色 ---------- */
+  --el-color-primary:               var(--color-brand-500);
+  --el-color-primary-light-3:       var(--color-brand-300);
+  --el-color-primary-light-5:       var(--color-brand-200);
+  --el-color-primary-light-7:       var(--color-brand-100);
+  --el-color-primary-light-9:       var(--color-brand-50);
+  --el-color-primary-dark-2:        var(--color-brand-600);
+
+  --el-color-success:               var(--color-success-500);
+  --el-color-warning:               var(--color-warning-500);
+  --el-color-danger:                var(--color-danger-500);
+  --el-color-error:                 var(--color-danger-500);
+  --el-color-info:                  var(--color-info-500);
+
+  /* ---------- 文本色 ---------- */
+  --el-text-color-primary:          var(--text-primary);
+  --el-text-color-regular:          var(--text-secondary);
+  --el-text-color-secondary:        var(--text-tertiary);
+  --el-text-color-placeholder:      var(--text-placeholder);
+  --el-text-color-disabled:         var(--color-gray-400);
+
+  /* ---------- 边框 ---------- */
+  --el-border-color:                var(--border-default);
+  --el-border-color-light:          var(--border-muted);
+  --el-border-color-lighter:        var(--color-gray-100);
+  --el-border-color-extra-light:    var(--color-gray-50);
+  --el-border-color-dark:           var(--border-strong);
+  --el-border-color-darker:         var(--color-gray-400);
+  --el-border-color-hover:          var(--color-brand-400);
+
+  /* ---------- 背景 ---------- */
+  --el-bg-color:                    var(--bg-elevated);
+  --el-bg-color-page:               var(--bg-page);
+  --el-bg-color-overlay:            var(--bg-elevated);
+
+  /* ---------- 填充 ---------- */
+  --el-fill-color:                  var(--color-gray-100);
+  --el-fill-color-light:            var(--color-gray-50);
+  --el-fill-color-lighter:          var(--color-gray-50);
+  --el-fill-color-extra-light:      var(--color-gray-50);
+  --el-fill-color-dark:             var(--color-gray-200);
+  --el-fill-color-darker:           var(--color-gray-300);
+  --el-fill-color-blank:            var(--bg-elevated);
+
+  /* ---------- 圆角 ---------- */
+  --el-border-radius-small:         var(--radius-sm);
+  --el-border-radius-base:          var(--radius-md);
+  --el-border-radius-round:         var(--radius-pill);
+
+  /* ---------- 阴影 ---------- */
+  --el-box-shadow:                  var(--shadow-md);
+  --el-box-shadow-light:            var(--shadow-sm);
+  --el-box-shadow-lighter:          var(--shadow-sm);
+  --el-box-shadow-dark:             var(--shadow-lg);
+
+  /* ---------- 遮罩 ---------- */
+  --el-overlay-color:               rgba(17, 24, 39, 0.5);
+  --el-overlay-color-light:         rgba(17, 24, 39, 0.3);
+  --el-overlay-color-lighter:       rgba(17, 24, 39, 0.1);
+
+  /* ---------- 字体 ---------- */
+  --el-font-family:                 var(--font-sans);
+
+  /* ---------- 菜单(深色侧栏) ---------- */
+  --el-menu-bg-color:               var(--bg-sidebar);
+  --el-menu-text-color:             var(--text-on-dark);
+  --el-menu-hover-bg-color:         var(--bg-sidebar-hover);
+  --el-menu-active-color:           var(--color-brand-300);
+}

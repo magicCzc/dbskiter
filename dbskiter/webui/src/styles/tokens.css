@@ -1,0 +1,143 @@
+/* ============================================================
+ * DBSKiter Design Tokens
+ * 全局设计系统变量,所有颜色/间距/字号/阴影的唯一来源
+ * 参考 Bytebase 视觉语言,冷色中性蓝
+ * ============================================================ */
+
+:root {
+  /* ---------- 主品牌色 (冷色中性蓝) ---------- */
+  --color-brand-50:  #F0F5FF;
+  --color-brand-100: #DBE7FE;
+  --color-brand-200: #B6CEFD;
+  --color-brand-300: #8AAAFC;
+  --color-brand-400: #6085F5;
+  --color-brand-500: #3B6AE8;
+  --color-brand-600: #2D52C7;
+  --color-brand-700: #1F3A99;
+  --color-brand-800: #152A6E;
+  --color-brand-900: #0D1B47;
+
+  /* ---------- 中性色 ---------- */
+  --color-gray-0:   #FFFFFF;
+  --color-gray-50:  #F9FAFB;
+  --color-gray-100: #F3F4F6;
+  --color-gray-200: #E5E7EB;
+  --color-gray-300: #D1D5DB;
+  --color-gray-400: #9CA3AF;
+  --color-gray-500: #6B7280;
+  --color-gray-600: #4B5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1F2937;
+  --color-gray-900: #111827;
+
+  /* ---------- 语义色 ---------- */
+  --color-success-50:  #ECFDF5;
+  --color-success-500: #10B981;
+  --color-success-700: #047857;
+  --color-warning-50:  #FFFBEB;
+  --color-warning-500: #F59E0B;
+  --color-warning-700: #B45309;
+  --color-danger-50:   #FEF2F2;
+  --color-danger-500:  #EF4444;
+  --color-danger-700:  #B91C1C;
+  --color-info-50:     #EFF6FF;
+  --color-info-500:    #3B6AE8;
+  --color-info-700:    #1E40AF;
+
+  /* ---------- 语义别名(组件直接使用) ---------- */
+  --bg-page:           var(--color-gray-50);
+  --bg-elevated:       var(--color-gray-0);
+  --bg-sidebar:        var(--color-gray-900);
+  --bg-sidebar-hover:  var(--color-gray-800);
+  --bg-sidebar-active: var(--color-brand-600);
+  --bg-code:           var(--color-gray-50);
+
+  --text-primary:      var(--color-gray-900);
+  --text-secondary:    var(--color-gray-600);
+  --text-tertiary:     var(--color-gray-500);
+  --text-placeholder:  var(--color-gray-400);
+  --text-on-dark:      var(--color-gray-100);
+  --text-on-dark-mute: var(--color-gray-400);
+  --text-on-brand:     var(--color-gray-0);
+  --text-link:         var(--color-brand-500);
+
+  --border-default:    var(--color-gray-200);
+  --border-strong:     var(--color-gray-300);
+  --border-muted:      var(--color-gray-100);
+
+  --accent-primary:    var(--color-brand-500);
+  --accent-success:    var(--color-success-500);
+  --accent-warning:    var(--color-warning-500);
+  --accent-danger:     var(--color-danger-500);
+
+  /* ---------- 间距(4px 步进) ---------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ---------- 圆角 ---------- */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-pill: 9999px;
+
+  /* ---------- 阴影(克制) ---------- */
+  --shadow-sm: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-md: 0 4px 8px rgba(17, 24, 39, 0.06);
+  --shadow-lg: 0 12px 24px rgba(17, 24, 39, 0.08);
+  --shadow-focus: 0 0 0 3px rgba(59, 106, 232, 0.15);
+
+  /* ---------- 字体 ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto,
+               'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+
+  /* ---------- 字号 ---------- */
+  --text-xs:   12px;
+  --text-sm:   13px;
+  --text-base: 14px;
+  --text-md:   15px;
+  --text-lg:   16px;
+  --text-xl:   18px;
+  --text-2xl:  22px;
+  --text-3xl:  28px;
+  --text-4xl:  36px;
+
+  /* ---------- 字重 ---------- */
+  --font-normal:   400;
+  --font-medium:   500;
+  --font-semibold: 600;
+  --font-bold:     700;
+
+  /* ---------- 布局尺寸 ---------- */
+  --sidebar-width:          220px;
+  --sidebar-collapsed-width: 56px;
+  --topbar-height:           48px;
+  --footer-height:           32px;
+  --content-max-width:       1280px;
+  --content-padding:         var(--space-6);
+
+  /* ---------- 动效 ---------- */
+  --transition-fast:   0.12s ease;
+  --transition-normal: 0.2s ease;
+  --transition-slow:   0.3s ease;
+
+  /* ---------- Z-index 层级 ---------- */
+  --z-sticky:   100;
+  --z-dropdown: 1000;
+  --z-modal:    2000;
+  --z-toast:    3000;
+}
+
+/* 暗色模式钩子(留好接口,阶段 5 补具体值) */
+[data-theme='dark'] {
+  /* 阶段 5 补全 */
+}
