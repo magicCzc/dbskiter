@@ -31,28 +31,29 @@ jobs:
         working-directory: dbskiter/webui
         run: VITE_DEMO_MODE=true npm run build
 
+      - name: Checkout gh-pages branch
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+          path: gh-pages-tmp
+          fetch-depth: 1
+
       - name: Deploy to gh-pages branch
         run: |
-          # 配置 git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # 完整克隆 gh-pages 分支
-          git clone --depth 1 --branch gh-pages https://x-access-token:${GITHUB_TOKEN}@github.com/magicCzc/dbskiter.git gh-pages-tmp
-
+          set -e
           # 复制构建产物到 ui/ 子目录（保留 mkdocs 内容）
           mkdir -p gh-pages-tmp/ui
           cp -r dbskiter/web/static/* gh-pages-tmp/ui/
           touch gh-pages-tmp/.nojekyll
 
-          # 提交并推送
           cd gh-pages-tmp
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git add -A
           if git diff --cached --quiet; then
             echo "No changes to deploy"
             exit 0
           fi
           git commit -m "Deploy Web UI demo"
-          git push origin gh-pages
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          git push
