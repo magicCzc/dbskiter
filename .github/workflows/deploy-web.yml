@@ -3,10 +3,6 @@ name: Deploy Web UI Demo
 on:
   push:
     branches: [main]
-    # 仅当 webui/ 目录或 workflow 文件变化时触发
-    paths:
-      - 'dbskiter/webui/**'
-      - '.github/workflows/deploy-web.yml'
 
 jobs:
   deploy:
@@ -34,30 +30,23 @@ jobs:
         env:
           VITE_DEMO_MODE: 'true'
 
-      - name: Checkout gh-pages branch
-        uses: actions/checkout@v4
-        with:
-          ref: gh-pages
-          path: gh-pages
-
-      - name: Copy build output to gh-pages/ui/
+      - name: Deploy to gh-pages/ui/
         run: |
-          # 确保目标目录存在
-          mkdir -p gh-pages/ui
-          # 复制所有构建产物（排除 mkdocs 原有的文件）
-          cp -r dbskiter/web/static/* gh-pages/ui/
-          # 添加 .nojekyll 标记（如果不存在）
-          touch gh-pages/.nojekyll
-          # 创建重定向：从根目录 301 到 ui/
-          echo '<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0; url=/dbskiter/ui/"></head><body><p>Redirecting to <a href="/dbskiter/ui/">Web UI Demo</a>...</p></body></html>' > gh-pages/demo.html
-
-      - name: Commit and push
-        run: |
-          cd gh-pages
+          # 配置 git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 获取 gh-pages 分支
+          git fetch origin gh-pages
+          git checkout gh-pages
+
+          # 复制构建产物到 ui/ 子目录
+          mkdir -p ui
+          cp -r dbskiter/web/static/* ui/
+          touch .nojekyll
+
+          # 提交并推送
           git add -A
-          # 检查是否有变更
           if git diff --cached --quiet; then
             echo "No changes to deploy"
             exit 0
