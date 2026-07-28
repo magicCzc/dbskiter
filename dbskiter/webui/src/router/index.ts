@@ -1,5 +1,5 @@
 import type { RouteRecordRaw } from 'vue-router'
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHashHistory } from 'vue-router'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -118,7 +118,7 @@ export const routes: RouteRecordRaw[] = [
   },
 ]
 
-export const router = createRouter({ history: createWebHistory('/ui/'), routes })
+export const router = createRouter({ history: createWebHashHistory('/ui/'), routes })
 
 // 路由守卫：检查登录状态
 router.beforeEach((to, _from, next) => {
