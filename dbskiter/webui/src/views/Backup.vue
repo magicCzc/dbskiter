@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useDatabaseStore } from '@/stores/database'
-import { api, formatBytes } from '@/api'
+import { api, formatBytes, exportCSV } from '@/api'
 import { ElMessage } from 'element-plus'
 import type { BackupRecord } from '@/types'
 
@@ -11,6 +11,7 @@ const tables = ref('')
 const backups = ref<BackupRecord[]>([])
 const loading = ref(false)
 const result = ref<{ type: string; msg: string } | null>(null)
+const lastUpdated = ref('')
 
 async function createBackup() {
   result.value = { type: 'info', msg: '备份执行中...' }
@@ -29,16 +30,32 @@ async function createBackup() {
 
 async function loadBackups() {
   loading.value = true
-  try { const data = await api.listBackups(dbStore.current); backups.value = data.backups || [] }
+  try { const data = await api.listBackups(dbStore.current); backups.value = data.backups || []; lastUpdated.value = new Date().toLocaleTimeString() }
   catch { /* 静默 */ }
   finally { loading.value = false }
 }
 
 onMounted(loadBackups)
+
+function exportCSVData() {
+  exportCSV(backups.value.map(b => ({
+    备份ID: b.backup_id,
+    类型: b.backup_type,
+    文件路径: b.file_path,
+    大小: formatBytes(b.file_size || 0),
+    状态: b.success ? '成功' : '失败',
+  })), `backups-${dbStore.current}.csv`)
+}
 </script>
 
 <template>
   <div class="page">
+    <!-- 实时反馈 -->
+    <div class="live-bar" v-if="lastUpdated">
+      <span class="live-dot"></span>
+      <span class="live-text">{{ lastUpdated }} 更新</span>
+    </div>
+
     <el-card shadow="never" class="section-card">
       <template #header><span>💾 创建备份</span></template>
       <el-form :inline="true" size="small">
@@ -61,14 +78,17 @@ onMounted(loadBackups)
           <el-button type="primary" @click="createBackup">开始备份</el-button>
         </el-form-item>
       </el-form>
-      <el-alert v-if="result" :title="result.msg" :type="result.type as any" show-icon style="white-space:pre-line" />
+      <el-alert v-if="result" :title="result.msg" :type="(result.type as 'info' | 'success' | 'error' | 'warning')" show-icon style="white-space:pre-line" />
     </el-card>
 
     <el-card shadow="never" class="section-card">
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span>备份记录 <el-tag size="small">{{ backups.length }}</el-tag></span>
-          <el-button size="small" @click="loadBackups" :loading="loading">刷新</el-button>
+          <div style="display:flex;gap:8px">
+            <el-button size="small" @click="exportCSVData" :disabled="!backups.length">导出 CSV</el-button>
+            <el-button size="small" @click="loadBackups" :loading="loading">刷新</el-button>
+          </div>
         </div>
       </template>
       <el-table :data="backups" v-loading="loading" stripe style="width:100%">
@@ -93,4 +113,8 @@ onMounted(loadBackups)
 <style scoped>
 .page { max-width:1200px; margin:0 auto; }
 .section-card { margin-bottom:16px; }
+.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.live-text { font-size: 12px; }
 </style>

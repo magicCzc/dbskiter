@@ -7,10 +7,11 @@ DBSKiter Web UI - FastAPI 应用入口
     uvicorn dbskiter.web.app:app --host 0.0.0.0 --port 8000
 
 功能:
-    - 8 个核心 API 端点（健康检查、慢查询、安全审计等）
-    - 5 个前端页面（仪表盘、慢查询、安全、备份、调度）
+    - 16 个 API 端点（健康检查、慢查询、安全审计等）
+    - 16 个前端页面（仪表盘、SQL 编辑器、数据库配置等）
+    - Web UI 数据库配置管理
+    - 用户认证（JWT）
     - Swagger UI 自动文档 (http://localhost:8000/docs)
-    - CORS 支持（跨域请求）
 """
 
 from pathlib import Path
@@ -19,6 +20,10 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from .api import router as api_router
+from .auth import router as auth_router, init_auth
+from .alerter import router as alert_router
+from .scheduler import router as task_router, init_scheduler
+from .collector import collector
 
 # 获取静态文件目录
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -32,7 +37,7 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# CORS 中间件（允许前端跨域请求）
+# CORS 中间件
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -43,8 +48,11 @@ app.add_middleware(
 
 # 注册 API 路由
 app.include_router(api_router)
+app.include_router(auth_router)
+app.include_router(alert_router)
+app.include_router(task_router)
 
-# 挂载静态文件（Vue 构建产物）
+# 挂载静态文件
 if STATIC_DIR.exists():
     app.mount("/ui/assets", StaticFiles(directory=str(STATIC_DIR / "assets")), name="assets")
 
@@ -65,29 +73,39 @@ async def spa_fallback(request: Request, call_next):
 
 @app.on_event("startup")
 async def startup():
-    """应用启动时执行的初始化"""
-    # 确保静态目录存在
+    """应用启动时初始化"""
     STATIC_DIR.mkdir(parents=True, exist_ok=True)
     (STATIC_DIR / "css").mkdir(exist_ok=True)
     (STATIC_DIR / "js").mkdir(exist_ok=True)
+    # 初始化数据库和认证
+    init_auth()
+    # 启动定时任务调度器
+    init_scheduler()
+    # 启动指标采集器
+    await collector.start()
 
 
 @app.get("/api/status")
 async def get_status():
     """API 健康检查"""
+    from .database import get_session, User
+    db_ok = False
+    try:
+        with get_session() as s:
+            db_ok = s.query(User).count() >= 0
+    except:
+        pass
     return {
         "status": "ok",
         "version": "3.0.43",
+        "auth": "enabled",
+        "database": "ok" if db_ok else "error",
         "api_endpoints": [
-            "/api/health",
-            "/api/slow-queries",
-            "/api/security",
-            "/api/diagnose/realtime",
-            "/api/inspector/report",
-            "/api/backup (POST)",
-            "/api/backups",
-            "/api/tasks",
-            "/api/logs",
+            "/api/health", "/api/slow-queries", "/api/security",
+            "/api/diagnose/realtime", "/api/inspector/report",
+            "/api/backup (POST)", "/api/backups", "/api/tasks",
+            "/api/logs", "/api/config/databases",
+            "/api/auth/login", "/api/auth/register", "/api/auth/me",
         ],
     }
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useDatabaseStore } from '@/stores/database'
-import { api, severityClass } from '@/api'
+import { api, severityClass, exportCSV } from '@/api'
 import { ElMessage } from 'element-plus'
 import type { Risk } from '@/types'
 
@@ -9,6 +9,10 @@ const dbStore = useDatabaseStore()
 const risks = ref<Risk[]>([])
 const loading = ref(false)
 const filterLevel = ref('all')
+const lastUpdated = ref('')
+const fixDialogVisible = ref(false)
+const fixSql = ref('')
+const fixDescription = ref('')
 
 const totalRisks = computed(() => risks.value.length)
 const criticalCount = computed(() => risks.value.filter(r => r.severity === 'critical').length)
@@ -32,8 +36,40 @@ async function load() {
   try {
     const data = await api.security(dbStore.current)
     risks.value = data.risks
+    lastUpdated.value = new Date().toLocaleTimeString()
   } catch (e: any) { ElMessage.error(`加载失败: ${e.message}`) }
   finally { loading.value = false }
+}
+
+function showFix(risk: Risk) {
+  fixDescription.value = risk.description || ''
+  fixSql.value = risk.recommended_value || risk.current_value || '-- 无自动修复建议'
+  fixDialogVisible.value = true
+}
+
+async function applyFix() {
+  try {
+    const data = await api.executeSQL(dbStore.current, fixSql.value, 1, false)
+    if (data.success) {
+      ElMessage.success('修复执行成功')
+      fixDialogVisible.value = false
+      await load()
+    } else {
+      ElMessage.error(`修复失败: ${data.error || '未知错误'}`)
+    }
+  } catch (e: any) {
+    ElMessage.error(`执行错误: ${e.message}`)
+  }
+}
+
+function exportCSVData() {
+  exportCSV(filtered.value.map(r => ({
+    级别: r.severity,
+    描述: r.description,
+    分类: r.category,
+    当前值: r.current_value,
+    建议值: r.recommended_value,
+  })), `security-risks-${dbStore.current}.csv`)
 }
 
 onMounted(load)
@@ -41,6 +77,12 @@ onMounted(load)
 
 <template>
   <div class="page">
+    <!-- 实时反馈 -->
+    <div class="live-bar" v-if="lastUpdated">
+      <span class="live-dot"></span>
+      <span class="live-text">{{ lastUpdated }} 更新</span>
+    </div>
+
     <el-card shadow="never" class="section-card">
       <div class="section-header">
         <h2 style="margin:0;font-size:16px;display:flex;align-items:center;gap:8px">🔒 安全审计</h2>
@@ -50,6 +92,7 @@ onMounted(load)
             <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
           </el-select>
           <el-button type="primary" size="small" :loading="loading" @click="load">执行审计</el-button>
+          <el-button size="small" @click="exportCSVData" :disabled="!filtered.length">导出 CSV</el-button>
         </div>
       </div>
     </el-card>
@@ -89,19 +132,37 @@ onMounted(load)
         </div>
       </template>
       <el-table :data="filtered" v-loading="loading" stripe style="width:100%">
-        <el-table-column label="级别" width="90">
-          <template #default="{row}"><el-tag :type="(severityClass(row.severity) as any)" size="small">{{ row.severity }}</el-tag></template>
+        <el-table-column label="级别" width="80">
+          <template #default="{row}"><el-tag :type="(severityClass(row.severity) as 'critical' | 'high' | 'medium' | 'low' | 'success' | 'failed' | 'warning' | 'healthy')" size="small">{{ row.severity }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="category" label="分类" width="120" />
-        <el-table-column prop="current_value" label="当前值" width="180">
+        <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="category" label="分类" width="100" />
+        <el-table-column prop="current_value" label="当前值" width="150" show-overflow-tooltip>
           <template #default="{row}"><code style="font-size:12px">{{ row.current_value }}</code></template>
         </el-table-column>
-        <el-table-column prop="recommended_value" label="建议值" width="180">
+        <el-table-column prop="recommended_value" label="建议值" width="150" show-overflow-tooltip>
           <template #default="{row}"><code style="font-size:12px;color:#22C55E">{{ row.recommended_value }}</code></template>
+        </el-table-column>
+        <el-table-column label="操作" width="80" fixed="right">
+          <template #default="{row}">
+            <el-button size="small" type="primary" plain @click="showFix(row)" v-if="row.recommended_value">修复</el-button>
+          </template>
         </el-table-column>
       </el-table>
     </el-card>
+
+    <!-- Fix 对话框 -->
+    <el-dialog v-model="fixDialogVisible" title="修复建议" width="600px">
+      <p style="margin-bottom:12px;color:var(--el-text-color-secondary)">{{ fixDescription }}</p>
+      <div style="background:var(--el-fill-color-light);padding:12px;border-radius:6px;margin-bottom:16px">
+        <code style="font-size:13px;white-space:pre-wrap;word-break:break-all">{{ fixSql }}</code>
+      </div>
+      <p style="font-size:12px;color:#ef4444;margin-bottom:16px">⚠️ 执行修复将修改数据库配置，请确认操作</p>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <el-button @click="fixDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="applyFix">执行修复</el-button>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -117,4 +178,8 @@ onMounted(load)
 .kpi-label { font-size:14px; color:var(--el-text-color-secondary); margin-top:4px; }
 .dist-bar { display:flex; height:32px; border-radius:8px; overflow:hidden; }
 .dist-seg { display:flex; align-items:center; justify-content:center; color:white; font-size:12px; font-weight:600; min-width:60px; }
+.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.live-text { font-size: 12px; }
 </style>

@@ -32,6 +32,7 @@ theme:
 
 nav:
   - 首页: index.md
+  - 🎮 在线体验: demo.md
   - 配置指南: configuration.md
   - 架构详解: architecture.md
   - 安全模型: security.md

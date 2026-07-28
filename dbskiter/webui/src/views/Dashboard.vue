@@ -2,249 +2,271 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDatabaseStore } from '@/stores/database'
+import { useAuthStore } from '@/stores/auth'
 import { api } from '@/api'
 import { ElMessage } from 'element-plus'
-import { Refresh } from '@element-plus/icons-vue'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, PieChart, BarChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent, TitleComponent } from 'echarts/components'
+import { BarChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import type { HealthResponse, AlertStatsResponse, LogEntry } from '@/types'
 
-use([CanvasRenderer, LineChart, PieChart, BarChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent])
+use([CanvasRenderer, BarChart, GridComponent, TooltipComponent])
 
 const router = useRouter()
 const dbStore = useDatabaseStore()
+const auth = useAuthStore()
+
 const loading = ref(false)
-const health = ref<any>(null)
+const health = ref<HealthResponse | null>(null)
 const slowTotal = ref(0)
 const securityRisks = ref(0)
-const topSqlData = ref<any[]>([])
-const allDatabases = ref<any[]>([])
-const loadingAll = ref(false)
+const alertStats = ref<AlertStatsResponse['stats']>({ open: 0, critical: 0, warning: 0, total: 0 })
+const taskCount = ref(0)
+const dbCount = ref(0)
+const userCount = ref(0)
+const lastUpdated = ref('')
 const autoRefresh = ref(false)
-const activeTab = ref('overview')
+const recentActivity = ref<LogEntry[]>([])
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
-const trendData = ref({
-  cpu: [45, 52, 78, 85, 72, 55, 48],
-  memory: [62, 65, 70, 75, 73, 68, 64],
-  disk: [55, 55, 56, 56, 57, 57, 58],
-  qps: [1200, 1500, 3200, 4500, 3800, 2500, 1800],
+const healthScore = computed(() => health?.value?.score ?? 0)
+
+const dbHealthOption = computed(() => {
+  const dbs = dbStore.databases.map(name => ({
+    name, score: name === dbStore.current ? healthScore.value : 0,
+  }))
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    grid: { left: 30, right: 10, top: 8, bottom: 25 },
+    xAxis: { type: 'category', data: dbs.map(d => d.name), axisLabel: { fontSize: 10 } },
+    yAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } }, axisLabel: { fontSize: 10 } },
+    series: [{
+      type: 'bar', data: dbs.map(d => ({
+        value: d.score, itemStyle: { color: d.score >= 80 ? '#22C55E' : d.score >= 60 ? '#F59E0B' : '#EF4444', borderRadius: [4, 4, 0, 0] },
+      })),
+      barWidth: '50%',
+    }],
+  }
 })
 
-const lineOption = computed(() => ({
-  tooltip: { trigger: 'axis' },
-  legend: { bottom: 0, textStyle: { fontSize: 11 } },
-  grid: { left: 36, right: 12, top: 16, bottom: 36 },
-  xAxis: { type: 'category', data: ['00:00', '04:00', '08:00', '12:00', '16:00', '20:00', '现在'], axisLabel: { fontSize: 10 } },
-  yAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } }, axisLabel: { fontSize: 10 } },
-  series: [
-    { name: 'CPU', type: 'line', data: trendData.value.cpu, smooth: true, lineStyle: { color: '#EF4444', width: 2 }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(239,68,68,0.2)' }, { offset: 1, color: 'rgba(239,68,68,0)' }] } }, symbol: 'none' },
-    { name: '内存', type: 'line', data: trendData.value.memory, smooth: true, lineStyle: { color: '#3B82F6', width: 2 }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(59,130,246,0.2)' }, { offset: 1, color: 'rgba(59,130,246,0)' }] } }, symbol: 'none' },
-    { name: '磁盘', type: 'line', data: trendData.value.disk, smooth: true, lineStyle: { color: '#F59E0B', width: 2 }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(245,158,11,0.2)' }, { offset: 1, color: 'rgba(245,158,11,0)' }] } }, symbol: 'none' },
-  ],
-}))
-
-const barOption = computed(() => ({
-  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
-  grid: { left: 36, right: 12, top: 12, bottom: 28 },
-  xAxis: { type: 'category', data: allDatabases.value.map((d: any) => d.name), axisLabel: { fontSize: 10 } },
-  yAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } }, axisLabel: { fontSize: 10 } },
-  series: [{
-    type: 'bar', data: allDatabases.value.map((d: any) => ({
-      value: d.score || 0,
-      itemStyle: { color: d.score >= 80 ? '#22C55E' : d.score >= 60 ? '#F59E0B' : '#EF4444', borderRadius: [4, 4, 0, 0] }
-    })),
-    barWidth: '60%',
-    label: { show: true, position: 'top', formatter: '{c}', fontSize: 10 },
-  }],
-}))
-
-const quickActions = [
-  { label: '实时诊断', icon: '🔍', path: '/diagnose', color: '#6366f1' },
-  { label: '慢查询', icon: '🐢', path: '/slow-queries', color: '#f59e0b' },
-  { label: '安全审计', icon: '🔒', path: '/security', color: '#ef4444' },
-  { label: '备份管理', icon: '💾', path: '/backup', color: '#22c55e' },
-  { label: '任务调度', icon: '⏰', path: '/scheduler', color: '#3b82f6' },
-  { label: '数据库', icon: '🗄️', path: '/databases', color: '#8b5cf6' },
-]
-
-async function loadAllDatabases() {
-  loadingAll.value = true
+async function loadSummary() {
   try {
-    const resp = await fetch('/api/health/all')
-    const data = await resp.json()
-    allDatabases.value = data.databases || []
-  } catch { /* 静默 */ }
-  finally { loadingAll.value = false }
-}
-
-async function refresh() {
-  loading.value = true
-  try {
-    const [h, s, sec] = await Promise.all([
+    const [h, s, sec, alerts, tasks, dbs] = await Promise.all([
       api.health(dbStore.current),
       api.slowQueries(dbStore.current, 5, 1),
       api.security(dbStore.current),
+      api.getAlertStats().catch(() => ({ stats: { open: 0, critical: 0, warning: 0, total: 0 } })),
+      api.tasks().catch(() => ({ tasks: [] })),
+      api.databases(),
     ])
     health.value = h
     slowTotal.value = s.total
     securityRisks.value = sec.total_risks
-    try { const top = await api.topSql(dbStore.current, 5); topSqlData.value = top.data?.raw_metrics?.top_sql || [] } catch {}
-  } catch (e: any) { ElMessage.error(`加载失败: ${e.message}`) }
-  finally { loading.value = false }
+    alertStats.value = alerts.stats || { open: 0, critical: 0, warning: 0, total: 0 }
+    taskCount.value = tasks.tasks?.length || 0
+    dbCount.value = dbs.databases?.length || 0
+    lastUpdated.value = new Date().toLocaleTimeString()
+  } catch (e: any) {
+    ElMessage.error(`加载失败: ${e.message}`)
+  }
 }
 
-async function refreshAll() {
-  await Promise.all([refresh(), loadAllDatabases()])
+async function loadActivity() {
+  try {
+    const data: { logs?: LogEntry[]; data?: LogEntry[]; [key: string]: any } = await api.logs(dbStore.current, 24)
+    const raw = data.logs || data.data || []
+    recentActivity.value = (Array.isArray(raw) ? raw : []).slice(0, 8) as LogEntry[]
+  } catch { /* 静默 */ }
+}
+
+async function refresh() {
+  loading.value = true
+  await Promise.all([loadSummary(), loadActivity()])
+  loading.value = false
 }
 
 function toggleAuto() {
   autoRefresh.value = !autoRefresh.value
-  if (autoRefresh.value) { ElMessage.success('自动刷新已开启 (15s)'); refreshTimer = setInterval(refreshAll, 15000) }
-  else { ElMessage.info('自动刷新已关闭'); if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null } }
+  if (autoRefresh.value) {
+    refreshTimer = setInterval(refresh, 30000)
+  } else {
+    if (refreshTimer) { clearInterval(refreshTimer); refreshTimer = null }
+  }
 }
 
-onMounted(() => { dbStore.loadDatabases(); refreshAll() })
+function navigateTo(path: string) {
+  router.push(path)
+}
+
+onMounted(() => { dbStore.loadDatabases(); refresh() })
 onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 </script>
 
 <template>
   <div class="page">
-    <div class="control-bar">
-      <div class="control-left">
-        <label>数据库：</label>
-        <el-select v-model="dbStore.current" size="small" style="width:180px" @change="refresh">
-          <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
-        </el-select>
-        <el-button type="primary" size="small" :loading="loading" @click="refreshAll">
-          <el-icon><Refresh /></el-icon> 刷新
-        </el-button>
-        <el-switch v-model="autoRefresh" @change="toggleAuto" active-text="自动刷新" />
-      </div>
-      <el-tag v-if="health" :type="health.score >= 80 ? 'success' : health.score >= 60 ? 'warning' : 'danger'" size="large" effect="dark" round>
-        {{ health.score >= 80 ? '🟢 健康' : health.score >= 60 ? '🟡 警告' : '🔴 异常' }}
-      </el-tag>
+    <!-- 实时反馈 -->
+    <div class="live-bar">
+      <span class="live-dot" :class="{ active: autoRefresh }"></span>
+      <span class="live-text" v-if="lastUpdated">{{ lastUpdated }} 更新</span>
+      <el-switch v-model="autoRefresh" @change="toggleAuto" size="small" active-text="自动" inactive-text="" style="margin-left:8px" />
     </div>
 
-    <!-- Tab 切换 -->
-    <el-tabs v-model="activeTab" type="border-card" style="margin-bottom:20px">
-      <!-- 概览 Tab -->
-      <el-tab-pane label="📊 概览" name="overview">
-        <div class="kpi-grid">
-          <div class="kpi-card">
-            <div class="kpi-value" :style="{ color: health && health.score < 60 ? '#ef4444' : health && health.score < 80 ? '#f59e0b' : '#22c55e' }">
-              {{ health ? health.score.toFixed(0) : '-' }}
-            </div>
-            <div class="kpi-label">健康评分</div>
-            <el-progress :percentage="health?.score || 0" :stroke-width="4" :show-text="false"
-              :color="health && health.score > 80 ? '#22C55E' : health && health.score > 60 ? '#F59E0B' : '#EF4444'" />
-            <div class="kpi-sub">CPU · 内存 · 磁盘 · 连接</div>
+    <!-- 告警横幅 -->
+    <div v-if="alertStats.critical > 0" class="alert-banner error">
+      🔴 {{ alertStats.critical }} 个严重告警，{{ alertStats.open }} 个未处理
+      <el-button size="small" plain @click="navigateTo('/alerts')" style="margin-left:12px">查看告警</el-button>
+    </div>
+    <div v-else-if="alertStats.warning > 0" class="alert-banner warning">
+      🟡 {{ alertStats.warning }} 个警告，{{ alertStats.open }} 个未处理
+      <el-button size="small" plain @click="navigateTo('/alerts')" style="margin-left:12px">查看告警</el-button>
+    </div>
+
+    <!-- 系统状态卡片 -->
+    <div class="stats-grid">
+      <div class="stat-card" @click="navigateTo('/diagnose')">
+        <div class="stat-value" :style="{ color: healthScore >= 80 ? '#22c55e' : healthScore >= 60 ? '#f59e0b' : '#ef4444' }">
+          {{ healthScore.toFixed(0) }}
+        </div>
+        <div class="stat-label">健康评分</div>
+        <div class="stat-sub">点击查看详情</div>
+      </div>
+      <div class="stat-card" @click="navigateTo('/alerts')">
+        <div class="stat-value" :style="{ color: alertStats.critical > 0 ? '#ef4444' : '#6366f1' }">{{ alertStats.open }}</div>
+        <div class="stat-label">未处理告警</div>
+        <div class="stat-sub" v-if="alertStats.critical > 0">含 {{ alertStats.critical }} 个严重</div>
+      </div>
+      <div class="stat-card" @click="navigateTo('/slow-queries')">
+        <div class="stat-value" :style="{ color: slowTotal > 10 ? '#ef4444' : '#f59e0b' }">{{ slowTotal }}</div>
+        <div class="stat-label">慢查询</div>
+        <div class="stat-sub">最近 1 小时</div>
+      </div>
+      <div class="stat-card" @click="navigateTo('/security')">
+        <div class="stat-value" :style="{ color: securityRisks > 5 ? '#ef4444' : '#6366f1' }">{{ securityRisks }}</div>
+        <div class="stat-label">安全风险</div>
+        <div class="stat-sub">{{ securityRisks > 0 ? '需要关注' : '安全' }}</div>
+      </div>
+    </div>
+
+    <!-- 第二行：系统概览 + 快速操作 -->
+    <div class="row-grid">
+      <!-- 系统概览 -->
+      <el-card shadow="never" class="section-card">
+        <template #header><span>📊 系统概览</span></template>
+        <div class="overview-grid">
+          <div class="overview-item" @click="navigateTo('/databases')">
+            <span class="overview-icon">🗄️</span>
+            <span class="overview-value">{{ dbCount }}</span>
+            <span class="overview-label">数据库</span>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-value" :style="{ color: (health?.issues?.length || 0) > 5 ? '#ef4444' : '#6366f1' }">
-              {{ health ? health.issues.length : '-' }}
-            </div>
-            <div class="kpi-label">待处理问题</div>
-            <div class="kpi-trend">{{ health?.issues?.length > 0 ? '需要关注' : '一切正常' }}</div>
+          <div class="overview-item" @click="navigateTo('/scheduler')">
+            <span class="overview-icon">⏰</span>
+            <span class="overview-value">{{ taskCount }}</span>
+            <span class="overview-label">定时任务</span>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-value" :style="{ color: slowTotal > 10 ? '#ef4444' : '#6366f1' }">{{ slowTotal }}</div>
-            <div class="kpi-label">慢查询</div>
-            <div class="kpi-trend">最近 1 小时</div>
+          <div class="overview-item" @click="navigateTo('/users')">
+            <span class="overview-icon">👥</span>
+            <span class="overview-value" v-if="auth.isAdmin">-</span>
+            <span class="overview-label">用户</span>
           </div>
-          <div class="kpi-card">
-            <div class="kpi-value" :style="{ color: securityRisks > 5 ? '#ef4444' : '#6366f1' }">{{ securityRisks }}</div>
-            <div class="kpi-label">安全风险</div>
-            <el-tag :type="securityRisks > 5 ? 'danger' : securityRisks > 0 ? 'warning' : 'success'" size="small" effect="dark">
-              {{ securityRisks > 5 ? '需立即处理' : securityRisks > 0 ? '需关注' : '安全' }}
-            </el-tag>
+          <div class="overview-item" @click="navigateTo('/alerts')">
+            <span class="overview-icon">🔔</span>
+            <span class="overview-value" :style="{ color: alertStats.open > 0 ? '#ef4444' : '#22c55e' }">{{ alertStats.open }}</span>
+            <span class="overview-label">告警</span>
           </div>
         </div>
+      </el-card>
 
-        <div class="chart-grid" style="margin-bottom:20px">
-          <el-card shadow="never" class="section-card">
-            <template #header><span>📈 资源趋势 (24h)</span></template>
-            <VChart :option="lineOption" autoresize style="height:260px" />
-          </el-card>
-          <el-card shadow="never" class="section-card">
-            <template #header><span>⚡ 快速操作</span></template>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-              <div v-for="a in quickActions" :key="a.path" class="action-item" @click="router.push(a.path)">
-                <span class="action-icon">{{ a.icon }}</span>
-                <span class="action-label">{{ a.label }}</span>
-              </div>
-            </div>
-          </el-card>
+      <!-- 快速操作 -->
+      <el-card shadow="never" class="section-card">
+        <template #header><span>⚡ 快速操作</span></template>
+        <div class="quick-actions">
+          <div class="quick-action" @click="navigateTo('/diagnose')">🔍 实时诊断</div>
+          <div class="quick-action" @click="navigateTo('/slow-queries')">🐢 慢查询</div>
+          <div class="quick-action" @click="navigateTo('/sql-editor')">⌨️ SQL 编辑器</div>
+          <div class="quick-action" @click="navigateTo('/security')">🔒 安全审计</div>
+          <div class="quick-action" @click="navigateTo('/alerts')">🔔 告警管理</div>
+          <div class="quick-action" @click="navigateTo('/scheduler')">⏰ 定时任务</div>
         </div>
+      </el-card>
+    </div>
 
-        <!-- TOP SQL -->
-        <el-card shadow="never" class="section-card">
-          <template #header><span>🏆 TOP SQL（按耗时降序）</span></template>
-          <div v-if="topSqlData.length > 0">
-            <div v-for="(sql, i) in topSqlData.slice(0, 5)" :key="i" class="sql-item">
-              <span class="sql-rank">{{ i + 1 }}</span>
-              <code class="sql-text">{{ (sql.sql || sql.query || '').substring(0, 80) }}{{ (sql.sql || '').length > 80 ? '...' : '' }}</code>
-              <span class="sql-time">{{ (sql.execution_time || sql.total_time || 0).toFixed(2) }}s</span>
-              <span class="sql-count">{{ sql.execution_count || 0 }} 次</span>
-            </div>
-          </div>
-          <div v-else class="empty-state" style="padding:20px">
-            <div class="icon">📊</div>
-            <div class="desc">暂无 TOP SQL 数据</div>
-          </div>
-        </el-card>
-      </el-tab-pane>
+    <!-- 第三行：数据库健康 + 最近活动 -->
+    <div class="row-grid">
+      <el-card shadow="never" class="section-card">
+        <template #header><span>🏥 数据库健康</span></template>
+        <VChart :option="dbHealthOption" autoresize style="height:200px" />
+      </el-card>
 
-      <!-- 全部数据库 Tab -->
-      <el-tab-pane label="🗄️ 全部数据库" name="all">
-        <div v-loading="loadingAll" style="min-height:200px">
-          <div class="kpi-grid">
-            <div v-for="db in allDatabases" :key="db.name" class="kpi-card" @click="dbStore.setCurrent(db.name); refresh()" style="cursor:pointer">
-              <div class="kpi-value" :style="{ color: db.score >= 80 ? '#22c55e' : db.score >= 60 ? '#f59e0b' : '#ef4444' }">
-                {{ db.score.toFixed(0) }}
-              </div>
-              <div class="kpi-label">{{ db.name }}</div>
-              <el-tag :type="db.status === 'HEALTHY' ? 'success' : db.status === 'WARNING' ? 'warning' : 'danger'" size="small" effect="dark">
-                {{ db.status || 'UNKNOWN' }}
-              </el-tag>
-              <div v-if="db.issues?.length" class="kpi-issues">{{ db.issues.length }} 个问题</div>
-            </div>
+      <el-card shadow="never" class="section-card">
+        <template #header><span>🕐 最近活动</span></template>
+        <div v-if="recentActivity.length > 0">
+          <div v-for="(item, i) in recentActivity" :key="i" class="activity-item">
+            <span class="activity-cmd">{{ item.command || '-' }}</span>
+            <span class="activity-db">{{ item.database || '' }}</span>
+            <span class="activity-time">{{ item.timestamp ? item.timestamp.replace('T', ' ').substring(11, 19) : '' }}</span>
           </div>
-          <!-- 对比柱状图 -->
-          <el-card shadow="never" class="section-card" style="margin-top:16px">
-            <template #header><span>📊 数据库健康对比</span></template>
-            <VChart :option="barOption" autoresize style="height:250px" />
-          </el-card>
         </div>
-      </el-tab-pane>
-    </el-tabs>
+        <div v-else class="empty-state">暂无活动记录</div>
+      </el-card>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.action-item {
-  display: flex; align-items: center; gap: 10px; padding: 14px 12px;
-  border: 1px solid var(--el-border-color-light); border-radius: 10px;
-  cursor: pointer; transition: all 0.2s;
+.page { max-width: 1400px; margin: 0 auto; }
+
+.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
+.live-dot.active { background: #22c55e; animation: pulse 2s infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+.live-text { font-size: 12px; }
+
+.alert-banner {
+  display: flex; align-items: center; padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;
 }
-.action-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); transform: translateY(-1px); }
-.action-icon { font-size: 22px; }
-.action-label { font-size: 14px; font-weight: 500; }
+.alert-banner.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+.alert-banner.warning { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
 
-.sql-item { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
-.sql-item:last-child { border-bottom: none; }
-.sql-rank { width: 24px; height: 24px; border-radius: 50%; background: var(--el-color-primary-light-8); color: var(--el-color-primary); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
-.sql-text { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--el-text-color-secondary); }
-.sql-time { font-size: 13px; font-weight: 600; color: var(--el-color-warning); white-space: nowrap; margin-left: 12px; }
-.sql-count { font-size: 12px; color: var(--el-text-color-placeholder); white-space: nowrap; }
-
-.kpi-trend { font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 4px; }
-.kpi-sub { font-size: 11px; color: var(--el-text-color-placeholder); margin-top: 8px; }
-.kpi-issues { font-size: 11px; color: var(--el-color-danger); margin-top: 4px; }
-
-@media (max-width: 768px) {
-  [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
+.stat-card {
+  background: var(--el-bg-color); border-radius: 10px; padding: 20px; border: 1px solid var(--el-border-color-light);
+  text-align: center; cursor: pointer; transition: all 0.2s;
 }
+.stat-card:hover { border-color: var(--el-color-primary); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+.stat-value { font-size: 36px; font-weight: 700; }
+.stat-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.stat-sub { font-size: 11px; color: var(--el-text-color-placeholder); margin-top: 4px; }
+
+.row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
+.section-card { margin-bottom: 0; }
+
+.overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.overview-item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 16px; border: 1px solid var(--el-border-color-light); border-radius: 8px;
+  cursor: pointer; transition: all 0.15s;
+}
+.overview-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
+.overview-icon { font-size: 24px; }
+.overview-value { font-size: 24px; font-weight: 700; color: var(--el-color-primary); }
+.overview-label { font-size: 12px; color: var(--el-text-color-secondary); }
+
+.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.quick-action {
+  padding: 12px; border: 1px solid var(--el-border-color-light); border-radius: 8px;
+  cursor: pointer; text-align: center; font-size: 13px; transition: all 0.15s;
+}
+.quick-action:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
+
+.activity-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--el-border-color-lighter); font-size: 12px; }
+.activity-item:last-child { border-bottom: none; }
+.activity-cmd { flex: 1; font-weight: 500; }
+.activity-db { color: var(--el-text-color-placeholder); }
+.activity-time { color: var(--el-text-color-placeholder); }
+
+.empty-state { text-align: center; padding: 20px; color: var(--el-text-color-placeholder); }
+
+@media (max-width: 1024px) { .row-grid { grid-template-columns: 1fr; } }
 </style>

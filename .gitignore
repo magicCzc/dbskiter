@@ -105,3 +105,6 @@ site/
 node_modules/
 dbskiter/webui/node_modules/
 dbskiter/webui/dist/
+
+# DBSKiter Web build output
+dbskiter/web/static/assets/
