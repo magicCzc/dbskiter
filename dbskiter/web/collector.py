@@ -24,7 +24,9 @@ from datetime import datetime
 from typing import Optional, Dict
 
 from .database import (
-    save_metric, get_all_db_configs, get_open_alerts,
+    save_metric,
+    get_all_db_configs,
+    get_open_alerts,
     create_alert,
 )
 from .connector_helper import get_connector, run_skill
@@ -55,7 +57,7 @@ def _collect_metrics_skill(db_alias: str, skill_cls, method: str, *args, **kwarg
         return None
     finally:
         try:
-            if skill and hasattr(skill, 'close'):
+            if skill and hasattr(skill, "close"):
                 skill.close()
         except Exception:
             pass
@@ -128,9 +130,7 @@ async def collect_all():
     configs = get_all_db_configs()
     for alias in configs:
         try:
-            metrics = await asyncio.get_event_loop().run_in_executor(
-                None, collect_metrics, alias
-            )
+            metrics = await asyncio.get_event_loop().run_in_executor(None, collect_metrics, alias)
             for metric, value in metrics.items():
                 save_metric(alias, metric, value)
                 _check_alert(alias, metric, value)
@@ -162,8 +162,11 @@ def _check_alert(db_alias: str, metric: str, value: float):
                 if alert.metric == metric and alert.status == "open":
                     return
             create_alert(
-                db_alias=db_alias, metric=metric, level=level,
-                current_value=value, threshold=float(threshold),
+                db_alias=db_alias,
+                metric=metric,
+                level=level,
+                current_value=value,
+                threshold=float(threshold),
                 message=f"{metric} 使用率 {value:.1f}%，超过阈值 {threshold}%",
             )
             logger.warning(f"告警触发 [{db_alias}] {metric}: {value:.1f}% > {threshold}%")

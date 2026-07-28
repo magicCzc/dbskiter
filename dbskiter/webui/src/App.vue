@@ -113,7 +113,7 @@ async function handleLogout() {
       <!-- 演示模式横幅 -->
       <div v-if="IS_DEMO" class="demo-banner">
         🎮 演示模式 · 所有数据为模拟数据 ·
-        <a href="https://magiczc.github.io/dbskiter" target="_blank" style="color:inherit;text-decoration:underline">返回文档 ↗</a>
+        <a href="https://magicczc.github.io/dbskiter" target="_blank" style="color:inherit;text-decoration:underline">返回文档 ↗</a>
       </div>
       <el-aside :width="isCollapsed ? '64px' : '220px'" class="sidebar" :style="{ marginTop: IS_DEMO ? '32px' : '0' }">
         <div class="logo" :class="{ collapsed: isCollapsed }">

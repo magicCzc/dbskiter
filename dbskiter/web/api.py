@@ -23,8 +23,10 @@ router = APIRouter(prefix="/api", tags=["dbskiter"])
 
 # ── Pydantic 模型 ──────────────────────────────────────────────────
 
+
 class HealthResponse(BaseModel):
     """健康检查响应"""
+
     status: str = Field(..., description="HEALTHY/WARNING/CRITICAL")
     score: float = Field(..., description="健康评分 0-100")
     issues: List[str] = Field(default_factory=list)
@@ -33,6 +35,7 @@ class HealthResponse(BaseModel):
 
 class SlowQuery(BaseModel):
     """慢查询项"""
+
     sql: str = ""
     execution_time: float = 0.0
     execution_count: int = 0
@@ -42,12 +45,14 @@ class SlowQuery(BaseModel):
 
 class SlowQueryResponse(BaseModel):
     """慢查询响应"""
+
     total: int = 0
     queries: List[SlowQuery] = Field(default_factory=list)
 
 
 class SecurityResponse(BaseModel):
     """安全审计响应"""
+
     total_risks: int = 0
     critical_count: int = 0
     high_count: int = 0
@@ -56,6 +61,7 @@ class SecurityResponse(BaseModel):
 
 class BackupResponse(BaseModel):
     """备份响应"""
+
     success: bool = False
     backup_id: str = ""
     file_path: str = ""
@@ -65,16 +71,19 @@ class BackupResponse(BaseModel):
 
 class TaskResponse(BaseModel):
     """任务列表响应"""
+
     tasks: List[dict] = Field(default_factory=list)
 
 
 class ErrorResponse(BaseModel):
     """错误响应"""
+
     error: str = ""
     detail: str = ""
 
 
 # ── 辅助函数 ───────────────────────────────────────────────────────
+
 
 def _execute_skill(alias: str, skill_cls, method: str, *args, **kwargs):
     """
@@ -101,7 +110,7 @@ def _execute_skill(alias: str, skill_cls, method: str, *args, **kwargs):
         return False, None, str(e)
     finally:
         try:
-            if skill and hasattr(skill, 'close'):
+            if skill and hasattr(skill, "close"):
                 skill.close()
         except Exception:
             pass
@@ -142,13 +151,15 @@ def _extract_slow_queries(data: dict, top: int) -> list:
     mapped = []
     for q in queries[:top]:
         if isinstance(q, dict):
-            mapped.append({
-                "sql": q.get("sql", q.get("sql_short", q.get("pattern", ""))),
-                "execution_time": q.get("execution_time", q.get("query_time", q.get("max_time", 0))),
-                "execution_count": q.get("execution_count", q.get("count", 1)),
-                "avg_time": q.get("avg_time", q.get("avg", q.get("query_time", 0))),
-                "rows_examined": q.get("rows_examined", q.get("rows_sent", q.get("rows", 0))),
-            })
+            mapped.append(
+                {
+                    "sql": q.get("sql", q.get("sql_short", q.get("pattern", ""))),
+                    "execution_time": q.get("execution_time", q.get("query_time", q.get("max_time", 0))),
+                    "execution_count": q.get("execution_count", q.get("count", 1)),
+                    "avg_time": q.get("avg_time", q.get("avg", q.get("query_time", 0))),
+                    "rows_examined": q.get("rows_examined", q.get("rows_sent", q.get("rows", 0))),
+                }
+            )
     return mapped
 
 
@@ -170,11 +181,11 @@ def _extract_security_risks(data: dict) -> dict:
         for module_name, module_data in modules.items():
             if isinstance(module_data, dict):
                 risks_data = (
-                    module_data.get("risks") or
-                    module_data.get("findings") or
-                    module_data.get("data", {}).get("risks") or
-                    module_data.get("data", {}).get("findings") or
-                    []
+                    module_data.get("risks")
+                    or module_data.get("findings")
+                    or module_data.get("data", {}).get("risks")
+                    or module_data.get("data", {}).get("findings")
+                    or []
                 )
                 if isinstance(risks_data, list):
                     for r in risks_data:
@@ -196,6 +207,7 @@ def _extract_security_risks(data: dict) -> dict:
 
 
 # ── API 端点 ───────────────────────────────────────────────────────
+
 
 @router.get("/health", response_model=HealthResponse)
 async def get_health(
@@ -260,8 +272,11 @@ async def get_slow_queries(
 
     db = database_name or database
     success, data, error = _execute_skill(
-        db, DiagnoseSkill, "analyze_slow_queries",
-        limit=top, since=f"{hours}h",
+        db,
+        DiagnoseSkill,
+        "analyze_slow_queries",
+        limit=top,
+        since=f"{hours}h",
     )
     if not success:
         raise HTTPException(status_code=502, detail=error or "慢查询分析失败")
@@ -403,15 +418,17 @@ async def get_connections(
             queries = raw.get("top_queries", [])
             mapped = []
             for c in queries[:100]:
-                mapped.append({
-                    "pid": c.get("id", c.get("pid", 0)),
-                    "user": c.get("user", "?"),
-                    "host": c.get("host", ""),
-                    "database": c.get("db", c.get("database", "")),
-                    "state": c.get("command", c.get("state", "Sleep")),
-                    "query": c.get("sql", c.get("query", "")),
-                    "duration": c.get("exec_time", c.get("duration", 0)),
-                })
+                mapped.append(
+                    {
+                        "pid": c.get("id", c.get("pid", 0)),
+                        "user": c.get("user", "?"),
+                        "host": c.get("host", ""),
+                        "database": c.get("db", c.get("database", "")),
+                        "state": c.get("command", c.get("state", "Sleep")),
+                        "query": c.get("sql", c.get("query", "")),
+                        "duration": c.get("exec_time", c.get("duration", 0)),
+                    }
+                )
             return {"success": True, "data": {"raw_metrics": {"connections": mapped, "max_connections": 151}}}
         raise HTTPException(status_code=502, detail=error or "连接分析失败")
 
@@ -420,15 +437,17 @@ async def get_connections(
     mapped = []
     for c in connections[:100]:
         if isinstance(c, dict):
-            mapped.append({
-                "pid": c.get("id", c.get("pid", 0)),
-                "user": c.get("user", "?"),
-                "host": c.get("host", ""),
-                "database": c.get("db", c.get("database", "")),
-                "state": c.get("command", c.get("state", "Sleep")),
-                "query": c.get("sql", c.get("query", "")),
-                "duration": c.get("exec_time", c.get("duration", 0)),
-            })
+            mapped.append(
+                {
+                    "pid": c.get("id", c.get("pid", 0)),
+                    "user": c.get("user", "?"),
+                    "host": c.get("host", ""),
+                    "database": c.get("db", c.get("database", "")),
+                    "state": c.get("command", c.get("state", "Sleep")),
+                    "query": c.get("sql", c.get("query", "")),
+                    "duration": c.get("exec_time", c.get("duration", 0)),
+                }
+            )
     return {
         "success": True,
         "data": {"raw_metrics": {"connections": mapped, "max_connections": data.get("max_connections", 151)}},
@@ -438,7 +457,9 @@ async def get_connections(
 @router.get("/inspector/report", response_model=dict)
 async def generate_inspector_report(
     database: str = Query("default", description="数据库别名"),
-    report_type: str = Query("performance", description="巡检类型: configuration/performance/storage/security/capacity/replication"),
+    report_type: str = Query(
+        "performance", description="巡检类型: configuration/performance/storage/security/capacity/replication"
+    ),
 ):
     """巡检报告"""
     from dbskiter.db_inspector.skill import InspectorSkill
@@ -475,8 +496,11 @@ async def create_backup(
 
     table_list = tables.split(",") if tables else None
     success, data, error = _execute_skill(
-        database, SchedulerSkill, "backup",
-        backup_type=backup_type, tables=table_list,
+        database,
+        SchedulerSkill,
+        "backup",
+        backup_type=backup_type,
+        tables=table_list,
     )
     if not success:
         raise HTTPException(status_code=502, detail=error or "备份失败")
@@ -546,6 +570,7 @@ async def list_databases():
 
     # 补充 .env 中的配置
     import re
+
     env_path = Path.cwd() / ".env"
     if env_path.exists():
         content = env_path.read_text(encoding="utf-8", errors="replace")
@@ -661,8 +686,12 @@ async def execute_sql(
     from dbskiter.sql_master.skill import SQLMasterSkill
 
     success, data, error = _execute_skill(
-        database, SQLMasterSkill, "execute",
-        sql=sql, limit=limit, allow_write=not read_only,
+        database,
+        SQLMasterSkill,
+        "execute",
+        sql=sql,
+        limit=limit,
+        allow_write=not read_only,
     )
     if not success:
         return {"success": False, "error": error or "SQL 执行失败"}
@@ -681,7 +710,9 @@ async def execute_sql(
 # ── 数据库配置管理 ─────────────────────────────────────────────
 
 from .database import (
-    get_all_db_configs, save_db_config, delete_db_config as db_delete_config,
+    get_all_db_configs,
+    save_db_config,
+    delete_db_config as db_delete_config,
     log_audit,
 )
 
@@ -761,6 +792,7 @@ async def test_db_config(config: dict):
 
     # 用传入的配置参数测试
     from .connector_helper import get_connector_from_config
+
     connector = get_connector_from_config(config)
     if not connector:
         return {"success": False, "message": "无法构建数据库连接器，请检查配置"}

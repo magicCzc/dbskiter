@@ -36,7 +36,7 @@ DBSKiter uses three-layer defense-in-depth:
 2. **CLI Layer**: `ReadOnlyEnforcer` middleware
 3. **Database Layer**: Physical account permissions
 
-See [security documentation](https://magiczc.github.io/dbskiter/security/) for details.
+See [security documentation](https://magicczc.github.io/dbskiter/security/) for details.
 
 ## Encryption
 

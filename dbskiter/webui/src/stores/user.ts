@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
   const isDark = ref(localStorage.getItem('dbskiter-theme') === 'dark')

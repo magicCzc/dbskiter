@@ -45,6 +45,7 @@ def get_connector(alias: str) -> Optional[UnifiedConnector]:
         # 尝试从 .env 环境变量加载
         try:
             from dbskiter.cli.config import MultiDBConfig
+
             mc = MultiDBConfig()
             config = mc.get_config_by_alias(alias)
             if config:
@@ -100,13 +101,7 @@ def get_connector_from_config(config: dict) -> Optional[UnifiedConnector]:
         return None
 
 
-def run_skill(
-    alias: str,
-    skill_cls: Type,
-    method: str,
-    *args,
-    **kwargs
-) -> Dict[str, Any]:
+def run_skill(alias: str, skill_cls: Type, method: str, *args, **kwargs) -> Dict[str, Any]:
     """
     通用 skill 执行器：构建连接器 → 实例化 skill → 调用方法 → 清理
 
@@ -138,7 +133,7 @@ def run_skill(
         return {"success": False, "error": str(e)}
     finally:
         try:
-            if skill and hasattr(skill, 'close'):
+            if skill and hasattr(skill, "close"):
                 skill.close()
         except Exception as e:
             logger.warning(f"关闭 skill 时异常: {e}")
@@ -168,6 +163,7 @@ def test_connection(alias_or_config) -> Dict[str, Any]:
 
     try:
         from dbskiter.shared.query_result import QueryResult
+
         result = connector.execute("SELECT 1 AS test")
         if result is not None:
             return {"success": True, "message": "连接成功 🎉"}

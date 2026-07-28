@@ -14,7 +14,7 @@
 
 > **Database Ops for the AI Era** — One line to give your AI assistant (Claude/Cursor) the ability to diagnose, monitor, secure, and back up 7 databases.
 
-[中文文档](README.md) | [Documentation](https://magiczc.github.io/dbskiter/)
+[中文文档](README.md) | [Documentation](https://magicczc.github.io/dbskiter/)
 
 ---
 
@@ -56,7 +56,7 @@ Then ask Claude directly:
 - "Analyze this SQL: `SELECT * FROM orders WHERE created_at > '2026-01-01'`"
 - "List today's 5 slowest queries"
 
-**Full MCP config & examples**: [AI Integration Guide](https://magiczc.github.io/dbskiter/) · [MCP Server Repo](https://github.com/magicCzc/dbskiter-mcp-server)
+**Full MCP config & examples**: [AI Integration Guide](https://magicczc.github.io/dbskiter/) · [MCP Server Repo](https://github.com/magicCzc/dbskiter-mcp-server)
 
 ---
 
@@ -113,17 +113,17 @@ dbskiter shell-setup --auto   # One-line enable
 | `inspector` | Comprehensive inspection / HTML report | `inspector report --output=r.html` |
 | `scheduler` | Backup / scheduled tasks | `scheduler backup run` |
 
-**Full command reference**: [CLI Guide](https://magiczc.github.io/dbskiter/) · [中文版](CLI使用指南.md)
+**Full command reference**: [CLI Guide](https://magicczc.github.io/dbskiter/) · [中文版](CLI使用指南.md)
 
 ---
 
 ## 📚 Documentation
 
-- 📖 **[Full Documentation Site](https://magiczc.github.io/dbskiter/)** — 6 scenario tutorials, command dictionary
-- 🆕 **[Quick Start for Beginners](https://magiczc.github.io/dbskiter/01-安装与配置/)** — 5-min intro
-- 🤖 **[AI Integration Guide](https://magiczc.github.io/dbskiter/)** — Claude/Cursor/MCP integration
-- ⚙️ **[Configuration Guide](https://magiczc.github.io/dbskiter/configuration/)** — `.env` / `config.yaml` / `--url` three ways
-- 🏗️ **[Architecture Overview](https://magiczc.github.io/dbskiter/architecture/)** — 6+N driver architecture in detail
+- 📖 **[Full Documentation Site](https://magicczc.github.io/dbskiter/)** — 6 scenario tutorials, command dictionary
+- 🆕 **[Quick Start for Beginners](https://magicczc.github.io/dbskiter/01-安装与配置/)** — 5-min intro
+- 🤖 **[AI Integration Guide](https://magicczc.github.io/dbskiter/)** — Claude/Cursor/MCP integration
+- ⚙️ **[Configuration Guide](https://magicczc.github.io/dbskiter/configuration/)** — `.env` / `config.yaml` / `--url` three ways
+- 🏗️ **[Architecture Overview](https://magicczc.github.io/dbskiter/architecture/)** — 6+N driver architecture in detail
 - 🤝 **[Contributing Guide](CONTRIBUTING.md)** — How to contribute
 
 ---

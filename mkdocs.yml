@@ -1,7 +1,7 @@
 site_name: DBSKiter
 site_description: 数据库 AIOps 运维助手 - 监控、诊断、安全、调度、SQL执行
 site_author: MagiCzc
-site_url: https://magiczc.github.io/dbskiter
+site_url: https://magicczc.github.io/dbskiter
 
 repo_url: https://github.com/magicCzc/dbskiter
 repo_name: magicCzc/dbskiter
