@@ -3,6 +3,9 @@ name: Deploy Web UI Demo
 on:
   push:
     branches: [main]
+    paths:
+      - 'dbskiter/webui/**'
+      - '.github/workflows/deploy-web.yml'
 
 permissions:
   contents: write
@@ -11,9 +14,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout source
-        uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -21,38 +21,34 @@ jobs:
           cache: 'npm'
           cache-dependency-path: dbskiter/webui/package-lock.json
 
-      - name: Install dependencies
-        run: |
-          cd dbskiter/webui
-          npm ci
-
       - name: Build Vue (Demo Mode)
         run: |
           cd dbskiter/webui
+          npm ci
           VITE_DEMO_MODE=true npm run build
-        env:
-          VITE_DEMO_MODE: 'true'
 
-      - name: Deploy to gh-pages/ui/
+      - name: Deploy to gh-pages branch
         run: |
           # 配置 git
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 获取 gh-pages 分支
-          git fetch origin gh-pages
-          git checkout gh-pages
+          # 完整克隆 gh-pages 分支
+          git clone --depth 1 --branch gh-pages https://x-access-token:${GITHUB_TOKEN}@github.com/magicCzc/dbskiter.git gh-pages-tmp
 
-          # 复制构建产物到 ui/ 子目录
-          mkdir -p ui
-          cp -r dbskiter/web/static/* ui/
-          touch .nojekyll
+          # 复制构建产物到 ui/ 子目录（保留 mkdocs 内容）
+          mkdir -p gh-pages-tmp/ui
+          cp -r dbskiter/web/static/* gh-pages-tmp/ui/
+          touch gh-pages-tmp/.nojekyll
 
           # 提交并推送
+          cd gh-pages-tmp
           git add -A
           if git diff --cached --quiet; then
             echo "No changes to deploy"
             exit 0
           fi
-          git commit -m "Deploy Web UI demo $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          git commit -m "Deploy Web UI demo"
           git push origin gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
