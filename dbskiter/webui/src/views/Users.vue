@@ -4,6 +4,8 @@ import { useAuthStore } from '@/stores/auth'
 import { api } from '@/api'
 import { ElMessage } from 'element-plus'
 import type { UserInfo } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 const auth = useAuthStore()
 const users = ref<UserInfo[]>([])
@@ -56,29 +58,25 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <h2 style="margin:0;font-size:16px;display:flex;align-items:center;gap:8px">👥 用户管理</h2>
+    <SectionCard padding>
+      <div class="users-controls">
+        <div class="users-controls__left">
+          <h2 class="users-title">用户管理</h2>
         </div>
-        <div class="control-right">
+        <div class="users-controls__right">
+          <span v-if="lastUpdated" class="users-updated">{{ lastUpdated }} 更新</span>
           <el-button size="small" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <el-card shadow="never" class="section-card">
-      <el-table :data="users" v-loading="loading" stripe style="width:100%" :empty-text="'暂无用户'">
+    <SectionCard padding>
+      <el-table :data="users" v-loading="loading" stripe style="width:100%">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="username" label="用户名" width="150">
           <template #default="{row}">
-            <span style="font-weight:600">{{ row.username }}</span>
-            <el-tag v-if="row.username === 'admin'" size="small" type="danger" style="margin-left:4px">admin</el-tag>
+            <span class="user-name">{{ row.username }}</span>
+            <StatusTag v-if="row.username === 'admin'" status="admin" label="管理员" />
           </template>
         </el-table-column>
         <el-table-column prop="email" label="邮箱" width="200" />
@@ -93,9 +91,7 @@ onMounted(load)
         </el-table-column>
         <el-table-column prop="is_active" label="状态" width="100">
           <template #default="{row}">
-            <el-tag :type="row.is_active ? 'success' : 'danger'" size="small">
-              {{ row.is_active ? '正常' : '已禁用' }}
-            </el-tag>
+            <StatusTag :status="row.is_active ? 'active' : 'inactive'" :label="row.is_active ? '正常' : '已禁用'" />
           </template>
         </el-table-column>
         <el-table-column prop="last_login" label="最后登录" width="180">
@@ -112,17 +108,36 @@ onMounted(load)
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1200px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.users-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.users-controls__left, .users-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.users-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+.users-updated {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.user-name {
+  font-weight: var(--font-semibold);
+  margin-right: var(--space-1);
+}
 </style>
