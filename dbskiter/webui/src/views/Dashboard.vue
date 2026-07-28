@@ -11,6 +11,8 @@ import { BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import type { HealthResponse, AlertStatsResponse, LogEntry } from '@/types'
+import StatCard from '@/components/StatCard.vue'
+import SectionCard from '@/components/SectionCard.vue'
 
 use([CanvasRenderer, BarChart, GridComponent, TooltipComponent])
 
@@ -25,13 +27,33 @@ const securityRisks = ref(0)
 const alertStats = ref<AlertStatsResponse['stats']>({ open: 0, critical: 0, warning: 0, total: 0 })
 const taskCount = ref(0)
 const dbCount = ref(0)
-const userCount = ref(0)
 const lastUpdated = ref('')
 const autoRefresh = ref(false)
 const recentActivity = ref<LogEntry[]>([])
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const healthScore = computed(() => health?.value?.score ?? 0)
+
+const healthColor = computed(() => {
+  if (healthScore.value >= 80) return 'var(--color-success-500)'
+  if (healthScore.value >= 60) return 'var(--color-warning-500)'
+  return 'var(--color-danger-500)'
+})
+
+const alertColor = computed(() => {
+  if (alertStats.value.critical > 0) return 'var(--color-danger-500)'
+  return 'var(--color-brand-500)'
+})
+
+const slowColor = computed(() => {
+  if (slowTotal.value > 10) return 'var(--color-danger-500)'
+  return 'var(--color-warning-500)'
+})
+
+const securityColor = computed(() => {
+  if (securityRisks.value > 5) return 'var(--color-danger-500)'
+  return 'var(--color-brand-500)'
+})
 
 const dbHealthOption = computed(() => {
   const dbs = dbStore.databases.map(name => ({
@@ -41,10 +63,19 @@ const dbHealthOption = computed(() => {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: 30, right: 10, top: 8, bottom: 25 },
     xAxis: { type: 'category', data: dbs.map(d => d.name), axisLabel: { fontSize: 10 } },
-    yAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } }, axisLabel: { fontSize: 10 } },
+    yAxis: {
+      type: 'value', min: 0, max: 100,
+      splitLine: { lineStyle: { color: 'var(--color-gray-100)', type: 'dashed' } },
+      axisLabel: { fontSize: 10 },
+    },
     series: [{
-      type: 'bar', data: dbs.map(d => ({
-        value: d.score, itemStyle: { color: d.score >= 80 ? '#22C55E' : d.score >= 60 ? '#F59E0B' : '#EF4444', borderRadius: [4, 4, 0, 0] },
+      type: 'bar',
+      data: dbs.map(d => ({
+        value: d.score,
+        itemStyle: {
+          color: d.score >= 80 ? 'var(--color-success-500)' : d.score >= 60 ? 'var(--color-warning-500)' : 'var(--color-danger-500)',
+          borderRadius: [4, 4, 0, 0],
+        },
       })),
       barWidth: '50%',
     }],
@@ -106,110 +137,121 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar">
-      <span class="live-dot" :class="{ active: autoRefresh }"></span>
-      <span class="live-text" v-if="lastUpdated">{{ lastUpdated }} 更新</span>
-      <el-switch v-model="autoRefresh" @change="toggleAuto" size="small" active-text="自动" inactive-text="" style="margin-left:8px" />
+    <!-- 页面标题 -->
+    <div class="dashboard-header">
+      <div class="dashboard-header__left">
+        <h1 class="dashboard-title">仪表盘</h1>
+        <span class="dashboard-subtitle" v-if="lastUpdated">{{ lastUpdated }} 更新</span>
+      </div>
+      <div class="dashboard-header__right">
+        <el-switch v-model="autoRefresh" @change="toggleAuto" size="small" active-text="自动刷新" />
+        <el-button size="small" :loading="loading" @click="refresh">刷新</el-button>
+      </div>
     </div>
 
     <!-- 告警横幅 -->
-    <div v-if="alertStats.critical > 0" class="alert-banner error">
-      🔴 {{ alertStats.critical }} 个严重告警，{{ alertStats.open }} 个未处理
-      <el-button size="small" plain @click="navigateTo('/alerts')" style="margin-left:12px">查看告警</el-button>
+    <div v-if="alertStats.critical > 0" class="alert-banner alert-banner--critical">
+      {{ alertStats.critical }} 个严重告警，{{ alertStats.open }} 个未处理
+      <el-button size="small" plain @click="navigateTo('/alerts')" style="margin-left: auto">查看告警</el-button>
     </div>
-    <div v-else-if="alertStats.warning > 0" class="alert-banner warning">
-      🟡 {{ alertStats.warning }} 个警告，{{ alertStats.open }} 个未处理
-      <el-button size="small" plain @click="navigateTo('/alerts')" style="margin-left:12px">查看告警</el-button>
+    <div v-else-if="alertStats.warning > 0" class="alert-banner alert-banner--warning">
+      {{ alertStats.warning }} 个警告，{{ alertStats.open }} 个未处理
+      <el-button size="small" plain @click="navigateTo('/alerts')" style="margin-left: auto">查看告警</el-button>
     </div>
 
-    <!-- 系统状态卡片 -->
-    <div class="stats-grid">
-      <div class="stat-card" @click="navigateTo('/diagnose')">
-        <div class="stat-value" :style="{ color: healthScore >= 80 ? '#22c55e' : healthScore >= 60 ? '#f59e0b' : '#ef4444' }">
-          {{ healthScore.toFixed(0) }}
-        </div>
-        <div class="stat-label">健康评分</div>
-        <div class="stat-sub">点击查看详情</div>
-      </div>
-      <div class="stat-card" @click="navigateTo('/alerts')">
-        <div class="stat-value" :style="{ color: alertStats.critical > 0 ? '#ef4444' : '#6366f1' }">{{ alertStats.open }}</div>
-        <div class="stat-label">未处理告警</div>
-        <div class="stat-sub" v-if="alertStats.critical > 0">含 {{ alertStats.critical }} 个严重</div>
-      </div>
-      <div class="stat-card" @click="navigateTo('/slow-queries')">
-        <div class="stat-value" :style="{ color: slowTotal > 10 ? '#ef4444' : '#f59e0b' }">{{ slowTotal }}</div>
-        <div class="stat-label">慢查询</div>
-        <div class="stat-sub">最近 1 小时</div>
-      </div>
-      <div class="stat-card" @click="navigateTo('/security')">
-        <div class="stat-value" :style="{ color: securityRisks > 5 ? '#ef4444' : '#6366f1' }">{{ securityRisks }}</div>
-        <div class="stat-label">安全风险</div>
-        <div class="stat-sub">{{ securityRisks > 0 ? '需要关注' : '安全' }}</div>
-      </div>
+    <!-- KPI 卡片 -->
+    <div class="stat-grid">
+      <StatCard
+        :value="healthScore.toFixed(0)"
+        label="健康评分"
+        subtitle="点击查看详情"
+        :color="healthColor"
+        :loading="loading"
+        to="/diagnose"
+        @click="navigateTo('/diagnose')"
+      />
+      <StatCard
+        :value="alertStats.open"
+        label="未处理告警"
+        :subtitle="alertStats.critical > 0 ? `含 ${alertStats.critical} 个严重` : ''"
+        :color="alertColor"
+        :loading="loading"
+        to="/alerts"
+        @click="navigateTo('/alerts')"
+      />
+      <StatCard
+        :value="slowTotal"
+        label="慢查询"
+        subtitle="最近 1 小时"
+        :color="slowColor"
+        :loading="loading"
+        to="/slow-queries"
+        @click="navigateTo('/slow-queries')"
+      />
+      <StatCard
+        :value="securityRisks"
+        label="安全风险"
+        :subtitle="securityRisks > 0 ? '需要关注' : '安全'"
+        :color="securityColor"
+        :loading="loading"
+        to="/security"
+        @click="navigateTo('/security')"
+      />
     </div>
 
     <!-- 第二行：系统概览 + 快速操作 -->
     <div class="row-grid">
-      <!-- 系统概览 -->
-      <el-card shadow="never" class="section-card">
-        <template #header><span>📊 系统概览</span></template>
+      <SectionCard title="系统概览">
         <div class="overview-grid">
           <div class="overview-item" @click="navigateTo('/databases')">
-            <span class="overview-icon">🗄️</span>
             <span class="overview-value">{{ dbCount }}</span>
             <span class="overview-label">数据库</span>
           </div>
           <div class="overview-item" @click="navigateTo('/scheduler')">
-            <span class="overview-icon">⏰</span>
             <span class="overview-value">{{ taskCount }}</span>
             <span class="overview-label">定时任务</span>
           </div>
           <div class="overview-item" @click="navigateTo('/users')">
-            <span class="overview-icon">👥</span>
-            <span class="overview-value" v-if="auth.isAdmin">-</span>
+            <span class="overview-value">-</span>
             <span class="overview-label">用户</span>
           </div>
           <div class="overview-item" @click="navigateTo('/alerts')">
-            <span class="overview-icon">🔔</span>
-            <span class="overview-value" :style="{ color: alertStats.open > 0 ? '#ef4444' : '#22c55e' }">{{ alertStats.open }}</span>
+            <span class="overview-value" :style="{ color: alertStats.open > 0 ? 'var(--color-danger-500)' : 'var(--color-success-500)' }">
+              {{ alertStats.open }}
+            </span>
             <span class="overview-label">告警</span>
           </div>
         </div>
-      </el-card>
+      </SectionCard>
 
-      <!-- 快速操作 -->
-      <el-card shadow="never" class="section-card">
-        <template #header><span>⚡ 快速操作</span></template>
+      <SectionCard title="快速操作">
         <div class="quick-actions">
-          <div class="quick-action" @click="navigateTo('/diagnose')">🔍 实时诊断</div>
-          <div class="quick-action" @click="navigateTo('/slow-queries')">🐢 慢查询</div>
-          <div class="quick-action" @click="navigateTo('/sql-editor')">⌨️ SQL 编辑器</div>
-          <div class="quick-action" @click="navigateTo('/security')">🔒 安全审计</div>
-          <div class="quick-action" @click="navigateTo('/alerts')">🔔 告警管理</div>
-          <div class="quick-action" @click="navigateTo('/scheduler')">⏰ 定时任务</div>
+          <div class="quick-action" @click="navigateTo('/diagnose')">实时诊断</div>
+          <div class="quick-action" @click="navigateTo('/slow-queries')">慢查询</div>
+          <div class="quick-action" @click="navigateTo('/sql-editor')">SQL 编辑器</div>
+          <div class="quick-action" @click="navigateTo('/security')">安全审计</div>
+          <div class="quick-action" @click="navigateTo('/alerts')">告警管理</div>
+          <div class="quick-action" @click="navigateTo('/scheduler')">定时任务</div>
         </div>
-      </el-card>
+      </SectionCard>
     </div>
 
     <!-- 第三行：数据库健康 + 最近活动 -->
     <div class="row-grid">
-      <el-card shadow="never" class="section-card">
-        <template #header><span>🏥 数据库健康</span></template>
+      <SectionCard title="数据库健康">
         <VChart :option="dbHealthOption" autoresize style="height:200px" />
-      </el-card>
+      </SectionCard>
 
-      <el-card shadow="never" class="section-card">
-        <template #header><span>🕐 最近活动</span></template>
-        <div v-if="recentActivity.length > 0">
+      <SectionCard title="最近活动">
+        <div v-if="recentActivity.length > 0" class="activity-list">
           <div v-for="(item, i) in recentActivity" :key="i" class="activity-item">
             <span class="activity-cmd">{{ item.command || '-' }}</span>
             <span class="activity-db">{{ item.database || '' }}</span>
             <span class="activity-time">{{ item.timestamp ? item.timestamp.replace('T', ' ').substring(11, 19) : '' }}</span>
           </div>
         </div>
-        <div v-else class="empty-state">暂无活动记录</div>
-      </el-card>
+        <div v-else class="activity-empty">暂无活动记录</div>
+      </SectionCard>
     </div>
   </div>
 </template>
@@ -217,56 +259,149 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
-.live-dot.active { background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.dashboard-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-5);
+}
+.dashboard-header__left {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+.dashboard-title {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+.dashboard-subtitle {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.dashboard-header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
 
+/* 告警横幅 */
 .alert-banner {
-  display: flex; align-items: center; padding: 10px 16px; border-radius: 8px; margin-bottom: 16px; font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-lg);
+  margin-bottom: var(--space-5);
+  font-size: var(--text-sm);
+  font-weight: var(--font-medium);
 }
-.alert-banner.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
-.alert-banner.warning { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
-
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
-.stat-card {
-  background: var(--el-bg-color); border-radius: 10px; padding: 20px; border: 1px solid var(--el-border-color-light);
-  text-align: center; cursor: pointer; transition: all 0.2s;
+.alert-banner--critical {
+  background: var(--color-danger-50);
+  color: var(--color-danger-700);
+  border: 1px solid var(--color-danger-500);
 }
-.stat-card:hover { border-color: var(--el-color-primary); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
-.stat-value { font-size: 36px; font-weight: 700; }
-.stat-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
-.stat-sub { font-size: 11px; color: var(--el-text-color-placeholder); margin-top: 4px; }
+.alert-banner--warning {
+  background: var(--color-warning-50);
+  color: var(--color-warning-700);
+  border: 1px solid var(--color-warning-500);
+}
 
-.row-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px; }
-.section-card { margin-bottom: 0; }
+/* KPI 网格 */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
 
-.overview-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* 双列网格 */
+.row-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+/* 系统概览 */
+.overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
 .overview-item {
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 16px; border: 1px solid var(--el-border-color-light); border-radius: 8px;
-  cursor: pointer; transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
-.overview-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.overview-icon { font-size: 24px; }
-.overview-value { font-size: 24px; font-weight: 700; color: var(--el-color-primary); }
-.overview-label { font-size: 12px; color: var(--el-text-color-secondary); }
+.overview-item:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+}
+.overview-value {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--color-brand-500);
+}
+.overview-label {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
 
-.quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* 快速操作 */
+.quick-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
 .quick-action {
-  padding: 12px; border: 1px solid var(--el-border-color-light); border-radius: 8px;
-  cursor: pointer; text-align: center; font-size: 13px; transition: all 0.15s;
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
 }
-.quick-action:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
+.quick-action:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+  color: var(--color-brand-500);
+}
 
-.activity-item { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--el-border-color-lighter); font-size: 12px; }
+/* 活动列表 */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+}
+.activity-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: var(--text-xs);
+}
 .activity-item:last-child { border-bottom: none; }
-.activity-cmd { flex: 1; font-weight: 500; }
-.activity-db { color: var(--el-text-color-placeholder); }
-.activity-time { color: var(--el-text-color-placeholder); }
+.activity-cmd { flex: 1; font-weight: var(--font-medium); color: var(--text-primary); }
+.activity-db { color: var(--text-tertiary); }
+.activity-time { color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.activity-empty {
+  text-align: center;
+  padding: var(--space-5);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
 
-.empty-state { text-align: center; padding: 20px; color: var(--el-text-color-placeholder); }
-
-@media (max-width: 1024px) { .row-grid { grid-template-columns: 1fr; } }
+@media (max-width: 1024px) {
+  .row-grid { grid-template-columns: 1fr; }
+}
 </style>

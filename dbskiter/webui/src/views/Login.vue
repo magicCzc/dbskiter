@@ -11,7 +11,6 @@ const username = ref('')
 const password = ref('')
 const email = ref('')
 const loading = ref(false)
-const isDemo = ref(false)
 
 async function submit() {
   if (!username.value || !password.value) {
@@ -36,14 +35,13 @@ async function submit() {
 }
 
 async function demoLogin() {
-  isDemo.value = true
   loading.value = true
   try {
     await auth.login('demo', 'demo')
-    ElMessage.success('🎮 欢迎体验演示模式！所有数据为模拟数据')
+    ElMessage.success('欢迎体验演示模式')
     router.push('/')
   } catch {
-    ElMessage.info('演示模式已激活，所有数据为模拟数据')
+    ElMessage.info('演示模式已激活')
     auth.demoLogin()
     router.push('/')
   } finally {
@@ -54,11 +52,16 @@ async function demoLogin() {
 
 <template>
   <div class="login-page">
-    <div class="login-card" :class="{ 'demo-mode': isDemo }">
+    <div class="login-card">
       <div class="login-header">
-        <div class="login-logo">🗄️</div>
-        <h1>DBSKiter</h1>
-        <p class="login-subtitle">数据库 AIOps 运维助手</p>
+        <svg class="login-logo" viewBox="0 0 24 24" fill="none" width="40" height="40">
+          <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.35"/>
+          <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.55"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.55"/>
+          <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor"/>
+        </svg>
+        <h1 class="login-title">DBSKiter</h1>
+        <p class="login-subtitle">数据库运维管理平台</p>
       </div>
 
       <el-form @submit.prevent="submit" class="login-form">
@@ -66,7 +69,7 @@ async function demoLogin() {
           v-model="username"
           placeholder="用户名"
           size="large"
-          style="margin-bottom:16px"
+          class="login-input"
           autofocus
         />
         <el-input
@@ -74,7 +77,7 @@ async function demoLogin() {
           type="password"
           placeholder="密码"
           size="large"
-          style="margin-bottom:16px"
+          class="login-input"
           show-password
         />
         <el-input
@@ -82,16 +85,16 @@ async function demoLogin() {
           v-model="email"
           placeholder="邮箱（选填）"
           size="large"
-          style="margin-bottom:16px"
+          class="login-input"
         />
         <el-button
           type="primary"
           size="large"
           :loading="loading"
-          style="width:100%;margin-bottom:12px"
+          class="login-btn"
           @click="submit"
         >
-          {{ isLogin ? '登 录' : '注 册' }}
+          {{ isLogin ? '登录' : '注册' }}
         </el-button>
         <div class="login-switch">
           <el-button text @click="isLogin = !isLogin">
@@ -100,24 +103,22 @@ async function demoLogin() {
         </div>
       </el-form>
 
-      <div class="demo-divider">
-        <span class="demo-divider-line"></span>
-        <span class="demo-divider-text">体验</span>
-        <span class="demo-divider-line"></span>
+      <div class="login-divider">
+        <span class="login-divider-line"></span>
+        <span class="login-divider-text">快速体验</span>
+        <span class="login-divider-line"></span>
       </div>
 
       <el-button
         size="large"
-        style="width:100%;margin-bottom:12px"
+        class="login-btn login-btn--demo"
         :loading="loading"
         @click="demoLogin"
       >
-        🎮 演示模式（无需账号）
+        演示模式（无需账号）
       </el-button>
 
-      <div class="login-footer">
-        <span class="login-hint">默认管理员: admin / admin123</span>
-      </div>
+      <p class="login-hint">默认管理员: admin / admin123</p>
     </div>
   </div>
 </template>
@@ -128,63 +129,80 @@ async function demoLogin() {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  background: var(--el-bg-color-page);
+  background: var(--bg-page);
 }
 .login-card {
   width: 400px;
-  padding: 40px;
-  background: var(--el-bg-color);
-  border-radius: 16px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
-  border: 1px solid var(--el-border-color-light);
+  padding: var(--space-10);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--border-default);
 }
 .login-header {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: var(--space-8);
 }
 .login-logo {
-  font-size: 48px;
-  margin-bottom: 12px;
+  color: var(--color-brand-500);
+  margin-bottom: var(--space-4);
 }
-.login-header h1 {
+.login-title {
   margin: 0;
-  font-size: 24px;
-  color: var(--el-color-primary);
+  font-size: var(--text-2xl);
+  font-weight: var(--font-bold);
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
 }
 .login-subtitle {
-  margin: 4px 0 0;
-  font-size: 14px;
-  color: var(--el-text-color-secondary);
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-tertiary);
+}
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.login-input {
+  --el-input-border-radius: var(--radius-md);
+}
+.login-btn {
+  width: 100%;
+  margin-top: var(--space-1);
+}
+.login-btn--demo {
+  margin-top: 0;
+  --el-button-bg-color: var(--color-gray-50);
+  --el-button-border-color: var(--border-default);
+  --el-button-text-color: var(--text-secondary);
+  --el-button-hover-bg-color: var(--color-gray-100);
+  --el-button-hover-border-color: var(--border-strong);
 }
 .login-switch {
   text-align: center;
+  margin-top: var(--space-2);
 }
-.login-footer {
-  text-align: center;
-  margin-top: 24px;
-}
-.login-hint {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-}
-
-.demo-divider {
+.login-divider {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 20px 0 16px;
+  gap: var(--space-3);
+  margin: var(--space-6) 0 var(--space-4);
 }
-.demo-divider-line {
+.login-divider-line {
   flex: 1;
   height: 1px;
-  background: var(--el-border-color-light);
+  background: var(--border-default);
 }
-.demo-divider-text {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
+.login-divider-text {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
 }
-
-.demo-mode {
-  border-color: var(--el-color-warning) !important;
+.login-hint {
+  text-align: center;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
 }
 </style>
