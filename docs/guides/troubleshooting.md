@@ -411,7 +411,7 @@ pip install --force-reinstall dbskiter
 
 **含义**：v4.0 将移除 V2 模块。
 
-**解决**：参考 [v3 → v4 迁移指南](guides/migration-v3-to-v4.md)
+**解决**：参考 [v3 → v4 迁移指南](migration-v3-to-v4.md)
 
 ```python
 # 旧
