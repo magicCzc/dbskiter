@@ -51,11 +51,7 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
         table_name = self._extract_table_name(ddl_sql)
         operation = self._detect_operation(ddl_sql)
 
-        impact = DDLImpact(
-            ddl_sql=ddl_sql,
-            table_name=table_name,
-            operation=operation
-        )
+        impact = DDLImpact(ddl_sql=ddl_sql, table_name=table_name, operation=operation)
 
         # 通过元数据服务获取表信息
         try:
@@ -69,25 +65,18 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
             logger.warning(f"获取表 {table_name} 信息时数据错误: {e}")
 
         # 评估执行时间
-        impact.execution_time_estimate = self._estimate_execution_time(
-            impact.table_size_mb
-        )
+        impact.execution_time_estimate = self._estimate_execution_time(impact.table_size_mb)
 
         # 评估风险
         impact.risks = self._assess_risks(operation, impact.table_size_mb)
 
         # 生成建议
-        impact.suggestions = self._generate_suggestions(
-            operation, impact.table_size_mb, self.dialect
-        )
+        impact.suggestions = self._generate_suggestions(operation, impact.table_size_mb, self.dialect)
 
         # 获取依赖对象
         impact.dependent_objects = self._get_dependent_objects(table_name)
 
-        logger.info(
-            f"DDL影响分析完成: {table_name}, "
-            f"大小={impact.table_size_mb}MB, 操作={operation}"
-        )
+        logger.info(f"DDL影响分析完成: {table_name}, " f"大小={impact.table_size_mb}MB, 操作={operation}")
 
         return impact
 
@@ -105,7 +94,8 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
 
         try:
             # 查找视图依赖
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     dependent_ns.nspname || '.' || dependent_view.relname
                 FROM pg_depend
@@ -115,14 +105,17 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
                 JOIN pg_namespace dependent_ns ON dependent_ns.oid = dependent_view.relnamespace
                 WHERE source_table.relname = %s
                 AND dependent_view.relkind = 'v'
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows:
                 for row in result.rows:
                     dependents.append(f"视图: {row[0]}")
 
             # 查找外键依赖
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     tc.table_name,
                     tc.constraint_name
@@ -131,14 +124,17 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
                     ON tc.constraint_name = ccu.constraint_name
                 WHERE ccu.table_name = %s
                 AND tc.constraint_type = 'FOREIGN KEY'
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows:
                 for row in result.rows:
                     dependents.append(f"外键: {row[0]}.{row[1]}")
 
             # 查找函数依赖
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     p.proname
                 FROM pg_proc p
@@ -146,19 +142,24 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
                 JOIN pg_class c ON d.refobjid = c.oid
                 WHERE c.relname = %s
                 AND d.deptype = 'n'
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows:
                 for row in result.rows:
                     dependents.append(f"函数: {row[0]}")
 
             # 查找触发器
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     trigger_name
                 FROM information_schema.triggers
                 WHERE event_object_table = %s
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows:
                 for row in result.rows:
@@ -173,12 +174,7 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
 
         return dependents
 
-    def _generate_suggestions(
-        self,
-        operation: str,
-        table_size_mb: float,
-        dialect: str
-    ) -> List[str]:
+    def _generate_suggestions(self, operation: str, table_size_mb: float, dialect: str) -> List[str]:
         """
         生成PostgreSQL特有的DDL执行建议
 
@@ -190,9 +186,7 @@ class PostgreSQLDDLAnalyzer(BaseDDLAnalyzer):
         返回:
             List[str]: 建议列表
         """
-        suggestions = super()._generate_suggestions(
-            operation, table_size_mb, dialect
-        )
+        suggestions = super()._generate_suggestions(operation, table_size_mb, dialect)
 
         # PostgreSQL特有的大表DDL建议
         if table_size_mb and table_size_mb > 1000:

@@ -26,7 +26,7 @@ class DataAnalyzer:
 
     def from_query_result(self, result) -> "DataAnalyzer":
         """从 QueryResult 创建分析器"""
-        self.df = result.df if hasattr(result, 'df') else pd.DataFrame(result)
+        self.df = result.df if hasattr(result, "df") else pd.DataFrame(result)
         return self
 
     def analyze(self, rows: List[Dict], columns: List[str]) -> Dict[str, Any]:
@@ -57,12 +57,7 @@ class DataAnalyzer:
         desc = self.df.describe().to_dict()
         nulls = self.df.isnull().sum().to_dict()
         dtypes = self.df.dtypes.astype(str).to_dict()
-        return {
-            "statistics": desc,
-            "null_counts": nulls,
-            "data_types": dtypes,
-            "shape": self.df.shape
-        }
+        return {"statistics": desc, "null_counts": nulls, "data_types": dtypes, "shape": self.df.shape}
 
     def group_by(self, column: str, agg_col: str, func: str = "sum") -> pd.DataFrame:
         """分组聚合"""
@@ -100,5 +95,5 @@ class DataAnalyzer:
             "max": col.max(),
             "skew": col.skew(),
             "kurtosis": col.kurtosis(),
-            "null_count": col.isnull().sum()
+            "null_count": col.isnull().sum(),
         }

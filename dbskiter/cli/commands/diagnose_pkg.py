@@ -66,15 +66,14 @@ class DiagnoseCommand(
 
         # ==================== P0: 高频场景（每天使用）====================
 
-        realtime_parser = subparsers.add_parser(
-            "realtime",
-            help="实时诊断 - 分析当前数据库性能问题"
-        )
+        realtime_parser = subparsers.add_parser("realtime", help="实时诊断 - 分析当前数据库性能问题")
         realtime_parser.add_argument("--threshold", type=int, default=5, help="慢查询阈值（秒，默认5）")
 
         top_parser = subparsers.add_parser("top", help="TOP SQL - 查看资源消耗最高的SQL")
         top_parser.add_argument("--limit", type=int, default=10, help="返回条数（默认10）")
-        top_parser.add_argument("--by", choices=["time", "cpu", "io", "rows"], default="time", help="排序依据（默认time）")
+        top_parser.add_argument(
+            "--by", choices=["time", "cpu", "io", "rows"], default="time", help="排序依据（默认time）"
+        )
 
         locks_parser = subparsers.add_parser("locks", help="锁分析 - 检测死锁、阻塞、锁等待")
         locks_parser.add_argument("--kill", action="store_true", help="显示KILL语句（不执行）")
@@ -95,20 +94,18 @@ class DiagnoseCommand(
         subparsers.add_parser("replication", help="复制诊断 - 分析主从延迟、复制状态")
 
         slowlog_parser = subparsers.add_parser(
-            "slow-queries",
-            aliases=["slowlog"],
-            help="慢查询日志 - 分析历史慢查询（支持实时采集和日志文件解析）"
+            "slow-queries", aliases=["slowlog"], help="慢查询日志 - 分析历史慢查询（支持实时采集和日志文件解析）"
         )
         slowlog_parser.add_argument("--top", type=int, default=10, help="显示TOP N条慢查询（默认10）")
         slowlog_parser.add_argument("--limit", type=int, default=10, help="返回条数（默认10，仅实时模式）")
         slowlog_parser.add_argument("--min-time", type=float, default=1.0, help="最小执行时间（秒，默认1.0）")
         slowlog_parser.add_argument("--log-file", help="慢查询日志文件路径（指定则使用日志文件模式）")
-        slowlog_parser.add_argument("--since", default="24h", help="时间范围（如24h表示最近24小时，7d表示最近7天，仅日志模式）")
+        slowlog_parser.add_argument(
+            "--since", default="24h", help="时间范围（如24h表示最近24小时，7d表示最近7天，仅日志模式）"
+        )
 
         index_parser = subparsers.add_parser(
-            "recommend-indexes",
-            aliases=["indexes"],
-            help="索引建议 - 全库索引分析和建议"
+            "recommend-indexes", aliases=["indexes"], help="索引建议 - 全库索引分析和建议"
         )
         index_parser.add_argument("--table", help="指定表名（默认全库）")
 
@@ -131,13 +128,13 @@ class DiagnoseCommand(
 
         bloat_parser = subparsers.add_parser(
             "bloat",
-            help="膨胀/碎片分析 - 检测表膨胀和碎片情况（PostgreSQL膨胀/MySQL碎片/Oracle表空间碎片/ClickHouse分区/SQLite空闲页）"
+            help="膨胀/碎片分析 - 检测表膨胀和碎片情况（PostgreSQL膨胀/MySQL碎片/Oracle表空间碎片/ClickHouse分区/SQLite空闲页）",
         )
         bloat_parser.add_argument("--threshold", type=int, default=30, help="膨胀率阈值（百分比，默认30）")
 
         subparsers.add_parser(
             "index-usage",
-            help="索引使用分析 - 识别未使用索引和缺失索引（MySQL/Oracle/PostgreSQL/ClickHouse跳数索引/SQLite冗余索引）"
+            help="索引使用分析 - 识别未使用索引和缺失索引（MySQL/Oracle/PostgreSQL/ClickHouse跳数索引/SQLite冗余索引）",
         )
 
         subparsers.add_parser("tablespace-fragmentation", help="表空间碎片分析 - 分析Oracle表空间碎片情况")
@@ -146,7 +143,7 @@ class DiagnoseCommand(
         """执行诊断命令"""
         from dbskiter.db_diagnose.skill import DiagnoseSkill
 
-        action = getattr(self.args, 'diagnose_action', None)
+        action = getattr(self.args, "diagnose_action", None)
 
         # 建立连接器（demo 模式 / 真实数据库）
         connector = self._setup_connector()
@@ -182,8 +179,9 @@ class DiagnoseCommand(
         返回:
             连接器对象（已绑定到 self._connector），或 None（失败时）
         """
-        if getattr(self.args, 'demo', False):
+        if getattr(self.args, "demo", False):
             from dbskiter.shared.mock_connector import MockConnector
+
             self._connector = MockConnector()
             self.output.info("演示模式：使用内置 Mock 数据")
             return self._connector
@@ -196,6 +194,7 @@ class DiagnoseCommand(
 
         if has_valid_config:
             from dbskiter.shared.unified_connector import UnifiedConnector
+
             self._connector = UnifiedConnector(
                 dialect=self.config.dialect,
                 host=self.config.host,
@@ -203,12 +202,12 @@ class DiagnoseCommand(
                 username=self.config.username,
                 password=self.config.password,
                 database=self.config.database,
-                **self.config.extra
+                **self.config.extra,
             )
             return self._connector
 
         # 回退到 MultiDBConfig 逻辑
-        db_name = getattr(self.args, 'database', None)
+        db_name = getattr(self.args, "database", None)
         configs = self._load_all_configs()
         connector = build_diagnose_connector(self, db_name, configs)
 
@@ -231,11 +230,12 @@ class DiagnoseCommand(
 
     def _explicit_error_reported(self) -> bool:
         """检查是否已显式报告错误（避免重复输出）"""
-        return getattr(self, '_explicit_error', False)
+        return getattr(self, "_explicit_error", False)
 
     def _load_all_configs(self) -> Dict[str, Any]:
         """加载所有可用的数据库配置"""
         from dbskiter.cli.config import MultiDBConfig
+
         return MultiDBConfig().load_all_configs()
 
     def _check_dialect_compatibility(self, action: str) -> bool:
@@ -244,39 +244,39 @@ class DiagnoseCommand(
         在连接数据库之前就检查，避免不匹配时还要等待连接重试
         """
         db_specific_commands = {
-            'vacuum': {
-                'required': 'postgresql',
-                'label': 'VACUUM分析',
-                'supported': ['postgresql'],
+            "vacuum": {
+                "required": "postgresql",
+                "label": "VACUUM分析",
+                "supported": ["postgresql"],
             },
-            'tablespace-fragmentation': {
-                'required': 'oracle',
-                'label': '表空间碎片分析',
-                'supported': ['oracle'],
+            "tablespace-fragmentation": {
+                "required": "oracle",
+                "label": "表空间碎片分析",
+                "supported": ["oracle"],
             },
-            'replication': {
-                'required': 'clickhouse',
-                'label': '复制分析',
-                'supported': ['clickhouse', 'postgresql', 'mysql'],
+            "replication": {
+                "required": "clickhouse",
+                "label": "复制分析",
+                "supported": ["clickhouse", "postgresql", "mysql"],
             },
-            'bloat': {
-                'required': 'postgresql',
-                'label': '表膨胀/碎片分析',
-                'supported': ['postgresql', 'clickhouse', 'sqlite', 'mysql', 'oracle'],
+            "bloat": {
+                "required": "postgresql",
+                "label": "表膨胀/碎片分析",
+                "supported": ["postgresql", "clickhouse", "sqlite", "mysql", "oracle"],
             },
-            'index-usage': {
-                'required': 'postgresql',
-                'label': '索引使用分析',
-                'supported': ['postgresql', 'clickhouse', 'sqlite', 'mysql', 'oracle'],
+            "index-usage": {
+                "required": "postgresql",
+                "label": "索引使用分析",
+                "supported": ["postgresql", "clickhouse", "sqlite", "mysql", "oracle"],
             },
         }
         if action not in db_specific_commands:
             return True
 
         cmd_info = db_specific_commands[action]
-        dialect = getattr(self._connector, 'dialect', '') or ''
+        dialect = getattr(self._connector, "dialect", "") or ""
         dialect_lower = dialect.lower()
-        if not any(d in dialect_lower for d in cmd_info['supported']):
+        if not any(d in dialect_lower for d in cmd_info["supported"]):
             self.output.error(
                 f"{cmd_info['label']}仅支持 "
                 f"{'/'.join(cmd_info['supported'])} 数据库，"
@@ -345,40 +345,38 @@ class DiagnoseCommand(
     def _build_ai_dispatch_maps(self, skill):
         """构建 AI 模式下的 method_map 和 scenario_map"""
         method_map = {
-            "realtime": lambda: skill.realtime_diagnose(
-                threshold=getattr(self.args, 'threshold', 5)
-            ),
+            "realtime": lambda: skill.realtime_diagnose(threshold=getattr(self.args, "threshold", 5)),
             "top": lambda: skill.get_top_sql(
-                limit=getattr(self.args, 'limit', 10),
-                order_by=getattr(self.args, 'by', 'time'),
+                limit=getattr(self.args, "limit", 10),
+                order_by=getattr(self.args, "by", "time"),
             ),
             "locks": lambda: skill.analyze_locks(),
             "sql": lambda: skill.analyze_sql(self.args.sql),
             "space": lambda: skill.analyze_space(
-                top_n=getattr(self.args, 'top', 20),
-                min_size_mb=getattr(self.args, 'min_size', 100),
+                top_n=getattr(self.args, "top", 20),
+                min_size_mb=getattr(self.args, "min_size", 100),
             ),
             "connections": lambda: skill.analyze_connections(
-                show_idle=getattr(self.args, 'idle', False),
+                show_idle=getattr(self.args, "idle", False),
             ),
             "replication": lambda: skill.analyze_replication(),
             "slow-queries": lambda: skill.analyze_slow_queries(
-                limit=getattr(self.args, 'top', getattr(self.args, 'limit', 10)),
-                min_time=getattr(self.args, 'min_time', 1.0),
-                log_file=getattr(self.args, 'log_file', None),
-                since=getattr(self.args, 'since', '24h'),
+                limit=getattr(self.args, "top", getattr(self.args, "limit", 10)),
+                min_time=getattr(self.args, "min_time", 1.0),
+                log_file=getattr(self.args, "log_file", None),
+                since=getattr(self.args, "since", "24h"),
             ),
             "slowlog": lambda: skill.analyze_slow_queries(
-                limit=getattr(self.args, 'top', getattr(self.args, 'limit', 10)),
-                min_time=getattr(self.args, 'min_time', 1.0),
-                log_file=getattr(self.args, 'log_file', None),
-                since=getattr(self.args, 'since', '24h'),
+                limit=getattr(self.args, "top", getattr(self.args, "limit", 10)),
+                min_time=getattr(self.args, "min_time", 1.0),
+                log_file=getattr(self.args, "log_file", None),
+                since=getattr(self.args, "since", "24h"),
             ),
             "recommend-indexes": lambda: skill.recommend_indexes(
-                table=getattr(self.args, 'table', None),
+                table=getattr(self.args, "table", None),
             ),
             "indexes": lambda: skill.recommend_indexes(
-                table=getattr(self.args, 'table', None),
+                table=getattr(self.args, "table", None),
             ),
             "report": lambda: self._generate_report_for_ai_mode(skill),
             "table": lambda: skill.diagnose_table(self.args.table_name),
@@ -386,7 +384,7 @@ class DiagnoseCommand(
             "bottleneck": lambda: skill.analyze_performance_bottleneck(),
             "vacuum": lambda: skill.analyze_vacuum(),
             "bloat": lambda: skill.analyze_bloat(
-                threshold=getattr(self.args, 'threshold', 30),
+                threshold=getattr(self.args, "threshold", 30),
             ),
             "index-usage": lambda: skill.analyze_index_usage(),
             "tablespace-fragmentation": lambda: skill.analyze_tablespace_fragmentation(),

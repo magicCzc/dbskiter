@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Set, Tuple
 
@@ -37,22 +38,24 @@ class PerformanceMixin:
         返回:
             PerformanceAnalyzer实例或None
         """
-        if 'mysql' in self.dialect:
+        if "mysql" in self.dialect:
             from .diagnosticians.mysql_performance_analyzer import MySQLPerformanceAnalyzer
+
             return MySQLPerformanceAnalyzer(self.connector, timeout=30)
-        elif 'oracle' in self.dialect:
+        elif "oracle" in self.dialect:
             from .diagnosticians.oracle_performance_analyzer import OraclePerformanceAnalyzer
+
             return OraclePerformanceAnalyzer(self.connector, timeout=30)
-        elif 'postgresql' in self.dialect:
+        elif "postgresql" in self.dialect:
             from .diagnosticians.postgresql_performance_analyzer import PostgreSQLPerformanceAnalyzer
+
             return PostgreSQLPerformanceAnalyzer(self.connector, timeout=30)
-        elif 'clickhouse' in self.dialect:
+        elif "clickhouse" in self.dialect:
             return ClickHousePerformanceAnalyzer(self.connector, timeout=30)
-        elif 'sqlite' in self.dialect:
+        elif "sqlite" in self.dialect:
             return SQLitePerformanceAnalyzer(self.connector, timeout=30)
         else:
             return None
-
 
     def take_performance_snapshot(self) -> Dict[str, Any]:
         """
@@ -65,10 +68,7 @@ class PerformanceMixin:
             analyzer = self._get_performance_analyzer()
 
             if not analyzer:
-                return create_error_response(
-                    f"统一性能模型暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+                return create_error_response(f"统一性能模型暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
 
             snapshot = analyzer.take_snapshot()
             bottlenecks = analyzer.analyze_bottleneck(snapshot)
@@ -82,15 +82,14 @@ class PerformanceMixin:
                         "total_metrics": len(snapshot.metrics),
                         "total_slow_queries": len(snapshot.slow_queries),
                         "active_sessions": snapshot.active_sessions,
-                        "total_sessions": snapshot.total_sessions
-                    }
-                }
+                        "total_sessions": snapshot.total_sessions,
+                    },
+                },
             )
 
         except Exception as e:
             logger.error(f"性能快照采集失败: {e}")
             return create_error_response(str(e), ErrorCode.PERF_ANALYSIS_FAILED)
-
 
     def analyze_performance_bottleneck(self) -> Dict[str, Any]:
         """
@@ -103,10 +102,7 @@ class PerformanceMixin:
             analyzer = self._get_performance_analyzer()
 
             if not analyzer:
-                return create_error_response(
-                    f"性能瓶颈分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+                return create_error_response(f"性能瓶颈分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
 
             snapshot = analyzer.take_snapshot()
             bottlenecks = analyzer.analyze_bottleneck(snapshot)
@@ -116,14 +112,13 @@ class PerformanceMixin:
                 data={
                     "bottlenecks": bottlenecks,
                     "severity_summary": self._summarize_severity(bottlenecks),
-                    "recommendations": self._generate_recommendations(bottlenecks)
-                }
+                    "recommendations": self._generate_recommendations(bottlenecks),
+                },
             )
 
         except Exception as e:
             logger.error(f"性能瓶颈分析失败: {e}")
             return create_error_response(str(e), ErrorCode.PERF_ANALYSIS_FAILED)
-
 
     def _summarize_severity(self, bottlenecks: List[Dict]) -> Dict[str, int]:
         """汇总严重程度"""
@@ -133,7 +128,6 @@ class PerformanceMixin:
             if severity in summary:
                 summary[severity] += 1
         return summary
-
 
     def _generate_recommendations(self, bottlenecks: List[Dict]) -> List[str]:
         """生成优化建议"""
@@ -147,5 +141,3 @@ class PerformanceMixin:
                 recommendations.append(f"[{category}] {suggestion}")
 
         return recommendations
-
-

@@ -5,14 +5,22 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Callable, Set
 from datetime import datetime
 
 from dbskiter.db_monitor.models import (
-    MetricType, MetricPoint, AnomalyAlert, MonitorConfig,
-    HealthAssessment, CapacityPrediction, HealthStatus,
-    AnomalyType, Severity, ErrorCode,
+    MetricType,
+    MetricPoint,
+    AnomalyAlert,
+    MonitorConfig,
+    HealthAssessment,
+    CapacityPrediction,
+    HealthStatus,
+    AnomalyType,
+    Severity,
+    ErrorCode,
 )
 from dbskiter.shared.error_handler import create_success_response, create_error_response
 from dbskiter.shared.validators import validate_params, Validator
@@ -21,11 +29,7 @@ from dbskiter.shared.validators import validate_params, Validator
 class CollectionMixin:
     """collection for MonitorSkill"""
 
-    def collect_metrics(
-        self,
-        metric_types: Optional[List[str]] = None,
-        source: str = "auto"
-    ) -> Dict[str, Any]:
+    def collect_metrics(self, metric_types: Optional[List[str]] = None, source: str = "auto") -> Dict[str, Any]:
         """
         采集数据库指标
 
@@ -51,7 +55,7 @@ class CollectionMixin:
             return create_error_response(
                 "未提供数据库连接器",
                 error_code=ErrorCode.CONNECTION_ERROR,
-                details={"solution": "初始化时传入connector参数，或配置Zabbix/Prometheus环境变量"}
+                details={"solution": "初始化时传入connector参数，或配置Zabbix/Prometheus环境变量"},
             )
 
         try:
@@ -59,10 +63,7 @@ class CollectionMixin:
 
             # 过滤指定指标
             if metric_types:
-                metrics = [
-                    m for m in metrics
-                    if m.metric_type.value in metric_types
-                ]
+                metrics = [m for m in metrics if m.metric_type.value in metric_types]
 
             # 保存到存储
             if self.storage:
@@ -75,35 +76,24 @@ class CollectionMixin:
                     "value": m.value,
                     "unit": m.unit,
                     "timestamp": m.timestamp.isoformat(),
-                    "source": m.source
+                    "source": m.source,
                 }
                 for m in metrics
             }
 
             return create_success_response(
                 message=f"成功采集 {len(metrics)} 个指标",
-                data={
-                    "timestamp": datetime.now().isoformat(),
-                    "dialect": self.dialect,
-                    "metrics": metrics_dict
-                }
+                data={"timestamp": datetime.now().isoformat(), "dialect": self.dialect, "metrics": metrics_dict},
             )
 
         except Exception as e:
             logger.error(f"采集指标失败: {e}")
             return create_error_response(
-                "采集指标失败",
-                error_code=ErrorCode.COLLECTION_FAILED,
-                details={"error": str(e)}
+                "采集指标失败", error_code=ErrorCode.COLLECTION_FAILED, details={"error": str(e)}
             )
 
     @validate_params(metric_type=Validator.not_empty_string)
-
-    def get_metric_history(
-        self,
-        metric_type: str,
-        hours: int = 24
-    ) -> Dict[str, Any]:
+    def get_metric_history(self, metric_type: str, hours: int = 24) -> Dict[str, Any]:
         """
         获取指标历史数据
 
@@ -115,10 +105,7 @@ class CollectionMixin:
             Dict: 历史数据
         """
         if not self.storage:
-            return create_error_response(
-                "未启用持久化存储",
-                error_code=ErrorCode.STORAGE_ERROR
-            )
+            return create_error_response("未启用持久化存储", error_code=ErrorCode.STORAGE_ERROR)
 
         try:
             metric_enum = MetricType(metric_type)
@@ -126,29 +113,19 @@ class CollectionMixin:
 
             return create_success_response(
                 message=f"获取到 {len(history)} 个历史数据点",
-                data={
-                    "metric_type": metric_type,
-                    "hours": hours,
-                    "data_points": [m.to_dict() for m in history]
-                }
+                data={"metric_type": metric_type, "hours": hours, "data_points": [m.to_dict() for m in history]},
             )
         except ValueError:
-            return create_error_response(
-                f"未知的指标类型: {metric_type}",
-                error_code=ErrorCode.INVALID_METRIC_TYPE
-            )
+            return create_error_response(f"未知的指标类型: {metric_type}", error_code=ErrorCode.INVALID_METRIC_TYPE)
         except Exception as e:
             logger.error(f"获取历史数据失败: {e}")
             return create_error_response(
-                "获取历史数据失败",
-                error_code=ErrorCode.STORAGE_ERROR,
-                details={"error": str(e)}
+                "获取历史数据失败", error_code=ErrorCode.STORAGE_ERROR, details={"error": str(e)}
             )
 
     # ==================== 异常检测 ====================
 
     @validate_params()
-
     def _collect_from_zabbix(self, metric_types: Optional[List[str]] = None) -> Dict[str, Any]:
         """从 Zabbix 采集指标"""
         try:
@@ -157,10 +134,7 @@ class CollectionMixin:
 
             host_name = self._get_host_name()
             if not host_name:
-                return create_error_response(
-                    "无法确定主机名",
-                    error_code=ErrorCode.CONFIG_INVALID
-                )
+                return create_error_response("无法确定主机名", error_code=ErrorCode.CONFIG_INVALID)
 
             all_hosts = self.zabbix_client.get_hosts()
             is_oracle_group = OracleHostMapping.is_oracle_group(host_name)
@@ -172,8 +146,7 @@ class CollectionMixin:
 
                 if "error" in group_metrics:
                     return create_error_response(
-                        f"获取指标失败: {group_metrics['error']}",
-                        error_code=ErrorCode.NOT_FOUND
+                        f"获取指标失败: {group_metrics['error']}", error_code=ErrorCode.NOT_FOUND
                     )
 
                 aggregated = group_metrics.get("aggregated", {})
@@ -199,7 +172,7 @@ class CollectionMixin:
                             "unit": unit,
                             "description": description,
                             "timestamp": datetime.now().isoformat(),
-                            "source": "zabbix"
+                            "source": "zabbix",
                         }
 
                 return create_success_response(
@@ -208,32 +181,28 @@ class CollectionMixin:
                         "timestamp": datetime.now().isoformat(),
                         "host": host_name,
                         "source": "zabbix",
-                        "metrics": metrics_dict
-                    }
+                        "metrics": metrics_dict,
+                    },
                 )
             else:
                 # 普通主机查询
                 return create_error_response(
-                    "非资产组主机的 Zabbix 指标采集暂未实现",
-                    error_code=ErrorCode.NOT_IMPLEMENTED
+                    "非资产组主机的 Zabbix 指标采集暂未实现", error_code=ErrorCode.NOT_IMPLEMENTED
                 )
 
         except Exception as e:
             logger.error(f"从 Zabbix 采集指标失败: {e}")
             return create_error_response(
-                "从 Zabbix 采集指标失败",
-                error_code=ErrorCode.COLLECTION_FAILED,
-                details={"error": str(e)}
+                "从 Zabbix 采集指标失败", error_code=ErrorCode.COLLECTION_FAILED, details={"error": str(e)}
             )
-
 
     def _collect_from_prometheus(self, metric_types: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         从 Prometheus 采集指标
-        
+
         参数:
             metric_types: 指定指标类型列表，None表示全部
-        
+
         返回:
             Dict: 指标数据
         """
@@ -241,51 +210,40 @@ class CollectionMixin:
             return create_error_response(
                 "Prometheus 客户端未初始化",
                 error_code=ErrorCode.CONNECTION_ERROR,
-                details={"solution": "请设置 PROMETHEUS_URL 环境变量"}
+                details={"solution": "请设置 PROMETHEUS_URL 环境变量"},
             )
-        
+
         try:
             from dbskiter.shared.prometheus_client import RDSMetrics
-            
+
             host_name = self._get_host_name()
             if not host_name:
-                return create_error_response(
-                    "无法确定实例名",
-                    error_code=ErrorCode.CONFIG_INVALID
-                )
-            
+                return create_error_response("无法确定实例名", error_code=ErrorCode.CONFIG_INVALID)
+
             rds_metrics = RDSMetrics(self.prometheus_client)
-            
+
             # 获取指标数据
             metrics_data = rds_metrics.get_current_metrics(host_name)
-            
+
             # 转换为标准格式
             metrics_dict = {}
-            for metric_name, metric_info in metrics_data.get('metrics', {}).items():
-                value = metric_info.get('value')
+            for metric_name, metric_info in metrics_data.get("metrics", {}).items():
+                value = metric_info.get("value")
                 if value is not None:
                     metrics_dict[metric_name] = {
                         "value": value,
-                        "unit": metric_info.get('unit', ''),
+                        "unit": metric_info.get("unit", ""),
                         "timestamp": datetime.now().isoformat(),
-                        "source": "prometheus"
+                        "source": "prometheus",
                     }
-            
+
             return create_success_response(
                 message=f"从 Prometheus 采集到 {len(metrics_dict)} 个指标",
-                data={
-                    "timestamp": datetime.now().isoformat(),
-                    "instance": host_name,
-                    "metrics": metrics_dict
-                }
+                data={"timestamp": datetime.now().isoformat(), "instance": host_name, "metrics": metrics_dict},
             )
-        
+
         except Exception as e:
             logger.error(f"Prometheus 指标采集失败: {e}")
             return create_error_response(
-                "Prometheus 指标采集失败",
-                error_code=ErrorCode.COLLECTION_FAILED,
-                details={"error": str(e)}
+                "Prometheus 指标采集失败", error_code=ErrorCode.COLLECTION_FAILED, details={"error": str(e)}
             )
-
-

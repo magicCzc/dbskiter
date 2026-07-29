@@ -78,33 +78,20 @@ class GenericDDLAnalyzer(BaseDDLAnalyzer):
         # 添加通用风险
         if operation in ["ADD_COLUMN", "MODIFY_COLUMN"]:
             if indexes:
-                risks.append(
-                    f"表上有 {len(indexes)} 个索引，"
-                    "DDL 可能需要重建索引"
-                )
+                risks.append(f"表上有 {len(indexes)} 个索引，" "DDL 可能需要重建索引")
 
         if operation == "DROP_COLUMN":
             if dependent_objects:
-                risks.append(
-                    f"有 {len(dependent_objects)} 个对象可能依赖该表，"
-                    "删除列可能影响这些对象"
-                )
+                risks.append(f"有 {len(dependent_objects)} 个对象可能依赖该表，" "删除列可能影响这些对象")
 
         # 生成建议
-        suggestions = self._generate_suggestions(
-            operation, table_size_mb, self.dialect
-        )
+        suggestions = self._generate_suggestions(operation, table_size_mb, self.dialect)
 
         # 通用建议
         if table_size_mb and table_size_mb > 100:
-            suggestions.append(
-                "大表 DDL 建议在维护窗口执行，并监控磁盘 I/O"
-            )
+            suggestions.append("大表 DDL 建议在维护窗口执行，并监控磁盘 I/O")
 
-        suggestions.append(
-            "该数据库类型使用通用 DDL 分析器，"
-            "建议在生产环境执行前进行充分测试"
-        )
+        suggestions.append("该数据库类型使用通用 DDL 分析器，" "建议在生产环境执行前进行充分测试")
 
         return DDLImpact(
             ddl_sql=ddl_sql,
@@ -115,7 +102,7 @@ class GenericDDLAnalyzer(BaseDDLAnalyzer):
             rows_estimate=row_count,
             risks=risks,
             suggestions=suggestions,
-            dependent_objects=dependent_objects
+            dependent_objects=dependent_objects,
         )
 
     def _get_table_size_mb(self, table_name: str) -> Optional[float]:
@@ -138,18 +125,12 @@ class GenericDDLAnalyzer(BaseDDLAnalyzer):
                 "SELECT (data_length + index_length) / 1024.0 / 1024.0 "
                 "FROM information_schema.tables "
                 "WHERE table_name = ? AND table_schema = DATABASE()",
-                (table_name,)
+                (table_name,),
             ),
             # PostgreSQL 风格
-            (
-                "SELECT pg_total_relation_size(quote_ident($1)) / 1024.0 / 1024.0",
-                (table_name,)
-            ),
+            ("SELECT pg_total_relation_size(quote_ident($1)) / 1024.0 / 1024.0", (table_name,)),
             # 通用行数估算（作为大小的代理）
-            (
-                "SELECT COUNT(*) * 0.001 FROM " + table_name,
-                ()
-            ),
+            ("SELECT COUNT(*) * 0.001 FROM " + table_name, ()),
         ]
 
         for sql, params in queries:
@@ -173,9 +154,7 @@ class GenericDDLAnalyzer(BaseDDLAnalyzer):
             Optional[int]: 行数，不支持返回 None
         """
         try:
-            result = self.connector.execute(
-                f"SELECT COUNT(*) FROM {table_name}"
-            )
+            result = self.connector.execute(f"SELECT COUNT(*) FROM {table_name}")
             if result.rows and result.rows[0][0] is not None:
                 return int(result.rows[0][0])
         except Exception:
@@ -184,9 +163,7 @@ class GenericDDLAnalyzer(BaseDDLAnalyzer):
         # 尝试 INFORMATION_SCHEMA
         try:
             result = self.connector.execute(
-                "SELECT table_rows FROM information_schema.tables "
-                "WHERE table_name = ?",
-                (table_name,)
+                "SELECT table_rows FROM information_schema.tables " "WHERE table_name = ?", (table_name,)
             )
             if result.rows and result.rows[0][0] is not None:
                 return int(result.rows[0][0])
@@ -207,9 +184,7 @@ class GenericDDLAnalyzer(BaseDDLAnalyzer):
         """
         try:
             result = self.connector.execute(
-                "SELECT index_name FROM information_schema.statistics "
-                "WHERE table_name = ?",
-                (table_name,)
+                "SELECT index_name FROM information_schema.statistics " "WHERE table_name = ?", (table_name,)
             )
             if result.rows:
                 return [row[0] for row in result.rows]
@@ -238,26 +213,20 @@ class GenericDDLAnalyzer(BaseDDLAnalyzer):
                 "SELECT constraint_name FROM information_schema.table_constraints "
                 "WHERE constraint_type = 'FOREIGN KEY' "
                 "AND referenced_table_name = ?",
-                (table_name,)
+                (table_name,),
             )
             if result.rows:
-                dependent.extend(
-                    [f"FK:{row[0]}" for row in result.rows]
-                )
+                dependent.extend([f"FK:{row[0]}" for row in result.rows])
         except Exception:
             pass
 
         # 查询引用该表的视图
         try:
             result = self.connector.execute(
-                "SELECT table_name FROM information_schema.views "
-                "WHERE view_definition LIKE ?",
-                (f"%{table_name}%",)
+                "SELECT table_name FROM information_schema.views " "WHERE view_definition LIKE ?", (f"%{table_name}%",)
             )
             if result.rows:
-                dependent.extend(
-                    [f"VIEW:{row[0]}" for row in result.rows]
-                )
+                dependent.extend([f"VIEW:{row[0]}" for row in result.rows])
         except Exception:
             pass
 

@@ -20,9 +20,7 @@ import re
 from collections import Counter
 from typing import Any, Dict, List, Optional, Tuple
 
-from dbskiter.db_security.models import (
-    RiskLevel, Risk, RiskReport
-)
+from dbskiter.db_security.models import RiskLevel, Risk, RiskReport
 
 logger = logging.getLogger(__name__)
 
@@ -80,12 +78,14 @@ class PatternMatcher:
             for pattern in self._patterns[cat]:
                 matches = pattern.finditer(text)
                 for match in matches:
-                    results.append({
-                        "category": cat,
-                        "pattern": pattern.pattern,
-                        "matched_text": match.group(),
-                        "position": match.span()
-                    })
+                    results.append(
+                        {
+                            "category": cat,
+                            "pattern": pattern.pattern,
+                            "matched_text": match.group(),
+                            "position": match.span(),
+                        }
+                    )
 
         return results
 
@@ -191,16 +191,13 @@ class RiskScorer:
     # 风险权重配置（调整后的合理权重）
     SEVERITY_WEIGHTS = {
         "critical": 15,  # 严重风险扣15分
-        "high": 8,       # 高风险扣8分
-        "medium": 3,     # 中风险扣3分
-        "low": 1         # 低风险扣1分
+        "high": 8,  # 高风险扣8分
+        "medium": 3,  # 中风险扣3分
+        "low": 1,  # 低风险扣1分
     }
 
     @staticmethod
-    def calculate_score(
-        risks: List[Risk],
-        max_score: float = 100.0
-    ) -> Tuple[float, str, List[str]]:
+    def calculate_score(risks: List[Risk], max_score: float = 100.0) -> Tuple[float, str, List[str]]:
         """
         计算安全评分
 
@@ -217,7 +214,7 @@ class RiskScorer:
         for risk in risks:
             weight = RiskScorer.SEVERITY_WEIGHTS.get(risk.severity, 0)
             total_deduction += weight
-            severity_str = risk.severity.value if hasattr(risk.severity, 'value') else str(risk.severity)
+            severity_str = risk.severity.value if hasattr(risk.severity, "value") else str(risk.severity)
             deductions.append(f"[{severity_str.upper()}] {risk.description}")
 
         # 设置扣分上限，最多扣80分，保留至少20分基础分
@@ -271,11 +268,7 @@ class ReportFormatter:
 
     @staticmethod
     def format_text_report(
-        title: str,
-        score: float,
-        grade: str,
-        risks: List[Risk],
-        modules: Optional[Dict[str, Any]] = None
+        title: str, score: float, grade: str, risks: List[Risk], modules: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         格式化文本报告
@@ -303,8 +296,8 @@ class ReportFormatter:
         if risks:
             lines.append("风险项:")
             for risk in risks[:10]:
-                severity_str = risk.severity.value if hasattr(risk.severity, 'value') else str(risk.severity)
-                severity_map = {'critical': '致命', 'high': '高危', 'medium': '中危', 'low': '低危'}
+                severity_str = risk.severity.value if hasattr(risk.severity, "value") else str(risk.severity)
+                severity_map = {"critical": "致命", "high": "高危", "medium": "中危", "low": "低危"}
                 severity_cn = severity_map.get(severity_str.lower(), severity_str)
                 lines.append(f"  {severity_cn}: {risk.description}")
         else:
@@ -324,12 +317,7 @@ class ReportFormatter:
         return "\n".join(lines)
 
     @staticmethod
-    def format_summary(
-        score: float,
-        grade: str,
-        deductions: List[str],
-        checked_at: str
-    ) -> str:
+    def format_summary(score: float, grade: str, deductions: List[str], checked_at: str) -> str:
         """
         格式化摘要
 
@@ -382,7 +370,7 @@ class SecurityAuditor:
             connector: 数据库连接器
         """
         self.connector = connector
-        self.dialect = connector.dialect.lower() if hasattr(connector, 'dialect') else 'mysql'
+        self.dialect = connector.dialect.lower() if hasattr(connector, "dialect") else "mysql"
 
     def audit_permissions(self) -> Dict[str, Any]:
         """
@@ -391,15 +379,15 @@ class SecurityAuditor:
         返回:
             Dict: 审计结果
         """
-        if 'oracle' in self.dialect:
+        if "oracle" in self.dialect:
             return self._audit_oracle_permissions()
-        elif 'postgresql' in self.dialect:
+        elif "postgresql" in self.dialect:
             return self._audit_postgresql_permissions()
-        elif 'clickhouse' in self.dialect:
+        elif "clickhouse" in self.dialect:
             return self._audit_clickhouse_permissions()
-        elif 'sqlite' in self.dialect:
+        elif "sqlite" in self.dialect:
             return self._audit_sqlite_permissions()
-        elif self.dialect in ('mysql', 'mysql+pymysql', 'mariadb'):
+        elif self.dialect in ("mysql", "mysql+pymysql", "mariadb"):
             return self._audit_mysql_permissions()
         else:
             return self._audit_generic_permissions()
@@ -427,50 +415,73 @@ class SecurityAuditor:
             """)
 
             total_users = len(result.rows)
-            high_risk_privs = ['Super_priv', 'Grant_priv', 'File_priv', 'Shutdown_priv', 'Process_priv']
+            high_risk_privs = ["Super_priv", "Grant_priv", "File_priv", "Shutdown_priv", "Process_priv"]
 
             for row in result.rows:
                 user = row[0]
                 host = row[1]
-                privs = dict(zip(['Select', 'Insert', 'Update', 'Delete', 'Create', 'Drop',
-                                  'Reload', 'Shutdown', 'Process', 'File', 'Grant', 'Super'], row[2:]))
+                privs = dict(
+                    zip(
+                        [
+                            "Select",
+                            "Insert",
+                            "Update",
+                            "Delete",
+                            "Create",
+                            "Drop",
+                            "Reload",
+                            "Shutdown",
+                            "Process",
+                            "File",
+                            "Grant",
+                            "Super",
+                        ],
+                        row[2:],
+                    )
+                )
 
                 # root用户是超级管理员，其权限属于正常情况，不标记为风险
-                is_root = (user == 'root')
+                is_root = user == "root"
 
                 # 检查高风险权限（非root用户拥有这些权限才标记为风险）
-                for priv_name in ['Super', 'Grant', 'File', 'Shutdown', 'Process']:
-                    if privs.get(priv_name) == 'Y':
+                for priv_name in ["Super", "Grant", "File", "Shutdown", "Process"]:
+                    if privs.get(priv_name) == "Y":
                         high_privilege_users += 1
                         # root用户拥有这些权限是正常的，不标记为风险
                         # 但其他用户拥有这些权限需要关注
                         if not is_root:
-                            risks.append(Risk(
-                                severity="high" if priv_name in ['Super', 'Grant'] else "medium",
-                                description=f"非管理员用户 {user}@{host} 拥有 {priv_name} 权限",
-                                category="permission",
-                                current_value=f"{user}@{host} -> {priv_name}=Y",
-                                recommended_value=f"撤销 {user}@{host} 的 {priv_name} 权限"
-                            ))
+                            risks.append(
+                                Risk(
+                                    severity="high" if priv_name in ["Super", "Grant"] else "medium",
+                                    description=f"非管理员用户 {user}@{host} 拥有 {priv_name} 权限",
+                                    category="permission",
+                                    current_value=f"{user}@{host} -> {priv_name}=Y",
+                                    recommended_value=f"撤销 {user}@{host} 的 {priv_name} 权限",
+                                )
+                            )
 
                 # 检查通配符主机（root用户允许任意主机连接是风险）
-                if host == '%':
+                if host == "%":
                     if is_root:
-                        risks.append(Risk(
-                            severity="high",
-                            description=f"root用户允许从任意主机连接，存在安全风险",
-                            category="permission",
-                            current_value="root@%",
-                            recommended_value="限制root只能从localhost或特定IP连接"
-                        ))
+                        risks.append(
+                            Risk(
+                                severity="high",
+                                description=f"root用户允许从任意主机连接，存在安全风险",
+                                category="permission",
+                                current_value="root@%",
+                                recommended_value="限制root只能从localhost或特定IP连接",
+                            )
+                        )
                     else:
-                        risks.append(Risk(
-                            severity="medium",
-                            description=f"用户 {user} 允许从任意主机连接",
-                            category="permission",
-                            current_value=f"{user}@%",
-                            recommended_value=f"限制 {user} 只能从特定主机连接"
-                        ))
+                        risks.append(
+                            Risk(
+                                severity="medium",
+                                description=f"用户 {user} 允许从任意主机连接",
+                                category="permission",
+                                current_value=f"{user}@%",
+                                recommended_value=f"限制 {user} 只能从特定主机连接",
+                            )
+                        )
 
         except Exception as e:
             logger.error(f"权限审计失败: {e}")
@@ -479,7 +490,7 @@ class SecurityAuditor:
                 "message": f"权限审计失败: {str(e)}",
                 "total_checked": 0,
                 "risks_found": 0,
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -489,7 +500,7 @@ class SecurityAuditor:
             "total_checked": total_users,
             "risks_found": len(risks),
             "message": f"审计了{total_users}个用户，发现{high_privilege_users}个高权限用户，{len(risks)}个风险",
-            "risks": [r.to_dict() for r in risks[:20]]  # 最多返回20个
+            "risks": [r.to_dict() for r in risks[:20]],  # 最多返回20个
         }
 
     def _audit_oracle_permissions(self) -> Dict[str, Any]:
@@ -528,26 +539,30 @@ class SecurityAuditor:
 
                 if is_dba > 0:
                     high_privilege_users += 1
-                    risks.append(Risk(
-                        severity="high",
-                        description=f"用户 {username} 拥有DBA角色",
-                        category="permission",
-                        current_value=f"{username} -> DBA",
-                        recommended_value="仅SYS/SYSTEM用户授予DBA角色"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="high",
+                            description=f"用户 {username} 拥有DBA角色",
+                            category="permission",
+                            current_value=f"{username} -> DBA",
+                            recommended_value="仅SYS/SYSTEM用户授予DBA角色",
+                        )
+                    )
 
-                if account_status == 'OPEN':
+                if account_status == "OPEN":
                     pass
-                elif 'LOCKED' in account_status.upper() and 'EXPIRED' in account_status.upper():
+                elif "LOCKED" in account_status.upper() and "EXPIRED" in account_status.upper():
                     pass
-                elif 'EXPIRED' in account_status.upper():
-                    risks.append(Risk(
-                        severity="low",
-                        description=f"用户 {username} 密码已过期",
-                        category="permission",
-                        current_value=f"{username} 状态={account_status}",
-                        recommended_value="重置该用户密码"
-                    ))
+                elif "EXPIRED" in account_status.upper():
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description=f"用户 {username} 密码已过期",
+                            category="permission",
+                            current_value=f"{username} 状态={account_status}",
+                            recommended_value="重置该用户密码",
+                        )
+                    )
 
             # 检查拥有危险系统权限的用户
             try:
@@ -564,13 +579,15 @@ class SecurityAuditor:
                 for row in result2.rows:
                     grantee = str(row[0])
                     privilege = str(row[1])
-                    risks.append(Risk(
-                        severity="high",
-                        description=f"用户 {grantee} 拥有危险系统权限: {privilege}",
-                        category="permission",
-                        current_value=f"{grantee} -> {privilege}",
-                        recommended_value=f"撤销 {grantee} 的 {privilege} 权限"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="high",
+                            description=f"用户 {grantee} 拥有危险系统权限: {privilege}",
+                            category="permission",
+                            current_value=f"{grantee} -> {privilege}",
+                            recommended_value=f"撤销 {grantee} 的 {privilege} 权限",
+                        )
+                    )
             except Exception as e2:
                 logger.warning(f"查询Oracle系统权限失败: {e2}")
 
@@ -581,7 +598,7 @@ class SecurityAuditor:
                 "message": f"权限审计失败: {str(e)}",
                 "total_checked": 0,
                 "risks_found": 0,
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -591,7 +608,7 @@ class SecurityAuditor:
             "total_checked": total_users,
             "risks_found": len(risks),
             "message": f"审计了{total_users}个用户，发现{high_privilege_users}个高权限用户，{len(risks)}个风险",
-            "risks": [r.to_dict() for r in risks[:20]]
+            "risks": [r.to_dict() for r in risks[:20]],
         }
 
     def audit_config(self) -> Dict[str, Any]:
@@ -601,15 +618,15 @@ class SecurityAuditor:
         返回:
             Dict: 审计结果
         """
-        if 'oracle' in self.dialect:
+        if "oracle" in self.dialect:
             return self._audit_oracle_config()
-        elif 'postgresql' in self.dialect:
+        elif "postgresql" in self.dialect:
             return self._audit_postgresql_config()
-        elif 'clickhouse' in self.dialect:
+        elif "clickhouse" in self.dialect:
             return self._audit_clickhouse_config()
-        elif 'sqlite' in self.dialect:
+        elif "sqlite" in self.dialect:
             return self._audit_sqlite_config()
-        elif self.dialect in ('mysql', 'mysql+pymysql', 'mariadb'):
+        elif self.dialect in ("mysql", "mysql+pymysql", "mariadb"):
             return self._audit_mysql_config()
         else:
             return self._audit_generic_config()
@@ -628,14 +645,16 @@ class SecurityAuditor:
             # 检查1: SSL是否启用
             try:
                 result = self.connector.execute("SHOW VARIABLES LIKE 'have_ssl'")
-                if result.rows and result.rows[0][1] != 'YES':
-                    risks.append(Risk(
-                        severity="high",
-                        description="SSL未启用，数据传输未加密",
-                        category="config",
-                        current_value=f"have_ssl={result.rows[0][1] if result.rows else 'UNKNOWN'}",
-                        recommended_value="have_ssl=YES"
-                    ))
+                if result.rows and result.rows[0][1] != "YES":
+                    risks.append(
+                        Risk(
+                            severity="high",
+                            description="SSL未启用，数据传输未加密",
+                            category="config",
+                            current_value=f"have_ssl={result.rows[0][1] if result.rows else 'UNKNOWN'}",
+                            recommended_value="have_ssl=YES",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查SSL配置失败: {e}")
@@ -644,13 +663,15 @@ class SecurityAuditor:
             try:
                 result = self.connector.execute("SHOW VARIABLES LIKE 'validate_password%'")
                 if not result.rows:
-                    risks.append(Risk(
-                        severity="medium",
-                        description="未启用密码强度验证插件",
-                        category="config",
-                        current_value="validate_password插件未安装",
-                        recommended_value="安装并启用validate_password插件"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="未启用密码强度验证插件",
+                            category="config",
+                            current_value="validate_password插件未安装",
+                            recommended_value="安装并启用validate_password插件",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查密码策略失败: {e}")
@@ -658,14 +679,16 @@ class SecurityAuditor:
             # 检查3: 审计日志
             try:
                 result = self.connector.execute("SHOW VARIABLES LIKE 'general_log'")
-                if result.rows and result.rows[0][1] != 'ON':
-                    risks.append(Risk(
-                        severity="low",
-                        description="通用查询日志未启用",
-                        category="config",
-                        current_value=f"general_log={result.rows[0][1] if result.rows else 'OFF'}",
-                        recommended_value="general_log=ON"
-                    ))
+                if result.rows and result.rows[0][1] != "ON":
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description="通用查询日志未启用",
+                            category="config",
+                            current_value=f"general_log={result.rows[0][1] if result.rows else 'OFF'}",
+                            recommended_value="general_log=ON",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查审计日志失败: {e}")
@@ -677,13 +700,15 @@ class SecurityAuditor:
                     WHERE user = 'root' AND host = '%'
                 """)
                 if result.rows and result.rows[0][0] > 0:
-                    risks.append(Risk(
-                        severity="high",
-                        description="root用户允许远程访问",
-                        category="config",
-                        current_value="root@%",
-                        recommended_value="删除root@%或改为root@localhost"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="high",
+                            description="root用户允许远程访问",
+                            category="config",
+                            current_value="root@%",
+                            recommended_value="删除root@%或改为root@localhost",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查root远程访问失败: {e}")
@@ -695,13 +720,15 @@ class SecurityAuditor:
                     WHERE user = '' OR user IS NULL
                 """)
                 if result.rows and result.rows[0][0] > 0:
-                    risks.append(Risk(
-                        severity="medium",
-                        description="存在匿名用户",
-                        category="config",
-                        current_value="存在匿名用户",
-                        recommended_value="删除所有匿名用户"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="存在匿名用户",
+                            category="config",
+                            current_value="存在匿名用户",
+                            recommended_value="删除所有匿名用户",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查匿名用户失败: {e}")
@@ -713,7 +740,7 @@ class SecurityAuditor:
                 "message": f"配置审计失败: {str(e)}",
                 "total_checked": checks_performed,
                 "risks_found": len(risks),
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -723,7 +750,7 @@ class SecurityAuditor:
             "total_checked": checks_performed,
             "risks_found": len(risks),
             "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
-            "risks": [r.to_dict() for r in risks]
+            "risks": [r.to_dict() for r in risks],
         }
 
     def _audit_oracle_config(self) -> Dict[str, Any]:
@@ -744,14 +771,16 @@ class SecurityAuditor:
                 """)
                 if result.rows:
                     audit_trail = str(result.rows[0][0]).upper()
-                    if audit_trail == 'NONE':
-                        risks.append(Risk(
-                            severity="high",
-                            description="数据库审计未启用 (audit_trail=NONE)",
-                            category="config",
-                            current_value="audit_trail=NONE",
-                            recommended_value="audit_trail=DB 或 OS"
-                        ))
+                    if audit_trail == "NONE":
+                        risks.append(
+                            Risk(
+                                severity="high",
+                                description="数据库审计未启用 (audit_trail=NONE)",
+                                category="config",
+                                current_value="audit_trail=NONE",
+                                recommended_value="audit_trail=DB 或 OS",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查Oracle审计配置失败: {e}")
@@ -779,32 +808,38 @@ class SecurityAuditor:
                     limit_val = str(row[2])
                     profile_settings[resource_name] = limit_val
 
-                if profile_settings.get('FAILED_LOGIN_ATTEMPTS', 'UNLIMITED') in ('UNLIMITED', '0'):
-                    risks.append(Risk(
-                        severity="medium",
-                        description="登录失败次数限制未设置 (FAILED_LOGIN_ATTEMPTS=UNLIMITED)",
-                        category="config",
-                        current_value="FAILED_LOGIN_ATTEMPTS=UNLIMITED",
-                        recommended_value="FAILED_LOGIN_ATTEMPTS=10"
-                    ))
+                if profile_settings.get("FAILED_LOGIN_ATTEMPTS", "UNLIMITED") in ("UNLIMITED", "0"):
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="登录失败次数限制未设置 (FAILED_LOGIN_ATTEMPTS=UNLIMITED)",
+                            category="config",
+                            current_value="FAILED_LOGIN_ATTEMPTS=UNLIMITED",
+                            recommended_value="FAILED_LOGIN_ATTEMPTS=10",
+                        )
+                    )
 
-                if profile_settings.get('PASSWORD_LIFE_TIME', 'UNLIMITED') in ('UNLIMITED', '0'):
-                    risks.append(Risk(
-                        severity="medium",
-                        description="密码过期时间未设置 (PASSWORD_LIFE_TIME=UNLIMITED)",
-                        category="config",
-                        current_value="PASSWORD_LIFE_TIME=UNLIMITED",
-                        recommended_value="PASSWORD_LIFE_TIME=90"
-                    ))
+                if profile_settings.get("PASSWORD_LIFE_TIME", "UNLIMITED") in ("UNLIMITED", "0"):
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="密码过期时间未设置 (PASSWORD_LIFE_TIME=UNLIMITED)",
+                            category="config",
+                            current_value="PASSWORD_LIFE_TIME=UNLIMITED",
+                            recommended_value="PASSWORD_LIFE_TIME=90",
+                        )
+                    )
 
-                if profile_settings.get('PASSWORD_VERIFY_FUNCTION', 'NULL') in ('NULL', 'NONE'):
-                    risks.append(Risk(
-                        severity="medium",
-                        description="密码复杂度验证函数未设置",
-                        category="config",
-                        current_value="PASSWORD_VERIFY_FUNCTION=NULL",
-                        recommended_value="设置密码验证函数，如 ORA12C_VERIFY_FUNCTION"
-                    ))
+                if profile_settings.get("PASSWORD_VERIFY_FUNCTION", "NULL") in ("NULL", "NONE"):
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="密码复杂度验证函数未设置",
+                            category="config",
+                            current_value="PASSWORD_VERIFY_FUNCTION=NULL",
+                            recommended_value="设置密码验证函数，如 ORA12C_VERIFY_FUNCTION",
+                        )
+                    )
 
                 checks_performed += 1
             except Exception as e:
@@ -818,14 +853,16 @@ class SecurityAuditor:
                 """)
                 if result.rows:
                     val = str(result.rows[0][0]).upper()
-                    if val == 'EXCLUSIVE':
-                        risks.append(Risk(
-                            severity="low",
-                            description="remote_login_passwordfile=EXCLUSIVE，允许远程SYSDBA登录",
-                            category="config",
-                            current_value="remote_login_passwordfile=EXCLUSIVE",
-                            recommended_value="remote_login_passwordfile=NONE 或 SHARED"
-                        ))
+                    if val == "EXCLUSIVE":
+                        risks.append(
+                            Risk(
+                                severity="low",
+                                description="remote_login_passwordfile=EXCLUSIVE，允许远程SYSDBA登录",
+                                category="config",
+                                current_value="remote_login_passwordfile=EXCLUSIVE",
+                                recommended_value="remote_login_passwordfile=NONE 或 SHARED",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查Oracle远程登录配置失败: {e}")
@@ -849,13 +886,15 @@ class SecurityAuditor:
                 if result.rows:
                     open_cursors = int(str(result.rows[0][0]))
                     if open_cursors > 1000:
-                        risks.append(Risk(
-                            severity="low",
-                            description=f"open_cursors={open_cursors}，设置过高可能影响内存",
-                            category="config",
-                            current_value=f"open_cursors={open_cursors}",
-                            recommended_value="open_cursors=300~1000"
-                        ))
+                        risks.append(
+                            Risk(
+                                severity="low",
+                                description=f"open_cursors={open_cursors}，设置过高可能影响内存",
+                                category="config",
+                                current_value=f"open_cursors={open_cursors}",
+                                recommended_value="open_cursors=300~1000",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查Oracle open_cursors失败: {e}")
@@ -867,7 +906,7 @@ class SecurityAuditor:
                 "message": f"配置审计失败: {str(e)}",
                 "total_checked": checks_performed,
                 "risks_found": len(risks),
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -877,7 +916,7 @@ class SecurityAuditor:
             "total_checked": checks_performed,
             "risks_found": len(risks),
             "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
-            "risks": [r.to_dict() for r in risks]
+            "risks": [r.to_dict() for r in risks],
         }
 
     def _audit_postgresql_permissions(self) -> Dict[str, Any]:
@@ -909,40 +948,46 @@ class SecurityAuditor:
 
             for row in result.rows:
                 rolname = str(row[0])
-                is_super = str(row[1]).lower() == 'true'
-                can_create_role = str(row[2]).lower() == 'true'
-                can_create_db = str(row[3]).lower() == 'true'
+                is_super = str(row[1]).lower() == "true"
+                can_create_role = str(row[2]).lower() == "true"
+                can_create_db = str(row[3]).lower() == "true"
 
                 if is_super:
                     high_privilege_users += 1
-                    if rolname not in ('postgres',):
-                        risks.append(Risk(
-                            severity="high",
-                            description=f"非默认超级用户 {rolname} 拥有SUPERUSER权限",
-                            category="permission",
-                            current_value=f"{rolname} -> SUPERUSER",
-                            recommended_value=f"撤销 {rolname} 的SUPERUSER权限，按需授予具体权限"
-                        ))
+                    if rolname not in ("postgres",):
+                        risks.append(
+                            Risk(
+                                severity="high",
+                                description=f"非默认超级用户 {rolname} 拥有SUPERUSER权限",
+                                category="permission",
+                                current_value=f"{rolname} -> SUPERUSER",
+                                recommended_value=f"撤销 {rolname} 的SUPERUSER权限，按需授予具体权限",
+                            )
+                        )
 
                 if can_create_role:
                     high_privilege_users += 1
-                    if rolname not in ('postgres',):
-                        risks.append(Risk(
-                            severity="medium",
-                            description=f"用户 {rolname} 可以创建其他角色",
-                            category="permission",
-                            current_value=f"{rolname} -> CREATEROLE",
-                            recommended_value=f"仅必要用户授予CREATEROLE权限"
-                        ))
+                    if rolname not in ("postgres",):
+                        risks.append(
+                            Risk(
+                                severity="medium",
+                                description=f"用户 {rolname} 可以创建其他角色",
+                                category="permission",
+                                current_value=f"{rolname} -> CREATEROLE",
+                                recommended_value=f"仅必要用户授予CREATEROLE权限",
+                            )
+                        )
 
-                if can_create_db and rolname not in ('postgres',):
-                    risks.append(Risk(
-                        severity="low",
-                        description=f"用户 {rolname} 可以创建数据库",
-                        category="permission",
-                        current_value=f"{rolname} -> CREATEDB",
-                        recommended_value=f"按需限制 {rolname} 的CREATEDB权限"
-                    ))
+                if can_create_db and rolname not in ("postgres",):
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description=f"用户 {rolname} 可以创建数据库",
+                            category="permission",
+                            current_value=f"{rolname} -> CREATEDB",
+                            recommended_value=f"按需限制 {rolname} 的CREATEDB权限",
+                        )
+                    )
 
             try:
                 result2 = self.connector.execute("""
@@ -960,14 +1005,16 @@ class SecurityAuditor:
                     grantee = str(row[0])
                     table_name = str(row[1])
                     priv = str(row[2])
-                    if priv in ('DELETE', 'TRUNCATE'):
-                        risks.append(Risk(
-                            severity="medium",
-                            description=f"用户 {grantee} 对表 {table_name} 有 {priv} 权限",
-                            category="permission",
-                            current_value=f"{grantee} -> {table_name}:{priv}",
-                            recommended_value=f"审查 {grantee} 是否确实需要 {priv} 权限"
-                        ))
+                    if priv in ("DELETE", "TRUNCATE"):
+                        risks.append(
+                            Risk(
+                                severity="medium",
+                                description=f"用户 {grantee} 对表 {table_name} 有 {priv} 权限",
+                                category="permission",
+                                current_value=f"{grantee} -> {table_name}:{priv}",
+                                recommended_value=f"审查 {grantee} 是否确实需要 {priv} 权限",
+                            )
+                        )
             except Exception as e2:
                 logger.warning(f"查询PostgreSQL表权限失败: {e2}")
 
@@ -986,14 +1033,16 @@ class SecurityAuditor:
                 for row in result3.rows:
                     grantee = str(row[0])
                     routine = str(row[1])
-                    if routine.startswith('pg_') or routine.startswith('_'):
-                        risks.append(Risk(
-                            severity="high",
-                            description=f"用户 {grantee} 有系统函数 {routine} 的执行权限",
-                            category="permission",
-                            current_value=f"{grantee} -> EXECUTE on {routine}",
-                            recommended_value=f"撤销 {grantee} 对系统函数的执行权限"
-                        ))
+                    if routine.startswith("pg_") or routine.startswith("_"):
+                        risks.append(
+                            Risk(
+                                severity="high",
+                                description=f"用户 {grantee} 有系统函数 {routine} 的执行权限",
+                                category="permission",
+                                current_value=f"{grantee} -> EXECUTE on {routine}",
+                                recommended_value=f"撤销 {grantee} 对系统函数的执行权限",
+                            )
+                        )
             except Exception as e3:
                 logger.warning(f"查询PostgreSQL函数权限失败: {e3}")
 
@@ -1004,7 +1053,7 @@ class SecurityAuditor:
                 "message": f"权限审计失败: {str(e)}",
                 "total_checked": 0,
                 "risks_found": 0,
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1014,7 +1063,7 @@ class SecurityAuditor:
             "total_checked": total_users,
             "risks_found": len(risks),
             "message": f"审计了{total_users}个用户，发现{high_privilege_users}个高权限用户，{len(risks)}个风险",
-            "risks": [r.to_dict() for r in risks[:20]]
+            "risks": [r.to_dict() for r in risks[:20]],
         }
 
     def _audit_postgresql_config(self) -> Dict[str, Any]:
@@ -1036,14 +1085,16 @@ class SecurityAuditor:
                 """)
                 if result.rows:
                     ssl_val = str(result.rows[0][1]).lower()
-                    if ssl_val != 'on':
-                        risks.append(Risk(
-                            severity="high",
-                            description="SSL未启用，数据传输未加密",
-                            category="config",
-                            current_value=f"ssl={ssl_val}",
-                            recommended_value="ssl=on"
-                        ))
+                    if ssl_val != "on":
+                        risks.append(
+                            Risk(
+                                severity="high",
+                                description="SSL未启用，数据传输未加密",
+                                category="config",
+                                current_value=f"ssl={ssl_val}",
+                                recommended_value="ssl=on",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查PostgreSQL SSL配置失败: {e}")
@@ -1056,14 +1107,16 @@ class SecurityAuditor:
                 """)
                 if result.rows:
                     log_conn = str(result.rows[0][1]).lower()
-                    if log_conn != 'on':
-                        risks.append(Risk(
-                            severity="medium",
-                            description="连接日志未启用 (log_connections=off)",
-                            category="config",
-                            current_value=f"log_connections={log_conn}",
-                            recommended_value="log_connections=on"
-                        ))
+                    if log_conn != "on":
+                        risks.append(
+                            Risk(
+                                severity="medium",
+                                description="连接日志未启用 (log_connections=off)",
+                                category="config",
+                                current_value=f"log_connections={log_conn}",
+                                recommended_value="log_connections=on",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查PostgreSQL连接日志失败: {e}")
@@ -1082,23 +1135,27 @@ class SecurityAuditor:
                 for row in result.rows:
                     log_settings[str(row[0])] = str(row[1])
 
-                if log_settings.get('log_statement', 'none') == 'none':
-                    risks.append(Risk(
-                        severity="medium",
-                        description="SQL语句日志未启用 (log_statement=none)",
-                        category="config",
-                        current_value="log_statement=none",
-                        recommended_value="log_statement=ddl 或 all"
-                    ))
+                if log_settings.get("log_statement", "none") == "none":
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="SQL语句日志未启用 (log_statement=none)",
+                            category="config",
+                            current_value="log_statement=none",
+                            recommended_value="log_statement=ddl 或 all",
+                        )
+                    )
 
-                if log_settings.get('log_disconnections', 'off') != 'on':
-                    risks.append(Risk(
-                        severity="low",
-                        description="断开连接日志未启用",
-                        category="config",
-                        current_value=f"log_disconnections={log_settings.get('log_disconnections', 'off')}",
-                        recommended_value="log_disconnections=on"
-                    ))
+                if log_settings.get("log_disconnections", "off") != "on":
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description="断开连接日志未启用",
+                            category="config",
+                            current_value=f"log_disconnections={log_settings.get('log_disconnections', 'off')}",
+                            recommended_value="log_disconnections=on",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查PostgreSQL日志配置失败: {e}")
@@ -1111,13 +1168,15 @@ class SecurityAuditor:
                 if result.rows:
                     max_conn = int(str(result.rows[0][0]))
                     if max_conn > 500:
-                        risks.append(Risk(
-                            severity="low",
-                            description=f"max_connections={max_conn}，设置过高可能影响内存",
-                            category="config",
-                            current_value=f"max_connections={max_conn}",
-                            recommended_value="max_connections=100~300"
-                        ))
+                        risks.append(
+                            Risk(
+                                severity="low",
+                                description=f"max_connections={max_conn}，设置过高可能影响内存",
+                                category="config",
+                                current_value=f"max_connections={max_conn}",
+                                recommended_value="max_connections=100~300",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查PostgreSQL max_connections失败: {e}")
@@ -1130,13 +1189,15 @@ class SecurityAuditor:
                 if result.rows and result.rows[0][0] > 0:
                     has_pgaudit = True
                 if not has_pgaudit:
-                    risks.append(Risk(
-                        severity="medium",
-                        description="pgAudit审计扩展未安装",
-                        category="config",
-                        current_value="pgaudit扩展未安装",
-                        recommended_value="安装并启用pgaudit扩展以增强审计能力"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="pgAudit审计扩展未安装",
+                            category="config",
+                            current_value="pgaudit扩展未安装",
+                            recommended_value="安装并启用pgaudit扩展以增强审计能力",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查PostgreSQL pgaudit失败: {e}")
@@ -1149,14 +1210,16 @@ class SecurityAuditor:
                 """)
                 if result.rows:
                     enc = str(result.rows[0][1]).lower()
-                    if enc == 'md5':
-                        risks.append(Risk(
-                            severity="medium",
-                            description="密码加密方式使用MD5，安全性不足",
-                            category="config",
-                            current_value="password_encryption=md5",
-                            recommended_value="password_encryption=scram-sha-256"
-                        ))
+                    if enc == "md5":
+                        risks.append(
+                            Risk(
+                                severity="medium",
+                                description="密码加密方式使用MD5，安全性不足",
+                                category="config",
+                                current_value="password_encryption=md5",
+                                recommended_value="password_encryption=scram-sha-256",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查PostgreSQL密码加密失败: {e}")
@@ -1181,7 +1244,7 @@ class SecurityAuditor:
                 "message": f"配置审计失败: {str(e)}",
                 "total_checked": checks_performed,
                 "risks_found": len(risks),
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1191,7 +1254,7 @@ class SecurityAuditor:
             "total_checked": checks_performed,
             "risks_found": len(risks),
             "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
-            "risks": [r.to_dict() for r in risks]
+            "risks": [r.to_dict() for r in risks],
         }
 
     def _audit_clickhouse_permissions(self) -> Dict[str, Any]:
@@ -1221,28 +1284,32 @@ class SecurityAuditor:
                 username = str(row[0])
                 storage = str(row[1])
                 auth_type = str(row[2])
-                default_roles_all = str(row[3]).lower() == 'true'
+                default_roles_all = str(row[3]).lower() == "true"
 
                 # 检查是否拥有所有角色
                 if default_roles_all:
                     high_privilege_users += 1
-                    risks.append(Risk(
-                        severity="high",
-                        description=f"用户 {username} 拥有所有默认角色",
-                        category="permission",
-                        current_value=f"{username} -> default_roles_all=true",
-                        recommended_value=f"限制 {username} 的角色权限"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="high",
+                            description=f"用户 {username} 拥有所有默认角色",
+                            category="permission",
+                            current_value=f"{username} -> default_roles_all=true",
+                            recommended_value=f"限制 {username} 的角色权限",
+                        )
+                    )
 
                 # 检查无密码认证
-                if auth_type == 'no_password':
-                    risks.append(Risk(
-                        severity="critical",
-                        description=f"用户 {username} 使用无密码认证",
-                        category="permission",
-                        current_value=f"{username} -> auth_type=no_password",
-                        recommended_value=f"为 {username} 设置密码认证"
-                    ))
+                if auth_type == "no_password":
+                    risks.append(
+                        Risk(
+                            severity="critical",
+                            description=f"用户 {username} 使用无密码认证",
+                            category="permission",
+                            current_value=f"{username} -> auth_type=no_password",
+                            recommended_value=f"为 {username} 设置密码认证",
+                        )
+                    )
 
             # 检查拥有ALL权限的用户
             try:
@@ -1256,13 +1323,15 @@ class SecurityAuditor:
                     username = str(row[0])
                     database = str(row[3])
                     table = str(row[4])
-                    risks.append(Risk(
-                        severity="high",
-                        description=f"用户 {username} 对 {database}.{table} 拥有ALL权限",
-                        category="permission",
-                        current_value=f"{username} -> ALL on {database}.{table}",
-                        recommended_value=f"限制 {username} 的权限范围"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="high",
+                            description=f"用户 {username} 对 {database}.{table} 拥有ALL权限",
+                            category="permission",
+                            current_value=f"{username} -> ALL on {database}.{table}",
+                            recommended_value=f"限制 {username} 的权限范围",
+                        )
+                    )
             except Exception as e2:
                 logger.warning(f"查询ClickHouse权限详情失败: {e2}")
 
@@ -1273,7 +1342,7 @@ class SecurityAuditor:
                 "message": f"权限审计失败: {str(e)}",
                 "total_checked": 0,
                 "risks_found": 0,
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1283,7 +1352,7 @@ class SecurityAuditor:
             "total_checked": total_users,
             "risks_found": len(risks),
             "message": f"审计了{total_users}个用户，发现{high_privilege_users}个高权限用户，{len(risks)}个风险",
-            "risks": [r.to_dict() for r in risks[:20]]
+            "risks": [r.to_dict() for r in risks[:20]],
         }
 
     def _audit_sqlite_permissions(self) -> Dict[str, Any]:
@@ -1305,39 +1374,45 @@ class SecurityAuditor:
             db_path = None
             if result and result.rows:
                 for row in result.rows:
-                    if row[1] == 'main':
+                    if row[1] == "main":
                         db_path = row[2]
                         break
 
-            if db_path and db_path != ':memory:':
+            if db_path and db_path != ":memory:":
                 # 检查文件权限（POSIX系统）
-                if os.name == 'posix':
+                if os.name == "posix":
                     import stat
+
                     file_stat = os.stat(db_path)
                     file_mode = stat.filemode(file_stat.st_mode)
 
                     # 检查是否全局可读写
                     if file_stat.st_mode & stat.S_IWOTH:
-                        risks.append(Risk(
-                            severity="critical",
-                            description=f"数据库文件全局可写: {file_mode}",
-                            category="permission",
-                            current_value=file_mode,
-                            recommended_value="移除全局写权限"
-                        ))
+                        risks.append(
+                            Risk(
+                                severity="critical",
+                                description=f"数据库文件全局可写: {file_mode}",
+                                category="permission",
+                                current_value=file_mode,
+                                recommended_value="移除全局写权限",
+                            )
+                        )
 
                     if file_stat.st_mode & stat.S_IROTH:
-                        risks.append(Risk(
-                            severity="high",
-                            description=f"数据库文件全局可读: {file_mode}",
-                            category="permission",
-                            current_value=file_mode,
-                            recommended_value="移除全局读权限"
-                        ))
+                        risks.append(
+                            Risk(
+                                severity="high",
+                                description=f"数据库文件全局可读: {file_mode}",
+                                category="permission",
+                                current_value=file_mode,
+                                recommended_value="移除全局读权限",
+                            )
+                        )
 
                 # 检查文件所有者
                 try:
                     import pwd
+
                     owner = pwd.getpwuid(os.stat(db_path).st_uid).pw_name
                 except (ImportError, KeyError):
                     owner = str(os.stat(db_path).st_uid)
@@ -1346,23 +1421,27 @@ class SecurityAuditor:
                 wal_path = db_path + "-wal"
                 if os.path.exists(wal_path):
                     wal_stat = os.stat(wal_path)
-                    if os.name == 'posix' and wal_stat.st_mode & stat.S_IWOTH:
-                        risks.append(Risk(
-                            severity="high",
-                            description="WAL文件全局可写",
-                            category="permission",
-                            current_value="WAL全局可写",
-                            recommended_value="移除WAL文件全局写权限"
-                        ))
+                    if os.name == "posix" and wal_stat.st_mode & stat.S_IWOTH:
+                        risks.append(
+                            Risk(
+                                severity="high",
+                                description="WAL文件全局可写",
+                                category="permission",
+                                current_value="WAL全局可写",
+                                recommended_value="移除WAL文件全局写权限",
+                            )
+                        )
 
             else:
-                risks.append(Risk(
-                    severity="low",
-                    description="内存数据库(:memory:)无文件权限控制",
-                    category="permission",
-                    current_value=":memory:",
-                    recommended_value="使用文件数据库以获得权限控制"
-                ))
+                risks.append(
+                    Risk(
+                        severity="low",
+                        description="内存数据库(:memory:)无文件权限控制",
+                        category="permission",
+                        current_value=":memory:",
+                        recommended_value="使用文件数据库以获得权限控制",
+                    )
+                )
 
         except Exception as e:
             logger.error(f"SQLite权限审计失败: {e}")
@@ -1371,7 +1450,7 @@ class SecurityAuditor:
                 "message": f"权限审计失败: {str(e)}",
                 "total_checked": 0,
                 "risks_found": 0,
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1381,7 +1460,7 @@ class SecurityAuditor:
             "total_checked": 1,
             "risks_found": len(risks),
             "message": f"SQLite无用户系统，检查文件权限发现{len(risks)}个风险",
-            "risks": [r.to_dict() for r in risks[:20]]
+            "risks": [r.to_dict() for r in risks[:20]],
         }
 
     def _audit_generic_permissions(self) -> Dict[str, Any]:
@@ -1405,22 +1484,22 @@ class SecurityAuditor:
 
         # 1. 尝试 TABLE_PRIVILEGES
         try:
-            result = self.connector.execute(
-                "SELECT COUNT(DISTINCT grantee) FROM information_schema.table_privileges"
-            )
+            result = self.connector.execute("SELECT COUNT(DISTINCT grantee) FROM information_schema.table_privileges")
             if result.rows and result.rows[0][0] is not None:
                 total_users = int(result.rows[0][0])
                 checks_performed += 1
 
                 # 检查是否有过多用户拥有表权限
                 if total_users > 20:
-                    risks.append(Risk(
-                        severity="medium",
-                        description=f"有{total_users}个用户拥有表级权限，可能存在过度授权",
-                        category="permission",
-                        current_value=f"{total_users}个授权用户",
-                        recommended_value="定期审查并撤销不必要的权限"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description=f"有{total_users}个用户拥有表级权限，可能存在过度授权",
+                            category="permission",
+                            current_value=f"{total_users}个授权用户",
+                            recommended_value="定期审查并撤销不必要的权限",
+                        )
+                    )
         except Exception as e:
             logger.debug(f"通用权限审计: TABLE_PRIVILEGES 不可用 [{e}]")
 
@@ -1469,19 +1548,20 @@ class SecurityAuditor:
         # 4. 检查是否有公共可访问的表（无权限控制）
         try:
             result = self.connector.execute(
-                "SELECT COUNT(*) FROM information_schema.tables "
-                "WHERE table_schema IN ('public', 'PUBLIC')"
+                "SELECT COUNT(*) FROM information_schema.tables " "WHERE table_schema IN ('public', 'PUBLIC')"
             )
             if result.rows and result.rows[0][0] is not None:
                 public_tables = int(result.rows[0][0])
                 if public_tables > 0:
-                    risks.append(Risk(
-                        severity="low",
-                        description=f"public schema 中有{public_tables}个表，默认可能对所有用户可见",
-                        category="permission",
-                        current_value=f"public schema 有{public_tables}个表",
-                        recommended_value="为敏感表设置适当的权限控制"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description=f"public schema 中有{public_tables}个表，默认可能对所有用户可见",
+                            category="permission",
+                            current_value=f"public schema 有{public_tables}个表",
+                            recommended_value="为敏感表设置适当的权限控制",
+                        )
+                    )
         except Exception:
             pass
 
@@ -1497,7 +1577,7 @@ class SecurityAuditor:
                     "未能通过 INFORMATION_SCHEMA 获取权限信息。"
                     "如需完整的权限审计，请使用支持的数据库类型专用分析器。"
                 ),
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1506,11 +1586,8 @@ class SecurityAuditor:
             "high_privilege_users": 0,
             "total_checked": total_users,
             "risks_found": len(risks),
-            "message": (
-                f"通用权限审计完成，"
-                f"检测到{total_users}个用户，发现{len(risks)}个风险"
-            ),
-            "risks": [r.to_dict() for r in risks[:20]]
+            "message": (f"通用权限审计完成，" f"检测到{total_users}个用户，发现{len(risks)}个风险"),
+            "risks": [r.to_dict() for r in risks[:20]],
         }
 
     def _audit_clickhouse_config(self) -> Dict[str, Any]:
@@ -1531,13 +1608,15 @@ class SecurityAuditor:
                     WHERE name LIKE '%ssl%'
                 """)
                 if not result or not result.rows:
-                    risks.append(Risk(
-                        severity="medium",
-                        description="无法确认SSL配置状态",
-                        category="config",
-                        current_value="未知",
-                        recommended_value="启用SSL加密连接"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="无法确认SSL配置状态",
+                            category="config",
+                            current_value="未知",
+                            recommended_value="启用SSL加密连接",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查ClickHouse SSL配置失败: {e}")
@@ -1551,14 +1630,16 @@ class SecurityAuditor:
                 """)
                 if result and result.rows:
                     auth_type = str(result.rows[0][1])
-                    if auth_type == 'no_password':
-                        risks.append(Risk(
-                            severity="critical",
-                            description="默认用户(default)使用无密码认证",
-                            category="config",
-                            current_value="default -> no_password",
-                            recommended_value="为default用户设置密码"
-                        ))
+                    if auth_type == "no_password":
+                        risks.append(
+                            Risk(
+                                severity="critical",
+                                description="默认用户(default)使用无密码认证",
+                                category="config",
+                                current_value="default -> no_password",
+                                recommended_value="为default用户设置密码",
+                            )
+                        )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查ClickHouse默认用户失败: {e}")
@@ -1570,15 +1651,17 @@ class SecurityAuditor:
                     WHERE name IN ('listen_host', 'tcp_port', 'http_port')
                 """)
                 settings = {row[0]: row[1] for row in result.rows} if result else {}
-                listen_host = settings.get('listen_host', '')
-                if listen_host == '::' or listen_host == '0.0.0.0':
-                    risks.append(Risk(
-                        severity="medium",
-                        description=f"ClickHouse监听所有地址({listen_host})，可能暴露于公网",
-                        category="config",
-                        current_value=f"listen_host={listen_host}",
-                        recommended_value="限制listen_host为特定IP"
-                    ))
+                listen_host = settings.get("listen_host", "")
+                if listen_host == "::" or listen_host == "0.0.0.0":
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description=f"ClickHouse监听所有地址({listen_host})，可能暴露于公网",
+                            category="config",
+                            current_value=f"listen_host={listen_host}",
+                            recommended_value="限制listen_host为特定IP",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查ClickHouse远程访问配置失败: {e}")
@@ -1590,13 +1673,15 @@ class SecurityAuditor:
                     WHERE name LIKE '%query_log%'
                 """)
                 if not result or not result.rows:
-                    risks.append(Risk(
-                        severity="low",
-                        description="查询日志可能未启用",
-                        category="config",
-                        current_value="query_log未配置",
-                        recommended_value="启用query_log以记录查询历史"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description="查询日志可能未启用",
+                            category="config",
+                            current_value="query_log未配置",
+                            recommended_value="启用query_log以记录查询历史",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查ClickHouse查询日志失败: {e}")
@@ -1608,7 +1693,7 @@ class SecurityAuditor:
                 "message": f"配置审计失败: {str(e)}",
                 "total_checked": checks_performed,
                 "risks_found": len(risks),
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1618,7 +1703,7 @@ class SecurityAuditor:
             "total_checked": checks_performed,
             "risks_found": len(risks),
             "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
-            "risks": [r.to_dict() for r in risks]
+            "risks": [r.to_dict() for r in risks],
         }
 
     def _audit_sqlite_config(self) -> Dict[str, Any]:
@@ -1637,22 +1722,26 @@ class SecurityAuditor:
                 result = self.connector.execute("PRAGMA journal_mode")
                 journal_mode = result.rows[0][0] if result else "unknown"
 
-                if journal_mode.upper() == 'OFF':
-                    risks.append(Risk(
-                        severity="critical",
-                        description="日志模式为OFF，数据完整性无保障",
-                        category="config",
-                        current_value="journal_mode=OFF",
-                        recommended_value="journal_mode=WAL"
-                    ))
-                elif journal_mode.upper() == 'DELETE':
-                    risks.append(Risk(
-                        severity="low",
-                        description="日志模式为DELETE，并发性能较差",
-                        category="config",
-                        current_value="journal_mode=DELETE",
-                        recommended_value="journal_mode=WAL"
-                    ))
+                if journal_mode.upper() == "OFF":
+                    risks.append(
+                        Risk(
+                            severity="critical",
+                            description="日志模式为OFF，数据完整性无保障",
+                            category="config",
+                            current_value="journal_mode=OFF",
+                            recommended_value="journal_mode=WAL",
+                        )
+                    )
+                elif journal_mode.upper() == "DELETE":
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description="日志模式为DELETE，并发性能较差",
+                            category="config",
+                            current_value="journal_mode=DELETE",
+                            recommended_value="journal_mode=WAL",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查SQLite日志模式失败: {e}")
@@ -1663,13 +1752,15 @@ class SecurityAuditor:
                 sync_value = int(result.rows[0][0]) if result else -1
 
                 if sync_value == 0:
-                    risks.append(Risk(
-                        severity="high",
-                        description="同步模式为OFF，可能导致数据丢失",
-                        category="config",
-                        current_value="synchronous=OFF",
-                        recommended_value="synchronous=NORMAL"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="high",
+                            description="同步模式为OFF，可能导致数据丢失",
+                            category="config",
+                            current_value="synchronous=OFF",
+                            recommended_value="synchronous=NORMAL",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查SQLite同步模式失败: {e}")
@@ -1679,14 +1770,16 @@ class SecurityAuditor:
                 result = self.connector.execute("PRAGMA secure_delete")
                 secure_delete = result.rows[0][0] if result else "unknown"
 
-                if secure_delete == 0 or secure_delete == 'OFF':
-                    risks.append(Risk(
-                        severity="medium",
-                        description="安全删除未启用，已删除数据可能可恢复",
-                        category="config",
-                        current_value="secure_delete=OFF",
-                        recommended_value="secure_delete=ON"
-                    ))
+                if secure_delete == 0 or secure_delete == "OFF":
+                    risks.append(
+                        Risk(
+                            severity="medium",
+                            description="安全删除未启用，已删除数据可能可恢复",
+                            category="config",
+                            current_value="secure_delete=OFF",
+                            recommended_value="secure_delete=ON",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查SQLite安全删除失败: {e}")
@@ -1696,14 +1789,16 @@ class SecurityAuditor:
                 result = self.connector.execute("PRAGMA foreign_keys")
                 foreign_keys = result.rows[0][0] if result else "unknown"
 
-                if foreign_keys == 0 or foreign_keys == 'OFF':
-                    risks.append(Risk(
-                        severity="low",
-                        description="外键约束未启用",
-                        category="config",
-                        current_value="foreign_keys=OFF",
-                        recommended_value="foreign_keys=ON"
-                    ))
+                if foreign_keys == 0 or foreign_keys == "OFF":
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description="外键约束未启用",
+                            category="config",
+                            current_value="foreign_keys=OFF",
+                            recommended_value="foreign_keys=ON",
+                        )
+                    )
                 checks_performed += 1
             except Exception as e:
                 logger.warning(f"检查SQLite外键约束失败: {e}")
@@ -1715,7 +1810,7 @@ class SecurityAuditor:
                 "message": f"配置审计失败: {str(e)}",
                 "total_checked": checks_performed,
                 "risks_found": len(risks),
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1725,7 +1820,7 @@ class SecurityAuditor:
             "total_checked": checks_performed,
             "risks_found": len(risks),
             "message": f"检查了{checks_performed}项配置，发现{len(risks)}个问题",
-            "risks": [r.to_dict() for r in risks]
+            "risks": [r.to_dict() for r in risks],
         }
 
     def _audit_generic_config(self) -> Dict[str, Any]:
@@ -1786,13 +1881,15 @@ class SecurityAuditor:
                     if result.rows and result.rows[0][0] is not None:
                         size_mb = float(result.rows[0][0])
                         if size_mb > 10000:
-                            risks.append(Risk(
-                                severity="medium",
-                                description=f"数据库大小约{size_mb:.0f}MB，建议进行容量规划",
-                                category="config",
-                                current_value=f"数据库大小={size_mb:.0f}MB",
-                                recommended_value="监控数据库增长趋势，规划扩容"
-                            ))
+                            risks.append(
+                                Risk(
+                                    severity="medium",
+                                    description=f"数据库大小约{size_mb:.0f}MB，建议进行容量规划",
+                                    category="config",
+                                    current_value=f"数据库大小={size_mb:.0f}MB",
+                                    recommended_value="监控数据库增长趋势，规划扩容",
+                                )
+                            )
                         checks_performed += 1
                         break
                 except Exception:
@@ -1803,19 +1900,20 @@ class SecurityAuditor:
         # 4. 检查表数量（作为复杂度指标）
         try:
             result = self.connector.execute(
-                "SELECT COUNT(*) FROM information_schema.tables "
-                "WHERE table_type = 'BASE TABLE'"
+                "SELECT COUNT(*) FROM information_schema.tables " "WHERE table_type = 'BASE TABLE'"
             )
             if result.rows and result.rows[0][0] is not None:
                 table_count = int(result.rows[0][0])
                 if table_count > 500:
-                    risks.append(Risk(
-                        severity="low",
-                        description=f"数据库有{table_count}个表，结构可能过于复杂",
-                        category="config",
-                        current_value=f"表数量={table_count}",
-                        recommended_value="考虑拆分数据库或归档历史表"
-                    ))
+                    risks.append(
+                        Risk(
+                            severity="low",
+                            description=f"数据库有{table_count}个表，结构可能过于复杂",
+                            category="config",
+                            current_value=f"表数量={table_count}",
+                            recommended_value="考虑拆分数据库或归档历史表",
+                        )
+                    )
                 checks_performed += 1
         except Exception:
             pass
@@ -1832,7 +1930,7 @@ class SecurityAuditor:
                     "未能获取任何配置信息。"
                     "如需完整的配置审计，请使用支持的数据库类型专用分析器。"
                 ),
-                "risks": []
+                "risks": [],
             }
 
         return {
@@ -1842,10 +1940,9 @@ class SecurityAuditor:
             "total_checked": checks_performed,
             "risks_found": len(risks),
             "message": (
-                f"通用配置审计完成（版本: {version or '未知'}），"
-                f"检查{checks_performed}项，发现{len(risks)}个问题"
+                f"通用配置审计完成（版本: {version or '未知'}），" f"检查{checks_performed}项，发现{len(risks)}个问题"
             ),
-            "risks": [r.to_dict() for r in risks]
+            "risks": [r.to_dict() for r in risks],
         }
 
     def generate_report(self, modules_results: Dict[str, Any]) -> RiskReport:
@@ -1869,11 +1966,9 @@ class SecurityAuditor:
                         # 模块执行失败，记录为严重风险
                         failed_modules.append(module)
                         message = result.get("message", "未知错误")
-                        all_risks.append(Risk(
-                            severity="critical",
-                            description=f"[{module}] 检测失败: {message}",
-                            category=module
-                        ))
+                        all_risks.append(
+                            Risk(severity="critical", description=f"[{module}] 检测失败: {message}", category=module)
+                        )
                         continue
                     actual_data = result.get("data", {})
                     risks = actual_data.get("risks", [])
@@ -1882,20 +1977,20 @@ class SecurityAuditor:
                     if result.get("status") == "failed":
                         failed_modules.append(module)
                         message = result.get("message", "未知错误")
-                        all_risks.append(Risk(
-                            severity="critical",
-                            description=f"[{module}] 检测失败: {message}",
-                            category=module
-                        ))
+                        all_risks.append(
+                            Risk(severity="critical", description=f"[{module}] 检测失败: {message}", category=module)
+                        )
                         continue
                     risks = result.get("risks", [])
 
                 for risk_data in risks:
-                    all_risks.append(Risk(
-                        severity=risk_data.get("severity", "low"),
-                        description=risk_data.get("description", ""),
-                        category=risk_data.get("category", module)
-                    ))
+                    all_risks.append(
+                        Risk(
+                            severity=risk_data.get("severity", "low"),
+                            description=risk_data.get("description", ""),
+                            category=risk_data.get("category", module),
+                        )
+                    )
 
         # 统计风险数量
         critical_count = sum(1 for r in all_risks if r.severity == "critical")
@@ -1911,5 +2006,5 @@ class SecurityAuditor:
             high_count=high_count,
             medium_count=medium_count,
             low_count=low_count,
-            failed_modules=failed_modules
+            failed_modules=failed_modules,
         )

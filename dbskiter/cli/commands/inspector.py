@@ -42,86 +42,45 @@ class InspectorCommand(BaseCommand):
         # run 子命令 - 执行巡检
         inspect_parser = subparsers.add_parser("run", help="执行完整巡检")
         inspect_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json", "html", "markdown"],
-            default="text",
-            help="报告格式"
+            "--format", "-f", choices=["text", "json", "html", "markdown"], default="text", help="报告格式"
         )
+        inspect_parser.add_argument("--output", "-o", help="输出文件路径")
         inspect_parser.add_argument(
-            "--output", "-o",
-            help="输出文件路径"
-        )
-        inspect_parser.add_argument(
-            "--type", "-t",
+            "--type",
+            "-t",
             choices=["configuration", "performance", "storage", "security", "capacity", "replication"],
             nargs="+",
-            help="指定巡检类型"
+            help="指定巡检类型",
         )
 
         # report 子命令 - 生成报告
         report_parser = subparsers.add_parser("report", help="生成巡检报告")
         report_parser.add_argument(
-            "--format", "-f",
-            choices=["html", "markdown", "json"],
-            default="html",
-            help="报告格式"
+            "--format", "-f", choices=["html", "markdown", "json"], default="html", help="报告格式"
         )
-        report_parser.add_argument(
-            "--output", "-o",
-            required=True,
-            help="输出文件路径"
-        )
+        report_parser.add_argument("--output", "-o", required=True, help="输出文件路径")
 
         # baseline 子命令 - 基线管理
         baseline_parser = subparsers.add_parser("baseline", help="性能基线管理")
-        baseline_parser.add_argument(
-            "--create",
-            action="store_true",
-            help="创建新基线"
-        )
-        baseline_parser.add_argument(
-            "--compare",
-            action="store_true",
-            help="与基线对比"
-        )
+        baseline_parser.add_argument("--create", action="store_true", help="创建新基线")
+        baseline_parser.add_argument("--compare", action="store_true", help="与基线对比")
 
         # intelligent 子命令 - 智能巡检
         intelligent_parser = subparsers.add_parser("intelligent", help="智能巡检（异常检测+根因分析+建议）")
-        intelligent_parser.add_argument(
-            "--metrics-file",
-            help="指标历史数据文件（JSON格式）"
-        )
+        intelligent_parser.add_argument("--metrics-file", help="指标历史数据文件（JSON格式）")
 
         # anomalies 子命令 - 异常检测
         anomalies_parser = subparsers.add_parser("anomalies", help="异常检测")
-        anomalies_parser.add_argument(
-            "--metric",
-            required=True,
-            help="指标名称（如cpu_usage, memory_usage）"
-        )
-        anomalies_parser.add_argument(
-            "--hours",
-            type=int,
-            default=24,
-            help="检测最近多少小时的数据"
-        )
+        anomalies_parser.add_argument("--metric", required=True, help="指标名称（如cpu_usage, memory_usage）")
+        anomalies_parser.add_argument("--hours", type=int, default=24, help="检测最近多少小时的数据")
 
         # root-cause 子命令 - 根因分析
         rootcause_parser = subparsers.add_parser("root-cause", help="根因分析")
-        rootcause_parser.add_argument(
-            "--issue",
-            required=True,
-            help="问题描述（如'CPU使用率飙升'）"
-        )
+        rootcause_parser.add_argument("--issue", required=True, help="问题描述（如'CPU使用率飙升'）")
 
         # risks 子命令 - 风险预测
         risks_parser = subparsers.add_parser("risks", help="风险预测")
-        risks_parser.add_argument(
-            "--days",
-            type=int,
-            default=7,
-            help="预测天数（默认7天）"
-        )
+        risks_parser.add_argument("--days", type=int, default=7, help="预测天数（默认7天）")
 
     def execute(self) -> int:
         """执行巡检命令"""
@@ -136,7 +95,7 @@ class InspectorCommand(BaseCommand):
         try:
             skill = InspectorSkill(self.connector)
 
-            action = getattr(self.args, 'inspector_action', None)
+            action = getattr(self.args, "inspector_action", None)
 
             if self.output_mode != "rule":
                 method_map = {
@@ -186,7 +145,7 @@ class InspectorCommand(BaseCommand):
             self.output.error(f"巡检失败: {e}")
             return 1
         finally:
-            if 'skill' in locals():
+            if "skill" in locals():
                 skill.close()
 
     def _run_inspection(self, skill) -> int:
@@ -195,7 +154,7 @@ class InspectorCommand(BaseCommand):
 
         # 确定巡检类型
         inspection_types = None
-        type_args = getattr(self.args, 'type', None)
+        type_args = getattr(self.args, "type", None)
         if type_args:
             type_map = {
                 "configuration": InspectionType.CONFIGURATION,
@@ -203,22 +162,22 @@ class InspectorCommand(BaseCommand):
                 "storage": InspectionType.STORAGE,
                 "security": InspectionType.SECURITY,
                 "capacity": InspectionType.CAPACITY,
-                "replication": InspectionType.REPLICATION
+                "replication": InspectionType.REPLICATION,
             }
             inspection_types = [type_map[t] for t in type_args]
 
         # 执行巡检 - 返回的是标准响应格式字典
         response = skill.inspect(inspection_types)
 
-        if not response.get('success'):
+        if not response.get("success"):
             self.output.error(f"巡检失败: {response.get('message', '未知错误')}")
             return 1
 
         # 获取报告数据
-        report_data = response.get('data', {})
+        report_data = response.get("data", {})
 
-        output_format = getattr(self.args, 'format', 'text')
-        output_path = getattr(self.args, 'output', None)
+        output_format = getattr(self.args, "format", "text")
+        output_path = getattr(self.args, "output", None)
 
         # 生成输出内容
         if output_format == "json":
@@ -233,7 +192,7 @@ class InspectorCommand(BaseCommand):
 
         # 保存到文件或输出
         if output_path:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 if isinstance(output, dict):
                     json.dump(output, f, ensure_ascii=False, indent=2)
                 else:
@@ -246,7 +205,7 @@ class InspectorCommand(BaseCommand):
                 self.output.print(output)
 
         # 显示摘要
-        stats = report_data.get('statistics', {})
+        stats = report_data.get("statistics", {})
         self.output.print(f"\n{'='*60}")
         self.output.print("巡检摘要")
         self.output.print(f"{'='*60}")
@@ -259,13 +218,13 @@ class InspectorCommand(BaseCommand):
     def _generate_text_summary(self, report_data: dict) -> str:
         """生成文本格式的巡检摘要"""
         # 格式化数据库类型显示
-        db_type = report_data.get('database_type', 'unknown')
-        if 'mysql' in db_type.lower():
-            db_type_display = 'MySQL'
-        elif 'oracle' in db_type.lower():
-            db_type_display = 'Oracle'
-        elif 'postgresql' in db_type.lower():
-            db_type_display = 'PostgreSQL'
+        db_type = report_data.get("database_type", "unknown")
+        if "mysql" in db_type.lower():
+            db_type_display = "MySQL"
+        elif "oracle" in db_type.lower():
+            db_type_display = "Oracle"
+        elif "postgresql" in db_type.lower():
+            db_type_display = "PostgreSQL"
         else:
             db_type_display = db_type
 
@@ -282,72 +241,70 @@ class InspectorCommand(BaseCommand):
             "巡检统计:",
         ]
 
-        stats = report_data.get('statistics', {})
-        lines.extend([
-            f"  总巡检项: {stats.get('total_items', 0)}",
-            f"  通过: {stats.get('pass_count', 0)}",
-            f"  警告: {stats.get('warning_count', 0)}",
-            f"  失败: {stats.get('fail_count', 0)}",
-            f"  严重风险: {stats.get('critical_count', 0)}",
-            f"  高风险: {stats.get('high_count', 0)}",
-            f"  中风险: {stats.get('medium_count', 0)}",
-            f"  低风险: {stats.get('low_count', 0)}",
-            "",
-            f"健康评分: {report_data.get('health_score', 0)}/100",
-            "",
-            "摘要:",
-            report_data.get('summary', '无'),
-            "",
-            "=" * 60,
-            "详细巡检项",
-            "=" * 60,
-        ])
+        stats = report_data.get("statistics", {})
+        lines.extend(
+            [
+                f"  总巡检项: {stats.get('total_items', 0)}",
+                f"  通过: {stats.get('pass_count', 0)}",
+                f"  警告: {stats.get('warning_count', 0)}",
+                f"  失败: {stats.get('fail_count', 0)}",
+                f"  严重风险: {stats.get('critical_count', 0)}",
+                f"  高风险: {stats.get('high_count', 0)}",
+                f"  中风险: {stats.get('medium_count', 0)}",
+                f"  低风险: {stats.get('low_count', 0)}",
+                "",
+                f"健康评分: {report_data.get('health_score', 0)}/100",
+                "",
+                "摘要:",
+                report_data.get("summary", "无"),
+                "",
+                "=" * 60,
+                "详细巡检项",
+                "=" * 60,
+            ]
+        )
 
         # 添加详细巡检项
-        items = report_data.get('items', [])
-        
+        items = report_data.get("items", [])
+
         # 类别映射
         category_map = {
-            'configuration': '配置',
-            'performance': '性能',
-            'storage': '存储',
-            'security': '安全',
-            'capacity': '容量',
-            'replication': '复制',
-            'backup': '备份',
-            'other': '其他'
+            "configuration": "配置",
+            "performance": "性能",
+            "storage": "存储",
+            "security": "安全",
+            "capacity": "容量",
+            "replication": "复制",
+            "backup": "备份",
+            "other": "其他",
         }
-        
+
         if items:
             for i, item in enumerate(items, 1):
-                status = item.get('status', 'unknown')
-                status_display = {
-                    'pass': '通过',
-                    'warning': '警告',
-                    'fail': '失败'
-                }.get(status, status)
-                
+                status = item.get("status", "unknown")
+                status_display = {"pass": "通过", "warning": "警告", "fail": "失败"}.get(status, status)
+
                 # 获取类别（type字段对应inspection_type）
-                item_type = item.get('type', 'other')
-                category = category_map.get(item_type, '其他')
-                
+                item_type = item.get("type", "other")
+                category = category_map.get(item_type, "其他")
+
                 # 获取名称，确保不为空
-                item_name = item.get('name', '未命名')
+                item_name = item.get("name", "未命名")
                 if not item_name:
-                    item_name = '未命名'
-                
+                    item_name = "未命名"
+
                 lines.append(f"[{i}] {item_name}")
                 lines.append(f"    类别: {category}")
                 lines.append(f"    状态: {status_display}")
                 lines.append(f"    描述: {item.get('description', '')}")
-                
-                if item.get('actual_value'):
+
+                if item.get("actual_value"):
                     lines.append(f"    当前值: {item.get('actual_value')}")
-                
-                if item.get('message'):
+
+                if item.get("message"):
                     lines.append(f"    信息: {item.get('message')}")
-                
-                if item.get('suggestion'):
+
+                if item.get("suggestion"):
                     lines.append(f"    建议: {item.get('suggestion')}")
         else:
             lines.append("暂无详细巡检项数据")
@@ -359,12 +316,12 @@ class InspectorCommand(BaseCommand):
         # 先执行巡检
         response = skill.inspect()
 
-        if not response.get('success'):
+        if not response.get("success"):
             self.output.error(f"巡检失败: {response.get('message', '未知错误')}")
             return 1
 
-        report_data = response.get('data', {})
-        output_format = getattr(self.args, 'format', 'html')
+        report_data = response.get("data", {})
+        output_format = getattr(self.args, "format", "html")
         output_path = self.args.output
 
         # 生成指定格式报告
@@ -376,7 +333,7 @@ class InspectorCommand(BaseCommand):
             content = json.dumps(report_data, ensure_ascii=False, indent=2)
 
         # 保存文件
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(content)
 
         self.output.success(f"报告已生成: {output_path}")
@@ -386,22 +343,22 @@ class InspectorCommand(BaseCommand):
         """管理基线"""
         import json
 
-        create_baseline = getattr(self.args, 'create', False)
-        compare_baseline = getattr(self.args, 'compare', False)
+        create_baseline = getattr(self.args, "create", False)
+        compare_baseline = getattr(self.args, "compare", False)
 
         if create_baseline:
             response = skill.create_baseline()
-            if not response.get('success'):
+            if not response.get("success"):
                 self.output.error(f"基线创建失败: {response.get('message', '未知错误')}")
                 return 1
 
-            baseline_data = response.get('data', {})
+            baseline_data = response.get("data", {})
             self.output.success(f"性能基线已创建: {baseline_data.get('baseline_id', 'unknown')}")
             self.output.print(f"创建时间: {baseline_data.get('created_at', 'unknown')}")
             return 0
         elif compare_baseline:
             response = skill.inspect()
-            if not response.get('success'):
+            if not response.get("success"):
                 self.output.error(f"巡检失败: {response.get('message', '未知错误')}")
                 return 1
 
@@ -417,7 +374,7 @@ class InspectorCommand(BaseCommand):
         import json
 
         # 检查是否有智能巡检功能
-        if not hasattr(skill, 'intelligent_inspect'):
+        if not hasattr(skill, "intelligent_inspect"):
             self.output.error("智能巡检功能不可用")
             return 1
 
@@ -425,7 +382,7 @@ class InspectorCommand(BaseCommand):
         metrics_history = {}
         if self.args.metrics_file:
             try:
-                with open(self.args.metrics_file, 'r', encoding='utf-8') as f:
+                with open(self.args.metrics_file, "r", encoding="utf-8") as f:
                     metrics_history = json.load(f)
             except Exception as e:
                 self.output.error(f"读取指标文件失败: {e}")
@@ -433,17 +390,19 @@ class InspectorCommand(BaseCommand):
 
         result = skill.intelligent_inspect(metrics_history=metrics_history)
 
-        if not result.get('success', False):
+        if not result.get("success", False):
             self.output.error(f"智能巡检失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        anomalies = data.get('anomalies', [])
-        root_causes = data.get('root_causes', [])
-        risks = data.get('risks', [])
-        recommendations = data.get('recommendations', [])
+        data = result.get("data", {})
+        anomalies = data.get("anomalies", [])
+        root_causes = data.get("root_causes", [])
+        risks = data.get("risks", [])
+        recommendations = data.get("recommendations", [])
 
-        summary = f"发现{len(anomalies)}个异常, {len(root_causes)}个根因, {len(risks)}个风险, {len(recommendations)}条建议"
+        summary = (
+            f"发现{len(anomalies)}个异常, {len(root_causes)}个根因, {len(risks)}个风险, {len(recommendations)}条建议"
+        )
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: {summary}")
@@ -453,13 +412,13 @@ class InspectorCommand(BaseCommand):
         if anomalies:
             self.output.print(f"\n[异常检测] 发现{len(anomalies)}个异常:")
             for anomaly in anomalies[:10]:
-                metric = anomaly.get('metric', 'unknown')
-                severity = anomaly.get('severity', 'unknown')
-                description = anomaly.get('description', '')
+                metric = anomaly.get("metric", "unknown")
+                severity = anomaly.get("severity", "unknown")
+                description = anomaly.get("description", "")
 
-                if severity == 'critical':
+                if severity == "critical":
                     self.output.error(f"  [严重] {metric}: {description}")
-                elif severity == 'warning':
+                elif severity == "warning":
                     self.output.warning(f"  [警告] {metric}: {description}")
                 else:
                     self.output.print(f"  [信息] {metric}: {description}")
@@ -468,27 +427,27 @@ class InspectorCommand(BaseCommand):
         if root_causes:
             self.output.print(f"\n[根因分析] 发现{len(root_causes)}个根因:")
             for cause in root_causes[:10]:
-                category = cause.get('category', 'unknown')
-                confidence = cause.get('confidence', 0)
-                description = cause.get('description', '')
+                category = cause.get("category", "unknown")
+                confidence = cause.get("confidence", 0)
+                description = cause.get("description", "")
                 self.output.print(f"  [{category}] 置信度{confidence*100:.0f}%: {description}")
 
         # 风险预测
         if risks:
             self.output.print(f"\n[风险预测] 发现{len(risks)}个风险:")
             for risk in risks[:10]:
-                risk_type = risk.get('type', 'unknown')
-                probability = risk.get('probability', 0)
-                impact = risk.get('impact', 'unknown')
+                risk_type = risk.get("type", "unknown")
+                probability = risk.get("probability", 0)
+                impact = risk.get("impact", "unknown")
                 self.output.warning(f"  [{risk_type}] 概率{probability*100:.0f}%, 影响:{impact}")
 
         # 智能建议
         if recommendations:
             self.output.print(f"\n[智能建议] {len(recommendations)}条建议:")
             for i, rec in enumerate(recommendations[:10], 1):
-                priority = rec.get('priority', 'medium')
-                description = rec.get('description', '')
-                if priority == 'high':
+                priority = rec.get("priority", "medium")
+                description = rec.get("description", "")
+                if priority == "high":
                     self.output.warning(f"  {i}. [高优先级] {description}")
                 else:
                     self.output.print(f"  {i}. {description}")
@@ -498,23 +457,20 @@ class InspectorCommand(BaseCommand):
     def _detect_anomalies(self, skill) -> int:
         """异常检测"""
         # 检查是否有异常检测功能
-        if not hasattr(skill, 'detect_anomalies'):
+        if not hasattr(skill, "detect_anomalies"):
             self.output.error("异常检测功能不可用")
             return 1
 
         # 获取历史数据
-        result = skill.detect_anomalies(
-            metric_type=self.args.metric,
-            hours=self.args.hours
-        )
+        result = skill.detect_anomalies(metric_type=self.args.metric, hours=self.args.hours)
 
-        if not result.get('success', False):
+        if not result.get("success", False):
             self.output.error(f"异常检测失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        anomalies = data.get('anomalies', [])
-        summary_stats = data.get('summary', {})
+        data = result.get("data", {})
+        anomalies = data.get("anomalies", [])
+        summary_stats = data.get("summary", {})
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: 在{self.args.metric}中发现{len(anomalies)}个异常")
@@ -531,43 +487,45 @@ class InspectorCommand(BaseCommand):
         if anomalies:
             self.output.print(f"\n异常详情:")
             for anomaly in anomalies[:20]:
-                timestamp = anomaly.get('timestamp', 'unknown')
-                value = anomaly.get('value', 0)
-                expected = anomaly.get('expected_range', [0, 0])
-                anomaly_type = anomaly.get('type', 'unknown')
-                severity = anomaly.get('severity', 'unknown')
+                timestamp = anomaly.get("timestamp", "unknown")
+                value = anomaly.get("value", 0)
+                expected = anomaly.get("expected_range", [0, 0])
+                anomaly_type = anomaly.get("type", "unknown")
+                severity = anomaly.get("severity", "unknown")
 
-                if severity == 'critical':
-                    self.output.error(f"  [{severity}] {timestamp}: {value:.2f} (期望: {expected[0]:.2f}-{expected[1]:.2f}) [{anomaly_type}]")
-                elif severity == 'warning':
-                    self.output.warning(f"  [{severity}] {timestamp}: {value:.2f} (期望: {expected[0]:.2f}-{expected[1]:.2f}) [{anomaly_type}]")
+                if severity == "critical":
+                    self.output.error(
+                        f"  [{severity}] {timestamp}: {value:.2f} (期望: {expected[0]:.2f}-{expected[1]:.2f}) [{anomaly_type}]"
+                    )
+                elif severity == "warning":
+                    self.output.warning(
+                        f"  [{severity}] {timestamp}: {value:.2f} (期望: {expected[0]:.2f}-{expected[1]:.2f}) [{anomaly_type}]"
+                    )
                 else:
-                    self.output.print(f"  [{severity}] {timestamp}: {value:.2f} (期望: {expected[0]:.2f}-{expected[1]:.2f}) [{anomaly_type}]")
+                    self.output.print(
+                        f"  [{severity}] {timestamp}: {value:.2f} (期望: {expected[0]:.2f}-{expected[1]:.2f}) [{anomaly_type}]"
+                    )
 
         return 0
 
     def _analyze_root_cause(self, skill) -> int:
         """根因分析"""
         # 检查是否有根因分析功能
-        if not hasattr(skill, 'analyze_root_causes'):
+        if not hasattr(skill, "analyze_root_causes"):
             self.output.error("根因分析功能不可用")
             return 1
 
         # 构建异常事件
-        anomalies = [{
-            'metric': self.args.issue,
-            'timestamp': datetime.now().isoformat(),
-            'severity': 'critical'
-        }]
+        anomalies = [{"metric": self.args.issue, "timestamp": datetime.now().isoformat(), "severity": "critical"}]
 
         result = skill.analyze_root_causes(anomalies=anomalies)
 
-        if not result.get('success', False):
+        if not result.get("success", False):
             self.output.error(f"根因分析失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        root_causes = data.get('root_causes', [])
+        data = result.get("data", {})
+        root_causes = data.get("root_causes", [])
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: 发现问题'{self.args.issue}'的{len(root_causes)}个可能根因")
@@ -576,11 +534,11 @@ class InspectorCommand(BaseCommand):
         if root_causes:
             self.output.print(f"\n根因分析结果:")
             for i, cause in enumerate(root_causes[:10], 1):
-                category = cause.get('category', 'unknown')
-                confidence = cause.get('confidence', 0)
-                description = cause.get('description', '')
-                evidence = cause.get('evidence', [])
-                recommendations = cause.get('recommendations', [])
+                category = cause.get("category", "unknown")
+                confidence = cause.get("confidence", 0)
+                description = cause.get("description", "")
+                evidence = cause.get("evidence", [])
+                recommendations = cause.get("recommendations", [])
 
                 self.output.print(f"\n{i}. [{category}] 置信度: {confidence*100:.0f}%")
                 self.output.print(f"   描述: {description}")
@@ -602,19 +560,19 @@ class InspectorCommand(BaseCommand):
     def _predict_risks(self, skill) -> int:
         """风险预测"""
         # 检查是否有风险预测功能
-        if not hasattr(skill, 'predict_risks'):
+        if not hasattr(skill, "predict_risks"):
             self.output.error("风险预测功能不可用")
             return 1
 
         result = skill.predict_risks(time_horizon_days=self.args.days)
 
-        if not result.get('success', False):
+        if not result.get("success", False):
             self.output.error(f"风险预测失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        risks = data.get('risks', [])
-        summary = data.get('summary', {})
+        data = result.get("data", {})
+        risks = data.get("risks", [])
+        summary = data.get("summary", {})
 
         self.output.print(f"\n{'='*60}")
         self.output.print(f"摘要: 未来{self.args.days}天内预测到{len(risks)}个风险")
@@ -622,21 +580,21 @@ class InspectorCommand(BaseCommand):
 
         # 风险统计
         if summary:
-            high_risks = summary.get('high_risk_count', 0)
-            medium_risks = summary.get('medium_risk_count', 0)
-            low_risks = summary.get('low_risk_count', 0)
+            high_risks = summary.get("high_risk_count", 0)
+            medium_risks = summary.get("medium_risk_count", 0)
+            low_risks = summary.get("low_risk_count", 0)
             self.output.print(f"\n风险统计: 高:{high_risks} 中:{medium_risks} 低:{low_risks}")
 
         # 风险详情
         if risks:
             self.output.print(f"\n风险详情:")
             for risk in risks[:15]:
-                risk_type = risk.get('type', 'unknown')
-                probability = risk.get('probability', 0)
-                impact = risk.get('impact', 'unknown')
-                time_to_occurrence = risk.get('time_to_occurrence', 'unknown')
-                description = risk.get('description', '')
-                mitigation = risk.get('mitigation', '')
+                risk_type = risk.get("type", "unknown")
+                probability = risk.get("probability", 0)
+                impact = risk.get("impact", "unknown")
+                time_to_occurrence = risk.get("time_to_occurrence", "unknown")
+                description = risk.get("description", "")
+                mitigation = risk.get("mitigation", "")
 
                 # 根据概率确定严重程度
                 if probability >= 0.7:

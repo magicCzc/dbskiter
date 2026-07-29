@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Set, Tuple
 
@@ -41,25 +42,21 @@ class ConnectionReplicationMixin:
             Dict: 连接分析结果
         """
         try:
-            if 'mysql' in self.dialect:
+            if "mysql" in self.dialect:
                 return self._analyze_mysql_connections(show_idle)
-            elif 'oracle' in self.dialect:
+            elif "oracle" in self.dialect:
                 return self._analyze_oracle_connections(show_idle)
-            elif 'postgresql' in self.dialect:
+            elif "postgresql" in self.dialect:
                 return self._analyze_postgresql_connections(show_idle)
-            elif 'clickhouse' in self.dialect:
+            elif "clickhouse" in self.dialect:
                 return self._analyze_clickhouse_connections(show_idle)
-            elif 'sqlite' in self.dialect:
+            elif "sqlite" in self.dialect:
                 return self._analyze_sqlite_connections(show_idle)
             else:
-                return create_error_response(
-                    f"连接分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+                return create_error_response(f"连接分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
         except Exception as e:
             logger.error(f"连接分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_mysql_connections(self, show_idle: bool) -> Dict[str, Any]:
         """MySQL连接分析"""
@@ -85,7 +82,7 @@ class ConnectionReplicationMixin:
                     "current": current,
                     "active": active,
                     "idle": idle,
-                    "usage_percent": round(usage_pct, 1)
+                    "usage_percent": round(usage_pct, 1),
                 }
             }
 
@@ -106,21 +103,12 @@ class ConnectionReplicationMixin:
 
                 idle_conns = []
                 for row in result.rows:
-                    idle_conns.append({
-                        "id": row[0],
-                        "user": row[1],
-                        "host": row[2],
-                        "idle_time": row[3]
-                    })
+                    idle_conns.append({"id": row[0], "user": row[1], "host": row[2], "idle_time": row[3]})
                 data["idle_connections"] = idle_conns
 
-            return create_success_response(
-                message="连接分析完成",
-                data=data
-            )
+            return create_success_response(message="连接分析完成", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_oracle_connections(self, show_idle: bool) -> Dict[str, Any]:
         """
@@ -136,9 +124,7 @@ class ConnectionReplicationMixin:
             # 获取连接统计
             # 分两步查询避免CROSS JOIN + GROUP BY兼容性问题
             max_sessions = 100
-            result = self.connector.execute(
-                "SELECT value FROM v$parameter WHERE name = 'sessions'"
-            )
+            result = self.connector.execute("SELECT value FROM v$parameter WHERE name = 'sessions'")
             if result.rows:
                 max_sessions = int(str(result.rows[0][0])) if result.rows[0][0] else 100
 
@@ -167,7 +153,7 @@ class ConnectionReplicationMixin:
                     "current": current,
                     "active": active,
                     "idle": idle,
-                    "usage_percent": round(usage_pct, 1)
+                    "usage_percent": round(usage_pct, 1),
                 }
             }
 
@@ -193,32 +179,28 @@ class ConnectionReplicationMixin:
 
                 idle_conns = []
                 for row in result.rows:
-                    idle_conns.append({
-                        "sid": row[0],
-                        "serial": row[1],
-                        "user": row[2],
-                        "machine": row[3],
-                        "program": row[4],
-                        "idle_minutes": round(float(str(row[5])) if row[5] else 0, 1)
-                    })
+                    idle_conns.append(
+                        {
+                            "sid": row[0],
+                            "serial": row[1],
+                            "user": row[2],
+                            "machine": row[3],
+                            "program": row[4],
+                            "idle_minutes": round(float(str(row[5])) if row[5] else 0, 1),
+                        }
+                    )
                 data["idle_connections"] = idle_conns
 
-            return create_success_response(
-                message="连接分析完成",
-                data=data
-            )
+            return create_success_response(message="连接分析完成", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_postgresql_connections(self, show_idle: bool) -> Dict[str, Any]:
         """PostgreSQL连接分析"""
         try:
             max_conn = 100
             try:
-                result = self.connector.execute(
-                    "SELECT setting::int FROM pg_settings WHERE name = 'max_connections'"
-                )
+                result = self.connector.execute("SELECT setting::int FROM pg_settings WHERE name = 'max_connections'")
                 if result.rows:
                     max_conn = int(str(result.rows[0][0])) if result.rows[0][0] else 100
             except Exception:
@@ -248,7 +230,7 @@ class ConnectionReplicationMixin:
                     "active": active,
                     "idle": idle,
                     "idle_in_transaction": idle_in_trx,
-                    "usage_percent": round(usage_pct, 1)
+                    "usage_percent": round(usage_pct, 1),
                 }
             }
 
@@ -270,24 +252,22 @@ class ConnectionReplicationMixin:
                 """)
                 idle_conns = []
                 for row in result.rows:
-                    idle_conns.append({
-                        "pid": row[0],
-                        "user": str(row[1]) if row[1] else "",
-                        "application": str(row[2]) if row[2] else "",
-                        "client_addr": str(row[3]) if row[3] else "",
-                        "idle_minutes": round(float(str(row[4])) if row[4] else 0, 1),
-                        "state": str(row[5]) if row[5] else "",
-                        "last_query": str(row[6]) if row[6] else ""
-                    })
+                    idle_conns.append(
+                        {
+                            "pid": row[0],
+                            "user": str(row[1]) if row[1] else "",
+                            "application": str(row[2]) if row[2] else "",
+                            "client_addr": str(row[3]) if row[3] else "",
+                            "idle_minutes": round(float(str(row[4])) if row[4] else 0, 1),
+                            "state": str(row[5]) if row[5] else "",
+                            "last_query": str(row[6]) if row[6] else "",
+                        }
+                    )
                 data["idle_connections"] = idle_conns
 
-            return create_success_response(
-                message="连接分析完成",
-                data=data
-            )
+            return create_success_response(message="连接分析完成", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_clickhouse_connections(self, show_idle: bool) -> Dict[str, Any]:
         """
@@ -343,12 +323,12 @@ class ConnectionReplicationMixin:
                     "usage_percent": usage_pct,
                     "available": max_conn - current_conn,
                     "user_count": user_count,
-                    "client_count": client_count
+                    "client_count": client_count,
                 },
                 "active_connections": [],
                 "idle_connections": [],
                 "user_distribution": [],
-                "client_distribution": []
+                "client_distribution": [],
             }
 
             # 获取用户分布统计
@@ -364,11 +344,13 @@ class ConnectionReplicationMixin:
                     LIMIT 10
                 """)
                 for row in result.rows if result else []:
-                    data["user_distribution"].append({
-                        "user": str(row[0]) if row[0] else "",
-                        "connections": int(row[1]) if row[1] else 0,
-                        "percentage": float(row[2]) if row[2] else 0.0
-                    })
+                    data["user_distribution"].append(
+                        {
+                            "user": str(row[0]) if row[0] else "",
+                            "connections": int(row[1]) if row[1] else 0,
+                            "percentage": float(row[2]) if row[2] else 0.0,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse用户分布失败: {e}")
 
@@ -386,11 +368,13 @@ class ConnectionReplicationMixin:
                     LIMIT 10
                 """)
                 for row in result.rows if result else []:
-                    data["client_distribution"].append({
-                        "client_address": str(row[0]) if row[0] else "",
-                        "connections": int(row[1]) if row[1] else 0,
-                        "percentage": float(row[2]) if row[2] else 0.0
-                    })
+                    data["client_distribution"].append(
+                        {
+                            "client_address": str(row[0]) if row[0] else "",
+                            "connections": int(row[1]) if row[1] else 0,
+                            "percentage": float(row[2]) if row[2] else 0.0,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse客户端分布失败: {e}")
 
@@ -408,13 +392,15 @@ class ConnectionReplicationMixin:
                     LIMIT 20
                 """)
                 for row in result.rows if result else []:
-                    data["active_connections"].append({
-                        "query_id": str(row[0]) if row[0] else "",
-                        "user": str(row[1]) if row[1] else "",
-                        "client": str(row[2]) if row[2] else "",
-                        "elapsed_seconds": round(float(row[3]) if row[3] else 0, 2),
-                        "query_preview": str(row[4])[:100] if row[4] else ""
-                    })
+                    data["active_connections"].append(
+                        {
+                            "query_id": str(row[0]) if row[0] else "",
+                            "user": str(row[1]) if row[1] else "",
+                            "client": str(row[2]) if row[2] else "",
+                            "elapsed_seconds": round(float(row[3]) if row[3] else 0, 2),
+                            "query_preview": str(row[4])[:100] if row[4] else "",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse活跃连接失败: {e}")
 
@@ -434,43 +420,45 @@ class ConnectionReplicationMixin:
                         LIMIT 20
                     """)
                     for row in result.rows if result else []:
-                        data["idle_connections"].append({
-                            "query_id": str(row[0]) if row[0] else "",
-                            "user": str(row[1]) if row[1] else "",
-                            "client": str(row[2]) if row[2] else "",
-                            "elapsed_seconds": round(float(row[3]) if row[3] else 0, 2),
-                            "query_preview": str(row[4])[:100] if row[4] else ""
-                        })
+                        data["idle_connections"].append(
+                            {
+                                "query_id": str(row[0]) if row[0] else "",
+                                "user": str(row[1]) if row[1] else "",
+                                "client": str(row[2]) if row[2] else "",
+                                "elapsed_seconds": round(float(row[3]) if row[3] else 0, 2),
+                                "query_preview": str(row[4])[:100] if row[4] else "",
+                            }
+                        )
                 except Exception as e:
                     logger.warning(f"获取ClickHouse长时间查询失败: {e}")
 
             suggestions = []
             if usage_pct > 80:
-                suggestions.append({
-                    "type": "high_usage",
-                    "priority": "high",
-                    "message": f"连接使用率 {usage_pct}% 过高，建议增加max_concurrent_queries或优化查询"
-                })
+                suggestions.append(
+                    {
+                        "type": "high_usage",
+                        "priority": "high",
+                        "message": f"连接使用率 {usage_pct}% 过高，建议增加max_concurrent_queries或优化查询",
+                    }
+                )
 
             # 检测单一用户连接过多
             if data["user_distribution"]:
                 top_user = data["user_distribution"][0]
                 if top_user["percentage"] > 80:
-                    suggestions.append({
-                        "type": "user_imbalance",
-                        "priority": "medium",
-                        "message": f"用户 {top_user['user']} 占用 {top_user['percentage']}% 连接，建议检查是否有连接泄露"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "user_imbalance",
+                            "priority": "medium",
+                            "message": f"用户 {top_user['user']} 占用 {top_user['percentage']}% 连接，建议检查是否有连接泄露",
+                        }
+                    )
 
             data["suggestions"] = suggestions
 
-            return create_success_response(
-                message="ClickHouse连接分析完成",
-                data=data
-            )
+            return create_success_response(message="ClickHouse连接分析完成", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_sqlite_connections(self, show_idle: bool) -> Dict[str, Any]:
         """
@@ -495,20 +483,22 @@ class ConnectionReplicationMixin:
                     "usage_percent": 100.0,
                     "available": 0,
                     "user_count": 1,
-                    "client_count": 1
+                    "client_count": 1,
                 },
                 "active_connections": [],
-                "idle_connections": []
+                "idle_connections": [],
             }
 
             # 获取事务状态
             try:
                 result = self.connector.execute("PRAGMA lock_status")
                 for row in result.rows if result else []:
-                    data["active_connections"].append({
-                        "database": str(row[0]) if row[0] else "main",
-                        "lock_type": str(row[1]) if len(row) > 1 else "unknown"
-                    })
+                    data["active_connections"].append(
+                        {
+                            "database": str(row[0]) if row[0] else "main",
+                            "lock_type": str(row[1]) if len(row) > 1 else "unknown",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取SQLite锁状态失败: {e}")
 
@@ -524,21 +514,19 @@ class ConnectionReplicationMixin:
 
             suggestions = []
             if "THREADSAFE=0" in str(data.get("compile_options", [])):
-                suggestions.append({
-                    "type": "threadsafe",
-                    "priority": "medium",
-                    "message": "SQLite编译为单线程模式(THREADSAFE=0)，不支持多连接并发"
-                })
+                suggestions.append(
+                    {
+                        "type": "threadsafe",
+                        "priority": "medium",
+                        "message": "SQLite编译为单线程模式(THREADSAFE=0)，不支持多连接并发",
+                    }
+                )
 
             data["suggestions"] = suggestions
 
-            return create_success_response(
-                message="SQLite连接分析完成（SQLite为单连接数据库）",
-                data=data
-            )
+            return create_success_response(message="SQLite连接分析完成（SQLite为单连接数据库）", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def analyze_replication(self) -> Dict[str, Any]:
         """
@@ -548,25 +536,21 @@ class ConnectionReplicationMixin:
             Dict: 复制状态
         """
         try:
-            if 'mysql' in self.dialect:
+            if "mysql" in self.dialect:
                 return self._analyze_mysql_replication()
-            elif 'oracle' in self.dialect:
+            elif "oracle" in self.dialect:
                 return self._analyze_oracle_replication()
-            elif 'postgresql' in self.dialect:
+            elif "postgresql" in self.dialect:
                 return self._analyze_postgresql_replication()
-            elif 'clickhouse' in self.dialect:
+            elif "clickhouse" in self.dialect:
                 return self._analyze_clickhouse_replication()
-            elif 'sqlite' in self.dialect:
+            elif "sqlite" in self.dialect:
                 return self._analyze_sqlite_replication()
             else:
-                return create_error_response(
-                    f"复制分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+                return create_error_response(f"复制分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
         except Exception as e:
             logger.error(f"复制分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_mysql_replication(self) -> Dict[str, Any]:
         """MySQL复制分析"""
@@ -591,18 +575,14 @@ class ConnectionReplicationMixin:
                     data["slave_status"] = {
                         "io_running": row[10] if len(row) > 10 else "No",
                         "sql_running": row[11] if len(row) > 11 else "No",
-                        "delay_seconds": row[32] if len(row) > 32 else 0
+                        "delay_seconds": row[32] if len(row) > 32 else 0,
                     }
             except Exception:
                 data["status"]["is_slave"] = False
 
-            return create_success_response(
-                message="复制分析完成",
-                data=data
-            )
+            return create_success_response(message="复制分析完成", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_oracle_replication(self) -> Dict[str, Any]:
         """Oracle Data Guard复制分析"""
@@ -653,13 +633,15 @@ class ConnectionReplicationMixin:
                     """)
                     destinations = []
                     for row in result.rows:
-                        destinations.append({
-                            "dest_name": str(row[0] or ""),
-                            "status": str(row[1] or ""),
-                            "recovery_mode": str(row[2] or ""),
-                            "gap_status": str(row[3] or ""),
-                            "transmit_mode": str(row[4] or "")
-                        })
+                        destinations.append(
+                            {
+                                "dest_name": str(row[0] or ""),
+                                "status": str(row[1] or ""),
+                                "recovery_mode": str(row[2] or ""),
+                                "gap_status": str(row[3] or ""),
+                                "transmit_mode": str(row[4] or ""),
+                            }
+                        )
                     data["archive_destinations"] = destinations
                 except Exception as e:
                     logger.warning(f"查询v$archive_dest_status失败: {e}")
@@ -679,7 +661,7 @@ class ConnectionReplicationMixin:
                         stats[str(row[0])] = {
                             "value": str(row[1] or ""),
                             "unit": str(row[2] or ""),
-                            "time": str(row[3] or "")
+                            "time": str(row[3] or ""),
                         }
                     data["dataguard_stats"] = stats
 
@@ -702,15 +684,11 @@ class ConnectionReplicationMixin:
                 data["status"]["database_role"] = "PRIMARY"
                 data["message"] = "未配置Data Guard"
 
-            return create_success_response(
-                message="Oracle复制分析完成",
-                data=data
-            )
+            return create_success_response(message="Oracle复制分析完成", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
     # ==================== PostgreSQL诊断方法 ====================
-
 
     def _analyze_postgresql_replication(self) -> Dict[str, Any]:
         """PostgreSQL复制分析(流复制/逻辑复制)"""
@@ -743,13 +721,15 @@ class ConnectionReplicationMixin:
                     replicas = []
                     for row in result.rows:
                         lag = str(row[4]) if row[4] else "0"
-                        replicas.append({
-                            "client_addr": str(row[0]) if row[0] else "",
-                            "state": str(row[1]) if row[1] else "",
-                            "sent_lsn": str(row[2]) if row[2] else "",
-                            "replay_lsn": str(row[3]) if row[3] else "",
-                            "replay_lag": lag
-                        })
+                        replicas.append(
+                            {
+                                "client_addr": str(row[0]) if row[0] else "",
+                                "state": str(row[1]) if row[1] else "",
+                                "sent_lsn": str(row[2]) if row[2] else "",
+                                "replay_lsn": str(row[3]) if row[3] else "",
+                                "replay_lag": lag,
+                            }
+                        )
                     data["replicas"] = replicas
                     data["status"]["replica_count"] = len(replicas)
                 except Exception as e:
@@ -774,18 +754,14 @@ class ConnectionReplicationMixin:
                             "sender_host": str(row[1]) if row[1] else "",
                             "sender_port": int(str(row[2])) if row[2] else 0,
                             "received_lsn": str(row[3]) if row[3] else "",
-                            "latest_end_lsn": str(row[4]) if row[4] else ""
+                            "latest_end_lsn": str(row[4]) if row[4] else "",
                         }
                 except Exception as e:
                     logger.warning(f"查询pg_stat_wal_receiver失败: {e}")
 
-            return create_success_response(
-                message="PostgreSQL复制分析完成",
-                data=data
-            )
+            return create_success_response(message="PostgreSQL复制分析完成", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_clickhouse_replication(self) -> Dict[str, Any]:
         """
@@ -819,11 +795,13 @@ class ConnectionReplicationMixin:
                     WHERE engine LIKE 'Replicated%'
                 """)
                 for row in result.rows if result else []:
-                    replicated_tables.append({
-                        "database": str(row[0]) if row[0] else "",
-                        "table": str(row[1]) if row[1] else "",
-                        "engine": str(row[2]) if row[2] else ""
-                    })
+                    replicated_tables.append(
+                        {
+                            "database": str(row[0]) if row[0] else "",
+                            "table": str(row[1]) if row[1] else "",
+                            "engine": str(row[2]) if row[2] else "",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse复制表失败: {e}")
 
@@ -851,18 +829,20 @@ class ConnectionReplicationMixin:
                     LIMIT 50
                 """)
                 for row in result.rows if result else []:
-                    replication_queue.append({
-                        "database": str(row[0]) if row[0] else "",
-                        "table": str(row[1]) if row[1] else "",
-                        "type": str(row[2]) if row[2] else "",
-                        "source_replica": str(row[3]) if row[3] else "",
-                        "parts_to_merge": int(row[4]) if row[4] else 0,
-                        "new_part_name": str(row[5]) if row[5] else "",
-                        "create_time": str(row[6]) if row[6] else "",
-                        "last_attempt_time": str(row[7]) if row[7] else "",
-                        "num_tries": int(row[8]) if row[8] else 0,
-                        "last_exception": str(row[9])[:200] if row[9] else ""
-                    })
+                    replication_queue.append(
+                        {
+                            "database": str(row[0]) if row[0] else "",
+                            "table": str(row[1]) if row[1] else "",
+                            "type": str(row[2]) if row[2] else "",
+                            "source_replica": str(row[3]) if row[3] else "",
+                            "parts_to_merge": int(row[4]) if row[4] else 0,
+                            "new_part_name": str(row[5]) if row[5] else "",
+                            "create_time": str(row[6]) if row[6] else "",
+                            "last_attempt_time": str(row[7]) if row[7] else "",
+                            "num_tries": int(row[8]) if row[8] else 0,
+                            "last_exception": str(row[9])[:200] if row[9] else "",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse复制队列失败: {e}")
 
@@ -899,11 +879,13 @@ class ConnectionReplicationMixin:
                     WHERE engine = 'Distributed'
                 """)
                 for row in result.rows if result else []:
-                    distributed_tables.append({
-                        "database": str(row[0]) if row[0] else "",
-                        "table": str(row[1]) if row[1] else "",
-                        "engine": str(row[2]) if row[2] else ""
-                    })
+                    distributed_tables.append(
+                        {
+                            "database": str(row[0]) if row[0] else "",
+                            "table": str(row[1]) if row[1] else "",
+                            "engine": str(row[2]) if row[2] else "",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse分布式表失败: {e}")
 
@@ -912,28 +894,30 @@ class ConnectionReplicationMixin:
 
             suggestions = []
             if len(replication_queue) > 100:
-                suggestions.append({
-                    "type": "replication_lag",
-                    "priority": "high",
-                    "message": f"复制队列积压严重({len(replication_queue)}个任务)，请检查ZooKeeper/Keeper连接和副本状态"
-                })
+                suggestions.append(
+                    {
+                        "type": "replication_lag",
+                        "priority": "high",
+                        "message": f"复制队列积压严重({len(replication_queue)}个任务)，请检查ZooKeeper/Keeper连接和副本状态",
+                    }
+                )
 
             if not zk_status.get("connected") and len(replicated_tables) > 0:
-                suggestions.append({
-                    "type": "zookeeper_disconnected",
-                    "priority": "critical",
-                    "message": "ZooKeeper/Keeper连接异常，复制功能可能受影响"
-                })
+                suggestions.append(
+                    {
+                        "type": "zookeeper_disconnected",
+                        "priority": "critical",
+                        "message": "ZooKeeper/Keeper连接异常，复制功能可能受影响",
+                    }
+                )
 
             data["suggestions"] = suggestions
 
             return create_success_response(
-                message=f"ClickHouse复制分析完成，发现{len(replicated_tables)}个复制表",
-                data=data
+                message=f"ClickHouse复制分析完成，发现{len(replicated_tables)}个复制表", data=data
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_sqlite_replication(self) -> Dict[str, Any]:
         """
@@ -949,28 +933,12 @@ class ConnectionReplicationMixin:
         """
         try:
             data = {
-                "status": {
-                    "has_replication": False,
-                    "database_role": "STANDALONE",
-                    "note": "SQLite原生不支持复制功能"
-                },
+                "status": {"has_replication": False, "database_role": "STANDALONE", "note": "SQLite原生不支持复制功能"},
                 "replication_methods": [
-                    {
-                        "method": "WAL模式",
-                        "description": "开启WAL模式后支持一个写入者和多个读取者",
-                        "supported": True
-                    },
-                    {
-                        "method": "文件复制",
-                        "description": "通过文件系统级复制实现备份",
-                        "supported": True
-                    },
-                    {
-                        "method": "第三方扩展",
-                        "description": "如SQLite-Rsync、Litestream等",
-                        "supported": False
-                    }
-                ]
+                    {"method": "WAL模式", "description": "开启WAL模式后支持一个写入者和多个读取者", "supported": True},
+                    {"method": "文件复制", "description": "通过文件系统级复制实现备份", "supported": True},
+                    {"method": "第三方扩展", "description": "如SQLite-Rsync、Litestream等", "supported": False},
+                ],
             }
 
             # 检查WAL模式
@@ -985,20 +953,16 @@ class ConnectionReplicationMixin:
 
             suggestions = []
             if not data["status"].get("wal_enabled", False):
-                suggestions.append({
-                    "type": "wal_mode",
-                    "priority": "low",
-                    "message": "建议开启WAL模式(PRAGMA journal_mode=WAL)以支持并发读取"
-                })
+                suggestions.append(
+                    {
+                        "type": "wal_mode",
+                        "priority": "low",
+                        "message": "建议开启WAL模式(PRAGMA journal_mode=WAL)以支持并发读取",
+                    }
+                )
 
             data["suggestions"] = suggestions
 
-            return create_success_response(
-                message="SQLite复制分析完成（SQLite原生不支持复制）",
-                data=data
-            )
+            return create_success_response(message="SQLite复制分析完成（SQLite原生不支持复制）", data=data)
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
-
-

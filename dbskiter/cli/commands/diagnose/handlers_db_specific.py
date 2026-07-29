@@ -7,7 +7,6 @@
 - Oracle 特有: tablespace-fragmentation
 """
 
-
 # 模块元数据：记录每个方法的子命令名
 _ANALYZE_VACUUM = "_analyze_vacuum"
 _ANALYZE_BLOAT = "_analyze_bloat"
@@ -24,18 +23,18 @@ class DiagnoseDbSpecificMixin:
         """VACUUM状态分析（PostgreSQL特有）"""
         result = skill.analyze_vacuum()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"VACUUM分析失败: {self._extract_error_message(result)}")
             return 1
 
-        data = result.get('data', {})
-        tables = data.get('tables_needing_vacuum', [])
-        settings = data.get('autovacuum_settings', {})
-        suggestions = data.get('suggestions', [])
-        actionable_commands = data.get('actionable_commands', [])
-        health_score = data.get('health_score', 0)
-        vacuum_stats = data.get('vacuum_statistics', {})
-        total_wasted = data.get('total_wasted_space', '0 B')
+        data = result.get("data", {})
+        tables = data.get("tables_needing_vacuum", [])
+        settings = data.get("autovacuum_settings", {})
+        suggestions = data.get("suggestions", [])
+        actionable_commands = data.get("actionable_commands", [])
+        health_score = data.get("health_score", 0)
+        vacuum_stats = data.get("vacuum_statistics", {})
+        total_wasted = data.get("total_wasted_space", "0 B")
 
         self.output.info("\n" + "=" * 60)
         self.output.info("PostgreSQL VACUUM状态分析")
@@ -67,22 +66,22 @@ class DiagnoseDbSpecificMixin:
         if tables:
             self.output.info(f"\n[需要关注的表] 共 {len(tables)} 个")
             for i, t in enumerate(tables[:10], 1):
-                schema = t.get('schema') or 'public'
-                table = t.get('table') or 'unknown'
-                priority = t.get('priority', 'low')
-                priority_marker = {'high': '[高]', 'medium': '[中]', 'low': '[低]'}.get(priority, '[低]')
+                schema = t.get("schema") or "public"
+                table = t.get("table") or "unknown"
+                priority = t.get("priority", "low")
+                priority_marker = {"high": "[高]", "medium": "[中]", "low": "[低]"}.get(priority, "[低]")
                 self.output.info(f"\n  [{i}] {priority_marker} {schema}.{table}")
                 self.output.info(f"      表大小: {t.get('total_size', 'N/A')}")
                 self.output.info(f"      活元组: {t.get('live_tuples', 0)}")
                 self.output.info(f"      死元组: {t.get('dead_tuples', 0)}")
                 self.output.info(f"      死元组比例: {t.get('dead_ratio', 0)}%")
-                if t.get('wasted_space_bytes', 0) > 0:
-                    wasted = t.get('wasted_space_bytes', 0)
+                if t.get("wasted_space_bytes", 0) > 0:
+                    wasted = t.get("wasted_space_bytes", 0)
                     wasted_str = f"{wasted / (1024**2):.2f} MB" if wasted >= 1024**2 else f"{wasted / 1024:.2f} KB"
                     self.output.info(f"      预计浪费空间: {wasted_str}")
-                if t.get('last_autovacuum'):
+                if t.get("last_autovacuum"):
                     self.output.info(f"      上次自动清理: {t.get('last_autovacuum')}")
-                if t.get('last_vacuum'):
+                if t.get("last_vacuum"):
                     self.output.info(f"      上次手动清理: {t.get('last_vacuum')}")
         else:
             self.output.info("\n[需要关注的表] 无")
@@ -104,16 +103,16 @@ class DiagnoseDbSpecificMixin:
     def _print_vacuum_deductions(self, tables, vacuum_stats):
         """输出 VACUUM 评分扣分原因"""
         deductions = []
-        high_tables = [t for t in tables if t.get('priority') == 'high']
+        high_tables = [t for t in tables if t.get("priority") == "high"]
         if high_tables:
             deductions.append(f"  - {len(high_tables)} 个表死元组比例严重超标(-15分/个)")
-        medium_tables = [t for t in tables if t.get('priority') == 'medium']
+        medium_tables = [t for t in tables if t.get("priority") == "medium"]
         if medium_tables:
             deductions.append(f"  - {len(medium_tables)} 个表死元组比例偏高(-8分/个)")
-        total_dead = vacuum_stats.get('total_dead_tuples', 0)
+        total_dead = vacuum_stats.get("total_dead_tuples", 0)
         if total_dead > 100000:
             deductions.append(f"  - 死元组总数过多({total_dead}个)(-10分)")
-        dead_ratio = vacuum_stats.get('overall_dead_ratio', 0)
+        dead_ratio = vacuum_stats.get("overall_dead_ratio", 0)
         if dead_ratio > 20:
             deductions.append(f"  - 整体死元组比例过高({dead_ratio}%)(-10分)")
         if deductions:
@@ -127,19 +126,19 @@ class DiagnoseDbSpecificMixin:
         """表膨胀/碎片分析"""
         result = skill.analyze_bloat()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"膨胀分析失败: {self._extract_error_message(result)}")
             return 1
 
-        data = result.get('data', {})
-        tables = data.get('bloated_tables', [])
-        severely_bloated = data.get('severely_bloated_count', 0)
-        has_pgstattuple = data.get('has_pgstattuple', False)
-        suggestions = data.get('suggestions', [])
-        actionable_commands = data.get('actionable_commands', [])
-        health_score = data.get('health_score', 0)
-        total_wasted = data.get('total_wasted_space', '0 B')
-        db_type = data.get('db_type', 'Unknown')
+        data = result.get("data", {})
+        tables = data.get("bloated_tables", [])
+        severely_bloated = data.get("severely_bloated_count", 0)
+        has_pgstattuple = data.get("has_pgstattuple", False)
+        suggestions = data.get("suggestions", [])
+        actionable_commands = data.get("actionable_commands", [])
+        health_score = data.get("health_score", 0)
+        total_wasted = data.get("total_wasted_space", "0 B")
+        db_type = data.get("db_type", "Unknown")
 
         self.output.info("\n" + "=" * 60)
         self.output.info(f"{db_type}表膨胀/碎片分析")
@@ -165,25 +164,25 @@ class DiagnoseDbSpecificMixin:
         if tables:
             self.output.info(f"\n[膨胀表详情] TOP {min(len(tables), 10)}")
             for i, t in enumerate(tables[:10], 1):
-                bloat_ratio = t.get('bloat_ratio', 0) or t.get('estimated_bloat_ratio', 0)
-                schema = t.get('schema') or 'public'
-                table = t.get('table') or 'unknown'
-                priority = t.get('priority', 'low')
-                priority_marker = {'high': '[高]', 'medium': '[中]', 'low': '[低]'}.get(priority, '[低]')
+                bloat_ratio = t.get("bloat_ratio", 0) or t.get("estimated_bloat_ratio", 0)
+                schema = t.get("schema") or "public"
+                table = t.get("table") or "unknown"
+                priority = t.get("priority", "low")
+                priority_marker = {"high": "[高]", "medium": "[中]", "low": "[低]"}.get(priority, "[低]")
                 self.output.info(f"\n  [{i}] {priority_marker} {schema}.{table}")
                 self.output.info(f"      总大小: {t.get('total_size', 'N/A')}")
                 self.output.info(f"      膨胀率: {bloat_ratio:.1f}%")
-                if t.get('wasted_space_bytes', 0) > 0:
-                    wasted = t.get('wasted_space_bytes', 0)
+                if t.get("wasted_space_bytes", 0) > 0:
+                    wasted = t.get("wasted_space_bytes", 0)
                     wasted_str = f"{wasted / (1024**2):.2f} MB" if wasted >= 1024**2 else f"{wasted / 1024:.2f} KB"
                     self.output.info(f"      预计浪费空间: {wasted_str}")
-                if t.get('dead_tuples'):
+                if t.get("dead_tuples"):
                     self.output.info(f"      死元组: {t.get('dead_tuples')}")
         else:
             self.output.info("\n[膨胀表详情] 未发现明显膨胀的表")
 
         # 建议
-        self._print_suggestions(suggestions, extra_keys=('install_sql', 'note'))
+        self._print_suggestions(suggestions, extra_keys=("install_sql", "note"))
 
         # 可执行命令
         if actionable_commands:
@@ -193,7 +192,7 @@ class DiagnoseDbSpecificMixin:
                 self.output.info(f"  表: {cmd.get('table')}")
                 self.output.info(f"  说明: {cmd.get('description')}")
                 self.output.info(f"  命令:")
-                for line in cmd.get('commands', []):
+                for line in cmd.get("commands", []):
                     self.output.info(f"    {line}")
 
         return 0
@@ -203,19 +202,19 @@ class DiagnoseDbSpecificMixin:
         deductions = []
         if severely_bloated > 0:
             deductions.append(f"  - {severely_bloated} 个表严重膨胀(>30%)(-15分/个)")
-        medium_tables = [t for t in tables if t.get('priority') == 'medium']
+        medium_tables = [t for t in tables if t.get("priority") == "medium"]
         if medium_tables:
             deductions.append(f"  - {len(medium_tables)} 个表中度膨胀(10-30%)(-8分/个)")
         wasted_mb = 0
         if isinstance(total_wasted, str):
-            if 'MB' in total_wasted:
+            if "MB" in total_wasted:
                 try:
-                    wasted_mb = float(total_wasted.replace('MB', '').strip())
+                    wasted_mb = float(total_wasted.replace("MB", "").strip())
                 except Exception:
                     pass
-            elif 'GB' in total_wasted:
+            elif "GB" in total_wasted:
                 try:
-                    wasted_mb = float(total_wasted.replace('GB', '').strip()) * 1024
+                    wasted_mb = float(total_wasted.replace("GB", "").strip()) * 1024
                 except Exception:
                     pass
         if wasted_mb > 100:
@@ -231,26 +230,26 @@ class DiagnoseDbSpecificMixin:
         """索引使用分析"""
         result = skill.analyze_index_usage()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"索引使用分析失败: {self._extract_error_message(result)}")
             return 1
 
-        data = result.get('data', {})
-        unused = data.get('unused_indexes', [])
-        hot = data.get('hot_indexes', [])
-        missing = data.get('tables_missing_index', [])
-        duplicate = data.get('duplicate_indexes', [])
-        redundant = data.get('redundant_indexes', [])
-        invalid = data.get('invalid_indexes', [])
-        suggestions = data.get('suggestions', [])
-        actionable_commands = data.get('actionable_commands', [])
-        health_score = data.get('health_score', 0)
-        total_unused_size = data.get('total_unused_index_size', data.get('total_unused_index_size_mb', '0 B'))
-        has_perf_schema = data.get('has_performance_schema')
-        db_type = data.get('db_type', None)
+        data = result.get("data", {})
+        unused = data.get("unused_indexes", [])
+        hot = data.get("hot_indexes", [])
+        missing = data.get("tables_missing_index", [])
+        duplicate = data.get("duplicate_indexes", [])
+        redundant = data.get("redundant_indexes", [])
+        invalid = data.get("invalid_indexes", [])
+        suggestions = data.get("suggestions", [])
+        actionable_commands = data.get("actionable_commands", [])
+        health_score = data.get("health_score", 0)
+        total_unused_size = data.get("total_unused_index_size", data.get("total_unused_index_size_mb", "0 B"))
+        has_perf_schema = data.get("has_performance_schema")
+        db_type = data.get("db_type", None)
         if not db_type:
-            dialect_raw = data.get('dialect', '')
-            db_type = dialect_raw.split('+')[0].title() if dialect_raw else 'Unknown'
+            dialect_raw = data.get("dialect", "")
+            db_type = dialect_raw.split("+")[0].title() if dialect_raw else "Unknown"
 
         self.output.info("\n" + "=" * 60)
         self.output.info(f"{db_type}索引使用分析")
@@ -271,12 +270,12 @@ class DiagnoseDbSpecificMixin:
         if unused:
             self.output.info(f"\n[未使用索引] 共 {len(unused)} 个")
             for i, idx in enumerate(unused[:5], 1):
-                priority = idx.get('priority', 'low')
-                priority_marker = {'high': '[高]', 'medium': '[中]', 'low': '[低]'}.get(priority, '[低]')
+                priority = idx.get("priority", "low")
+                priority_marker = {"high": "[高]", "medium": "[中]", "low": "[低]"}.get(priority, "[低]")
                 self.output.info(f"  [{i}] {priority_marker} {idx.get('table')}.{idx.get('index')}")
                 self.output.info(f"      大小: {idx.get('size', 'N/A')}")
-                if idx.get('size_bytes', 0) > 0:
-                    size_mb = idx.get('size_bytes', 0) / (1024 * 1024)
+                if idx.get("size_bytes", 0) > 0:
+                    size_mb = idx.get("size_bytes", 0) / (1024 * 1024)
                     self.output.info(f"      大小(MB): {size_mb:.2f}")
 
         # 高频使用索引
@@ -292,10 +291,10 @@ class DiagnoseDbSpecificMixin:
         if missing:
             self.output.info(f"\n[可能缺少索引的表] 共 {len(missing)} 个")
             for i, t in enumerate(missing[:5], 1):
-                schema = t.get('schema') or 'public'
-                table = t.get('table') or 'unknown'
-                priority = t.get('priority', 'low')
-                priority_marker = {'high': '[高]', 'medium': '[中]', 'low': '[低]'}.get(priority, '[低]')
+                schema = t.get("schema") or "public"
+                table = t.get("table") or "unknown"
+                priority = t.get("priority", "low")
+                priority_marker = {"high": "[高]", "medium": "[中]", "low": "[低]"}.get(priority, "[低]")
                 self.output.info(f"  [{i}] {priority_marker} {schema}.{table}")
                 self.output.info(f"      全表扫描: {t.get('seq_scans', 0)} 次")
                 self.output.info(f"      索引扫描: {t.get('idx_scans', 0)} 次")
@@ -342,17 +341,17 @@ class DiagnoseDbSpecificMixin:
             for cmd in actionable_commands[:5]:
                 self.output.info(f"\n  优先级: {cmd.get('priority', 'low')}")
                 self.output.info(f"  类型: {cmd.get('type', 'unknown')}")
-                if cmd.get('index'):
+                if cmd.get("index"):
                     self.output.info(f"  索引: {cmd.get('index')}")
-                if cmd.get('table'):
+                if cmd.get("table"):
                     self.output.info(f"  表: {cmd.get('table')}")
-                if cmd.get('tablespace'):
+                if cmd.get("tablespace"):
                     self.output.info(f"  表空间: {cmd.get('tablespace')}")
                 self.output.info(f"  说明: {cmd.get('description')}")
-                if cmd.get('warning'):
+                if cmd.get("warning"):
                     self.output.warning(f"  警告: {cmd.get('warning')}")
                 self.output.info(f"  命令:")
-                for line in cmd.get('commands', []):
+                for line in cmd.get("commands", []):
                     self.output.info(f"    {line}")
 
         return 0
@@ -360,16 +359,16 @@ class DiagnoseDbSpecificMixin:
     def _print_index_usage_deductions(self, unused, missing, redundant, duplicate, invalid):
         """输出 index_usage 评分扣分原因"""
         deductions = []
-        high_unused = [idx for idx in unused if idx.get('priority') == 'high']
+        high_unused = [idx for idx in unused if idx.get("priority") == "high"]
         if high_unused:
             deductions.append(f"  - {len(high_unused)} 个大体积未使用索引(-10分/个)")
-        medium_unused = [idx for idx in unused if idx.get('priority') == 'medium']
+        medium_unused = [idx for idx in unused if idx.get("priority") == "medium"]
         if medium_unused:
             deductions.append(f"  - {len(medium_unused)} 个小体积未使用索引(-5分/个)")
-        high_missing = [t for t in missing if t.get('priority') == 'high']
+        high_missing = [t for t in missing if t.get("priority") == "high"]
         if high_missing:
             deductions.append(f"  - {len(high_missing)} 个表严重缺少索引(-15分/个)")
-        medium_missing = [t for t in missing if t.get('priority') == 'medium']
+        medium_missing = [t for t in missing if t.get("priority") == "medium"]
         if medium_missing:
             deductions.append(f"  - {len(medium_missing)} 个表可能缺少索引(-8分/个)")
         if redundant:
@@ -389,16 +388,16 @@ class DiagnoseDbSpecificMixin:
         """表空间碎片分析（Oracle特有）"""
         result = skill.analyze_tablespace_fragmentation()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"表空间碎片分析失败: {self._extract_error_message(result)}")
             return 1
 
-        data = result.get('data', {})
-        tablespaces = data.get('fragmented_tablespaces', [])
-        suggestions = data.get('suggestions', [])
-        actionable_commands = data.get('actionable_commands', [])
-        health_score = data.get('health_score', 0)
-        total_wasted = data.get('total_wasted_space_mb', 0)
+        data = result.get("data", {})
+        tablespaces = data.get("fragmented_tablespaces", [])
+        suggestions = data.get("suggestions", [])
+        actionable_commands = data.get("actionable_commands", [])
+        health_score = data.get("health_score", 0)
+        total_wasted = data.get("total_wasted_space_mb", 0)
 
         self.output.info("\n" + "=" * 60)
         self.output.info("Oracle表空间碎片分析")
@@ -416,12 +415,14 @@ class DiagnoseDbSpecificMixin:
         if tablespaces:
             self.output.info(f"\n[碎片表空间详情] TOP {min(len(tablespaces), 10)}")
             for i, t in enumerate(tablespaces[:10], 1):
-                tablespace = t.get('tablespace', 'UNKNOWN')
-                priority = t.get('priority', 'low')
-                priority_marker = {'high': '[高]', 'medium': '[中]', 'low': '[低]'}.get(priority, '[低]')
+                tablespace = t.get("tablespace", "UNKNOWN")
+                priority = t.get("priority", "low")
+                priority_marker = {"high": "[高]", "medium": "[中]", "low": "[低]"}.get(priority, "[低]")
                 self.output.info(f"\n  [{i}] {priority_marker} {tablespace}")
                 self.output.info(f"      总大小: {t.get('total_mb', 0):.2f} MB")
-                self.output.info(f"      空闲空间: {t.get('free_space_mb', 0):.2f} MB ({t.get('free_percentage', 0):.1f}%)")
+                self.output.info(
+                    f"      空闲空间: {t.get('free_space_mb', 0):.2f} MB ({t.get('free_percentage', 0):.1f}%)"
+                )
                 self.output.info(f"      碎片数: {t.get('free_extents', 0)} 个")
                 self.output.info(f"      碎片率: {t.get('fragmentation_ratio', 0):.1f}%")
                 self.output.info(f"      平均碎片大小: {t.get('avg_extent_mb', 0):.2f} MB")
@@ -432,17 +433,17 @@ class DiagnoseDbSpecificMixin:
         if suggestions:
             self.output.info("\n[建议]")
             for s in suggestions:
-                msg_type = s.get('type', 'info')
-                msg = s.get('message', '')
-                if msg_type == 'critical':
+                msg_type = s.get("type", "info")
+                msg = s.get("message", "")
+                if msg_type == "critical":
                     self.output.error(f"  [严重] {msg}")
-                elif msg_type == 'warning':
+                elif msg_type == "warning":
                     self.output.warning(f"  [警告] {msg}")
                 else:
                     self.output.info(f"  [提示] {msg}")
-                if s.get('impact'):
+                if s.get("impact"):
                     self.output.info(f"        影响: {s.get('impact')}")
-                if s.get('tablespaces'):
+                if s.get("tablespaces"):
                     self.output.info(f"        表空间: {', '.join(s.get('tablespaces', []))}")
 
         if actionable_commands:
@@ -451,10 +452,10 @@ class DiagnoseDbSpecificMixin:
                 self.output.info(f"\n  优先级: {cmd.get('priority', 'low')}")
                 self.output.info(f"  表空间: {cmd.get('tablespace')}")
                 self.output.info(f"  说明: {cmd.get('description')}")
-                if cmd.get('warning'):
+                if cmd.get("warning"):
                     self.output.warning(f"  警告: {cmd.get('warning')}")
                 self.output.info(f"  命令:")
-                for line in cmd.get('commands', []):
+                for line in cmd.get("commands", []):
                     self.output.info(f"    {line}")
 
         return 0
@@ -462,10 +463,10 @@ class DiagnoseDbSpecificMixin:
     def _print_tablespace_deductions(self, tablespaces, total_wasted):
         """输出 tablespace 评分扣分原因"""
         deductions = []
-        high_ts = [t for t in tablespaces if t.get('priority') == 'high']
+        high_ts = [t for t in tablespaces if t.get("priority") == "high"]
         if high_ts:
             deductions.append(f"  - {len(high_ts)} 个表空间严重碎片(-15分/个)")
-        medium_ts = [t for t in tablespaces if t.get('priority') == 'medium']
+        medium_ts = [t for t in tablespaces if t.get("priority") == "medium"]
         if medium_ts:
             deductions.append(f"  - {len(medium_ts)} 个表空间中度碎片(-8分/个)")
         if total_wasted > 1000:
@@ -497,26 +498,26 @@ class DiagnoseDbSpecificMixin:
             return
         self.output.info("\n[建议]")
         for s in suggestions:
-            msg_type = s.get('type', 'info')
-            msg = s.get('message', '')
-            if msg_type == 'critical':
+            msg_type = s.get("type", "info")
+            msg = s.get("message", "")
+            if msg_type == "critical":
                 self.output.error(f"  [严重] {msg}")
-            elif msg_type == 'warning':
+            elif msg_type == "warning":
                 self.output.warning(f"  [警告] {msg}")
             else:
                 self.output.info(f"  [提示] {msg}")
-            if s.get('impact'):
+            if s.get("impact"):
                 self.output.info(f"        影响: {s.get('impact')}")
-            if s.get('fix_command'):
+            if s.get("fix_command"):
                 self.output.info(f"        修复命令: {s.get('fix_command')}")
-            if s.get('install_sql'):
+            if s.get("install_sql"):
                 self.output.info(f"        安装命令: {s.get('install_sql')}")
-            if s.get('note'):
+            if s.get("note"):
                 self.output.info(f"        说明: {s.get('note')}")
             for key in extra_keys:
                 if s.get(key):
                     label = {
-                        'install_sql': '安装命令',
-                        'note': '说明',
+                        "install_sql": "安装命令",
+                        "note": "说明",
                     }.get(key, key)
                     self.output.info(f"        {label}: {s.get(key)}")

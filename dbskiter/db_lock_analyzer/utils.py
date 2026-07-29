@@ -45,21 +45,21 @@ class LockParser:
 
     # MySQL锁类型映射
     MYSQL_LOCK_TYPES = {
-        'RECORD': LockType.ROW,
-        'TABLE': LockType.TABLE,
-        'METADATA': LockType.METADATA,
-        'GLOBAL': LockType.GLOBAL,
+        "RECORD": LockType.ROW,
+        "TABLE": LockType.TABLE,
+        "METADATA": LockType.METADATA,
+        "GLOBAL": LockType.GLOBAL,
     }
 
     # MySQL锁模式映射
     MYSQL_LOCK_MODES = {
-        'S': LockMode.SHARED,
-        'X': LockMode.EXCLUSIVE,
-        'IS': LockMode.INTENTION_SHARED,
-        'IX': LockMode.INTENTION_EXCLUSIVE,
-        'AUTO_INC': LockMode.AUTO_INC,
-        'GAP': LockMode.GAP,
-        'NEXT KEY': LockMode.NEXT_KEY,
+        "S": LockMode.SHARED,
+        "X": LockMode.EXCLUSIVE,
+        "IS": LockMode.INTENTION_SHARED,
+        "IX": LockMode.INTENTION_EXCLUSIVE,
+        "AUTO_INC": LockMode.AUTO_INC,
+        "GAP": LockMode.GAP,
+        "NEXT KEY": LockMode.NEXT_KEY,
     }
 
     @staticmethod
@@ -78,13 +78,13 @@ class LockParser:
 
         lock_type_upper = lock_type_str.upper()
 
-        if 'RECORD' in lock_type_upper:
+        if "RECORD" in lock_type_upper:
             return LockType.ROW
-        elif 'TABLE' in lock_type_upper:
+        elif "TABLE" in lock_type_upper:
             return LockType.TABLE
-        elif 'METADATA' in lock_type_upper or 'MDL' in lock_type_upper:
+        elif "METADATA" in lock_type_upper or "MDL" in lock_type_upper:
             return LockType.METADATA
-        elif 'GLOBAL' in lock_type_upper:
+        elif "GLOBAL" in lock_type_upper:
             return LockType.GLOBAL
         else:
             return LockType.ROW
@@ -110,17 +110,17 @@ class LockParser:
             return LockParser.MYSQL_LOCK_MODES[lock_mode_upper]
 
         # 模糊匹配
-        if 'X' in lock_mode_upper and 'IX' not in lock_mode_upper:
+        if "X" in lock_mode_upper and "IX" not in lock_mode_upper:
             return LockMode.EXCLUSIVE
-        elif 'IS' in lock_mode_upper:
+        elif "IS" in lock_mode_upper:
             return LockMode.INTENTION_SHARED
-        elif 'IX' in lock_mode_upper:
+        elif "IX" in lock_mode_upper:
             return LockMode.INTENTION_EXCLUSIVE
-        elif 'AUTO_INC' in lock_mode_upper:
+        elif "AUTO_INC" in lock_mode_upper:
             return LockMode.AUTO_INC
-        elif 'GAP' in lock_mode_upper:
+        elif "GAP" in lock_mode_upper:
             return LockMode.GAP
-        elif 'NEXT' in lock_mode_upper:
+        elif "NEXT" in lock_mode_upper:
             return LockMode.NEXT_KEY
         else:
             return LockMode.SHARED
@@ -141,11 +141,11 @@ class LockParser:
 
         lock_type_lower = lock_type_str.lower()
 
-        if 'relation' in lock_type_lower:
+        if "relation" in lock_type_lower:
             return LockType.TABLE
-        elif 'tuple' in lock_type_lower or 'row' in lock_type_lower:
+        elif "tuple" in lock_type_lower or "row" in lock_type_lower:
             return LockType.ROW
-        elif 'page' in lock_type_lower:
+        elif "page" in lock_type_lower:
             return LockType.PAGE
         else:
             return LockType.ROW
@@ -166,13 +166,13 @@ class LockParser:
 
         lock_mode_lower = lock_mode_str.lower()
 
-        if 'exclusive' in lock_mode_lower:
+        if "exclusive" in lock_mode_lower:
             return LockMode.EXCLUSIVE
-        elif 'share' in lock_mode_lower:
+        elif "share" in lock_mode_lower:
             return LockMode.SHARED
-        elif 'access share' in lock_mode_lower:
+        elif "access share" in lock_mode_lower:
             return LockMode.INTENTION_SHARED
-        elif 'access exclusive' in lock_mode_lower:
+        elif "access exclusive" in lock_mode_lower:
             return LockMode.INTENTION_EXCLUSIVE
         else:
             return LockMode.SHARED
@@ -193,9 +193,9 @@ class LockParser:
 
         lock_type_upper = lock_type_str.upper()
 
-        if 'TM' in lock_type_upper:
+        if "TM" in lock_type_upper:
             return LockType.TABLE
-        elif 'TX' in lock_type_upper:
+        elif "TX" in lock_type_upper:
             return LockType.ROW
         else:
             return LockType.ROW
@@ -227,16 +227,16 @@ class LockParser:
 
         # Oracle锁模式精确映射
         oracle_mode_map = {
-            '0': (LockMode.SHARED, 'None'),
-            '1': (LockMode.SHARED, 'Null'),
-            '2': (LockMode.INTENTION_SHARED, 'Row Share'),
-            '3': (LockMode.EXCLUSIVE, 'Row Exclusive'),
-            '4': (LockMode.SHARED, 'Share'),
-            '5': (LockMode.INTENTION_EXCLUSIVE, 'Share Row Exclusive'),
-            '6': (LockMode.EXCLUSIVE, 'Exclusive'),
+            "0": (LockMode.SHARED, "None"),
+            "1": (LockMode.SHARED, "Null"),
+            "2": (LockMode.INTENTION_SHARED, "Row Share"),
+            "3": (LockMode.EXCLUSIVE, "Row Exclusive"),
+            "4": (LockMode.SHARED, "Share"),
+            "5": (LockMode.INTENTION_EXCLUSIVE, "Share Row Exclusive"),
+            "6": (LockMode.EXCLUSIVE, "Exclusive"),
         }
 
-        result = oracle_mode_map.get(mode_str, (LockMode.SHARED, 'Unknown'))
+        result = oracle_mode_map.get(mode_str, (LockMode.SHARED, "Unknown"))
         return result[0]
 
     @staticmethod
@@ -266,17 +266,17 @@ class LockParser:
 
         lock_type_upper = lock_type_str.upper()
 
-        if lock_type_upper == 'DATABASE':
+        if lock_type_upper == "DATABASE":
             return LockType.GLOBAL
-        elif lock_type_upper == 'OBJECT':
+        elif lock_type_upper == "OBJECT":
             return LockType.TABLE
-        elif lock_type_upper == 'PAGE':
+        elif lock_type_upper == "PAGE":
             return LockType.PAGE
-        elif lock_type_upper in ('KEY', 'RID'):
+        elif lock_type_upper in ("KEY", "RID"):
             return LockType.ROW
-        elif lock_type_upper == 'METADATA':
+        elif lock_type_upper == "METADATA":
             return LockType.METADATA
-        elif lock_type_upper == 'APPLICATION':
+        elif lock_type_upper == "APPLICATION":
             return LockType.APPLICATION
         else:
             return LockType.ROW
@@ -310,34 +310,34 @@ class LockParser:
 
         # 精确匹配
         mssql_mode_map = {
-            'S': LockMode.SHARED,
-            'X': LockMode.EXCLUSIVE,
-            'IS': LockMode.INTENTION_SHARED,
-            'IX': LockMode.INTENTION_EXCLUSIVE,
-            'SIX': LockMode.INTENTION_EXCLUSIVE,
-            'U': LockMode.UPDATE,
-            'BU': LockMode.BULK_UPDATE,
-            'SCH-S': LockMode.SCHEMA_STABILITY,
-            'SCH-M': LockMode.SCHEMA_MODIFICATION,
+            "S": LockMode.SHARED,
+            "X": LockMode.EXCLUSIVE,
+            "IS": LockMode.INTENTION_SHARED,
+            "IX": LockMode.INTENTION_EXCLUSIVE,
+            "SIX": LockMode.INTENTION_EXCLUSIVE,
+            "U": LockMode.UPDATE,
+            "BU": LockMode.BULK_UPDATE,
+            "SCH-S": LockMode.SCHEMA_STABILITY,
+            "SCH-M": LockMode.SCHEMA_MODIFICATION,
         }
 
         if lock_mode_upper in mssql_mode_map:
             return mssql_mode_map[lock_mode_upper]
 
         # 模糊匹配
-        if 'X' in lock_mode_upper and 'IX' not in lock_mode_upper and 'SIX' not in lock_mode_upper:
+        if "X" in lock_mode_upper and "IX" not in lock_mode_upper and "SIX" not in lock_mode_upper:
             return LockMode.EXCLUSIVE
-        elif 'IX' in lock_mode_upper:
+        elif "IX" in lock_mode_upper:
             return LockMode.INTENTION_EXCLUSIVE
-        elif 'IS' in lock_mode_upper:
+        elif "IS" in lock_mode_upper:
             return LockMode.INTENTION_SHARED
-        elif 'U' in lock_mode_upper:
+        elif "U" in lock_mode_upper:
             return LockMode.UPDATE
-        elif 'SCH-M' in lock_mode_upper:
+        elif "SCH-M" in lock_mode_upper:
             return LockMode.SCHEMA_MODIFICATION
-        elif 'SCH-S' in lock_mode_upper:
+        elif "SCH-S" in lock_mode_upper:
             return LockMode.SCHEMA_STABILITY
-        elif 'S' in lock_mode_upper:
+        elif "S" in lock_mode_upper:
             return LockMode.SHARED
         else:
             return LockMode.SHARED
@@ -380,14 +380,11 @@ class DeadlockDetector:
             deadlock_id=f"DL-{datetime.now().strftime('%Y%m%d%H%M%S')}",
             detected_at=datetime.now(),
             transactions=[
-                {
-                    "transaction_id": tx_id,
-                    "query": DeadlockDetector._get_transaction_query(locks, tx_id)
-                }
+                {"transaction_id": tx_id, "query": DeadlockDetector._get_transaction_query(locks, tx_id)}
                 for tx_id in cycle
             ],
             victim_transaction=victim,
-            resolution=f"建议终止事务 {victim} 以解除死锁"
+            resolution=f"建议终止事务 {victim} 以解除死锁",
         )
 
     @staticmethod
@@ -416,8 +413,8 @@ class DeadlockDetector:
 
         for resource, res_locks in resource_locks.items():
             # 找出已授予的锁和等待的锁
-            granted = [l for l in res_locks if l.lock_status == 'GRANTED']
-            waiting = [l for l in res_locks if l.lock_status == 'WAITING']
+            granted = [l for l in res_locks if l.lock_status == "GRANTED"]
+            waiting = [l for l in res_locks if l.lock_status == "WAITING"]
 
             # 等待的锁等待已授予的锁
             for wait_lock in waiting:
@@ -530,7 +527,7 @@ class LockChainBuilder:
             List[LockWaitChain]: 锁等待链列表
         """
         # 只处理等待中的锁
-        waiting_locks = [l for l in locks if l.lock_status == 'WAITING']
+        waiting_locks = [l for l in locks if l.lock_status == "WAITING"]
 
         if not waiting_locks:
             return []
@@ -575,22 +572,19 @@ class LockChainBuilder:
         wait_relations: Dict[str, Dict[str, Any]] = {}
 
         for resource, res_locks in resource_locks.items():
-            granted = [l for l in res_locks if l.lock_status == 'GRANTED']
-            waiting = [l for l in res_locks if l.lock_status == 'WAITING']
+            granted = [l for l in res_locks if l.lock_status == "GRANTED"]
+            waiting = [l for l in res_locks if l.lock_status == "WAITING"]
 
             for wait_lock in waiting:
                 # 找出阻塞该等待锁的事务
-                blockers = [
-                    g.transaction_id for g in granted
-                    if g.transaction_id != wait_lock.transaction_id
-                ]
+                blockers = [g.transaction_id for g in granted if g.transaction_id != wait_lock.transaction_id]
 
                 if blockers:
                     wait_relations[wait_lock.transaction_id] = {
                         "waiting_for": blockers[0],  # 主要阻塞者
                         "all_blockers": blockers,
                         "wait_time": wait_lock.wait_time or 0,
-                        "resource": resource
+                        "resource": resource,
                     }
 
         return wait_relations
@@ -622,9 +616,7 @@ class LockChainBuilder:
 
     @staticmethod
     def _build_chain_from_root(
-        root: str,
-        wait_relations: Dict[str, Dict[str, Any]],
-        locks: List[LockInfo]
+        root: str, wait_relations: Dict[str, Dict[str, Any]], locks: List[LockInfo]
     ) -> Optional[LockWaitChain]:
         """
         从根节点构建链
@@ -644,14 +636,16 @@ class LockChainBuilder:
         # 根节点
         root_lock = LockChainBuilder._find_lock_by_tx(locks, root)
         if root_lock:
-            chain_nodes.append(LockWaitNode(
-                transaction_id=root,
-                connection_id=root_lock.connection_id or 0,
-                query_sql=root_lock.query_sql,
-                wait_time=0,
-                waiting_for=None,
-                blocking=[]
-            ))
+            chain_nodes.append(
+                LockWaitNode(
+                    transaction_id=root,
+                    connection_id=root_lock.connection_id or 0,
+                    query_sql=root_lock.query_sql,
+                    wait_time=0,
+                    waiting_for=None,
+                    blocking=[],
+                )
+            )
 
         # 构建下游节点
         current_level = [root]
@@ -663,8 +657,7 @@ class LockChainBuilder:
             for tx_id in current_level:
                 # 找出等待该事务的所有事务
                 waiting_txs = [
-                    (k, v) for k, v in wait_relations.items()
-                    if v["waiting_for"] == tx_id and k not in visited
+                    (k, v) for k, v in wait_relations.items() if v["waiting_for"] == tx_id and k not in visited
                 ]
 
                 for waiting_tx, relation in waiting_txs:
@@ -674,14 +667,16 @@ class LockChainBuilder:
 
                     lock = LockChainBuilder._find_lock_by_tx(locks, waiting_tx)
 
-                    chain_nodes.append(LockWaitNode(
-                        transaction_id=waiting_tx,
-                        connection_id=lock.connection_id if lock else 0,
-                        query_sql=lock.query_sql if lock else None,
-                        wait_time=wait_time,
-                        waiting_for=tx_id,
-                        blocking=[]
-                    ))
+                    chain_nodes.append(
+                        LockWaitNode(
+                            transaction_id=waiting_tx,
+                            connection_id=lock.connection_id if lock else 0,
+                            query_sql=lock.query_sql if lock else None,
+                            wait_time=wait_time,
+                            waiting_for=tx_id,
+                            blocking=[],
+                        )
+                    )
 
                     next_level.append(waiting_tx)
 
@@ -695,7 +690,7 @@ class LockChainBuilder:
             root_transaction=root,
             nodes=chain_nodes,
             total_wait_time=total_wait_time,
-            depth=len(chain_nodes)
+            depth=len(chain_nodes),
         )
 
     @staticmethod
@@ -741,8 +736,8 @@ class LockStatisticsCalculator:
             LockStatistics: 锁统计信息
         """
         total_locks = len(locks)
-        waiting_locks = sum(1 for l in locks if l.lock_status == 'WAITING')
-        granted_locks = sum(1 for l in locks if l.lock_status == 'GRANTED')
+        waiting_locks = sum(1 for l in locks if l.lock_status == "WAITING")
+        granted_locks = sum(1 for l in locks if l.lock_status == "GRANTED")
 
         # 按类型统计
         row_locks = sum(1 for l in locks if l.lock_type == LockType.ROW)
@@ -764,7 +759,7 @@ class LockStatisticsCalculator:
             metadata_locks=metadata_locks,
             max_wait_time=max_wait_time,
             avg_wait_time=round(avg_wait_time, 2),
-            deadlock_count=0  # 需要单独检测
+            deadlock_count=0,  # 需要单独检测
         )
 
     @staticmethod
@@ -796,18 +791,14 @@ class LockStatisticsCalculator:
                 table_distribution[table_key] += 1
 
         # 热点表（锁最多的表）
-        hot_tables = sorted(
-            table_distribution.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )[:5]
+        hot_tables = sorted(table_distribution.items(), key=lambda x: x[1], reverse=True)[:5]
 
         return {
             "type_distribution": dict(type_distribution),
             "mode_distribution": dict(mode_distribution),
             "table_distribution": dict(table_distribution),
             "hot_tables": [{"table": t[0], "lock_count": t[1]} for t in hot_tables],
-            "total_tables": len(table_distribution)
+            "total_tables": len(table_distribution),
         }
 
 
@@ -825,7 +816,7 @@ class LockReporter:
         locks: List[LockInfo],
         statistics: LockStatistics,
         deadlocks: Optional[List[DeadlockInfo]] = None,
-        wait_chains: Optional[List[LockWaitChain]] = None
+        wait_chains: Optional[List[LockWaitChain]] = None,
     ) -> str:
         """
         生成锁分析报告
@@ -860,11 +851,7 @@ class LockReporter:
 
         # 死锁信息
         if deadlocks:
-            lines.extend([
-                "",
-                f"发现死锁: {len(deadlocks)}个",
-                "-" * 40
-            ])
+            lines.extend(["", f"发现死锁: {len(deadlocks)}个", "-" * 40])
             for dl in deadlocks:
                 lines.append(f"  死锁ID: {dl.deadlock_id}")
                 lines.append(f"  涉及事务: {', '.join(t['transaction_id'] for t in dl.transactions)}")
@@ -874,11 +861,7 @@ class LockReporter:
 
         # 锁等待链
         if wait_chains:
-            lines.extend([
-                "",
-                f"锁等待链: {len(wait_chains)}条",
-                "-" * 40
-            ])
+            lines.extend(["", f"锁等待链: {len(wait_chains)}条", "-" * 40])
             for chain in wait_chains:
                 lines.append(f"  链ID: {chain.chain_id}")
                 lines.append(f"  根事务: {chain.root_transaction}")
@@ -901,7 +884,7 @@ class LockReporter:
         返回:
             str: 摘要文本
         """
-        waiting = [l for l in locks if l.lock_status == 'WAITING']
+        waiting = [l for l in locks if l.lock_status == "WAITING"]
 
         if not waiting:
             return "当前没有等待中的锁"
@@ -910,7 +893,9 @@ class LockReporter:
 
         for lock in waiting[:10]:  # 只显示前10个
             lines.append(f"  事务: {lock.transaction_id}")
-            lines.append(f"  表: {lock.table_schema}.{lock.table_name}" if lock.table_schema else f"  表: {lock.table_name}")
+            lines.append(
+                f"  表: {lock.table_schema}.{lock.table_name}" if lock.table_schema else f"  表: {lock.table_name}"
+            )
             lines.append(f"  类型: {lock.lock_type.value}/{lock.lock_mode.value}")
             lines.append(f"  等待时间: {lock.wait_time or 0:.2f}秒")
             if lock.query_sql:

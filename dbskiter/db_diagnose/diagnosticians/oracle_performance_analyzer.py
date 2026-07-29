@@ -24,7 +24,7 @@ from ..core.performance_model import (
     PerformanceMetric,
     SlowQueryInfo,
     MetricCategory,
-    get_threshold
+    get_threshold,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,10 +60,7 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
         """检测数据库能力"""
         try:
             # 检测版本
-            result = self._execute_with_timeout(
-                "SELECT * FROM v$version WHERE banner LIKE 'Oracle%'",
-                timeout=5
-            )
+            result = self._execute_with_timeout("SELECT * FROM v$version WHERE banner LIKE 'Oracle%'", timeout=5)
             if result:
                 version_str = str(result[0][0])
                 self._version = version_str
@@ -72,8 +69,7 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
             # 检测AWR可用性（需要Diagnostic Pack许可）
             try:
                 result = self._execute_with_timeout(
-                    "SELECT COUNT(*) FROM dba_hist_snapshot WHERE rownum = 1",
-                    timeout=5
+                    "SELECT COUNT(*) FROM dba_hist_snapshot WHERE rownum = 1", timeout=5
                 )
                 self._has_awr = result is not None
                 logger.info(f"AWR可用: {self._has_awr}")
@@ -84,8 +80,7 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
             # 检测ASH可用性
             try:
                 result = self._execute_with_timeout(
-                    "SELECT COUNT(*) FROM v$active_session_history WHERE rownum = 1",
-                    timeout=5
+                    "SELECT COUNT(*) FROM v$active_session_history WHERE rownum = 1", timeout=5
                 )
                 self._has_ash = result is not None
                 logger.info(f"ASH可用: {self._has_ash}")
@@ -94,10 +89,7 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
 
             # 检测是否为RAC
             try:
-                result = self._execute_with_timeout(
-                    "SELECT COUNT(*) FROM gv$instance",
-                    timeout=5
-                )
+                result = self._execute_with_timeout("SELECT COUNT(*) FROM gv$instance", timeout=5)
                 self._is_rac = result and result[0][0] > 1
                 logger.info(f"RAC环境: {self._is_rac}")
             except Exception:
@@ -143,25 +135,29 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
                     stat_name = row[0]
                     value = row[1]
 
-                    if stat_name == 'DB time':
+                    if stat_name == "DB time":
                         threshold = get_threshold("cpu_time_ratio")
-                        metrics.append(PerformanceMetric(
-                            name="db_time_sec",
-                            value=value,
-                            unit="sec",
-                            category=MetricCategory.CPU,
-                            threshold_warning=threshold.get("warning"),
-                            threshold_critical=threshold.get("critical"),
-                            source="v$sys_time_model"
-                        ))
-                    elif stat_name == 'DB CPU':
-                        metrics.append(PerformanceMetric(
-                            name="db_cpu_sec",
-                            value=value,
-                            unit="sec",
-                            category=MetricCategory.CPU,
-                            source="v$sys_time_model"
-                        ))
+                        metrics.append(
+                            PerformanceMetric(
+                                name="db_time_sec",
+                                value=value,
+                                unit="sec",
+                                category=MetricCategory.CPU,
+                                threshold_warning=threshold.get("warning"),
+                                threshold_critical=threshold.get("critical"),
+                                source="v$sys_time_model",
+                            )
+                        )
+                    elif stat_name == "DB CPU":
+                        metrics.append(
+                            PerformanceMetric(
+                                name="db_cpu_sec",
+                                value=value,
+                                unit="sec",
+                                category=MetricCategory.CPU,
+                                source="v$sys_time_model",
+                            )
+                        )
 
         except Exception as e:
             logger.warning(f"CPU指标采集失败: {e}")
@@ -188,16 +184,18 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
             if result and result[0][0] is not None:
                 hit_ratio = result[0][0]
                 threshold = get_threshold("buffer_hit_ratio")
-                metrics.append(PerformanceMetric(
-                    name="buffer_cache_hit_ratio",
-                    value=hit_ratio,
-                    unit="%",
-                    category=MetricCategory.IO,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    higher_is_better=True,  # 命中率越高越好
-                    source="v$buffer_pool_statistics"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="buffer_cache_hit_ratio",
+                        value=hit_ratio,
+                        unit="%",
+                        category=MetricCategory.IO,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        higher_is_better=True,  # 命中率越高越好
+                        source="v$buffer_pool_statistics",
+                    )
+                )
 
             # 获取物理IO统计
             result = self._execute_with_timeout("""
@@ -212,21 +210,25 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
                 physical_reads = result[0][0] or 0
                 physical_writes = result[0][1] or 0
 
-                metrics.append(PerformanceMetric(
-                    name="physical_reads",
-                    value=physical_reads,
-                    unit="count",
-                    category=MetricCategory.IO,
-                    source="v$sysstat"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="physical_reads",
+                        value=physical_reads,
+                        unit="count",
+                        category=MetricCategory.IO,
+                        source="v$sysstat",
+                    )
+                )
 
-                metrics.append(PerformanceMetric(
-                    name="physical_writes",
-                    value=physical_writes,
-                    unit="count",
-                    category=MetricCategory.IO,
-                    source="v$sysstat"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="physical_writes",
+                        value=physical_writes,
+                        unit="count",
+                        category=MetricCategory.IO,
+                        source="v$sysstat",
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"IO指标采集失败: {e}")
@@ -253,15 +255,17 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
 
             if result and result[0][0] is not None:
                 sga_usage = result[0][0]
-                metrics.append(PerformanceMetric(
-                    name="sga_usage",
-                    value=sga_usage,
-                    unit="%",
-                    category=MetricCategory.MEMORY,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="v$sga/v$sgastat"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="sga_usage",
+                        value=sga_usage,
+                        unit="%",
+                        category=MetricCategory.MEMORY,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="v$sga/v$sgastat",
+                    )
+                )
 
             # 获取PGA使用率
             result = self._execute_with_timeout("""
@@ -276,15 +280,17 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
 
             if result and result[0][0] is not None:
                 pga_usage = result[0][0]
-                metrics.append(PerformanceMetric(
-                    name="pga_usage",
-                    value=pga_usage,
-                    unit="%",
-                    category=MetricCategory.MEMORY,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="v$process/v$pgastat"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="pga_usage",
+                        value=pga_usage,
+                        unit="%",
+                        category=MetricCategory.MEMORY,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="v$process/v$pgastat",
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"内存指标采集失败: {e}")
@@ -318,23 +324,27 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
                 usage_ratio = (total / max_sessions) * 100 if max_sessions > 0 else 0
 
                 threshold = get_threshold("connection_usage")
-                metrics.append(PerformanceMetric(
-                    name="session_usage",
-                    value=usage_ratio,
-                    unit="%",
-                    category=MetricCategory.CONCURRENCY,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="v$session"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="session_usage",
+                        value=usage_ratio,
+                        unit="%",
+                        category=MetricCategory.CONCURRENCY,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="v$session",
+                    )
+                )
 
-                metrics.append(PerformanceMetric(
-                    name="active_session_ratio",
-                    value=(active / total * 100) if total > 0 else 0,
-                    unit="%",
-                    category=MetricCategory.CONCURRENCY,
-                    source="v$session"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="active_session_ratio",
+                        value=(active / total * 100) if total > 0 else 0,
+                        unit="%",
+                        category=MetricCategory.CONCURRENCY,
+                        source="v$session",
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"并发指标采集失败: {e}")
@@ -368,15 +378,17 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
                 wait_ratio = (lock_waits / total_trx) * 100 if total_trx > 0 else 0
 
                 threshold = get_threshold("lock_wait_ratio")
-                metrics.append(PerformanceMetric(
-                    name="lock_wait_ratio",
-                    value=wait_ratio,
-                    unit="%",
-                    category=MetricCategory.LOCK,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="v$lock"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="lock_wait_ratio",
+                        value=wait_ratio,
+                        unit="%",
+                        category=MetricCategory.LOCK,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="v$lock",
+                    )
+                )
 
             # 获取死锁统计
             result = self._execute_with_timeout("""
@@ -385,21 +397,22 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
 
             if result:
                 deadlock_count = result[0][0] or 0
-                metrics.append(PerformanceMetric(
-                    name="deadlock_count",
-                    value=deadlock_count,
-                    unit="count",
-                    category=MetricCategory.LOCK,
-                    source="v$sysstat"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="deadlock_count",
+                        value=deadlock_count,
+                        unit="count",
+                        category=MetricCategory.LOCK,
+                        source="v$sysstat",
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"锁指标采集失败: {e}")
 
         return metrics
 
-    def collect_slow_queries(self, limit: int = 20,
-                            min_time_ms: float = 1000) -> List[SlowQueryInfo]:
+    def collect_slow_queries(self, limit: int = 20, min_time_ms: float = 1000) -> List[SlowQueryInfo]:
         """
         采集Oracle慢查询
 
@@ -453,14 +466,16 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
 
                     if result:
                         for row in result:
-                            queries.append(SlowQueryInfo(
-                                sql_text=row[1],
-                                sql_id=row[0],
-                                execution_count=row[2],
-                                total_time_ms=row[3] * 1000,
-                                avg_time_ms=row[4] * 1000,
-                                rows_examined=row[7]
-                            ))
+                            queries.append(
+                                SlowQueryInfo(
+                                    sql_text=row[1],
+                                    sql_id=row[0],
+                                    execution_count=row[2],
+                                    total_time_ms=row[3] * 1000,
+                                    avg_time_ms=row[4] * 1000,
+                                    rows_examined=row[7],
+                                )
+                            )
                 except Exception as e:
                     logger.warning(f"AWR慢查询采集失败，降级到v$sql: {e}")
 
@@ -496,14 +511,16 @@ class OraclePerformanceAnalyzer(PerformanceAnalyzer):
 
                 if result:
                     for row in result:
-                        queries.append(SlowQueryInfo(
-                            sql_text=row[1],
-                            sql_id=row[0],
-                            execution_count=row[2],
-                            total_time_ms=row[3] * 1000,
-                            avg_time_ms=(row[3] * 1000 / row[2]) if row[2] > 0 else 0,
-                            rows_examined=row[6]
-                        ))
+                        queries.append(
+                            SlowQueryInfo(
+                                sql_text=row[1],
+                                sql_id=row[0],
+                                execution_count=row[2],
+                                total_time_ms=row[3] * 1000,
+                                avg_time_ms=(row[3] * 1000 / row[2]) if row[2] > 0 else 0,
+                                rows_examined=row[6],
+                            )
+                        )
 
         except Exception as e:
             logger.error(f"慢查询采集失败: {e}")

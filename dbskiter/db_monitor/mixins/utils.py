@@ -5,14 +5,22 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Callable, Set
 from datetime import datetime
 
 from dbskiter.db_monitor.models import (
-    MetricType, MetricPoint, AnomalyAlert, MonitorConfig,
-    HealthAssessment, CapacityPrediction, HealthStatus,
-    AnomalyType, Severity, ErrorCode,
+    MetricType,
+    MetricPoint,
+    AnomalyAlert,
+    MonitorConfig,
+    HealthAssessment,
+    CapacityPrediction,
+    HealthStatus,
+    AnomalyType,
+    Severity,
+    ErrorCode,
 )
 from dbskiter.shared.error_handler import create_success_response, create_error_response
 from dbskiter.shared.validators import validate_params, Validator
@@ -21,6 +29,7 @@ from dbskiter.shared.validators import validate_params, Validator
 try:
     from dbskiter.shared.prometheus_client import PrometheusClient, RDSMetrics
     from dbskiter.shared.zabbix_client import ZabbixClient, ZabbixMySQLMetrics
+
     _EXTERNAL_MONITORING_OK = True
 except ImportError:
     _EXTERNAL_MONITORING_OK = False
@@ -34,6 +43,7 @@ class MonitorUtilsMixin:
     def _get_instance_name(self) -> Optional[str]:
         """获取 Prometheus 实例名"""
         import os
+
         # 优先从环境变量获取
         instance = os.getenv("PROMETHEUS_INSTANCE_NAME")
         if instance:
@@ -41,11 +51,10 @@ class MonitorUtilsMixin:
         # 尝试从数据库连接信息推断
         if self.connector:
             # 使用主机名或IP作为实例名
-            host = getattr(self.connector, 'host', None)
+            host = getattr(self.connector, "host", None)
             if host:
                 return f"rds-{host.replace('.', '-')}"
         return None
-
 
     def _get_host_name(self) -> Optional[str]:
         """
@@ -71,19 +80,18 @@ class MonitorUtilsMixin:
         # 3. 尝试从数据库连接信息推断
         if self.connector:
             # 获取数据库名（如 z18）
-            db_name = getattr(self.connector, 'database', None)
+            db_name = getattr(self.connector, "database", None)
             if db_name:
                 # Z系列数据库直接使用 Z 名称
                 # 例如：z18 -> Z18（数据库服务器 Z18-160）
-                if db_name.lower().startswith('z'):
+                if db_name.lower().startswith("z"):
                     return db_name.upper()
                 return db_name
             # 回退到使用主机名
-            host = getattr(self.connector, 'host', None)
+            host = getattr(self.connector, "host", None)
             if host:
                 return host
         return None
-
 
     def _find_first_valid_host(self, host_names: List[str]) -> Optional[str]:
         """
@@ -104,12 +112,12 @@ class MonitorUtilsMixin:
         try:
             # 获取所有主机
             all_hosts = self.zabbix_client.get_hosts()
-            host_name_set = {h['host'] for h in all_hosts}
+            host_name_set = {h["host"] for h in all_hosts}
 
             # 找到第一个存在的主机（支持前缀匹配）
             for pattern in host_names:
                 # 如果是前缀（以 - 或 _ 结尾），进行前缀匹配
-                if pattern.endswith('-') or pattern.endswith('_'):
+                if pattern.endswith("-") or pattern.endswith("_"):
                     for host_name in host_name_set:
                         if host_name.startswith(pattern):
                             logger.info(f"找到有效主机: {host_name} (匹配前缀 {pattern})")
@@ -129,7 +137,6 @@ class MonitorUtilsMixin:
     # ==================== 健康评估 ====================
 
     @validate_params()
-
     def _init_external_monitoring(self):
         """初始化外部监控系统客户端"""
         import os
@@ -158,4 +165,3 @@ class MonitorUtilsMixin:
                     self.zabbix_client = None
             except Exception as e:
                 logger.warning(f"Zabbix 客户端初始化失败: {e}")
-

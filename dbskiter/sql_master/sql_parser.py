@@ -31,10 +31,9 @@ logger = logging.getLogger(__name__)
 # sqlparse AST 解析（可选依赖，不可用时自动降级为正则）
 try:
     import sqlparse
-    from sqlparse.sql import (
-        Identifier, IdentifierList, Function, Where, Comparison, Parenthesis
-    )
+    from sqlparse.sql import Identifier, IdentifierList, Function, Where, Comparison, Parenthesis
     from sqlparse.tokens import Keyword, DML, DDL, CTE, Punctuation, Whitespace, Name
+
     HAS_SQLPARSE = True
 except ImportError:
     HAS_SQLPARSE = False
@@ -43,6 +42,7 @@ except ImportError:
 
 class SQLType(Enum):
     """SQL类型枚举"""
+
     SELECT = "SELECT"
     INSERT = "INSERT"
     UPDATE = "UPDATE"
@@ -63,6 +63,7 @@ class SQLType(Enum):
 
 class SQLDialect(Enum):
     """SQL方言枚举"""
+
     MYSQL = "mysql"
     POSTGRESQL = "postgresql"
     ORACLE = "oracle"
@@ -89,6 +90,7 @@ class ParsedSQL:
         has_for_update: 是否有FOR UPDATE子句
         has_into_outfile: 是否有INTO OUTFILE/DUMPFILE子句
     """
+
     original_sql: str
     sql_type: SQLType
     tables: List[str] = field(default_factory=list)
@@ -116,6 +118,7 @@ class ParsedSQL:
 # ---------------------------------------------------------------------------
 # AST helper functions (sqlparse)
 # ---------------------------------------------------------------------------
+
 
 def _ast_get_full_name(ident: Identifier) -> str:
     """从 Identifier 获取完整名称（含 schema 前缀），不包含别名"""
@@ -179,9 +182,18 @@ def _ast_has_join(stmt) -> bool:
             val = str(token.value).upper().strip()
             if val.endswith("JOIN"):
                 return True
-            if val in ("INNER", "LEFT", "RIGHT", "FULL", "CROSS",
-                       "OUTER", "LEFT OUTER", "RIGHT OUTER", "FULL OUTER",
-                       "NATURAL"):
+            if val in (
+                "INNER",
+                "LEFT",
+                "RIGHT",
+                "FULL",
+                "CROSS",
+                "OUTER",
+                "LEFT OUTER",
+                "RIGHT OUTER",
+                "FULL OUTER",
+                "NATURAL",
+            ):
                 # 前面可能还有 LEFT/RIGHT 等
                 pass
         if hasattr(token, "tokens"):
@@ -217,8 +229,7 @@ def _ast_extract_cte_names(stmt) -> List[str]:
             continue
         if cte_found:
             # CTE 定义结束于 DML 关键字（SELECT/INSERT/UPDATE/DELETE）
-            if tt is DML or (tt is Keyword and str(token.value).upper()
-                             in ("SELECT", "INSERT", "UPDATE", "DELETE")):
+            if tt is DML or (tt is Keyword and str(token.value).upper() in ("SELECT", "INSERT", "UPDATE", "DELETE")):
                 break
             if isinstance(token, IdentifierList):
                 for ident in token.get_identifiers():
@@ -231,11 +242,23 @@ def _ast_extract_cte_names(stmt) -> List[str]:
 # ---------------------------------------------------------------------------
 # Aliases for backward compatibility
 # ---------------------------------------------------------------------------
-_SQLP_KEYWORDS_FROM_LIKE = frozenset({
-    "FROM", "JOIN", "INNER JOIN", "LEFT JOIN", "RIGHT JOIN",
-    "FULL JOIN", "CROSS JOIN", "LEFT OUTER JOIN", "RIGHT OUTER JOIN",
-    "FULL OUTER JOIN", "INTO", "TABLE", "UPDATE",
-})
+_SQLP_KEYWORDS_FROM_LIKE = frozenset(
+    {
+        "FROM",
+        "JOIN",
+        "INNER JOIN",
+        "LEFT JOIN",
+        "RIGHT JOIN",
+        "FULL JOIN",
+        "CROSS JOIN",
+        "LEFT OUTER JOIN",
+        "RIGHT OUTER JOIN",
+        "FULL OUTER JOIN",
+        "INTO",
+        "TABLE",
+        "UPDATE",
+    }
+)
 
 
 def _ast_extract_tables(stmt) -> List[str]:
@@ -331,21 +354,18 @@ def _ast_extract_tables(stmt) -> List[str]:
                             elif kv == ")":
                                 d -= 1
                             k += 1
-                        inner_text = ''.join(str(tokens[t].value)
-                                             for t in range(paren_start, k - 1))
+                        inner_text = "".join(str(tokens[t].value) for t in range(paren_start, k - 1))
                         if inner_text.strip().upper().startswith("SELECT"):
                             # 直接解析子查询内容，不加外层括号
                             inner_parsed = sqlparse.parse(inner_text)
                             if inner_parsed:
-                                inner_tables = _extract_from_flat_tokens(
-                                    list(inner_parsed[0].flatten()))
+                                inner_tables = _extract_from_flat_tokens(list(inner_parsed[0].flatten()))
                                 result.extend(inner_tables)
                         j = k
                         break
 
                 # 关键字终止
-                if ntt is DML or (ntt is Keyword and nval.upper()
-                                   not in ("AS", "ON", "USING")):
+                if ntt is DML or (ntt is Keyword and nval.upper() not in ("AS", "ON", "USING")):
                     break
 
                 if nval.upper() in ("AS", "ON", "USING"):
@@ -422,15 +442,15 @@ def _ast_extract_tables(stmt) -> List[str]:
         # CTE 内部表通过正则提取所有括号内的 SELECT 中的表
         paren_depth = 0
         cte_start = -1
-        for m in re.finditer(r'[()]', stmt_text):
-            if m.group() == '(':
+        for m in re.finditer(r"[()]", stmt_text):
+            if m.group() == "(":
                 if paren_depth == 0:
                     cte_start = m.start()
                 paren_depth += 1
             else:
                 paren_depth -= 1
                 if paren_depth == 0 and cte_start > 0:
-                    inner = stmt_text[cte_start + 1:m.start()]
+                    inner = stmt_text[cte_start + 1 : m.start()]
                     if inner.upper().strip().startswith("SELECT"):
                         inner_tables = _extract_tables_from_text(inner)
                         tables.extend(inner_tables)
@@ -456,7 +476,7 @@ def _ast_extract_tables(stmt) -> List[str]:
     seen: Set[str] = set()
     unique: List[str] = []
     for t in tables:
-        t_clean = t.replace('"', '').replace('`', '').replace('[', '').replace(']', '')
+        t_clean = t.replace('"', "").replace("`", "").replace("[", "").replace("]", "")
         if not t_clean:
             continue
         key = t_clean.upper()
@@ -471,6 +491,7 @@ def _ast_extract_tables(stmt) -> List[str]:
 # ===========================================================================
 # SQLParser 类
 # ===========================================================================
+
 
 class SQLParser:
     """
@@ -498,19 +519,17 @@ class SQLParser:
     def _init_patterns(self):
         """初始化正则表达式模式（sqlparse 不可用时使用）"""
         self.comment_patterns = [
-            re.compile(r'/\*.*?\*/', re.DOTALL),
-            re.compile(r'--.*?$', re.MULTILINE),
-            re.compile(r'#.*?$', re.MULTILINE),
+            re.compile(r"/\*.*?\*/", re.DOTALL),
+            re.compile(r"--.*?$", re.MULTILINE),
+            re.compile(r"#.*?$", re.MULTILINE),
         ]
         self.string_patterns = [
             re.compile(r"'(?:[^']|'')*'"),
             re.compile(r'"(?:[^"]|"")*"'),
-            re.compile(r'`[^`]*`'),
+            re.compile(r"`[^`]*`"),
         ]
-        self.subquery_pattern = re.compile(r'\(\s*SELECT\s+', re.IGNORECASE)
-        self.join_pattern = re.compile(
-            r'\b(INNER|OUTER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN\b', re.IGNORECASE
-        )
+        self.subquery_pattern = re.compile(r"\(\s*SELECT\s+", re.IGNORECASE)
+        self.join_pattern = re.compile(r"\b(INNER|OUTER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN\b", re.IGNORECASE)
 
     # ────────────────────────── 主入口 ──────────────────────────
 
@@ -667,28 +686,28 @@ class SQLParser:
         for pattern in self.string_patterns:
             normalized = pattern.sub(replace_string, normalized)
         for pattern in self.comment_patterns:
-            normalized = pattern.sub(' ', normalized)
+            normalized = pattern.sub(" ", normalized)
         for i, s in enumerate(strings):
             normalized = normalized.replace(f"__STRING_{i}__", s)
-        return ' '.join(normalized.split())
+        return " ".join(normalized.split())
 
     def _identify_sql_type(self, sql_upper: str) -> SQLType:
         type_patterns = [
-            (r'^\s*SELECT\s+', SQLType.SELECT),
-            (r'^\s*INSERT\s+', SQLType.INSERT),
-            (r'^\s*UPDATE\s+', SQLType.UPDATE),
-            (r'^\s*DELETE\s+', SQLType.DELETE),
-            (r'^\s*DROP\s+', SQLType.DROP),
-            (r'^\s*TRUNCATE\s+', SQLType.TRUNCATE),
-            (r'^\s*ALTER\s+', SQLType.ALTER),
-            (r'^\s*CREATE\s+', SQLType.CREATE),
-            (r'^\s*REPLACE\s+', SQLType.REPLACE),
-            (r'^\s*MERGE\s+', SQLType.MERGE),
-            (r'^\s*CALL\s+', SQLType.CALL),
-            (r'^\s*EXPLAIN\s+', SQLType.EXPLAIN),
-            (r'^\s*SHOW\s+', SQLType.SHOW),
-            (r'^\s*DESCRIBE\s+', SQLType.DESCRIBE),
-            (r'^\s*DESC\s+', SQLType.DESC),
+            (r"^\s*SELECT\s+", SQLType.SELECT),
+            (r"^\s*INSERT\s+", SQLType.INSERT),
+            (r"^\s*UPDATE\s+", SQLType.UPDATE),
+            (r"^\s*DELETE\s+", SQLType.DELETE),
+            (r"^\s*DROP\s+", SQLType.DROP),
+            (r"^\s*TRUNCATE\s+", SQLType.TRUNCATE),
+            (r"^\s*ALTER\s+", SQLType.ALTER),
+            (r"^\s*CREATE\s+", SQLType.CREATE),
+            (r"^\s*REPLACE\s+", SQLType.REPLACE),
+            (r"^\s*MERGE\s+", SQLType.MERGE),
+            (r"^\s*CALL\s+", SQLType.CALL),
+            (r"^\s*EXPLAIN\s+", SQLType.EXPLAIN),
+            (r"^\s*SHOW\s+", SQLType.SHOW),
+            (r"^\s*DESCRIBE\s+", SQLType.DESCRIBE),
+            (r"^\s*DESC\s+", SQLType.DESC),
         ]
         for pattern, st in type_patterns:
             if re.match(pattern, sql_upper, re.IGNORECASE):
@@ -712,7 +731,7 @@ class SQLParser:
         seen: Set[str] = set()
         unique_tables = []
         for t in tables:
-            t_clean = t.replace('`', '').replace('"', '').replace('[', '').replace(']', '')
+            t_clean = t.replace("`", "").replace('"', "").replace("[", "").replace("]", "")
             if t_clean and t_clean.upper() not in seen:
                 seen.add(t_clean.upper())
                 unique_tables.append(t_clean)
@@ -722,65 +741,49 @@ class SQLParser:
         tables = []
         from_pattern = re.compile(
             r"\bFROM\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.(?:[`\"\[][^`\"\]]+[`\"\]]|\w+))*(?:\s*,\s*(?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.(?:[`\"\[][^`\"\]]+[`\"\]]|\w+))*)*)",
-            re.IGNORECASE
+            re.IGNORECASE,
         )
         for match in from_pattern.finditer(sql):
-            for table in re.split(r'\s*,\s*', match.group(1)):
+            for table in re.split(r"\s*,\s*", match.group(1)):
                 tables.append(table.strip())
         join_pattern = re.compile(
             r"\b(?:INNER|OUTER|LEFT|RIGHT|FULL|CROSS)?\s*JOIN\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.(?:[`\"\[][^`\"\]]+[`\"\]]|\w+))*)",
-            re.IGNORECASE
+            re.IGNORECASE,
         )
         for match in join_pattern.finditer(sql):
             tables.append(match.group(1).strip())
         return tables
 
     def _extract_insert_tables(self, sql: str) -> List[str]:
-        pattern = re.compile(
-            r"\bINSERT\s+(?:INTO\s+)?((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)",
-            re.IGNORECASE
-        )
+        pattern = re.compile(r"\bINSERT\s+(?:INTO\s+)?((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)", re.IGNORECASE)
         match = pattern.search(sql)
         return [match.group(1).strip()] if match else []
 
     def _extract_update_tables(self, sql: str) -> List[str]:
-        pattern = re.compile(
-            r"\bUPDATE\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)",
-            re.IGNORECASE
-        )
+        pattern = re.compile(r"\bUPDATE\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)", re.IGNORECASE)
         match = pattern.search(sql)
         return [match.group(1).strip()] if match else []
 
     def _extract_delete_tables(self, sql: str) -> List[str]:
-        pattern1 = re.compile(
-            r"\bDELETE\s+FROM\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)",
-            re.IGNORECASE
-        )
-        pattern2 = re.compile(
-            r"\bDELETE\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)\s+(?:FROM|WHERE)",
-            re.IGNORECASE
-        )
+        pattern1 = re.compile(r"\bDELETE\s+FROM\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)", re.IGNORECASE)
+        pattern2 = re.compile(r"\bDELETE\s+((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)\s+(?:FROM|WHERE)", re.IGNORECASE)
         match = pattern1.search(sql) or pattern2.search(sql)
         return [match.group(1).strip()] if match else []
 
     def _extract_ddl_tables(self, sql: str, sql_type: SQLType) -> List[str]:
         type_str = sql_type.value
-        pattern = re.compile(
-            rf"\b{type_str}\s+(?:TABLE\s+)?((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)",
-            re.IGNORECASE
-        )
+        pattern = re.compile(rf"\b{type_str}\s+(?:TABLE\s+)?((?:[`\"\[][^`\"\]]+[`\"\]]|\w+)(?:\.\w+)*)", re.IGNORECASE)
         match = pattern.search(sql)
         return [match.group(1).strip()] if match else []
 
     def _extract_where(self, sql: str) -> Tuple[bool, Optional[str]]:
         pattern = re.compile(
-            r'\bWHERE\b(.+?)(?:\bORDER\s+BY\b|\bGROUP\s+BY\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)',
-            re.IGNORECASE
+            r"\bWHERE\b(.+?)(?:\bORDER\s+BY\b|\bGROUP\s+BY\b|\bHAVING\b|\bLIMIT\b|\bUNION\b|$)", re.IGNORECASE
         )
         match = pattern.search(sql)
         if match:
             where_clause = match.group(1).strip()
-            if where_clause and not re.match(r'^\s*(1\s*=\s*1|TRUE)\s*$', where_clause, re.IGNORECASE):
+            if where_clause and not re.match(r"^\s*(1\s*=\s*1|TRUE)\s*$", where_clause, re.IGNORECASE):
                 return True, where_clause
         return False, None
 
@@ -792,8 +795,11 @@ class SQLParser:
 
     def _is_read_only(self, sql_type: SQLType) -> bool:
         read_only_types = {
-            SQLType.SELECT, SQLType.EXPLAIN, SQLType.SHOW,
-            SQLType.DESCRIBE, SQLType.DESC,
+            SQLType.SELECT,
+            SQLType.EXPLAIN,
+            SQLType.SHOW,
+            SQLType.DESCRIBE,
+            SQLType.DESC,
         }
         return sql_type in read_only_types
 
@@ -801,9 +807,9 @@ class SQLParser:
         if not sql or not sql.strip():
             return False, "SQL语句不能为空"
         sql_clean = sql.strip()
-        if sql_clean.count('(') != sql_clean.count(')'):
+        if sql_clean.count("(") != sql_clean.count(")"):
             return False, f"括号不匹配: 左括号{sql_clean.count('(')}个，右括号{sql_clean.count(')')}个"
-        if sql_clean.count('[') != sql_clean.count(']'):
+        if sql_clean.count("[") != sql_clean.count("]"):
             return False, "方括号不匹配"
         parsed = self.parse(sql)
         if parsed.sql_type == SQLType.UNKNOWN:

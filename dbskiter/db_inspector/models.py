@@ -93,22 +93,24 @@ class ErrorMessage:
 
 class RiskLevel(str, Enum):
     """风险等级"""
-    CRITICAL = "critical"    # 严重 - 需要立即处理
-    HIGH = "high"            # 高危 - 需要尽快处理
-    MEDIUM = "medium"        # 中危 - 建议处理
-    LOW = "low"              # 低危 - 可选处理
-    INFO = "info"            # 信息 - 仅供参考
+
+    CRITICAL = "critical"  # 严重 - 需要立即处理
+    HIGH = "high"  # 高危 - 需要尽快处理
+    MEDIUM = "medium"  # 中危 - 建议处理
+    LOW = "low"  # 低危 - 可选处理
+    INFO = "info"  # 信息 - 仅供参考
 
 
 class InspectionType(str, Enum):
     """巡检类型"""
-    CONFIGURATION = "configuration"      # 配置检查
-    PERFORMANCE = "performance"          # 性能检查
-    SECURITY = "security"                # 安全检查
-    STORAGE = "storage"                  # 存储检查
-    REPLICATION = "replication"          # 复制检查
-    BACKUP = "backup"                    # 备份检查
-    CAPACITY = "capacity"                # 容量检查
+
+    CONFIGURATION = "configuration"  # 配置检查
+    PERFORMANCE = "performance"  # 性能检查
+    SECURITY = "security"  # 安全检查
+    STORAGE = "storage"  # 存储检查
+    REPLICATION = "replication"  # 复制检查
+    BACKUP = "backup"  # 备份检查
+    CAPACITY = "capacity"  # 容量检查
 
 
 @dataclass
@@ -126,15 +128,16 @@ class InspectionItem:
         reference: 参考值
         actual_value: 实际值
     """
-    name: str                            # 巡检项名称
-    inspection_type: InspectionType      # 巡检类型
-    risk_level: RiskLevel                # 风险等级
-    status: str                          # 状态: pass/warning/fail
-    description: str                     # 描述
+
+    name: str  # 巡检项名称
+    inspection_type: InspectionType  # 巡检类型
+    risk_level: RiskLevel  # 风险等级
+    status: str  # 状态: pass/warning/fail
+    description: str  # 描述
     details: Dict[str, Any] = field(default_factory=dict)  # 详细信息
-    suggestion: Optional[str] = None     # 建议
-    reference: Optional[str] = None      # 参考值
-    actual_value: Optional[str] = None   # 实际值
+    suggestion: Optional[str] = None  # 建议
+    reference: Optional[str] = None  # 参考值
+    actual_value: Optional[str] = None  # 实际值
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -146,7 +149,7 @@ class InspectionItem:
             "details": self.details,
             "suggestion": self.suggestion,
             "reference": self.reference,
-            "actual_value": self.actual_value
+            "actual_value": self.actual_value,
         }
 
 
@@ -170,34 +173,35 @@ class InspectionReport:
         risk_summary: 风险摘要
         generated_at: 报告生成时间
     """
-    report_id: str                       # 报告ID
-    instance_name: str                   # 实例名称
-    database_type: str                   # 数据库类型
-    database_version: str                # 数据库版本
-    inspection_time: datetime            # 巡检时间
-    duration_seconds: float              # 巡检耗时
+
+    report_id: str  # 报告ID
+    instance_name: str  # 实例名称
+    database_type: str  # 数据库类型
+    database_version: str  # 数据库版本
+    inspection_time: datetime  # 巡检时间
+    duration_seconds: float  # 巡检耗时
 
     # 统计信息
-    total_items: int = 0                 # 总巡检项
-    pass_count: int = 0                  # 通过数
-    warning_count: int = 0               # 警告数
-    fail_count: int = 0                  # 失败数
+    total_items: int = 0  # 总巡检项
+    pass_count: int = 0  # 通过数
+    warning_count: int = 0  # 警告数
+    fail_count: int = 0  # 失败数
 
     # 风险统计
-    critical_count: int = 0              # 严重风险数
-    high_count: int = 0                  # 高危风险数
-    medium_count: int = 0                # 中危风险数
-    low_count: int = 0                   # 低危风险数
-    info_count: int = 0                  # 信息项数
+    critical_count: int = 0  # 严重风险数
+    high_count: int = 0  # 高危风险数
+    medium_count: int = 0  # 中危风险数
+    low_count: int = 0  # 低危风险数
+    info_count: int = 0  # 信息项数
 
     # 巡检项
     items: List[InspectionItem] = field(default_factory=list)
 
     # 健康评分
-    health_score: float = 100.0          # 健康评分(0-100)
+    health_score: float = 100.0  # 健康评分(0-100)
 
     # 摘要
-    summary: str = ""                    # 报告摘要
+    summary: str = ""  # 报告摘要
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -216,11 +220,11 @@ class InspectionReport:
                 "high_count": self.high_count,
                 "medium_count": self.medium_count,
                 "low_count": self.low_count,
-                "info_count": self.info_count
+                "info_count": self.info_count,
             },
             "health_score": round(self.health_score, 1),
             "summary": self.summary,
-            "items": [item.to_dict() for item in self.items]
+            "items": [item.to_dict() for item in self.items],
         }
 
     def get_health_grade(self) -> str:
@@ -252,13 +256,8 @@ class InspectionReport:
         返回:
             str: 健康等级中文标签
         """
-        grade_labels = {
-            'healthy': '健康',
-            'subhealthy': '亚健康',
-            'risk': '风险',
-            'danger': '高危'
-        }
-        return grade_labels.get(self.get_health_grade(), '未知')
+        grade_labels = {"healthy": "健康", "subhealthy": "亚健康", "risk": "风险", "danger": "高危"}
+        return grade_labels.get(self.get_health_grade(), "未知")
 
     def get_pass_rate(self) -> float:
         """
@@ -323,9 +322,10 @@ class PerformanceBaseline:
         connection_baseline: 连接数基线
         query_time_baseline: 查询耗时基线（秒）
     """
-    baseline_id: str                     # 基线ID
-    instance_name: str                   # 实例名称
-    created_at: datetime                 # 创建时间
+
+    baseline_id: str  # 基线ID
+    instance_name: str  # 实例名称
+    created_at: datetime  # 创建时间
     metrics: Dict[str, float] = field(default_factory=dict)  # 指标基线值
 
     # 关键指标基线
@@ -343,7 +343,7 @@ class PerformanceBaseline:
             "qps_baseline": self.qps_baseline,
             "tps_baseline": self.tps_baseline,
             "connection_baseline": self.connection_baseline,
-            "query_time_baseline": self.query_time_baseline
+            "query_time_baseline": self.query_time_baseline,
         }
 
 

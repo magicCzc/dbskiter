@@ -55,7 +55,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.TPS: MetricQuery(
                 sql="""
@@ -66,7 +66,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.COM_SELECT: MetricQuery(
                 sql="""
@@ -77,7 +77,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.COM_INSERT: MetricQuery(
                 sql="""
@@ -88,7 +88,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.COM_UPDATE: MetricQuery(
                 sql="""
@@ -99,7 +99,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.COM_DELETE: MetricQuery(
                 sql="""
@@ -110,9 +110,8 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
-
             # 连接指标
             MetricType.CONNECTIONS_ACTIVE: MetricQuery(
                 sql="""
@@ -121,7 +120,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                     WHERE status = 'running' AND is_user_process = 1
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="count"
+                unit="count",
             ),
             MetricType.CONNECTIONS_TOTAL: MetricQuery(
                 sql="""
@@ -130,7 +129,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                     WHERE is_user_process = 1
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="count"
+                unit="count",
             ),
             MetricType.CONNECTIONS_MAX: MetricQuery(
                 sql="""
@@ -140,9 +139,8 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                         AND instance_name = ''
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="count"
+                unit="count",
             ),
-
             # 查询性能指标
             MetricType.SLOW_QUERIES: MetricQuery(
                 sql="""
@@ -152,7 +150,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                         AND status IN ('running', 'suspended')
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="count"
+                unit="count",
             ),
             MetricType.QUERY_TIME_AVG: MetricQuery(
                 sql="""
@@ -161,7 +159,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                     WHERE execution_count > 0
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="ms"
+                unit="ms",
             ),
             MetricType.QUERY_TIME_MAX: MetricQuery(
                 sql="""
@@ -169,9 +167,8 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                     FROM sys.dm_exec_query_stats
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="ms"
+                unit="ms",
             ),
-
             # 锁指标
             MetricType.LOCK_WAITS: MetricQuery(
                 sql="""
@@ -182,7 +179,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.DEADLOCKS: MetricQuery(
                 sql="""
@@ -193,7 +190,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.ROW_LOCK_WAITS: MetricQuery(
                 sql="""
@@ -204,9 +201,8 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
-
             # 缓冲指标
             MetricType.BUFFER_HIT_RATIO: MetricQuery(
                 sql="""
@@ -223,7 +219,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                         END
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 100.0),
-                unit="percent"
+                unit="percent",
             ),
             MetricType.BUFFER_POOL_USAGE: MetricQuery(
                 sql="""
@@ -234,9 +230,8 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                                 WHERE counter_name = 'Total pages'), 0)
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="percent"
+                unit="percent",
             ),
-
             # IO指标
             MetricType.PHYSICAL_READS: MetricQuery(
                 sql="""
@@ -247,7 +242,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="pages/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.LOGICAL_READS: MetricQuery(
                 sql="""
@@ -258,7 +253,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="pages/sec",
-                is_counter=False
+                is_counter=False,
             ),
             MetricType.DISK_IO_READ: MetricQuery(
                 sql="""
@@ -267,7 +262,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
             MetricType.DISK_IO_WRITE: MetricQuery(
                 sql="""
@@ -276,9 +271,8 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
-
             # 资源指标 - SQL Server不直接提供CPU/内存使用率，需要通过其他方式
             MetricType.MEMORY_USAGE: MetricQuery(
                 sql="""
@@ -289,9 +283,8 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                                 WHERE counter_name = 'Target Server Memory (KB)'), 0)
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="percent"
+                unit="percent",
             ),
-
             # 事务指标
             MetricType.TRANSACTIONS_ACTIVE: MetricQuery(
                 sql="""
@@ -300,7 +293,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                     WHERE transaction_type = 1  -- 用户事务
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
-                unit="count"
+                unit="count",
             ),
             MetricType.TRANSACTIONS_COMMITTED: MetricQuery(
                 sql="""
@@ -311,7 +304,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0, 0),
                 unit="count/sec",
-                is_counter=False
+                is_counter=False,
             ),
         }
 
@@ -424,7 +417,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                     "wait_type": row[0],
                     "waiting_tasks_count": row[1],
                     "wait_time_sec": float(row[2]),
-                    "max_wait_time_sec": float(row[3])
+                    "max_wait_time_sec": float(row[3]),
                 }
                 for row in result.rows
             ]
@@ -461,7 +454,7 @@ class MSSQLMetricsCollector(BaseMetricsCollector):
                     "blocked_session_id": row[1],
                     "wait_type": row[2],
                     "wait_time_sec": float(row[3]),
-                    "wait_resource": row[4]
+                    "wait_resource": row[4],
                 }
                 for row in result.rows
             ]

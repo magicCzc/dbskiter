@@ -67,91 +67,101 @@ class MockMetricsCollector(BaseMetricsCollector):
         timestamp = datetime.now()
 
         # 从 MockConnector 获取模拟指标
-        if hasattr(self._connector, 'get_metrics'):
-            mock_metrics = self._connector.get_metrics('cpu_usage')
+        if hasattr(self._connector, "get_metrics"):
+            mock_metrics = self._connector.get_metrics("cpu_usage")
             if mock_metrics:
                 # 取最新的值
                 latest = mock_metrics[-1]
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.CPU_USAGE,
-                    value=latest.get('value', 45.0),
-                    unit="%",
-                    source="mock",
-                    tags={"demo": True}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.CPU_USAGE,
+                        value=latest.get("value", 45.0),
+                        unit="%",
+                        source="mock",
+                        tags={"demo": True},
+                    )
+                )
 
-            mock_metrics = self._connector.get_metrics('memory_usage')
+            mock_metrics = self._connector.get_metrics("memory_usage")
             if mock_metrics:
                 latest = mock_metrics[-1]
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.MEMORY_USAGE,
-                    value=latest.get('value', 68.5),
-                    unit="%",
-                    source="mock",
-                    tags={"demo": True}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.MEMORY_USAGE,
+                        value=latest.get("value", 68.5),
+                        unit="%",
+                        source="mock",
+                        tags={"demo": True},
+                    )
+                )
 
-            mock_metrics = self._connector.get_metrics('active_sessions')
+            mock_metrics = self._connector.get_metrics("active_sessions")
             if mock_metrics:
                 latest = mock_metrics[-1]
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.CONNECTIONS_ACTIVE,
-                    value=latest.get('value', 14),
-                    unit="count",
-                    source="mock",
-                    tags={"demo": True}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.CONNECTIONS_ACTIVE,
+                        value=latest.get("value", 14),
+                        unit="count",
+                        source="mock",
+                        tags={"demo": True},
+                    )
+                )
 
-            mock_metrics = self._connector.get_metrics('qps')
+            mock_metrics = self._connector.get_metrics("qps")
             if mock_metrics:
                 latest = mock_metrics[-1]
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.QPS,
-                    value=latest.get('value', 2980),
-                    unit="qps",
-                    source="mock",
-                    tags={"demo": True}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.QPS,
+                        value=latest.get("value", 2980),
+                        unit="qps",
+                        source="mock",
+                        tags={"demo": True},
+                    )
+                )
 
         # 添加一些额外的模拟指标
-        metrics.extend([
-            MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.CONNECTIONS_TOTAL,
-                value=24,
-                unit="count",
-                source="mock",
-                tags={"demo": True}
-            ),
-            MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.SLOW_QUERIES,
-                value=3,
-                unit="count",
-                source="mock",
-                tags={"demo": True}
-            ),
-            MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.BUFFER_HIT_RATIO,
-                value=96.5,
-                unit="%",
-                source="mock",
-                tags={"demo": True}
-            ),
-            MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.DISK_USAGE,
-                value=82.1,
-                unit="%",
-                source="mock",
-                tags={"demo": True}
-            ),
-        ])
+        metrics.extend(
+            [
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.CONNECTIONS_TOTAL,
+                    value=24,
+                    unit="count",
+                    source="mock",
+                    tags={"demo": True},
+                ),
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.SLOW_QUERIES,
+                    value=3,
+                    unit="count",
+                    source="mock",
+                    tags={"demo": True},
+                ),
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.BUFFER_HIT_RATIO,
+                    value=96.5,
+                    unit="%",
+                    source="mock",
+                    tags={"demo": True},
+                ),
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.DISK_USAGE,
+                    value=82.1,
+                    unit="%",
+                    source="mock",
+                    tags={"demo": True},
+                ),
+            ]
+        )
 
         logger.info(f"MockMetricsCollector 生成了 {len(metrics)} 个模拟指标")
         return metrics

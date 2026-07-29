@@ -48,7 +48,8 @@ from .models import (
     InspectionType,
     InspectionItem,
     InspectionReport,
-    PerformanceBaseline,)
+    PerformanceBaseline,
+)
 
 # 响应函数（从shared模块导入）
 from dbskiter.shared.error_handler import create_success_response, create_error_response

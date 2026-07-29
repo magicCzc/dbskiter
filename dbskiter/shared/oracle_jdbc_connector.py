@@ -31,32 +31,24 @@ logger = logging.getLogger(__name__)
 class JDBCQueryResult:
     """
     JDBC 查询结果封装
-    
+
     属性:
         rows: 查询结果行列表
         columns: 列名列表
         row_count: 行数
         execution_time_ms: 执行时间(毫秒)
     """
-    
-    def __init__(
-        self,
-        rows: List[Tuple],
-        columns: List[str],
-        execution_time_ms: float = 0
-    ):
+
+    def __init__(self, rows: List[Tuple], columns: List[str], execution_time_ms: float = 0):
         self.rows = rows
         self.columns = columns
         self.row_count = len(rows)
         self.execution_time_ms = execution_time_ms
-    
+
     def to_dict_list(self) -> List[Dict[str, Any]]:
         """转换为字典列表"""
-        return [
-            {col: row[i] for i, col in enumerate(self.columns)}
-            for row in self.rows
-        ]
-    
+        return [{col: row[i] for i, col in enumerate(self.columns)} for row in self.rows]
+
     def __repr__(self) -> str:
         return f"[JDBCQueryResult] {self.row_count} rows, {len(self.columns)} cols"
 
@@ -64,10 +56,10 @@ class JDBCQueryResult:
 class OracleJDBCConnector:
     """
     Oracle JDBC 连接器
-    
+
     使用 JayDeBeApi 和 Oracle JDBC 驱动连接 Oracle 数据库
     支持 Oracle 11g 及更高版本
-    
+
     参数:
         host: 主机地址
         port: 端口号(默认 1521)
@@ -75,7 +67,7 @@ class OracleJDBCConnector:
         password: 密码
         service: 服务名/SID
         jdbc_driver_path: JDBC 驱动路径(可选)
-    
+
     示例:
         >>> conn = OracleJDBCConnector(
         ...     host="your_oracle_host",
@@ -85,10 +77,10 @@ class OracleJDBCConnector:
         ... )
         >>> result = conn.execute("SELECT * FROM user_tables")
     """
-    
+
     # 默认 JDBC 驱动类名
     JDBC_DRIVER_CLASS = "oracle.jdbc.driver.OracleDriver"
-    
+
     # 默认驱动搜索路径
     DEFAULT_DRIVER_PATHS = [
         "ojdbc8.jar",
@@ -101,7 +93,7 @@ class OracleJDBCConnector:
         r"C:\oracle\ojdbc8.jar",
         "/usr/lib/oracle/ojdbc8.jar",
     ]
-    
+
     def __init__(
         self,
         host: str,
@@ -109,11 +101,11 @@ class OracleJDBCConnector:
         username: str = "",
         password: str = "",
         service: str = "",
-        jdbc_driver_path: Optional[str] = None
+        jdbc_driver_path: Optional[str] = None,
     ):
         """
         初始化 Oracle JDBC 连接器
-        
+
         参数:
             host: 主机地址
             port: 端口号
@@ -127,7 +119,7 @@ class OracleJDBCConnector:
         self.username = username
         self.password = password
         self.service = service
-        
+
         # 查找 JDBC 驱动
         # 如果传入了路径但文件不存在，尝试自动查找
         if jdbc_driver_path and os.path.exists(jdbc_driver_path):
@@ -135,7 +127,7 @@ class OracleJDBCConnector:
         else:
             # 传入的路径不存在或未传入，自动查找
             self.jdbc_driver_path = self._find_jdbc_driver()
-        
+
         if not self.jdbc_driver_path:
             raise RuntimeError(
                 "未找到 Oracle JDBC 驱动 (ojdbc*.jar)。\n"
@@ -145,22 +137,22 @@ class OracleJDBCConnector:
                 "  - C:\\oracle\\ojdbc8.jar\n"
                 "下载地址: https://www.oracle.com/database/technologies/jdbcdriver-ucp.html"
             )
-        
+
         # 构建 JDBC URL
         self.jdbc_url = f"jdbc:oracle:thin:@{host}:{port}:{service}"
-        
+
         # 连接对象
         self._conn = None
-        
+
         logger.info(f"Oracle JDBC 连接器初始化: {host}:{port}/{service}")
-        
+
         # 预建立连接（避免第一次查询时的延迟）
         try:
             self.connect()
             logger.info("Oracle JDBC 预连接成功")
         except Exception as e:
             logger.warning(f"Oracle JDBC 预连接失败: {e}")
-    
+
     def _find_jdbc_driver(self) -> Optional[str]:
         """查找 JDBC 驱动文件"""
         for path in self.DEFAULT_DRIVER_PATHS:
@@ -168,29 +160,26 @@ class OracleJDBCConnector:
                 logger.info(f"找到 JDBC 驱动: {path}")
                 return os.path.abspath(path)
         return None
-    
+
     def connect(self):
         """
         建立数据库连接
-        
+
         返回:
             jaydebeapi.Connection 对象
         """
         try:
             import jaydebeapi
-            
+
             self._conn = jaydebeapi.connect(
-                self.JDBC_DRIVER_CLASS,
-                self.jdbc_url,
-                [self.username, self.password],
-                self.jdbc_driver_path
+                self.JDBC_DRIVER_CLASS, self.jdbc_url, [self.username, self.password], self.jdbc_driver_path
             )
             logger.info("Oracle JDBC 连接成功")
             return self._conn
         except Exception as e:
             logger.error(f"Oracle JDBC 连接失败: {e}")
             raise
-    
+
     def disconnect(self):
         """断开数据库连接"""
         if self._conn:
@@ -201,7 +190,7 @@ class OracleJDBCConnector:
                 logger.warning(f"关闭连接时出错: {e}")
             finally:
                 self._conn = None
-    
+
     def execute(self, sql: str, params: Optional[Tuple] = None) -> JDBCQueryResult:
         """
         执行 SQL 查询
@@ -235,28 +224,37 @@ class OracleJDBCConnector:
                 cursor.execute(sql, params)
             else:
                 cursor.execute(sql)
-            
+
             # 获取列名
             columns = [desc[0] for desc in cursor.description] if cursor.description else []
-            
+
             # 获取结果
             rows = cursor.fetchall()
-            
+
             execution_time = (time.time() - start_time) * 1000
-            
-            return JDBCQueryResult(
-                rows=rows,
-                columns=columns,
-                execution_time_ms=execution_time
-            )
+
+            return JDBCQueryResult(rows=rows, columns=columns, execution_time_ms=execution_time)
 
         except Exception as e:
             error_msg = str(e)
             # 连接断开时自动重连一次
-            if any(kw in error_msg.upper() for kw in
-                   ['CONNECTION', 'CLOSED', 'BROKEN', 'RESET', 'TIMEOUT',
-                    'NETWORK', 'COMMUNICATION', 'SESSION', 'ORA-03113',
-                    'ORA-03114', 'ORA-03135', 'ORA-12571']):
+            if any(
+                kw in error_msg.upper()
+                for kw in [
+                    "CONNECTION",
+                    "CLOSED",
+                    "BROKEN",
+                    "RESET",
+                    "TIMEOUT",
+                    "NETWORK",
+                    "COMMUNICATION",
+                    "SESSION",
+                    "ORA-03113",
+                    "ORA-03114",
+                    "ORA-03135",
+                    "ORA-12571",
+                ]
+            ):
                 logger.warning(f"检测到连接异常，尝试重连: {e}")
                 try:
                     self._conn = None
@@ -273,11 +271,7 @@ class OracleJDBCConnector:
                     if cursor:
                         cursor.close()
                     logger.info("重连后查询成功")
-                    return JDBCQueryResult(
-                        rows=rows,
-                        columns=columns,
-                        execution_time_ms=execution_time
-                    )
+                    return JDBCQueryResult(rows=rows, columns=columns, execution_time_ms=execution_time)
                 except Exception as retry_err:
                     logger.error(f"重连后查询仍然失败: {retry_err}")
                     raise
@@ -287,33 +281,33 @@ class OracleJDBCConnector:
         finally:
             if cursor:
                 cursor.close()
-    
+
     def execute_update(self, sql: str, params: Optional[Tuple] = None) -> int:
         """
         执行更新语句(INSERT/UPDATE/DELETE)
-        
+
         参数:
             sql: SQL 语句
             params: 参数元组
-            
+
         返回:
             影响的行数
         """
         if not self._conn:
             self.connect()
-        
+
         cursor = None
         try:
             cursor = self._conn.cursor()
-            
+
             if params:
                 cursor.execute(sql, params)
             else:
                 cursor.execute(sql)
-            
+
             self._conn.commit()
             return cursor.rowcount
-            
+
         except Exception as e:
             logger.error(f"更新执行失败: {e}")
             self._conn.rollback()
@@ -321,12 +315,12 @@ class OracleJDBCConnector:
         finally:
             if cursor:
                 cursor.close()
-    
+
     @contextmanager
     def transaction(self):
         """
         事务上下文管理器
-        
+
         示例:
             >>> with conn.transaction():
             ...     conn.execute_update("INSERT INTO users VALUES (?)", (1,))
@@ -334,31 +328,31 @@ class OracleJDBCConnector:
         """
         if not self._conn:
             self.connect()
-        
+
         try:
             yield self
             self._conn.commit()
         except Exception as e:
             self._conn.rollback()
             raise
-    
+
     def __enter__(self):
         """上下文管理器入口"""
         self.connect()
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         """上下文管理器出口"""
         self.disconnect()
-    
+
     @classmethod
     def from_env(cls, prefix: str = "ORACLE") -> "OracleJDBCConnector":
         """
         从环境变量创建连接器
-        
+
         参数:
             prefix: 环境变量前缀(默认 ORACLE)
-            
+
         支持的环境变量:
             - {prefix}_HOST: 主机地址
             - {prefix}_PORT: 端口号
@@ -373,12 +367,7 @@ class OracleJDBCConnector:
         password = os.getenv(f"{prefix}_PASSWORD", "")
         service = os.getenv(f"{prefix}_SERVICE", "")
         driver_path = os.getenv(f"{prefix}_JDBC_DRIVER")
-        
+
         return cls(
-            host=host,
-            port=port,
-            username=username,
-            password=password,
-            service=service,
-            jdbc_driver_path=driver_path
+            host=host, port=port, username=username, password=password, service=service, jdbc_driver_path=driver_path
         )

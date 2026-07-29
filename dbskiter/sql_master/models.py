@@ -47,8 +47,8 @@ class ErrorCode:
     CONNECTION_ERROR = "SQL100004"
     READ_ONLY_VIOLATION = "SQL100005"  # 只读模式违规
     DANGEROUS_OPERATION = "SQL100006"  # 危险操作被拦截
-    FORCE_REQUIRED = "SQL100007"       # 需要force参数
-    PERMISSION_DENIED = "SQL100008"    # 权限不足
+    FORCE_REQUIRED = "SQL100007"  # 需要force参数
+    PERMISSION_DENIED = "SQL100008"  # 权限不足
 
     # 重写错误 (200)
     REWRITE_FAILED = "SQL200001"
@@ -96,6 +96,7 @@ class ErrorMessage:
 
 class SQLType(Enum):
     """SQL类型"""
+
     SELECT = "select"
     INSERT = "insert"
     UPDATE = "update"
@@ -108,6 +109,7 @@ class SQLType(Enum):
 
 class OptimizationLevel(Enum):
     """优化级别"""
+
     HIGH = "high"
     MEDIUM = "medium"
     LOW = "low"
@@ -127,6 +129,7 @@ class SQLOptimizationReport:
         low_impact: 低影响建议数
         optimized_sqls: 优化后的 SQL 详情列表
     """
+
     total_sqls: int = 0
     can_optimize: int = 0
     total_suggestions: int = 0
@@ -146,7 +149,7 @@ class SQLOptimizationReport:
             "medium_impact": self.medium_impact,
             "low_impact": self.low_impact,
             "optimized_sqls": self.optimized_sqls,
-            "generated_at": self.generated_at
+            "generated_at": self.generated_at,
         }
 
 
@@ -163,6 +166,7 @@ class SQLMasterConfig:
         cache_size: 缓存容量
         cache_ttl: 缓存过期时间（秒）
     """
+
     enable_rewriter: bool = True
     enable_analyzer: bool = True
     enable_intellisense: bool = True
@@ -180,7 +184,7 @@ class SQLMasterConfig:
             "enable_cache": self.enable_cache,
             "max_rows": self.max_rows,
             "cache_size": self.cache_size,
-            "cache_ttl": self.cache_ttl
+            "cache_ttl": self.cache_ttl,
         }
 
 
@@ -196,6 +200,7 @@ class SQLAnalysisResult:
         suggestions: 优化建议列表
         complexity: 复杂度（"low"/"medium"/"high"）
     """
+
     sql: str = ""
     sql_type: SQLType = SQLType.UNKNOWN
     score: float = 0.0
@@ -211,7 +216,7 @@ class SQLAnalysisResult:
             "score": round(self.score, 2),
             "issues": self.issues,
             "suggestions": self.suggestions,
-            "complexity": self.complexity
+            "complexity": self.complexity,
         }
 
 
@@ -226,6 +231,7 @@ class CacheStats:
         hit_rate: 命中率（0-1）
         memory_usage: 内存占用（字节）
     """
+
     total_entries: int = 0
     hit_count: int = 0
     miss_count: int = 0
@@ -239,7 +245,7 @@ class CacheStats:
             "hit_count": self.hit_count,
             "miss_count": self.miss_count,
             "hit_rate": round(self.hit_rate, 2),
-            "memory_usage": self.memory_usage
+            "memory_usage": self.memory_usage,
         }
 
 
@@ -255,6 +261,7 @@ class ExecutionResult:
         execution_time: 执行耗时（秒）
         cached: 是否来自缓存
     """
+
     success: bool = True
     row_count: int = 0
     columns: List[str] = field(default_factory=list)
@@ -270,7 +277,7 @@ class ExecutionResult:
             "columns": self.columns,
             "rows": self.rows,
             "execution_time": round(self.execution_time, 4),
-            "cached": self.cached
+            "cached": self.cached,
         }
 
 
@@ -284,6 +291,7 @@ class RewriteSuggestion:
         reason: 重写理由
         impact: 影响程度（"low"/"medium"/"high"）
     """
+
     original_sql: str = ""
     optimized_sql: str = ""
     reason: str = ""
@@ -295,7 +303,7 @@ class RewriteSuggestion:
             "original_sql": self.original_sql,
             "optimized_sql": self.optimized_sql,
             "reason": self.reason,
-            "impact": self.impact
+            "impact": self.impact,
         }
 
 

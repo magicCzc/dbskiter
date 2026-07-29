@@ -51,11 +51,7 @@ class MySQLDDLAnalyzer(BaseDDLAnalyzer):
         table_name = self._extract_table_name(ddl_sql)
         operation = self._detect_operation(ddl_sql)
 
-        impact = DDLImpact(
-            ddl_sql=ddl_sql,
-            table_name=table_name,
-            operation=operation
-        )
+        impact = DDLImpact(ddl_sql=ddl_sql, table_name=table_name, operation=operation)
 
         # 通过元数据服务获取表信息
         try:
@@ -69,25 +65,18 @@ class MySQLDDLAnalyzer(BaseDDLAnalyzer):
             logger.warning(f"获取表 {table_name} 信息时数据错误: {e}")
 
         # 评估执行时间
-        impact.execution_time_estimate = self._estimate_execution_time(
-            impact.table_size_mb
-        )
+        impact.execution_time_estimate = self._estimate_execution_time(impact.table_size_mb)
 
         # 评估风险
         impact.risks = self._assess_risks(operation, impact.table_size_mb)
 
         # 生成建议
-        impact.suggestions = self._generate_suggestions(
-            operation, impact.table_size_mb, self.dialect
-        )
+        impact.suggestions = self._generate_suggestions(operation, impact.table_size_mb, self.dialect)
 
         # 获取依赖对象
         impact.dependent_objects = self._get_dependent_objects(table_name)
 
-        logger.info(
-            f"DDL影响分析完成: {table_name}, "
-            f"大小={impact.table_size_mb}MB, 操作={operation}"
-        )
+        logger.info(f"DDL影响分析完成: {table_name}, " f"大小={impact.table_size_mb}MB, 操作={operation}")
 
         return impact
 
@@ -105,41 +94,50 @@ class MySQLDDLAnalyzer(BaseDDLAnalyzer):
 
         try:
             # 查找外键依赖
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     table_name,
                     constraint_name
                 FROM information_schema.key_column_usage
                 WHERE referenced_table_name = %s
                 AND table_schema = DATABASE()
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows:
                 for row in result.rows:
                     dependents.append(f"外键: {row[0]}.{row[1]}")
 
             # 查找视图依赖
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     table_name
                 FROM information_schema.views
                 WHERE view_definition LIKE %s
                 AND table_schema = DATABASE()
-            """, (f"%{table_name}%",))
+            """,
+                (f"%{table_name}%",),
+            )
 
             if result.rows:
                 for row in result.rows:
                     dependents.append(f"视图: {row[0]}")
 
             # 查找存储过程依赖
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     routine_name,
                     routine_type
                 FROM information_schema.routines
                 WHERE routine_definition LIKE %s
                 AND routine_schema = DATABASE()
-            """, (f"%{table_name}%",))
+            """,
+                (f"%{table_name}%",),
+            )
 
             if result.rows:
                 for row in result.rows:

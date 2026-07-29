@@ -39,11 +39,7 @@ class BaseDiagnostician(ABC):
         logger.info(f"初始化 {self.__class__.__name__} (dialect={self.dialect})")
 
     @abstractmethod
-    def analyze_slow_queries(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0
-    ) -> Dict[str, Any]:
+    def analyze_slow_queries(self, limit: int = 20, min_time: float = 1.0) -> Dict[str, Any]:
         """
         分析慢查询
 
@@ -57,10 +53,7 @@ class BaseDiagnostician(ABC):
         pass
 
     @abstractmethod
-    def analyze_performance_metrics(
-        self,
-        duration_minutes: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_performance_metrics(self, duration_minutes: int = 10) -> Dict[str, Any]:
         """
         分析性能指标
 
@@ -111,11 +104,7 @@ class BaseDiagnostician(ABC):
             return None
 
     def _create_result(
-        self,
-        success: bool,
-        message: str,
-        data: Dict[str, Any] = None,
-        error: str = None
+        self, success: bool, message: str, data: Dict[str, Any] = None, error: str = None
     ) -> Dict[str, Any]:
         """
         创建标准结果格式
@@ -129,21 +118,12 @@ class BaseDiagnostician(ABC):
         返回:
             Dict: 标准结果格式
         """
-        result = {
-            "success": success,
-            "message": message,
-            "data": data or {},
-            "dialect": self.dialect
-        }
+        result = {"success": success, "message": message, "data": data or {}, "dialect": self.dialect}
         if error:
             result["error"] = error
         return result
 
-    def _calculate_health_score(
-        self,
-        items: List[Dict],
-        rules: List[Dict[str, Any]]
-    ) -> int:
+    def _calculate_health_score(self, items: List[Dict], rules: List[Dict[str, Any]]) -> int:
         """
         通用健康评分计算
 

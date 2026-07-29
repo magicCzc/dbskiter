@@ -47,6 +47,7 @@ def _load_dotenv_if_available():
     """
     try:
         from dbskiter.cli.config import _load_env_values
+
         _load_env_values()
     except ImportError:
         pass
@@ -69,9 +70,18 @@ class ReadOnlyEnforcer:
 
     # 禁止的操作类型
     WRITE_OPERATIONS: Set[str] = {
-        "DELETE", "UPDATE", "INSERT", "REPLACE",
-        "DROP", "TRUNCATE", "ALTER", "CREATE",
-        "GRANT", "REVOKE", "MERGE", "CALL"
+        "DELETE",
+        "UPDATE",
+        "INSERT",
+        "REPLACE",
+        "DROP",
+        "TRUNCATE",
+        "ALTER",
+        "CREATE",
+        "GRANT",
+        "REVOKE",
+        "MERGE",
+        "CALL",
     }
 
     def __init__(self, enabled: bool = True, audit_logger: Optional[AuditLogger] = None):
@@ -123,7 +133,7 @@ class ReadOnlyEnforcer:
                 sql_type=sql_type,
                 blocked_reason=reason,
                 user=user or os.getenv("USER", "anonymous"),
-                metadata={"source": "readonly_interceptor", "reason": reason}
+                metadata={"source": "readonly_interceptor", "reason": reason},
             )
             # 安全拦截记录立即落盘，防止缓冲丢失
             self.audit_logger._flush()
@@ -237,7 +247,7 @@ class ReadOnlyEnforcer:
         return {
             "enabled": self.enabled,
             "read_only_types": [t.value for t in self.READ_ONLY_TYPES],
-            "write_operations": list(self.WRITE_OPERATIONS)
+            "write_operations": list(self.WRITE_OPERATIONS),
         }
 
 
@@ -253,19 +263,21 @@ def readonly_protect(func):
             # 这里只会接收到只读SQL
             pass
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         # 使用 inspect 精确定位 sql 参数，避免位置参数误取
         sig = inspect.signature(func)
         bound = sig.bind_partial(*args, **kwargs)
         bound.apply_defaults()
-        sql = bound.arguments.get('sql')
+        sql = bound.arguments.get("sql")
 
         if sql:
             enforcer = ReadOnlyEnforcer.from_config()
             enforcer.enforce(sql)
 
         return func(*args, **kwargs)
+
     return wrapper
 
 

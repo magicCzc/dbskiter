@@ -34,45 +34,33 @@ class MSSQLInspector(BaseInspector):
 
     # SQL Server配置检查标准
     CONFIG_STANDARDS = {
-        'max server memory (MB)': {
-            'description': '最大服务器内存',
-            'recommend': '物理内存的70-80%，预留2-4GB给操作系统',
-            'check_type': 'memory_ratio'
+        "max server memory (MB)": {
+            "description": "最大服务器内存",
+            "recommend": "物理内存的70-80%，预留2-4GB给操作系统",
+            "check_type": "memory_ratio",
         },
-        'max degree of parallelism': {
-            'description': '最大并行度',
-            'recommend': 'OLTP建议0或1，OLAP可适当提高',
-            'check_type': 'value_range',
-            'oltp_max': 1,
-            'olap_max': 8
+        "max degree of parallelism": {
+            "description": "最大并行度",
+            "recommend": "OLTP建议0或1，OLAP可适当提高",
+            "check_type": "value_range",
+            "oltp_max": 1,
+            "olap_max": 8,
         },
-        'cost threshold for parallelism': {
-            'description': '并行度成本阈值',
-            'recommend': '建议25-50',
-            'check_type': 'value_range',
-            'min': 25,
-            'max': 50
+        "cost threshold for parallelism": {
+            "description": "并行度成本阈值",
+            "recommend": "建议25-50",
+            "check_type": "value_range",
+            "min": 25,
+            "max": 50,
         },
-        'remote access': {
-            'description': '远程访问',
-            'expected': 0,
-            'suggestion': '如无必要建议禁用远程访问'
+        "remote access": {"description": "远程访问", "expected": 0, "suggestion": "如无必要建议禁用远程访问"},
+        "xp_cmdshell": {"description": "xp_cmdshell扩展存储过程", "expected": 0, "suggestion": "安全风险，建议禁用"},
+        "clr enabled": {"description": "CLR集成", "expected": 0, "suggestion": "如不使用CLR，建议禁用"},
+        "Ole Automation Procedures": {
+            "description": "OLE自动化过程",
+            "expected": 0,
+            "suggestion": "安全风险，建议禁用",
         },
-        'xp_cmdshell': {
-            'description': 'xp_cmdshell扩展存储过程',
-            'expected': 0,
-            'suggestion': '安全风险，建议禁用'
-        },
-        'clr enabled': {
-            'description': 'CLR集成',
-            'expected': 0,
-            'suggestion': '如不使用CLR，建议禁用'
-        },
-        'Ole Automation Procedures': {
-            'description': 'OLE自动化过程',
-            'expected': 0,
-            'suggestion': '安全风险，建议禁用'
-        }
     }
 
     # 性能阈值
@@ -117,11 +105,11 @@ class MSSQLInspector(BaseInspector):
             if result.rows:
                 row = result.rows[0]
                 self._version_info = {
-                    'version': row[0],
-                    'product_version': row[1],
-                    'product_level': row[2],
-                    'edition': row[3],
-                    'engine_edition': row[4]
+                    "version": row[0],
+                    "product_version": row[1],
+                    "product_level": row[2],
+                    "edition": row[3],
+                    "engine_edition": row[4],
                 }
                 self._edition = row[3]
             else:
@@ -143,17 +131,17 @@ class MSSQLInspector(BaseInspector):
             Optional[Any]: 配置值或None
         """
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT value, value_in_use
                 FROM sys.configurations
                 WHERE name = ?
-            """, (name,))
+            """,
+                (name,),
+            )
 
             if result.rows:
-                return {
-                    'value': result.rows[0][0],
-                    'value_in_use': result.rows[0][1]
-                }
+                return {"value": result.rows[0][0], "value_in_use": result.rows[0][1]}
         except Exception as e:
             logger.error(f"获取配置 {name} 失败: {e}")
 
@@ -169,9 +157,9 @@ class MSSQLInspector(BaseInspector):
         items = []
 
         # 1. 检查最大内存设置
-        memory_config = self._get_configuration_value('max server memory (MB)')
+        memory_config = self._get_configuration_value("max server memory (MB)")
         if memory_config:
-            memory_mb = memory_config['value_in_use']
+            memory_mb = memory_config["value_in_use"]
             # 获取物理内存
             try:
                 result = self.connector.execute("""
@@ -184,32 +172,36 @@ class MSSQLInspector(BaseInspector):
                     memory_ratio = (memory_mb / physical_memory) * 100
 
                     if memory_ratio > 90:
-                        items.append(InspectionItem(
-                            name="最大服务器内存设置",
-                            inspection_type=InspectionType.CONFIGURATION,
-                            risk_level=RiskLevel.HIGH,
-                            description=f"最大内存设置为 {memory_mb}MB，占物理内存 {memory_ratio:.1f}%",
-                            current_value=f"{memory_mb}MB ({memory_ratio:.1f}%)",
-                            recommended_value=f"建议设置为物理内存的70-80% (约 {int(physical_memory * 0.75)}MB)",
-                            suggestion="内存设置过高可能导致操作系统内存不足"
-                        ))
+                        items.append(
+                            InspectionItem(
+                                name="最大服务器内存设置",
+                                inspection_type=InspectionType.CONFIGURATION,
+                                risk_level=RiskLevel.HIGH,
+                                description=f"最大内存设置为 {memory_mb}MB，占物理内存 {memory_ratio:.1f}%",
+                                current_value=f"{memory_mb}MB ({memory_ratio:.1f}%)",
+                                recommended_value=f"建议设置为物理内存的70-80% (约 {int(physical_memory * 0.75)}MB)",
+                                suggestion="内存设置过高可能导致操作系统内存不足",
+                            )
+                        )
                     elif memory_ratio < 50:
-                        items.append(InspectionItem(
-                            name="最大服务器内存设置",
-                            inspection_type=InspectionType.CONFIGURATION,
-                            risk_level=RiskLevel.MEDIUM,
-                            description=f"最大内存设置为 {memory_mb}MB，占物理内存 {memory_ratio:.1f}%",
-                            current_value=f"{memory_mb}MB ({memory_ratio:.1f}%)",
-                            recommended_value=f"建议设置为物理内存的70-80% (约 {int(physical_memory * 0.75)}MB)",
-                            suggestion="内存设置过低可能影响数据库性能"
-                        ))
+                        items.append(
+                            InspectionItem(
+                                name="最大服务器内存设置",
+                                inspection_type=InspectionType.CONFIGURATION,
+                                risk_level=RiskLevel.MEDIUM,
+                                description=f"最大内存设置为 {memory_mb}MB，占物理内存 {memory_ratio:.1f}%",
+                                current_value=f"{memory_mb}MB ({memory_ratio:.1f}%)",
+                                recommended_value=f"建议设置为物理内存的70-80% (约 {int(physical_memory * 0.75)}MB)",
+                                suggestion="内存设置过低可能影响数据库性能",
+                            )
+                        )
             except Exception as e:
                 logger.warning(f"检查内存配置失败: {e}")
 
         # 2. 检查最大并行度
-        maxdop_config = self._get_configuration_value('max degree of parallelism')
+        maxdop_config = self._get_configuration_value("max degree of parallelism")
         if maxdop_config:
-            maxdop = maxdop_config['value_in_use']
+            maxdop = maxdop_config["value_in_use"]
             # 检查是否为OLTP环境（简单判断：如果有大量短查询）
             try:
                 result = self.connector.execute("""
@@ -221,37 +213,41 @@ class MSSQLInspector(BaseInspector):
                 is_oltp = short_queries > 1000
 
                 if is_oltp and maxdop > 1:
-                    items.append(InspectionItem(
-                        name="最大并行度设置",
-                        inspection_type=InspectionType.CONFIGURATION,
-                        risk_level=RiskLevel.MEDIUM,
-                        description=f"当前MAXDOP设置为 {maxdop}，检测到可能是OLTP环境",
-                        current_value=str(maxdop),
-                        recommended_value="0或1",
-                        suggestion="OLTP环境建议设置MAXDOP为0或1，避免并行查询开销"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name="最大并行度设置",
+                            inspection_type=InspectionType.CONFIGURATION,
+                            risk_level=RiskLevel.MEDIUM,
+                            description=f"当前MAXDOP设置为 {maxdop}，检测到可能是OLTP环境",
+                            current_value=str(maxdop),
+                            recommended_value="0或1",
+                            suggestion="OLTP环境建议设置MAXDOP为0或1，避免并行查询开销",
+                        )
+                    )
             except Exception as e:
                 logger.warning(f"检查MAXDOP失败: {e}")
 
         # 3. 检查安全相关配置
         security_configs = [
-            ('xp_cmdshell', 'xp_cmdshell扩展存储过程'),
-            ('Ole Automation Procedures', 'OLE自动化过程'),
-            ('clr enabled', 'CLR集成')
+            ("xp_cmdshell", "xp_cmdshell扩展存储过程"),
+            ("Ole Automation Procedures", "OLE自动化过程"),
+            ("clr enabled", "CLR集成"),
         ]
 
         for config_name, description in security_configs:
             config = self._get_configuration_value(config_name)
-            if config and config['value_in_use'] == 1:
-                items.append(InspectionItem(
-                    name=description,
-                    inspection_type=InspectionType.SECURITY,
-                    risk_level=RiskLevel.MEDIUM,
-                    description=f"{description}已启用",
-                    current_value="启用",
-                    recommended_value="禁用",
-                    suggestion=f"如无必要，建议禁用{description}以降低安全风险"
-                ))
+            if config and config["value_in_use"] == 1:
+                items.append(
+                    InspectionItem(
+                        name=description,
+                        inspection_type=InspectionType.SECURITY,
+                        risk_level=RiskLevel.MEDIUM,
+                        description=f"{description}已启用",
+                        current_value="启用",
+                        recommended_value="禁用",
+                        suggestion=f"如无必要，建议禁用{description}以降低安全风险",
+                    )
+                )
 
         # 4. 检查恢复模式
         try:
@@ -263,7 +259,7 @@ class MSSQLInspector(BaseInspector):
 
             for row in result.rows:
                 db_name, recovery_model = row[0], row[1]
-                if recovery_model == 'FULL':
+                if recovery_model == "FULL":
                     # 检查是否有日志备份
                     backup_result = self.connector.execute(f"""
                         SELECT MAX(backup_finish_date)
@@ -274,15 +270,17 @@ class MSSQLInspector(BaseInspector):
                     last_log_backup = backup_result.rows[0][0] if backup_result.rows else None
 
                     if not last_log_backup:
-                        items.append(InspectionItem(
-                            name=f"数据库 {db_name} 日志备份",
-                            inspection_type=InspectionType.CONFIGURATION,
-                            risk_level=RiskLevel.HIGH,
-                            description=f"数据库 {db_name} 为完整恢复模式，但未配置日志备份",
-                            current_value="无日志备份",
-                            recommended_value="配置定期日志备份",
-                            suggestion="完整恢复模式需要日志备份来截断日志，否则日志文件会无限增长"
-                        ))
+                        items.append(
+                            InspectionItem(
+                                name=f"数据库 {db_name} 日志备份",
+                                inspection_type=InspectionType.CONFIGURATION,
+                                risk_level=RiskLevel.HIGH,
+                                description=f"数据库 {db_name} 为完整恢复模式，但未配置日志备份",
+                                current_value="无日志备份",
+                                recommended_value="配置定期日志备份",
+                                suggestion="完整恢复模式需要日志备份来截断日志，否则日志文件会无限增长",
+                            )
+                        )
         except Exception as e:
             logger.warning(f"检查恢复模式失败: {e}")
 
@@ -313,25 +311,29 @@ class MSSQLInspector(BaseInspector):
                 hit_ratio = result.rows[0][0]
 
                 if hit_ratio < self.BUFFER_CACHE_HIT_RATIO_CRITICAL:
-                    items.append(InspectionItem(
-                        name="缓冲区命中率",
-                        inspection_type=InspectionType.PERFORMANCE,
-                        risk_level=RiskLevel.CRITICAL,
-                        description=f"缓冲区命中率为 {hit_ratio:.2f}%，低于临界值 {self.BUFFER_CACHE_HIT_RATIO_CRITICAL}%",
-                        current_value=f"{hit_ratio:.2f}%",
-                        recommended_value=f">= {self.BUFFER_CACHE_HIT_RATIO_THRESHOLD}%",
-                        suggestion="考虑增加内存或优化查询以减少磁盘IO"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name="缓冲区命中率",
+                            inspection_type=InspectionType.PERFORMANCE,
+                            risk_level=RiskLevel.CRITICAL,
+                            description=f"缓冲区命中率为 {hit_ratio:.2f}%，低于临界值 {self.BUFFER_CACHE_HIT_RATIO_CRITICAL}%",
+                            current_value=f"{hit_ratio:.2f}%",
+                            recommended_value=f">= {self.BUFFER_CACHE_HIT_RATIO_THRESHOLD}%",
+                            suggestion="考虑增加内存或优化查询以减少磁盘IO",
+                        )
+                    )
                 elif hit_ratio < self.BUFFER_CACHE_HIT_RATIO_THRESHOLD:
-                    items.append(InspectionItem(
-                        name="缓冲区命中率",
-                        inspection_type=InspectionType.PERFORMANCE,
-                        risk_level=RiskLevel.HIGH,
-                        description=f"缓冲区命中率为 {hit_ratio:.2f}%，低于推荐值 {self.BUFFER_CACHE_HIT_RATIO_THRESHOLD}%",
-                        current_value=f"{hit_ratio:.2f}%",
-                        recommended_value=f">= {self.BUFFER_CACHE_HIT_RATIO_THRESHOLD}%",
-                        suggestion="监控内存使用情况，考虑优化查询"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name="缓冲区命中率",
+                            inspection_type=InspectionType.PERFORMANCE,
+                            risk_level=RiskLevel.HIGH,
+                            description=f"缓冲区命中率为 {hit_ratio:.2f}%，低于推荐值 {self.BUFFER_CACHE_HIT_RATIO_THRESHOLD}%",
+                            current_value=f"{hit_ratio:.2f}%",
+                            recommended_value=f">= {self.BUFFER_CACHE_HIT_RATIO_THRESHOLD}%",
+                            suggestion="监控内存使用情况，考虑优化查询",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查缓冲区命中率失败: {e}")
 
@@ -353,15 +355,17 @@ class MSSQLInspector(BaseInspector):
                 proc_hit_ratio = result.rows[0][0]
 
                 if proc_hit_ratio < self.PROC_CACHE_HIT_RATIO_THRESHOLD:
-                    items.append(InspectionItem(
-                        name="过程缓存命中率",
-                        inspection_type=InspectionType.PERFORMANCE,
-                        risk_level=RiskLevel.MEDIUM,
-                        description=f"过程缓存命中率为 {proc_hit_ratio:.2f}%",
-                        current_value=f"{proc_hit_ratio:.2f}%",
-                        recommended_value=f">= {self.PROC_CACHE_HIT_RATIO_THRESHOLD}%",
-                        suggestion="考虑使用参数化查询以提高计划重用率"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name="过程缓存命中率",
+                            inspection_type=InspectionType.PERFORMANCE,
+                            risk_level=RiskLevel.MEDIUM,
+                            description=f"过程缓存命中率为 {proc_hit_ratio:.2f}%",
+                            current_value=f"{proc_hit_ratio:.2f}%",
+                            recommended_value=f">= {self.PROC_CACHE_HIT_RATIO_THRESHOLD}%",
+                            suggestion="考虑使用参数化查询以提高计划重用率",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查过程缓存命中率失败: {e}")
 
@@ -381,15 +385,17 @@ class MSSQLInspector(BaseInspector):
                 recompile_ratio = result.rows[0][0]
 
                 if recompile_ratio > self.RECOMPILATIONS_RATIO_THRESHOLD:
-                    items.append(InspectionItem(
-                        name="重编译比率",
-                        inspection_type=InspectionType.PERFORMANCE,
-                        risk_level=RiskLevel.MEDIUM,
-                        description=f"SQL重编译比率为 {recompile_ratio:.2f}%",
-                        current_value=f"{recompile_ratio:.2f}%",
-                        recommended_value=f"< {self.RECOMPILATIONS_RATIO_THRESHOLD}%",
-                        suggestion="高重编译率可能由架构变更或统计信息更新引起，检查是否有频繁的对象修改"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name="重编译比率",
+                            inspection_type=InspectionType.PERFORMANCE,
+                            risk_level=RiskLevel.MEDIUM,
+                            description=f"SQL重编译比率为 {recompile_ratio:.2f}%",
+                            current_value=f"{recompile_ratio:.2f}%",
+                            recommended_value=f"< {self.RECOMPILATIONS_RATIO_THRESHOLD}%",
+                            suggestion="高重编译率可能由架构变更或统计信息更新引起，检查是否有频繁的对象修改",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查重编译比率失败: {e}")
 
@@ -416,15 +422,17 @@ class MSSQLInspector(BaseInspector):
                 wait_type, wait_time_sec, task_count = row[0], row[1], row[2]
 
                 if wait_time_sec > 300:  # 超过5分钟
-                    items.append(InspectionItem(
-                        name=f"等待统计 - {wait_type}",
-                        inspection_type=InspectionType.PERFORMANCE,
-                        risk_level=RiskLevel.HIGH,
-                        description=f"等待类型 {wait_type} 累计等待 {wait_time_sec:.0f} 秒",
-                        current_value=f"{wait_time_sec:.0f}秒 ({task_count}次)",
-                        recommended_value="< 300秒",
-                        suggestion=f"需要分析 {wait_type} 等待类型的根本原因"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"等待统计 - {wait_type}",
+                            inspection_type=InspectionType.PERFORMANCE,
+                            risk_level=RiskLevel.HIGH,
+                            description=f"等待类型 {wait_type} 累计等待 {wait_time_sec:.0f} 秒",
+                            current_value=f"{wait_time_sec:.0f}秒 ({task_count}次)",
+                            recommended_value="< 300秒",
+                            suggestion=f"需要分析 {wait_type} 等待类型的根本原因",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查等待统计失败: {e}")
 
@@ -462,27 +470,31 @@ class MSSQLInspector(BaseInspector):
 
                 # 检查文件大小
                 if size_mb > 10240:  # 超过10GB
-                    items.append(InspectionItem(
-                        name=f"数据库文件 {db_name}.{logical_name}",
-                        inspection_type=InspectionType.STORAGE,
-                        risk_level=RiskLevel.MEDIUM,
-                        description=f"数据文件大小为 {size_mb:.0f}MB",
-                        current_value=f"{size_mb:.0f}MB",
-                        recommended_value="考虑分区或归档",
-                        suggestion="大文件可能影响备份和恢复性能"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"数据库文件 {db_name}.{logical_name}",
+                            inspection_type=InspectionType.STORAGE,
+                            risk_level=RiskLevel.MEDIUM,
+                            description=f"数据文件大小为 {size_mb:.0f}MB",
+                            current_value=f"{size_mb:.0f}MB",
+                            recommended_value="考虑分区或归档",
+                            suggestion="大文件可能影响备份和恢复性能",
+                        )
+                    )
 
                 # 检查增长设置
                 if is_percent_growth and growth > 10:
-                    items.append(InspectionItem(
-                        name=f"文件增长设置 {db_name}.{logical_name}",
-                        inspection_type=InspectionType.STORAGE,
-                        risk_level=RiskLevel.MEDIUM,
-                        description=f"文件使用百分比增长 ({growth}%)",
-                        current_value=f"{growth}%",
-                        recommended_value="固定大小增长 (如100MB)",
-                        suggestion="百分比增长在大文件时会导致增长量过大，建议使用固定大小增长"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"文件增长设置 {db_name}.{logical_name}",
+                            inspection_type=InspectionType.STORAGE,
+                            risk_level=RiskLevel.MEDIUM,
+                            description=f"文件使用百分比增长 ({growth}%)",
+                            current_value=f"{growth}%",
+                            recommended_value="固定大小增长 (如100MB)",
+                            suggestion="百分比增长在大文件时会导致增长量过大，建议使用固定大小增长",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查存储失败: {e}")
 
@@ -502,15 +514,17 @@ class MSSQLInspector(BaseInspector):
                 db_name, logical_name, size_mb = row[0], row[1], row[2]
 
                 if size_mb > 10240:  # 超过10GB
-                    items.append(InspectionItem(
-                        name=f"日志文件 {db_name}.{logical_name}",
-                        inspection_type=InspectionType.STORAGE,
-                        risk_level=RiskLevel.HIGH,
-                        description=f"日志文件大小为 {size_mb:.0f}MB",
-                        current_value=f"{size_mb:.0f}MB",
-                        recommended_value="配置日志备份",
-                        suggestion="日志文件过大，检查是否配置了日志备份"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"日志文件 {db_name}.{logical_name}",
+                            inspection_type=InspectionType.STORAGE,
+                            risk_level=RiskLevel.HIGH,
+                            description=f"日志文件大小为 {size_mb:.0f}MB",
+                            current_value=f"{size_mb:.0f}MB",
+                            recommended_value="配置日志备份",
+                            suggestion="日志文件过大，检查是否配置了日志备份",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查日志文件失败: {e}")
 
@@ -535,15 +549,17 @@ class MSSQLInspector(BaseInspector):
                 is_windows_only = result.rows[0][0]
 
                 if not is_windows_only:
-                    items.append(InspectionItem(
-                        name="SQL Server认证模式",
-                        inspection_type=InspectionType.SECURITY,
-                        risk_level=RiskLevel.MEDIUM,
-                        description="SQL Server使用混合模式认证（SQL Server和Windows）",
-                        current_value="混合模式",
-                        recommended_value="Windows身份验证模式",
-                        suggestion="如可能，建议使用Windows身份验证模式以提高安全性"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name="SQL Server认证模式",
+                            inspection_type=InspectionType.SECURITY,
+                            risk_level=RiskLevel.MEDIUM,
+                            description="SQL Server使用混合模式认证（SQL Server和Windows）",
+                            current_value="混合模式",
+                            recommended_value="Windows身份验证模式",
+                            suggestion="如可能，建议使用Windows身份验证模式以提高安全性",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查认证模式失败: {e}")
 
@@ -561,15 +577,17 @@ class MSSQLInspector(BaseInspector):
 
             sysadmin_count = len(result.rows)
             if sysadmin_count > 5:
-                items.append(InspectionItem(
-                    name="sysadmin角色成员",
-                    inspection_type=InspectionType.SECURITY,
-                    risk_level=RiskLevel.MEDIUM,
-                    description=f"有 {sysadmin_count} 个登录名具有sysadmin权限",
-                    current_value=f"{sysadmin_count}个",
-                    recommended_value="<= 5个",
-                    suggestion="sysadmin权限过高，建议遵循最小权限原则"
-                ))
+                items.append(
+                    InspectionItem(
+                        name="sysadmin角色成员",
+                        inspection_type=InspectionType.SECURITY,
+                        risk_level=RiskLevel.MEDIUM,
+                        description=f"有 {sysadmin_count} 个登录名具有sysadmin权限",
+                        current_value=f"{sysadmin_count}个",
+                        recommended_value="<= 5个",
+                        suggestion="sysadmin权限过高，建议遵循最小权限原则",
+                    )
+                )
         except Exception as e:
             logger.warning(f"检查sysadmin失败: {e}")
 
@@ -584,15 +602,17 @@ class MSSQLInspector(BaseInspector):
             if result.rows:
                 is_disabled = result.rows[0][0]
                 if not is_disabled:
-                    items.append(InspectionItem(
-                        name="sa账户状态",
-                        inspection_type=InspectionType.SECURITY,
-                        risk_level=RiskLevel.HIGH,
-                        description="sa账户已启用",
-                        current_value="启用",
-                        recommended_value="禁用",
-                        suggestion="sa账户是SQL Server的超级管理员，建议禁用并使用具有最小权限的专用账户"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name="sa账户状态",
+                            inspection_type=InspectionType.SECURITY,
+                            risk_level=RiskLevel.HIGH,
+                            description="sa账户已启用",
+                            current_value="启用",
+                            recommended_value="禁用",
+                            suggestion="sa账户是SQL Server的超级管理员，建议禁用并使用具有最小权限的专用账户",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查sa账户失败: {e}")
 
@@ -610,15 +630,17 @@ class MSSQLInspector(BaseInspector):
                 is_expiration_checked = row[2]
 
                 if not is_policy_checked:
-                    items.append(InspectionItem(
-                        name=f"登录名 {login_name} 密码策略",
-                        inspection_type=InspectionType.SECURITY,
-                        risk_level=RiskLevel.MEDIUM,
-                        description=f"登录名 {login_name} 未强制密码策略",
-                        current_value="未强制",
-                        recommended_value="强制密码策略",
-                        suggestion="建议启用Windows密码策略以增强安全性"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"登录名 {login_name} 密码策略",
+                            inspection_type=InspectionType.SECURITY,
+                            risk_level=RiskLevel.MEDIUM,
+                            description=f"登录名 {login_name} 未强制密码策略",
+                            current_value="未强制",
+                            recommended_value="强制密码策略",
+                            suggestion="建议启用Windows密码策略以增强安全性",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查密码策略失败: {e}")
 
@@ -654,25 +676,29 @@ class MSSQLInspector(BaseInspector):
                 usage_ratio = ((total_gb - available_gb) / total_gb) * 100 if total_gb > 0 else 0
 
                 if usage_ratio > 90:
-                    items.append(InspectionItem(
-                        name=f"磁盘空间 {volume_mount_point}",
-                        inspection_type=InspectionType.CAPACITY,
-                        risk_level=RiskLevel.CRITICAL,
-                        description=f"磁盘 {volume_mount_point} 使用率 {usage_ratio:.1f}%",
-                        current_value=f"已用 {total_gb - available_gb:.0f}GB / 总计 {total_gb:.0f}GB",
-                        recommended_value="< 90%",
-                        suggestion="磁盘空间严重不足，需要立即清理或扩容"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"磁盘空间 {volume_mount_point}",
+                            inspection_type=InspectionType.CAPACITY,
+                            risk_level=RiskLevel.CRITICAL,
+                            description=f"磁盘 {volume_mount_point} 使用率 {usage_ratio:.1f}%",
+                            current_value=f"已用 {total_gb - available_gb:.0f}GB / 总计 {total_gb:.0f}GB",
+                            recommended_value="< 90%",
+                            suggestion="磁盘空间严重不足，需要立即清理或扩容",
+                        )
+                    )
                 elif usage_ratio > 80:
-                    items.append(InspectionItem(
-                        name=f"磁盘空间 {volume_mount_point}",
-                        inspection_type=InspectionType.CAPACITY,
-                        risk_level=RiskLevel.HIGH,
-                        description=f"磁盘 {volume_mount_point} 使用率 {usage_ratio:.1f}%",
-                        current_value=f"已用 {total_gb - available_gb:.0f}GB / 总计 {total_gb:.0f}GB",
-                        recommended_value="< 80%",
-                        suggestion="磁盘空间紧张，建议规划扩容"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"磁盘空间 {volume_mount_point}",
+                            inspection_type=InspectionType.CAPACITY,
+                            risk_level=RiskLevel.HIGH,
+                            description=f"磁盘 {volume_mount_point} 使用率 {usage_ratio:.1f}%",
+                            current_value=f"已用 {total_gb - available_gb:.0f}GB / 总计 {total_gb:.0f}GB",
+                            recommended_value="< 80%",
+                            suggestion="磁盘空间紧张，建议规划扩容",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查磁盘空间失败: {e}")
 
@@ -692,15 +718,17 @@ class MSSQLInspector(BaseInspector):
                 db_name, total_size_gb = row[0], row[1]
 
                 if total_size_gb > 100:  # 超过100GB
-                    items.append(InspectionItem(
-                        name=f"数据库 {db_name} 大小",
-                        inspection_type=InspectionType.CAPACITY,
-                        risk_level=RiskLevel.MEDIUM,
-                        description=f"数据库 {db_name} 总大小为 {total_size_gb:.1f}GB",
-                        current_value=f"{total_size_gb:.1f}GB",
-                        recommended_value="考虑分区或归档",
-                        suggestion="大型数据库需要考虑分区策略和归档方案"
-                    ))
+                    items.append(
+                        InspectionItem(
+                            name=f"数据库 {db_name} 大小",
+                            inspection_type=InspectionType.CAPACITY,
+                            risk_level=RiskLevel.MEDIUM,
+                            description=f"数据库 {db_name} 总大小为 {total_size_gb:.1f}GB",
+                            current_value=f"{total_size_gb:.1f}GB",
+                            recommended_value="考虑分区或归档",
+                            suggestion="大型数据库需要考虑分区策略和归档方案",
+                        )
+                    )
         except Exception as e:
             logger.warning(f"检查数据库大小失败: {e}")
 
@@ -729,22 +757,22 @@ class MSSQLInspector(BaseInspector):
             total_size_gb = size_result.rows[0][0] if size_result.rows else 0
 
             return {
-                'version': version_info.get('product_version', 'Unknown'),
-                'edition': version_info.get('edition', 'Unknown'),
-                'databases': database_count,
-                'total_size_gb': round(total_size_gb, 2),
-                'uptime': self._get_uptime(),
-                'dialect': 'mssql'
+                "version": version_info.get("product_version", "Unknown"),
+                "edition": version_info.get("edition", "Unknown"),
+                "databases": database_count,
+                "total_size_gb": round(total_size_gb, 2),
+                "uptime": self._get_uptime(),
+                "dialect": "mssql",
             }
         except Exception as e:
             logger.error(f"获取实例信息失败: {e}")
             return {
-                'version': version_info.get('product_version', 'Unknown'),
-                'edition': version_info.get('edition', 'Unknown'),
-                'databases': 0,
-                'total_size_gb': 0,
-                'uptime': 'Unknown',
-                'dialect': 'mssql'
+                "version": version_info.get("product_version", "Unknown"),
+                "edition": version_info.get("edition", "Unknown"),
+                "databases": 0,
+                "total_size_gb": 0,
+                "uptime": "Unknown",
+                "dialect": "mssql",
             }
 
     def _get_uptime(self) -> str:

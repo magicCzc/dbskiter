@@ -43,14 +43,14 @@ class SQLParser:
 
     # SQL类型检测模式
     SQL_PATTERNS: Dict[SQLType, Pattern] = {
-        SQLType.SELECT: re.compile(r'^\s*SELECT\s+', re.IGNORECASE),
-        SQLType.INSERT: re.compile(r'^\s*INSERT\s+INTO\s+', re.IGNORECASE),
-        SQLType.UPDATE: re.compile(r'^\s*UPDATE\s+', re.IGNORECASE),
-        SQLType.DELETE: re.compile(r'^\s*DELETE\s+FROM\s+', re.IGNORECASE),
-        SQLType.CREATE: re.compile(r'^\s*CREATE\s+(TABLE|INDEX|VIEW)', re.IGNORECASE),
-        SQLType.ALTER: re.compile(r'^\s*ALTER\s+TABLE\s+', re.IGNORECASE),
-        SQLType.DROP: re.compile(r'^\s*DROP\s+(TABLE|INDEX|VIEW)', re.IGNORECASE),
-        SQLType.TRUNCATE: re.compile(r'^\s*TRUNCATE\s+TABLE\s+', re.IGNORECASE),
+        SQLType.SELECT: re.compile(r"^\s*SELECT\s+", re.IGNORECASE),
+        SQLType.INSERT: re.compile(r"^\s*INSERT\s+INTO\s+", re.IGNORECASE),
+        SQLType.UPDATE: re.compile(r"^\s*UPDATE\s+", re.IGNORECASE),
+        SQLType.DELETE: re.compile(r"^\s*DELETE\s+FROM\s+", re.IGNORECASE),
+        SQLType.CREATE: re.compile(r"^\s*CREATE\s+(TABLE|INDEX|VIEW)", re.IGNORECASE),
+        SQLType.ALTER: re.compile(r"^\s*ALTER\s+TABLE\s+", re.IGNORECASE),
+        SQLType.DROP: re.compile(r"^\s*DROP\s+(TABLE|INDEX|VIEW)", re.IGNORECASE),
+        SQLType.TRUNCATE: re.compile(r"^\s*TRUNCATE\s+TABLE\s+", re.IGNORECASE),
     }
 
     @staticmethod
@@ -106,16 +106,16 @@ class SQLParser:
         columns = []
 
         # SELECT 列
-        select_match = re.search(r'SELECT\s+(.+?)\s+FROM', sql, re.IGNORECASE | re.DOTALL)
+        select_match = re.search(r"SELECT\s+(.+?)\s+FROM", sql, re.IGNORECASE | re.DOTALL)
         if select_match:
             cols_text = select_match.group(1)
             # 分割列
-            cols = [c.strip() for c in cols_text.split(',')]
+            cols = [c.strip() for c in cols_text.split(",")]
             for col in cols:
                 # 移除别名
-                col = re.sub(r'\s+AS\s+\w+', '', col, flags=re.IGNORECASE)
+                col = re.sub(r"\s+AS\s+\w+", "", col, flags=re.IGNORECASE)
                 col = col.strip()
-                if col and col != '*':
+                if col and col != "*":
                     columns.append(col)
 
         return columns
@@ -134,7 +134,7 @@ class SQLParser:
         if not sql:
             return False
 
-        return bool(re.search(r'\bWHERE\b', sql, re.IGNORECASE))
+        return bool(re.search(r"\bWHERE\b", sql, re.IGNORECASE))
 
     @staticmethod
     def has_limit_clause(sql: str) -> bool:
@@ -150,7 +150,7 @@ class SQLParser:
         if not sql:
             return False
 
-        return bool(re.search(r'\bLIMIT\b', sql, re.IGNORECASE))
+        return bool(re.search(r"\bLIMIT\b", sql, re.IGNORECASE))
 
 
 class RuleEngine:
@@ -172,7 +172,7 @@ class RuleEngine:
             "audit_type": AuditType.PERFORMANCE,
             "level": AuditLevel.HIGH,
             "description": "SELECT * 会返回所有列，增加网络传输和内存消耗",
-            "pattern": re.compile(r'SELECT\s+\*', re.IGNORECASE),
+            "pattern": re.compile(r"SELECT\s+\*", re.IGNORECASE),
             "suggestion": "明确指定需要的列名",
         },
         {
@@ -181,7 +181,8 @@ class RuleEngine:
             "audit_type": AuditType.PERFORMANCE,
             "level": AuditLevel.MEDIUM,
             "description": "没有LIMIT的查询可能返回大量数据",
-            "check_func": lambda sql: not SQLParser.has_limit_clause(sql) and SQLParser.detect_sql_type(sql) == SQLType.SELECT,
+            "check_func": lambda sql: not SQLParser.has_limit_clause(sql)
+            and SQLParser.detect_sql_type(sql) == SQLType.SELECT,
             "suggestion": "添加LIMIT限制返回行数",
         },
         {
@@ -190,7 +191,7 @@ class RuleEngine:
             "audit_type": AuditType.PERFORMANCE,
             "level": AuditLevel.MEDIUM,
             "description": "NOT IN性能较差，建议使用NOT EXISTS或LEFT JOIN",
-            "pattern": re.compile(r'NOT\s+IN', re.IGNORECASE),
+            "pattern": re.compile(r"NOT\s+IN", re.IGNORECASE),
             "suggestion": "使用NOT EXISTS替代NOT IN",
         },
         {
@@ -199,7 +200,7 @@ class RuleEngine:
             "audit_type": AuditType.PERFORMANCE,
             "level": AuditLevel.HIGH,
             "description": "深度分页(如LIMIT 1000000,10)性能极差",
-            "pattern": re.compile(r'LIMIT\s+\d{6,}\s*,', re.IGNORECASE),
+            "pattern": re.compile(r"LIMIT\s+\d{6,}\s*,", re.IGNORECASE),
             "suggestion": "使用覆盖索引或游标分页替代深度分页",
         },
         {
@@ -208,7 +209,7 @@ class RuleEngine:
             "audit_type": AuditType.PERFORMANCE,
             "level": AuditLevel.HIGH,
             "description": "WHERE条件中对列使用函数会导致索引失效",
-            "pattern": re.compile(r'WHERE\s+\w*\s*\([^)]+\)\s*[=<>]', re.IGNORECASE),
+            "pattern": re.compile(r"WHERE\s+\w*\s*\([^)]+\)\s*[=<>]", re.IGNORECASE),
             "suggestion": "避免在WHERE条件中对索引列使用函数",
         },
         {
@@ -226,7 +227,7 @@ class RuleEngine:
             "audit_type": AuditType.PERFORMANCE,
             "level": AuditLevel.MEDIUM,
             "description": "超过3个表的JOIN性能较差",
-            "pattern": re.compile(r'JOIN\s+\w+.*JOIN\s+\w+.*JOIN\s+\w+', re.IGNORECASE | re.DOTALL),
+            "pattern": re.compile(r"JOIN\s+\w+.*JOIN\s+\w+.*JOIN\s+\w+", re.IGNORECASE | re.DOTALL),
             "suggestion": "考虑拆分查询或优化表结构",
         },
         {
@@ -235,10 +236,9 @@ class RuleEngine:
             "audit_type": AuditType.PERFORMANCE,
             "level": AuditLevel.MEDIUM,
             "description": "COUNT(*)在大表上性能差，考虑使用近似值",
-            "pattern": re.compile(r'SELECT\s+COUNT\s*\(\s*\*\s*\)', re.IGNORECASE),
+            "pattern": re.compile(r"SELECT\s+COUNT\s*\(\s*\*\s*\)", re.IGNORECASE),
             "suggestion": "考虑使用SHOW TABLE STATUS或缓存计数",
         },
-        
         # ==================== 安全规则 ====================
         {
             "rule_id": "SEC-001",
@@ -267,7 +267,7 @@ class RuleEngine:
             "audit_type": AuditType.SECURITY,
             "level": AuditLevel.CRITICAL,
             "description": "SLEEP(), BENCHMARK()等函数可能导致DoS攻击",
-            "pattern": re.compile(r'\b(SLEEP|BENCHMARK|LOAD_FILE|INTO\s+OUTFILE|INTO\s+DUMPFILE)\s*\(', re.IGNORECASE),
+            "pattern": re.compile(r"\b(SLEEP|BENCHMARK|LOAD_FILE|INTO\s+OUTFILE|INTO\s+DUMPFILE)\s*\(", re.IGNORECASE),
             "suggestion": "移除危险函数或进行严格审查",
         },
         {
@@ -285,7 +285,7 @@ class RuleEngine:
             "audit_type": AuditType.SECURITY,
             "level": AuditLevel.HIGH,
             "description": "分号分隔的多条SQL存在安全风险",
-            "pattern": re.compile(r';\s*(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)', re.IGNORECASE),
+            "pattern": re.compile(r";\s*(SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)", re.IGNORECASE),
             "suggestion": "避免使用堆叠查询，拆分执行",
         },
         {
@@ -294,7 +294,7 @@ class RuleEngine:
             "audit_type": AuditType.SECURITY,
             "level": AuditLevel.HIGH,
             "description": "查询密码、密钥等敏感字段需要审计",
-            "pattern": re.compile(r'SELECT.*\b(password|passwd|pwd|secret|key|token|credential)\b', re.IGNORECASE),
+            "pattern": re.compile(r"SELECT.*\b(password|passwd|pwd|secret|key|token|credential)\b", re.IGNORECASE),
             "suggestion": "避免直接查询敏感字段，使用加密或脱敏",
         },
         {
@@ -303,10 +303,9 @@ class RuleEngine:
             "audit_type": AuditType.SECURITY,
             "level": AuditLevel.HIGH,
             "description": "使用注释可能绕过权限检查",
-            "pattern": re.compile(r'/\*|--|#', re.IGNORECASE),
+            "pattern": re.compile(r"/\*|--|#", re.IGNORECASE),
             "suggestion": "移除不必要的注释",
         },
-        
         # ==================== DDL规则 ====================
         {
             "rule_id": "DDL-001",
@@ -314,7 +313,7 @@ class RuleEngine:
             "audit_type": AuditType.DDL,
             "level": AuditLevel.HIGH,
             "description": "对大表执行ALTER可能长时间锁表",
-            "pattern": re.compile(r'ALTER\s+TABLE', re.IGNORECASE),
+            "pattern": re.compile(r"ALTER\s+TABLE", re.IGNORECASE),
             "suggestion": "使用pt-online-schema-change或考虑业务低峰期执行",
         },
         {
@@ -325,8 +324,8 @@ class RuleEngine:
             "description": "CREATE TABLE应该同时创建主键索引",
             "check_func": lambda sql: (
                 SQLParser.detect_sql_type(sql) == SQLType.CREATE
-                and 'TABLE' in sql.upper()
-                and 'PRIMARY KEY' not in sql.upper()
+                and "TABLE" in sql.upper()
+                and "PRIMARY KEY" not in sql.upper()
             ),
             "suggestion": "添加主键索引",
         },
@@ -336,7 +335,7 @@ class RuleEngine:
             "audit_type": AuditType.DDL,
             "level": AuditLevel.HIGH,
             "description": "DROP COLUMN可能导致数据丢失",
-            "pattern": re.compile(r'DROP\s+COLUMN', re.IGNORECASE),
+            "pattern": re.compile(r"DROP\s+COLUMN", re.IGNORECASE),
             "suggestion": "确认数据已备份，考虑先标记废弃再删除",
         },
         {
@@ -345,10 +344,9 @@ class RuleEngine:
             "audit_type": AuditType.DDL,
             "level": AuditLevel.MEDIUM,
             "description": "外键会影响写入性能",
-            "pattern": re.compile(r'FOREIGN\s+KEY', re.IGNORECASE),
+            "pattern": re.compile(r"FOREIGN\s+KEY", re.IGNORECASE),
             "suggestion": "考虑在应用层实现外键约束",
         },
-        
         # ==================== 规范规则 ====================
         {
             "rule_id": "STYLE-001",
@@ -356,7 +354,7 @@ class RuleEngine:
             "audit_type": AuditType.STYLE,
             "level": AuditLevel.LOW,
             "description": "SQL关键字建议使用大写",
-            "pattern": re.compile(r'\b(select|from|where|insert|update|delete)\b'),
+            "pattern": re.compile(r"\b(select|from|where|insert|update|delete)\b"),
             "suggestion": "将SQL关键字转换为大写",
         },
         {
@@ -365,7 +363,7 @@ class RuleEngine:
             "audit_type": AuditType.STYLE,
             "level": AuditLevel.LOW,
             "description": "表名建议使用小写字母和下划线",
-            "pattern": re.compile(r'FROM\s+([A-Z][a-zA-Z0-9]*|[a-z]+[A-Z])', re.IGNORECASE),
+            "pattern": re.compile(r"FROM\s+([A-Z][a-zA-Z0-9]*|[a-z]+[A-Z])", re.IGNORECASE),
             "suggestion": "使用小写字母和下划线命名表名",
         },
         {
@@ -374,7 +372,7 @@ class RuleEngine:
             "audit_type": AuditType.STYLE,
             "level": AuditLevel.MEDIUM,
             "description": "表名和字段名不应使用保留字",
-            "pattern": re.compile(r'\b(ORDER|GROUP|SELECT|FROM|WHERE|TABLE|INDEX)\b', re.IGNORECASE),
+            "pattern": re.compile(r"\b(ORDER|GROUP|SELECT|FROM|WHERE|TABLE|INDEX)\b", re.IGNORECASE),
             "suggestion": "避免使用SQL保留字作为标识符",
         },
         {
@@ -411,7 +409,7 @@ class RuleEngine:
                     "pattern": rule_def.get("pattern"),
                     "check_func": rule_def.get("check_func"),
                     "suggestion": rule_def.get("suggestion", ""),
-                }
+                },
             )
             self.rules[rule.rule_id] = rule
 
@@ -511,7 +509,7 @@ class RuleEngine:
                 level=rule.level,
                 message=rule.description,
                 suggestion=config.get("suggestion", ""),
-                sql_fragment=sql[:100] if len(sql) > 100 else sql
+                sql_fragment=sql[:100] if len(sql) > 100 else sql,
             )
 
         # 检查自定义函数
@@ -524,7 +522,7 @@ class RuleEngine:
                 level=rule.level,
                 message=rule.description,
                 suggestion=config.get("suggestion", ""),
-                sql_fragment=sql[:100] if len(sql) > 100 else sql
+                sql_fragment=sql[:100] if len(sql) > 100 else sql,
             )
 
         return None
@@ -641,10 +639,7 @@ class IssueAggregator:
         }
 
     @staticmethod
-    def get_top_issues(
-        results: List[AuditResult],
-        limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    def get_top_issues(results: List[AuditResult], limit: int = 10) -> List[Dict[str, Any]]:
         """
         获取最常见的问题
 
@@ -670,11 +665,7 @@ class IssueAggregator:
                 issue_counts[key]["count"] += 1
 
         # 按出现次数排序
-        sorted_issues = sorted(
-            issue_counts.values(),
-            key=lambda x: x["count"],
-            reverse=True
-        )
+        sorted_issues = sorted(issue_counts.values(), key=lambda x: x["count"], reverse=True)
 
         return sorted_issues[:limit]
 
@@ -706,18 +697,18 @@ class SQLNormalizer:
         sql = sql.lower()
 
         # 移除多余空白
-        sql = re.sub(r'\s+', ' ', sql.strip())
+        sql = re.sub(r"\s+", " ", sql.strip())
 
         # 替换字符串常量
         sql = re.sub(r"'[^']*'", "'?'", sql)
         sql = re.sub(r'"[^"]*"', '"?"', sql)
 
         # 替换数字常量
-        sql = re.sub(r'\b\d+\b', '?', sql)
+        sql = re.sub(r"\b\d+\b", "?", sql)
 
         # 移除注释
-        sql = re.sub(r'--[^\n]*', '', sql)
-        sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
+        sql = re.sub(r"--[^\n]*", "", sql)
+        sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
 
         return sql.strip()
 

@@ -18,6 +18,7 @@ from typing import List, Optional
 
 try:
     import argcomplete
+
     HAS_ARGCOMPLETE = True
 except ImportError:
     argcomplete = None
@@ -77,114 +78,40 @@ def create_parser() -> argparse.ArgumentParser:
 ╚══════════════════════════════════════════════════════════════╝
 """,
     )
-    
+
     # 全局参数
+    parser.add_argument("--version", "-V", action="store_true", help="显示版本信息并退出")
+    parser.add_argument("--json", action="store_true", help="输出 JSON 格式结果")
+    parser.add_argument("--quiet", "-q", action="store_true", help="静默模式，只输出结果")
+    parser.add_argument("--no-color", action="store_true", help="禁用 ANSI 颜色输出（同时支持 NO_COLOR 环境变量）")
+    parser.add_argument("--dialect", help="数据库类型 (mysql, postgresql, sqlite, oracle)")
+    parser.add_argument("--host", "-H", help="数据库主机")
+    parser.add_argument("--port", "-P", type=int, help="数据库端口")
+    parser.add_argument("--user", "-u", help="数据库用户名")
+    parser.add_argument("--password", "-p", help="数据库密码")
+    parser.add_argument("--password-file", help="从文件读取数据库密码（优先于 --password，适合生产环境安全传密）")
     parser.add_argument(
-        "--version",
-        "-V",
-        action="store_true",
-        help="显示版本信息并退出"
+        "--password-stdin", action="store_true", help="从标准输入读取数据库密码（适合管道传密，避免shell历史记录泄露）"
     )
+    parser.add_argument("--url", help="数据库连接字符串，如 mysql://root:pass@localhost:3306/test")
     parser.add_argument(
-        "--json",
-        action="store_true",
-        help="输出 JSON 格式结果"
+        "--database", "-d", "--db", help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
     )
+    parser.add_argument("--config", "-c", help="配置文件路径")
+    parser.add_argument("--profile", help="配置文件中 profile 名称（如 local, production）")
+    parser.add_argument("--env", help="环境名称（如 development, production），对应配置文件中 environments 下的配置")
+    parser.add_argument("--prefix", default="DB", help="环境变量前缀 (DB, ORACLE, MYSQL2 等)，默认 DB")
+    parser.add_argument("--demo", action="store_true", help="演示模式：使用内置 Mock 数据，无需真实数据库")
+    parser.add_argument("--debug", action="store_true", help="调试模式（显示详细错误信息）")
+    parser.add_argument("--verbose", action="store_true", help="详细模式（显示诊断/监控过程中的日志信息）")
     parser.add_argument(
-        "--quiet",
-        "-q",
-        action="store_true",
-        help="静默模式，只输出结果"
-    )
-    parser.add_argument(
-        "--no-color",
-        action="store_true",
-        help="禁用 ANSI 颜色输出（同时支持 NO_COLOR 环境变量）"
-    )
-    parser.add_argument(
-        "--dialect",
-        help="数据库类型 (mysql, postgresql, sqlite, oracle)"
-    )
-    parser.add_argument(
-        "--host", "-H",
-        help="数据库主机"
-    )
-    parser.add_argument(
-        "--port", "-P",
-        type=int,
-        help="数据库端口"
-    )
-    parser.add_argument(
-        "--user",
-        "-u",
-        help="数据库用户名"
-    )
-    parser.add_argument(
-        "--password",
-        "-p",
-        help="数据库密码"
-    )
-    parser.add_argument(
-        "--password-file",
-        help="从文件读取数据库密码（优先于 --password，适合生产环境安全传密）"
-    )
-    parser.add_argument(
-        "--password-stdin",
-        action="store_true",
-        help="从标准输入读取数据库密码（适合管道传密，避免shell历史记录泄露）"
-    )
-    parser.add_argument(
-        "--url",
-        help="数据库连接字符串，如 mysql://root:pass@localhost:3306/test"
-    )
-    parser.add_argument(
-        "--database", "-d", "--db",
-        help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
-    )
-    parser.add_argument(
-        "--config",
-        "-c",
-        help="配置文件路径"
-    )
-    parser.add_argument(
-        "--profile",
-        help="配置文件中 profile 名称（如 local, production）"
-    )
-    parser.add_argument(
-        "--env",
-        help="环境名称（如 development, production），对应配置文件中 environments 下的配置"
-    )
-    parser.add_argument(
-        "--prefix",
-        default="DB",
-        help="环境变量前缀 (DB, ORACLE, MYSQL2 等)，默认 DB"
-    )
-    parser.add_argument(
-        "--demo",
-        action="store_true",
-        help="演示模式：使用内置 Mock 数据，无需真实数据库"
-    )
-    parser.add_argument(
-        "--debug",
-        action="store_true",
-        help="调试模式（显示详细错误信息）"
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="详细模式（显示诊断/监控过程中的日志信息）"
-    )
-    parser.add_argument(
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="WARNING",
-        help="日志级别（默认WARNING）"
+        "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="WARNING", help="日志级别（默认WARNING）"
     )
     parser.add_argument(
         "--output-mode",
         choices=["rule", "raw", "ai"],
         default="rule",
-        help="输出模式: rule=规则结论(默认), raw=原始数据, ai=AI友好格式"
+        help="输出模式: rule=规则结论(默认), raw=原始数据, ai=AI友好格式",
     )
 
     # 追踪参数（同时注册在主解析器和子解析器上）
@@ -196,64 +123,28 @@ def create_parser() -> argparse.ArgumentParser:
 def _add_connection_args(parser: argparse.ArgumentParser) -> None:
     """
     添加数据库连接参数到解析器
-    
+
     这些参数同时注册在主解析器和子解析器上，
     使用户可以在子命令前后灵活使用。
-    
+
     参数:
         parser: 要添加参数的解析器
     """
     conn_group = parser.add_argument_group("数据库连接")
+    conn_group.add_argument("--dialect", help="数据库类型 (mysql, postgresql, sqlite, oracle)")
+    conn_group.add_argument("--host", "-H", help="数据库主机")
+    conn_group.add_argument("--port", "-P", type=int, help="数据库端口")
+    conn_group.add_argument("--user", "-u", help="数据库用户名")
+    conn_group.add_argument("--password", "-p", help="数据库密码")
+    conn_group.add_argument("--password-file", help="从文件读取数据库密码")
+    conn_group.add_argument("--password-stdin", action="store_true", help="从标准输入读取数据库密码")
+    conn_group.add_argument("--url", help="数据库连接字符串，如 mysql://root:pass@localhost:3306/test")
     conn_group.add_argument(
-        "--dialect",
-        help="数据库类型 (mysql, postgresql, sqlite, oracle)"
+        "--database", "-d", "--db", help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
     )
-    conn_group.add_argument(
-        "--host", "-H",
-        help="数据库主机"
-    )
-    conn_group.add_argument(
-        "--port", "-P",
-        type=int,
-        help="数据库端口"
-    )
-    conn_group.add_argument(
-        "--user", "-u",
-        help="数据库用户名"
-    )
-    conn_group.add_argument(
-        "--password", "-p",
-        help="数据库密码"
-    )
-    conn_group.add_argument(
-        "--password-file",
-        help="从文件读取数据库密码"
-    )
-    conn_group.add_argument(
-        "--password-stdin",
-        action="store_true",
-        help="从标准输入读取数据库密码"
-    )
-    conn_group.add_argument(
-        "--url",
-        help="数据库连接字符串，如 mysql://root:pass@localhost:3306/test"
-    )
-    conn_group.add_argument(
-        "--database", "-d", "--db",
-        help="数据库别名（如 jump, chenzc）或数据库名。优先匹配 .env 中 DB_{别名}_* 配置"
-    )
-    conn_group.add_argument(
-        "--config", "-c",
-        help="配置文件路径"
-    )
-    conn_group.add_argument(
-        "--profile",
-        help="配置文件中 profile 名称"
-    )
-    conn_group.add_argument(
-        "--env",
-        help="环境名称（如 development, production）"
-    )
+    conn_group.add_argument("--config", "-c", help="配置文件路径")
+    conn_group.add_argument("--profile", help="配置文件中 profile 名称")
+    conn_group.add_argument("--env", help="环境名称（如 development, production）")
 
 
 def _add_trace_args(parser: argparse.ArgumentParser) -> None:
@@ -273,27 +164,13 @@ def _add_trace_args(parser: argparse.ArgumentParser) -> None:
 
     trace_group = parser.add_argument_group("诊断追踪")
     trace_group.add_argument(
-        "--show-trace",
-        action="store_true",
-        help="展示诊断/监控追踪信息（说明数据来源和检查指标）"
+        "--show-trace", action="store_true", help="展示诊断/监控追踪信息（说明数据来源和检查指标）"
     )
     trace_group.add_argument(
-        "--ai-depth",
-        choices=["summary", "detail", "full"],
-        default="detail",
-        help="AI 分析深度（默认 detail）"
+        "--ai-depth", choices=["summary", "detail", "full"], default="detail", help="AI 分析深度（默认 detail）"
     )
-    trace_group.add_argument(
-        "--mask-sensitive",
-        action="store_true",
-        default=True,
-        help="脱敏敏感数据（默认开启）"
-    )
-    trace_group.add_argument(
-        "--no-mask",
-        action="store_true",
-        help="关闭敏感数据脱敏"
-    )
+    trace_group.add_argument("--mask-sensitive", action="store_true", default=True, help="脱敏敏感数据（默认开启）")
+    trace_group.add_argument("--no-mask", action="store_true", help="关闭敏感数据脱敏")
 
 
 def _add_output_mode_args(parser: argparse.ArgumentParser) -> None:
@@ -315,7 +192,7 @@ def _add_output_mode_args(parser: argparse.ArgumentParser) -> None:
         "--output-mode",
         choices=["rule", "raw", "ai"],
         default="rule",
-        help="输出模式: rule=规则结论(默认), raw=原始数据, ai=AI友好格式"
+        help="输出模式: rule=规则结论(默认), raw=原始数据, ai=AI友好格式",
     )
 
 
@@ -323,10 +200,22 @@ def _add_output_mode_args(parser: argparse.ArgumentParser) -> None:
 # 这些参数在子命令前后都可以使用，但子解析器的默认值 None
 # 会覆盖主解析器的实际值，需要特殊处理
 _MERGEABLE_ARGS = [
-    "dialect", "host", "port", "user", "password",
-    "password_file", "password_stdin", "url",
-    "database", "config", "profile", "env",
-    "show_trace", "ai_depth", "mask_sensitive", "no_mask",
+    "dialect",
+    "host",
+    "port",
+    "user",
+    "password",
+    "password_file",
+    "password_stdin",
+    "url",
+    "database",
+    "config",
+    "profile",
+    "env",
+    "show_trace",
+    "ai_depth",
+    "mask_sensitive",
+    "no_mask",
     "output_mode",
 ]
 
@@ -419,23 +308,15 @@ def _extract_trace_flags_from_raw_args(parsed_args, raw_args: list) -> None:
 def add_subcommands(parser: argparse.ArgumentParser) -> None:
     """
     添加子命令
-    
+
     参数:
         parser: 主解析器
     """
-    subparsers = parser.add_subparsers(
-        dest="command",
-        help="可用命令",
-        metavar="COMMAND"
-    )
-    
+    subparsers = parser.add_subparsers(dest="command", help="可用命令", metavar="COMMAND")
+
     # 为每个注册的命令添加子解析器
     for name, cmd_class in sorted(command_registry.items()):
-        subparser = subparsers.add_parser(
-            name,
-            help=cmd_class.help_text,
-            description=cmd_class.description
-        )
+        subparser = subparsers.add_parser(name, help=cmd_class.help_text, description=cmd_class.description)
         # 为子解析器也添加连接参数，支持子命令后使用
         _add_connection_args(subparser)
         # 为子解析器也添加追踪参数，支持 diagnose slow-queries --show-trace 的写法
@@ -503,6 +384,7 @@ def _check_has_config() -> bool:
         - bool: 是否有数据库配置
     """
     import os
+
     # 检查环境变量（排除 PATH/HOME/USER 等系统变量）
     for key in os.environ:
         if key.endswith(("_HOST", "_DIALECT")) and key not in ("PATH", "HOME", "USER"):
@@ -531,6 +413,7 @@ def _check_has_shell_completion() -> bool:
     # 检查全局补全是否激活
     try:
         import subprocess
+
         ret = subprocess.run(["activate-global-python-argcomplete", "--dest"], capture_output=True, text=True)
         if ret.returncode == 0:
             # 如果全局激活脚本存在，也认为已配置
@@ -635,11 +518,11 @@ def main(args: Optional[List[str]] = None) -> int:
     _extract_trace_flags_from_raw_args(parsed_args, expanded_args)
 
     # 处理 --no-color（在创建 Console 前设置环境变量，确保全局生效）
-    if getattr(parsed_args, 'no_color', False):
+    if getattr(parsed_args, "no_color", False):
         os.environ["NO_COLOR"] = "1"
 
     # 处理 --version（手动控制，可用 Rich 美化）
-    if getattr(parsed_args, 'version', False):
+    if getattr(parsed_args, "version", False):
         console = get_console(quiet=False, json_mode=False)
         if console:
             print_minimal_banner(console, __version__)
@@ -648,24 +531,21 @@ def main(args: Optional[List[str]] = None) -> int:
         return 0
 
     # 配置日志
-    log_level_name = getattr(parsed_args, 'log_level', 'WARNING')
-    if getattr(parsed_args, 'debug', False):
-        log_level_name = 'DEBUG'
-    elif getattr(parsed_args, 'verbose', False):
-        log_level_name = 'INFO'
+    log_level_name = getattr(parsed_args, "log_level", "WARNING")
+    if getattr(parsed_args, "debug", False):
+        log_level_name = "DEBUG"
+    elif getattr(parsed_args, "verbose", False):
+        log_level_name = "INFO"
     logging.basicConfig(
         level=getattr(logging, log_level_name, logging.WARNING),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S"
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
 
     # 如果没有子命令，显示横幅 + 帮助
     if not parsed_args.command:
-        console = get_console(
-            quiet=getattr(parsed_args, 'quiet', False),
-            json_mode=getattr(parsed_args, 'json', False)
-        )
-        if console and not getattr(parsed_args, 'quiet', False):
+        console = get_console(quiet=getattr(parsed_args, "quiet", False), json_mode=getattr(parsed_args, "json", False))
+        if console and not getattr(parsed_args, "quiet", False):
             print_banner(console, __version__)
 
         # 检测是否有数据库配置
@@ -693,14 +573,11 @@ def main(args: Optional[List[str]] = None) -> int:
         return 0
 
     # 创建输出格式化器
-    output = OutputFormatter(
-        json_mode=parsed_args.json,
-        quiet=parsed_args.quiet
-    )
+    output = OutputFormatter(json_mode=parsed_args.json, quiet=parsed_args.quiet)
 
     # 不需要数据库连接的命令列表
     NO_DB_COMMANDS = {"history", "shell-setup", "init"}
-    demo_mode = getattr(parsed_args, 'demo', False)
+    demo_mode = getattr(parsed_args, "demo", False)
     needs_db = parsed_args.command not in NO_DB_COMMANDS and not demo_mode
 
     try:
@@ -730,7 +607,7 @@ def main(args: Optional[List[str]] = None) -> int:
         total_ms = timer.stop()
 
         # 提取 action（子命令）
-        action = getattr(parsed_args, 'action', '') or getattr(parsed_args, 'subcommand', '')
+        action = getattr(parsed_args, "action", "") or getattr(parsed_args, "subcommand", "")
 
         # 记录历史（rerun 复用时不记录，避免循环）
         if not os.environ.get("_DBSKITER_SKIP_HISTORY"):
@@ -739,7 +616,7 @@ def main(args: Optional[List[str]] = None) -> int:
                 args=parsed_args,
                 command=parsed_args.command,
                 action=action,
-                database=getattr(parsed_args, 'database', '') or '',
+                database=getattr(parsed_args, "database", "") or "",
                 status_code=status_code,
                 execution_time_ms=total_ms,
             )
@@ -751,7 +628,7 @@ def main(args: Optional[List[str]] = None) -> int:
 
     except Exception as e:
         # 使用统一的错误处理器
-        handler = ErrorHandler(debug=getattr(parsed_args, 'debug', False))
+        handler = ErrorHandler(debug=getattr(parsed_args, "debug", False))
         return handler.handle_error(e, output)
 
 
@@ -768,6 +645,7 @@ def _run_welcome_command(args: List[str]) -> int:
         - int: 退出码，始终返回 0
     """
     from .style import get_console
+
     console = get_console(quiet=False, json_mode=False)
     if not console:
         return 0
@@ -838,18 +716,21 @@ def _apply_smart_default(parsed_args: argparse.Namespace) -> None:
     参数说明:
         - parsed_args: argparse 解析后的参数对象（会被原地修改）
     """
-    if getattr(parsed_args, 'database', None):
+    if getattr(parsed_args, "database", None):
         return  # 用户已指定，不处理
 
     # 如果通过 --host 等参数直接连接，也不需要智能默认
-    if any([
-        getattr(parsed_args, 'host', None),
-        getattr(parsed_args, 'config', None),
-    ]):
+    if any(
+        [
+            getattr(parsed_args, "host", None),
+            getattr(parsed_args, "config", None),
+        ]
+    ):
         return
 
     # 扫描 .env 中的数据库配置
     from .config import _load_env_values
+
     env = _load_env_values()
     aliases = set()
 
@@ -859,8 +740,9 @@ def _apply_smart_default(parsed_args: argparse.Namespace) -> None:
 
     # 检查带别名的配置 DB_{ALIAS}_HOST
     import re
+
     for key in env:
-        match = re.match(r'^DB_([A-Z0-9_]+)_HOST$', key)
+        match = re.match(r"^DB_([A-Z0-9_]+)_HOST$", key)
         if match:
             alias = match.group(1).lower()
             aliases.add(alias)

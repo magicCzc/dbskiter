@@ -73,7 +73,7 @@ class UnifiedConnector:
         username: str = "",
         password: str = "",
         database: str = "",
-        **kwargs
+        **kwargs,
     ):
         self.dialect = dialect.lower()
         self.host = host
@@ -128,7 +128,7 @@ class UnifiedConnector:
                 username=self.username,
                 password=self.password,
                 service=self.database or self.kwargs.get("service_name", ""),
-                jdbc_driver_path=driver_path
+                jdbc_driver_path=driver_path,
             )
             self._connector_type = "jdbc"
             logger.info(f"使用 JDBC 连接 Oracle: {self.host}:{self.port}/{self.database}")
@@ -148,7 +148,7 @@ class UnifiedConnector:
                 username=self.username,
                 password=self.password,
                 database=self.database,
-                **self.kwargs
+                **self.kwargs,
             )
             self._connector_type = "sqlalchemy"
             logger.info(f"使用 SQLAlchemy 连接: {self.dialect}")
@@ -179,16 +179,16 @@ class UnifiedConnector:
                 rows=result.rows,
                 columns=result.columns,
                 row_count=result.row_count,
-                execution_time_ms=result.execution_time_ms
+                execution_time_ms=result.execution_time_ms,
             )
         else:
             # SQLAlchemy connector 返回的 QueryResult
             return QueryResult(
                 rows=result.rows,
-                columns=result.columns if hasattr(result, 'columns') else [],
-                row_count=result.row_count if hasattr(result, 'row_count') else len(result.rows),
-                execution_time_ms=result.execution_time_ms if hasattr(result, 'execution_time_ms') else 0,
-                affected_rows=result.affected_rows if hasattr(result, 'affected_rows') else 0
+                columns=result.columns if hasattr(result, "columns") else [],
+                row_count=result.row_count if hasattr(result, "row_count") else len(result.rows),
+                execution_time_ms=result.execution_time_ms if hasattr(result, "execution_time_ms") else 0,
+                affected_rows=result.affected_rows if hasattr(result, "affected_rows") else 0,
             )
 
     def get_schema(self, table_name: str) -> Any:
@@ -223,30 +223,27 @@ class UnifiedConnector:
                 "FROM information_schema.columns "
                 "WHERE table_name = ? "
                 "ORDER BY ordinal_position",
-                (table_name,)
+                (table_name,),
             )
             if result.rows:
-                df = pd.DataFrame(
-                    result.rows,
-                    columns=["column_name", "data_type", "nullable"]
-                )
+                df = pd.DataFrame(result.rows, columns=["column_name", "data_type", "nullable"])
                 return df
         except Exception:
             pass
 
         # 2. 尝试 Oracle 风格（兼容旧版本 Oracle JDBC）
         try:
-            result = self.execute("""
+            result = self.execute(
+                """
                 SELECT column_name, data_type, data_length, nullable
                 FROM user_tab_columns
                 WHERE table_name = :table_name
                 ORDER BY column_id
-            """, {"table_name": table_name.upper()})
+            """,
+                {"table_name": table_name.upper()},
+            )
             if result.rows:
-                df = pd.DataFrame(
-                    result.rows,
-                    columns=["column_name", "data_type", "data_length", "nullable"]
-                )
+                df = pd.DataFrame(result.rows, columns=["column_name", "data_type", "data_length", "nullable"])
                 return df
         except Exception:
             pass
@@ -265,7 +262,7 @@ class UnifiedConnector:
 
         实现委托给底层 connector, 支持所有方言的完整查询语句。
         """
-        if hasattr(self._connector, 'get_tables'):
+        if hasattr(self._connector, "get_tables"):
             return self._connector.get_tables()
         # fallback: 按方言分别处理
         if "oracle" in self.dialect:
@@ -275,7 +272,9 @@ class UnifiedConnector:
         elif "sqlite" in self.dialect:
             result = self.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")
         elif "mssql" in self.dialect:
-            result = self.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME")
+            result = self.execute(
+                "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME"
+            )
         else:
             # 通用回退：使用 INFORMATION_SCHEMA（适用于 Trino/DuckDB/Derby/H2 等）
             result = self.execute(
@@ -290,7 +289,7 @@ class UnifiedConnector:
             self._connector.disconnect()
         else:
             # SQLAlchemy 方式：调用底层 DatabaseConnector.close()
-            if hasattr(self._connector, 'close'):
+            if hasattr(self._connector, "close"):
                 self._connector.close()
 
     def table_preview(self, table: str, limit: int = 10) -> Any:
@@ -307,16 +306,18 @@ class UnifiedConnector:
         if self._connector_type == "jdbc":
             result = self.execute(f"SELECT * FROM {table} LIMIT {int(limit)}")
             import pandas as pd
+
             if result.columns:
                 return pd.DataFrame(result.rows, columns=result.columns)
             return pd.DataFrame()
         else:
             # SQLAlchemy 方式
-            if hasattr(self._connector, 'table_preview'):
+            if hasattr(self._connector, "table_preview"):
                 return self._connector.table_preview(table, limit)
             # 回退
             result = self.execute(f"SELECT * FROM {table} LIMIT {int(limit)}")
             import pandas as pd
+
             if result.columns:
                 return pd.DataFrame(result.rows, columns=result.columns)
             return pd.DataFrame()
@@ -351,6 +352,7 @@ class UnifiedConnector:
         # 优先从 _load_env_values() 读取 .env 文件配置
         try:
             from dbskiter.cli.config import _load_env_values
+
             env_values = _load_env_values()
         except ImportError:
             env_values = {}
@@ -389,13 +391,7 @@ class UnifiedConnector:
                 port = 1433
 
         return cls(
-            dialect=dialect,
-            host=host,
-            port=port,
-            username=username,
-            password=password,
-            database=database,
-            **kwargs
+            dialect=dialect, host=host, port=port, username=username, password=password, database=database, **kwargs
         )
 
 

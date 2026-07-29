@@ -101,14 +101,14 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: float(rows[0][0]) if rows and rows[0][0] else 0.0,
                 unit="queries/sec",
-                is_counter=False
+                is_counter=False,
             )
         else:
             queries[MetricType.QPS] = MetricQuery(
                 sql="SELECT count() FROM system.processes",
                 extract=lambda rows: float(rows[0][0]) if rows else 0.0,
                 unit="queries",
-                is_counter=False
+                is_counter=False,
             )
 
         # 活跃连接数
@@ -116,7 +116,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
             sql="SELECT count() FROM system.processes",
             extract=lambda rows: int(rows[0][0]) if rows else 0,
             unit="connections",
-            is_counter=False
+            is_counter=False,
         )
 
         # 慢查询数（过去1小时，超过1秒）
@@ -131,7 +131,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: int(rows[0][0]) if rows else 0,
                 unit="queries",
-                is_counter=False
+                is_counter=False,
             )
 
             # 平均查询时间
@@ -144,7 +144,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: float(rows[0][0]) if rows and rows[0][0] else 0.0,
                 unit="ms",
-                is_counter=False
+                is_counter=False,
             )
 
             # 最大查询时间
@@ -157,7 +157,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: float(rows[0][0]) if rows and rows[0][0] else 0.0,
                 unit="ms",
-                is_counter=False
+                is_counter=False,
             )
 
         # 内存使用
@@ -168,7 +168,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
             """,
             extract=lambda rows: int(rows[0][0]) if rows and rows[0][0] else 0,
             unit="bytes",
-            is_counter=False
+            is_counter=False,
         )
 
         # MergeTree活跃parts数
@@ -180,7 +180,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
             """,
             extract=lambda rows: int(rows[0][0]) if rows else 0,
             unit="parts",
-            is_counter=False
+            is_counter=False,
         )
 
         # 读取行数（过去1小时）
@@ -194,7 +194,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: int(rows[0][0]) if rows and rows[0][0] else 0,
                 unit="rows",
-                is_counter=False
+                is_counter=False,
             )
 
         return queries
@@ -233,21 +233,25 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
                 total_queue = int(result.rows[0][0]) if result.rows[0][0] else 0
                 max_queue = int(result.rows[0][1]) if result.rows[0][1] else 0
 
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.REPLICATION_LAG,
-                    value=float(total_queue),
-                    unit="tasks",
-                    tags={"type": "total_queue"}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.REPLICATION_LAG,
+                        value=float(total_queue),
+                        unit="tasks",
+                        tags={"type": "total_queue"},
+                    )
+                )
 
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.REPLICATION_LAG,
-                    value=float(max_queue),
-                    unit="tasks",
-                    tags={"type": "max_queue"}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.REPLICATION_LAG,
+                        value=float(max_queue),
+                        unit="tasks",
+                        tags={"type": "max_queue"},
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"采集复制指标失败: {e}")
@@ -277,29 +281,35 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
 
             if result and result.rows:
                 row = result.rows[0]
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.TABLE_OPEN_CACHE,
-                    value=float(row[0]) if row[0] else 0.0,
-                    unit="parts",
-                    tags={"type": "active_parts"}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.TABLE_OPEN_CACHE,
+                        value=float(row[0]) if row[0] else 0.0,
+                        unit="parts",
+                        tags={"type": "active_parts"},
+                    )
+                )
 
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.ROWS_READ,
-                    value=float(row[1]) if row[1] else 0.0,
-                    unit="rows",
-                    tags={"type": "total_rows", "source": "mergetree"}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.ROWS_READ,
+                        value=float(row[1]) if row[1] else 0.0,
+                        unit="rows",
+                        tags={"type": "total_rows", "source": "mergetree"},
+                    )
+                )
 
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.DISK_USAGE,
-                    value=float(row[2]) if row[2] else 0.0,
-                    unit="bytes",
-                    tags={"type": "mergetree_size"}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.DISK_USAGE,
+                        value=float(row[2]) if row[2] else 0.0,
+                        unit="bytes",
+                        tags={"type": "mergetree_size"},
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"采集MergeTree指标失败: {e}")
@@ -332,10 +342,7 @@ class ClickHouseMetricsCollector(BaseMetricsCollector):
         返回：
             Dict[str, Any]: 健康状态信息
         """
-        status = {
-            "status": "healthy",
-            "checks": {}
-        }
+        status = {"status": "healthy", "checks": {}}
 
         # 检查查询日志
         try:

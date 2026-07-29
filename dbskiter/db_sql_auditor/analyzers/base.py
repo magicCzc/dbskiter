@@ -24,14 +24,15 @@ logger = logging.getLogger(__name__)
 @dataclass
 class DDLImpact:
     """DDL变更影响分析"""
-    ddl_sql: str                 # DDL语句
-    table_name: str              # 表名
-    operation: str               # 操作类型
+
+    ddl_sql: str  # DDL语句
+    table_name: str  # 表名
+    operation: str  # 操作类型
 
     # 影响评估
     execution_time_estimate: str = "未知"  # 预估执行时间
     table_size_mb: Optional[float] = None  # 表大小
-    rows_estimate: Optional[int] = None    # 预估影响行数
+    rows_estimate: Optional[int] = None  # 预估影响行数
 
     # 风险点
     risks: List[str] = field(default_factory=list)
@@ -53,7 +54,7 @@ class DDLImpact:
             "rows_estimate": self.rows_estimate,
             "risks": self.risks,
             "suggestions": self.suggestions,
-            "dependent_objects": self.dependent_objects
+            "dependent_objects": self.dependent_objects,
         }
 
 
@@ -106,17 +107,17 @@ class BaseDDLAnalyzer(ABC):
             str: 表名
         """
         # 匹配 ALTER TABLE table_name
-        match = re.search(r'ALTER\s+TABLE\s+(\w+)', ddl_sql, re.IGNORECASE)
+        match = re.search(r"ALTER\s+TABLE\s+(\w+)", ddl_sql, re.IGNORECASE)
         if match:
             return match.group(1)
 
         # 匹配 CREATE TABLE table_name
-        match = re.search(r'CREATE\s+TABLE\s+(\w+)', ddl_sql, re.IGNORECASE)
+        match = re.search(r"CREATE\s+TABLE\s+(\w+)", ddl_sql, re.IGNORECASE)
         if match:
             return match.group(1)
 
         # 匹配 DROP TABLE table_name
-        match = re.search(r'DROP\s+TABLE\s+(\w+)', ddl_sql, re.IGNORECASE)
+        match = re.search(r"DROP\s+TABLE\s+(\w+)", ddl_sql, re.IGNORECASE)
         if match:
             return match.group(1)
 
@@ -134,25 +135,25 @@ class BaseDDLAnalyzer(ABC):
         """
         sql_upper = ddl_sql.upper()
 
-        if 'ADD COLUMN' in sql_upper:
+        if "ADD COLUMN" in sql_upper:
             return "ADD_COLUMN"
-        elif 'DROP COLUMN' in sql_upper:
+        elif "DROP COLUMN" in sql_upper:
             return "DROP_COLUMN"
-        elif 'MODIFY' in sql_upper or 'ALTER COLUMN' in sql_upper:
+        elif "MODIFY" in sql_upper or "ALTER COLUMN" in sql_upper:
             return "MODIFY_COLUMN"
-        elif 'ADD INDEX' in sql_upper or 'CREATE INDEX' in sql_upper:
+        elif "ADD INDEX" in sql_upper or "CREATE INDEX" in sql_upper:
             return "ADD_INDEX"
-        elif 'DROP INDEX' in sql_upper:
+        elif "DROP INDEX" in sql_upper:
             return "DROP_INDEX"
-        elif 'ADD CONSTRAINT' in sql_upper:
+        elif "ADD CONSTRAINT" in sql_upper:
             return "ADD_CONSTRAINT"
-        elif 'DROP CONSTRAINT' in sql_upper:
+        elif "DROP CONSTRAINT" in sql_upper:
             return "DROP_CONSTRAINT"
-        elif sql_upper.startswith('CREATE'):
+        elif sql_upper.startswith("CREATE"):
             return "CREATE_TABLE"
-        elif sql_upper.startswith('DROP'):
+        elif sql_upper.startswith("DROP"):
             return "DROP_TABLE"
-        elif sql_upper.startswith('TRUNCATE'):
+        elif sql_upper.startswith("TRUNCATE"):
             return "TRUNCATE_TABLE"
         else:
             return "ALTER"
@@ -177,11 +178,7 @@ class BaseDDLAnalyzer(ABC):
         else:
             return "十几分钟到几小时"
 
-    def _assess_risks(
-        self,
-        operation: str,
-        table_size_mb: Optional[float]
-    ) -> List[str]:
+    def _assess_risks(self, operation: str, table_size_mb: Optional[float]) -> List[str]:
         """
         评估DDL风险
 
@@ -212,12 +209,7 @@ class BaseDDLAnalyzer(ABC):
 
         return risks
 
-    def _generate_suggestions(
-        self,
-        operation: str,
-        table_size_mb: Optional[float],
-        dialect: str
-    ) -> List[str]:
+    def _generate_suggestions(self, operation: str, table_size_mb: Optional[float], dialect: str) -> List[str]:
         """
         生成DDL执行建议
 
@@ -233,9 +225,9 @@ class BaseDDLAnalyzer(ABC):
 
         # 大表DDL建议
         if table_size_mb and table_size_mb > 1000:
-            if 'mysql' in dialect:
+            if "mysql" in dialect:
                 suggestions.append("建议使用pt-online-schema-change或gh-ost进行在线DDL")
-            elif 'postgresql' in dialect:
+            elif "postgresql" in dialect:
                 suggestions.append("考虑使用pg_repack减少锁表时间")
             suggestions.append("在低峰期执行DDL操作")
             suggestions.append("确保有足够的磁盘空间")

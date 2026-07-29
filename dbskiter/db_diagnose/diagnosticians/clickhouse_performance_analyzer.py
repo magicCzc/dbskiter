@@ -23,7 +23,7 @@ from ..core.performance_model import (
     PerformanceMetric,
     SlowQueryInfo,
     MetricCategory,
-    get_threshold
+    get_threshold,
 )
 
 logger = logging.getLogger(__name__)
@@ -88,15 +88,17 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
             ratio = (active / max_queries) * 100 if max_queries > 0 else 0
 
             threshold = get_threshold("cpu_time_ratio")
-            metrics.append(PerformanceMetric(
-                name="active_query_ratio",
-                value=ratio,
-                unit="%",
-                category=MetricCategory.CPU,
-                threshold_warning=threshold.get("warning"),
-                threshold_critical=threshold.get("critical"),
-                source="system.processes"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="active_query_ratio",
+                    value=ratio,
+                    unit="%",
+                    category=MetricCategory.CPU,
+                    threshold_warning=threshold.get("warning"),
+                    threshold_critical=threshold.get("critical"),
+                    source="system.processes",
+                )
+            )
 
         except Exception as e:
             logger.warning(f"CPU指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -121,32 +123,36 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
             """)
 
             memory_dict = {row[0]: row[1] for row in result} if result else {}
-            memory_usage = int(memory_dict.get('MemoryTracking', 0))
-            memory_merges = int(memory_dict.get('MemoryTrackingForMerges', 0))
+            memory_usage = int(memory_dict.get("MemoryTracking", 0))
+            memory_merges = int(memory_dict.get("MemoryTrackingForMerges", 0))
 
             # 转换为MB
             memory_mb = memory_usage / 1024 / 1024
 
             threshold = get_threshold("memory_usage")
-            metrics.append(PerformanceMetric(
-                name="memory_tracking_mb",
-                value=round(memory_mb, 2),
-                unit="MB",
-                category=MetricCategory.MEMORY,
-                threshold_warning=threshold.get("warning"),
-                threshold_critical=threshold.get("critical"),
-                source="system.metrics"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="memory_tracking_mb",
+                    value=round(memory_mb, 2),
+                    unit="MB",
+                    category=MetricCategory.MEMORY,
+                    threshold_warning=threshold.get("warning"),
+                    threshold_critical=threshold.get("critical"),
+                    source="system.metrics",
+                )
+            )
 
             # Merge内存
             merge_mb = memory_merges / 1024 / 1024
-            metrics.append(PerformanceMetric(
-                name="memory_merges_mb",
-                value=round(merge_mb, 2),
-                unit="MB",
-                category=MetricCategory.MEMORY,
-                source="system.metrics"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="memory_merges_mb",
+                    value=round(merge_mb, 2),
+                    unit="MB",
+                    category=MetricCategory.MEMORY,
+                    source="system.metrics",
+                )
+            )
 
         except Exception as e:
             logger.warning(f"内存指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -171,24 +177,28 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
             """)
 
             io_dict = {row[0]: row[1] for row in result} if result else {}
-            read_bytes = int(io_dict.get('ReadBufferFromFileDescriptorBytes', 0))
-            write_bytes = int(io_dict.get('WriteBufferFromFileDescriptorBytes', 0))
+            read_bytes = int(io_dict.get("ReadBufferFromFileDescriptorBytes", 0))
+            write_bytes = int(io_dict.get("WriteBufferFromFileDescriptorBytes", 0))
 
-            metrics.append(PerformanceMetric(
-                name="disk_read_bytes",
-                value=read_bytes,
-                unit="bytes",
-                category=MetricCategory.IO,
-                source="system.events"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="disk_read_bytes",
+                    value=read_bytes,
+                    unit="bytes",
+                    category=MetricCategory.IO,
+                    source="system.events",
+                )
+            )
 
-            metrics.append(PerformanceMetric(
-                name="disk_write_bytes",
-                value=write_bytes,
-                unit="bytes",
-                category=MetricCategory.IO,
-                source="system.events"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="disk_write_bytes",
+                    value=write_bytes,
+                    unit="bytes",
+                    category=MetricCategory.IO,
+                    source="system.events",
+                )
+            )
 
         except Exception as e:
             logger.warning(f"IO指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -223,8 +233,8 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
             """)
 
             settings_dict = {row[0]: int(row[1]) for row in result} if result else {}
-            delay_threshold = settings_dict.get('parts_to_delay_insert', 1000)
-            throw_threshold = settings_dict.get('parts_to_throw_insert', 3000)
+            delay_threshold = settings_dict.get("parts_to_delay_insert", 1000)
+            throw_threshold = settings_dict.get("parts_to_throw_insert", 3000)
 
             # 获取各表的分区数量
             result = self._execute_with_timeout("""
@@ -256,43 +266,47 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
                     tables_over_throw += 1
 
             # 最大分区数指标
-            metrics.append(PerformanceMetric(
-                name="max_parts_count",
-                value=max_parts,
-                unit="count",
-                category=MetricCategory.IO,
-                source="system.parts"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="max_parts_count",
+                    value=max_parts,
+                    unit="count",
+                    category=MetricCategory.IO,
+                    source="system.parts",
+                )
+            )
 
             # 超过延迟阈值的表数量
             if tables_over_delay > 0:
-                metrics.append(PerformanceMetric(
-                    name="tables_over_delay_threshold",
-                    value=tables_over_delay,
-                    unit="count",
-                    category=MetricCategory.IO,
-                    threshold_warning=1,
-                    threshold_critical=5,
-                    source="system.parts"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="tables_over_delay_threshold",
+                        value=tables_over_delay,
+                        unit="count",
+                        category=MetricCategory.IO,
+                        threshold_warning=1,
+                        threshold_critical=5,
+                        source="system.parts",
+                    )
+                )
 
             # 超过拒绝阈值的表数量
             if tables_over_throw > 0:
-                metrics.append(PerformanceMetric(
-                    name="tables_over_throw_threshold",
-                    value=tables_over_throw,
-                    unit="count",
-                    category=MetricCategory.IO,
-                    threshold_warning=1,
-                    threshold_critical=1,
-                    source="system.parts"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="tables_over_throw_threshold",
+                        value=tables_over_throw,
+                        unit="count",
+                        category=MetricCategory.IO,
+                        threshold_warning=1,
+                        threshold_critical=1,
+                        source="system.parts",
+                    )
+                )
 
             # 记录详细信息
             if max_parts > delay_threshold:
-                logger.warning(
-                    f"表 {max_parts_table} 分区数量({max_parts})超过延迟阈值({delay_threshold})"
-                )
+                logger.warning(f"表 {max_parts_table} 分区数量({max_parts})超过延迟阈值({delay_threshold})")
 
         except Exception as e:
             logger.warning(f"分区健康检查失败: {str(e).split(chr(10))[0][:120]}")
@@ -322,23 +336,24 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
             usage_pct = (current_conn / max_conn) * 100 if max_conn > 0 else 0
 
             threshold = get_threshold("connection_usage")
-            metrics.append(PerformanceMetric(
-                name="connection_usage",
-                value=round(usage_pct, 2),
-                unit="%",
-                category=MetricCategory.CONCURRENCY,
-                threshold_warning=threshold.get("warning"),
-                threshold_critical=threshold.get("critical"),
-                source="system.processes"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="connection_usage",
+                    value=round(usage_pct, 2),
+                    unit="%",
+                    category=MetricCategory.CONCURRENCY,
+                    threshold_warning=threshold.get("warning"),
+                    threshold_critical=threshold.get("critical"),
+                    source="system.processes",
+                )
+            )
 
         except Exception as e:
             logger.warning(f"并发指标采集失败: {str(e).split(chr(10))[0][:120]}")
 
         return metrics
 
-    def collect_slow_queries(self, limit: int = 20,
-                            min_time_ms: float = 1000) -> List[SlowQueryInfo]:
+    def collect_slow_queries(self, limit: int = 20, min_time_ms: float = 1000) -> List[SlowQueryInfo]:
         """
         采集慢查询
 
@@ -374,14 +389,16 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
             """)
 
             for row in result if result else []:
-                slow_queries.append(SlowQueryInfo(
-                    sql_text=str(row[1]) if row[1] else "",
-                    sql_id=str(row[0]) if row[0] else None,
-                    total_time_ms=float(row[3]) if row[3] else 0,
-                    avg_time_ms=float(row[3]) if row[3] else 0,
-                    rows_examined=int(row[4]) if row[4] else 0,
-                    database=None
-                ))
+                slow_queries.append(
+                    SlowQueryInfo(
+                        sql_text=str(row[1]) if row[1] else "",
+                        sql_id=str(row[0]) if row[0] else None,
+                        total_time_ms=float(row[3]) if row[3] else 0,
+                        avg_time_ms=float(row[3]) if row[3] else 0,
+                        rows_examined=int(row[4]) if row[4] else 0,
+                        database=None,
+                    )
+                )
 
             if slow_queries:
                 logger.info(f"从system.query_log采集到 {len(slow_queries)} 条慢查询")
@@ -409,14 +426,16 @@ class ClickHousePerformanceAnalyzer(PerformanceAnalyzer):
             """)
 
             for row in result if result else []:
-                slow_queries.append(SlowQueryInfo(
-                    sql_text=str(row[1]) if row[1] else "",
-                    sql_id=str(row[0]) if row[0] else None,
-                    total_time_ms=float(row[3]) * 1000 if row[3] else 0,
-                    avg_time_ms=float(row[3]) * 1000 if row[3] else 0,
-                    rows_examined=int(row[4]) if row[4] else 0,
-                    database=None
-                ))
+                slow_queries.append(
+                    SlowQueryInfo(
+                        sql_text=str(row[1]) if row[1] else "",
+                        sql_id=str(row[0]) if row[0] else None,
+                        total_time_ms=float(row[3]) * 1000 if row[3] else 0,
+                        avg_time_ms=float(row[3]) * 1000 if row[3] else 0,
+                        rows_examined=int(row[4]) if row[4] else 0,
+                        database=None,
+                    )
+                )
 
             if slow_queries:
                 logger.info(f"从system.processes采集到 {len(slow_queries)} 条慢查询")

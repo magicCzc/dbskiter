@@ -31,10 +31,7 @@ except ImportError:
     sqlite3 = None
 
 from dbskiter.shared.error_handler import create_error_response, create_success_response
-from .models import (
-    ErrorCode, ScheduledTask, TaskResult, TaskStatus,
-    TaskPriority, PrioritizedTask
-)
+from .models import ErrorCode, ScheduledTask, TaskResult, TaskStatus, TaskPriority, PrioritizedTask
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +39,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # 超时控制执行器
 # =============================================================================
+
 
 class TimeoutExecutor:
     """
@@ -136,6 +134,7 @@ class TimeoutExecutor:
 # 熔断器
 # =============================================================================
 
+
 class CircuitBreaker:
     """熔断器 - 防止级联故障"""
 
@@ -188,6 +187,7 @@ class CircuitBreaker:
 # Cron表达式解析器
 # =============================================================================
 
+
 class CronParser:
     """Cron表达式解析器（简化版）"""
 
@@ -223,18 +223,18 @@ class CronParser:
         """解析单个字段"""
         values = []
 
-        for part in field.split(','):
-            if '/' in part:
-                range_part, step = part.split('/')
+        for part in field.split(","):
+            if "/" in part:
+                range_part, step = part.split("/")
                 step = int(step)
             else:
                 range_part = part
                 step = 1
 
-            if range_part == '*':
+            if range_part == "*":
                 start, end = min_val, max_val
-            elif '-' in range_part:
-                start, end = map(int, range_part.split('-'))
+            elif "-" in range_part:
+                start, end = map(int, range_part.split("-"))
                 # 验证范围
                 if start < min_val or end > max_val or start > end:
                     raise ValueError(f"无效范围: {start}-{end}")
@@ -276,11 +276,13 @@ class CronParser:
         next_time = next_time.replace(second=0, microsecond=0)
 
         for _ in range(366 * 24 * 60):
-            if (next_time.month in months and
-                next_time.day in days and
-                next_time.weekday() in weekdays and
-                next_time.hour in hours and
-                next_time.minute in minutes):
+            if (
+                next_time.month in months
+                and next_time.day in days
+                and next_time.weekday() in weekdays
+                and next_time.hour in hours
+                and next_time.minute in minutes
+            ):
                 return next_time
             next_time += timedelta(minutes=1)
 
@@ -312,17 +314,18 @@ class CronParser:
         weekdays = CronParser._parse_field(parts[4], 0, 6)
 
         return (
-            dt.minute in minutes and
-            dt.hour in hours and
-            dt.day in days and
-            dt.month in months and
-            dt.weekday() in weekdays
+            dt.minute in minutes
+            and dt.hour in hours
+            and dt.day in days
+            and dt.month in months
+            and dt.weekday() in weekdays
         )
 
 
 # =============================================================================
 # 通知管理器
 # =============================================================================
+
 
 class NotificationManager:
     """通知管理器 - 支持Webhook和邮件"""
@@ -352,7 +355,7 @@ class NotificationManager:
             "port": smtp_port,
             "username": username,
             "password": password,
-            "use_tls": use_tls
+            "use_tls": use_tls,
         }
 
     def notify(self, message: str, context: Optional[Dict] = None):
@@ -376,11 +379,7 @@ class NotificationManager:
     def _send_webhook(self, url: str, message: str, context: Dict):
         """发送Webhook通知"""
         try:
-            payload = {
-                "message": message,
-                "timestamp": datetime.now().isoformat(),
-                "context": context
-            }
+            payload = {"message": message, "timestamp": datetime.now().isoformat(), "context": context}
             response = requests.post(url, json=payload, timeout=10)
             response.raise_for_status()
             logger.debug(f"Webhook通知发送成功: {url}")
@@ -397,14 +396,14 @@ class NotificationManager:
             from email.mime.text import MIMEText
 
             msg = MIMEText(f"{message}\n\n上下文: {json.dumps(context, indent=2, ensure_ascii=False)}")
-            msg['Subject'] = f"[DBScheduler] {message[:50]}"
-            msg['From'] = self.email_config['username']
-            msg['To'] = self.email_config['username']
+            msg["Subject"] = f"[DBScheduler] {message[:50]}"
+            msg["From"] = self.email_config["username"]
+            msg["To"] = self.email_config["username"]
 
-            with smtplib.SMTP(self.email_config['host'], self.email_config['port']) as server:
-                if self.email_config['use_tls']:
+            with smtplib.SMTP(self.email_config["host"], self.email_config["port"]) as server:
+                if self.email_config["use_tls"]:
                     server.starttls()
-                server.login(self.email_config['username'], self.email_config['password'])
+                server.login(self.email_config["username"], self.email_config["password"])
                 server.send_message(msg)
 
             logger.debug("邮件通知发送成功")
@@ -419,6 +418,7 @@ class NotificationManager:
 # =============================================================================
 # 死信队列管理器
 # =============================================================================
+
 
 class DeadLetterQueueManager:
     """
@@ -494,8 +494,8 @@ class DeadLetterQueueManager:
                     retry_count,
                     task.max_retries,
                     datetime.now().isoformat(),
-                    'pending'
-                )
+                    "pending",
+                ),
             )
             conn.commit()
 
@@ -507,8 +507,8 @@ class DeadLetterQueueManager:
                 "task_name": task.name,
                 "error": error,
                 "retry_count": retry_count,
-                "severity": "high"
-            }
+                "severity": "high",
+            },
         )
 
         logger.warning(f"任务 {task.task_id} 已进入死信队列，重试次数: {retry_count}")
@@ -517,8 +517,7 @@ class DeadLetterQueueManager:
         """获取待处理的死信队列任务"""
         conn = self._get_connection()
         cursor = conn.execute(
-            "SELECT * FROM dead_letter_queue WHERE status = 'pending' ORDER BY failed_at DESC LIMIT ?",
-            (limit,)
+            "SELECT * FROM dead_letter_queue WHERE status = 'pending' ORDER BY failed_at DESC LIMIT ?", (limit,)
         )
         columns = [description[0] for description in cursor.description]
         return [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -526,17 +525,14 @@ class DeadLetterQueueManager:
     def retry_task(self, dlq_id: int) -> Dict[str, Any]:
         """重试死信队列中的任务"""
         conn = self._get_connection()
-        cursor = conn.execute(
-            "SELECT * FROM dead_letter_queue WHERE id = ? AND status = 'pending'",
-            (dlq_id,)
-        )
+        cursor = conn.execute("SELECT * FROM dead_letter_queue WHERE id = ? AND status = 'pending'", (dlq_id,))
         row = cursor.fetchone()
         if not row:
             return create_error_response("任务不存在或状态不允许重试")
 
         conn.execute(
             "UPDATE dead_letter_queue SET last_retry_at = ?, status = 'retrying' WHERE id = ?",
-            (datetime.now().isoformat(), dlq_id)
+            (datetime.now().isoformat(), dlq_id),
         )
         conn.commit()
         return create_success_response({"dlq_id": dlq_id, "status": "retrying"})
@@ -546,7 +542,7 @@ class DeadLetterQueueManager:
         conn = self._get_connection()
         conn.execute(
             "UPDATE dead_letter_queue SET status = 'resolved', resolved_at = ?, resolution = ? WHERE id = ?",
-            (datetime.now().isoformat(), resolution, dlq_id)
+            (datetime.now().isoformat(), resolution, dlq_id),
         )
         conn.commit()
         return create_success_response({"dlq_id": dlq_id, "status": "resolved"})
@@ -554,14 +550,12 @@ class DeadLetterQueueManager:
     def get_statistics(self) -> Dict[str, int]:
         """获取死信队列统计"""
         conn = self._get_connection()
-        cursor = conn.execute(
-            "SELECT status, COUNT(*) FROM dead_letter_queue GROUP BY status"
-        )
+        cursor = conn.execute("SELECT status, COUNT(*) FROM dead_letter_queue GROUP BY status")
         stats = {row[0]: row[1] for row in cursor.fetchall()}
 
         return {
-            "pending": stats.get('pending', 0),
-            "resolved": stats.get('resolved', 0),
-            "retrying": stats.get('retrying', 0),
-            "total": sum(stats.values())
+            "pending": stats.get("pending", 0),
+            "resolved": stats.get("resolved", 0),
+            "retrying": stats.get("retrying", 0),
+            "total": sum(stats.values()),
         }

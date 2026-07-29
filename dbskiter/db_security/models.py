@@ -92,6 +92,7 @@ class ErrorMessage:
 
 class RiskLevel(Enum):
     """风险等级"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -100,6 +101,7 @@ class RiskLevel(Enum):
 
 class InjectionType(Enum):
     """注入类型"""
+
     BOOLEAN_BASED = "boolean_based"
     TIME_BASED = "time_based"
     UNION_BASED = "union_based"
@@ -111,6 +113,7 @@ class InjectionType(Enum):
 
 class SensitivityLevel(Enum):
     """敏感度等级"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -119,6 +122,7 @@ class SensitivityLevel(Enum):
 
 class DataCategory(Enum):
     """数据类别"""
+
     CREDENTIALS = "credentials"
     PII = "pii"
     FINANCIAL = "financial"
@@ -138,6 +142,7 @@ class Risk:
         current_value: 当前配置值
         recommended_value: 推荐配置值
     """
+
     severity: str
     description: str
     category: str = ""
@@ -146,11 +151,7 @@ class Risk:
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
-        result = {
-            "severity": self.severity,
-            "description": self.description,
-            "category": self.category
-        }
+        result = {"severity": self.severity, "description": self.description, "category": self.category}
         if self.current_value:
             result["current_value"] = self.current_value
         if self.recommended_value:
@@ -172,6 +173,7 @@ class RiskReport:
         failed_modules: 检测失败的模块名列表
         generated_at: 报告生成时间（ISO 8601）
     """
+
     total_risks: int = 0
     critical_count: int = 0
     high_count: int = 0
@@ -191,7 +193,7 @@ class RiskReport:
             "low_count": self.low_count,
             "risks": [r.to_dict() for r in self.risks],
             "failed_modules": self.failed_modules,
-            "generated_at": self.generated_at
+            "generated_at": self.generated_at,
         }
 
 
@@ -206,6 +208,7 @@ class SecurityConfig:
         enable_config_audit: 是否启用配置审计
         sample_size: 敏感数据扫描采样行数
     """
+
     enable_sql_injection_detection: bool = True
     enable_sensitive_data_scan: bool = True
     enable_permission_audit: bool = True
@@ -219,7 +222,7 @@ class SecurityConfig:
             "enable_sensitive_data_scan": self.enable_sensitive_data_scan,
             "enable_permission_audit": self.enable_permission_audit,
             "enable_config_audit": self.enable_config_audit,
-            "sample_size": self.sample_size
+            "sample_size": self.sample_size,
         }
 
 
@@ -233,6 +236,7 @@ class InjectionPattern:
         severity: 风险等级
         regex_patterns: 用于匹配的正则表达式列表
     """
+
     pattern_type: InjectionType
     description: str
     severity: RiskLevel
@@ -244,7 +248,7 @@ class InjectionPattern:
             "pattern_type": self.pattern_type.value,
             "description": self.description,
             "severity": self.severity.value,
-            "regex_patterns": self.regex_patterns
+            "regex_patterns": self.regex_patterns,
         }
 
 
@@ -262,6 +266,7 @@ class SensitiveColumn:
         row_count: 总行数
         confidence_score: 识别置信度（0-1）
     """
+
     table_name: str
     column_name: str
     data_type: str
@@ -281,7 +286,7 @@ class SensitiveColumn:
             "data_category": self.data_category.value,
             "sample_data": self.sample_data[:5],
             "row_count": self.row_count,
-            "confidence_score": round(self.confidence_score, 2)
+            "confidence_score": round(self.confidence_score, 2),
         }
 
 
@@ -298,6 +303,7 @@ class SQLInjectionResult:
         affected_params: 受影响的参数列表
         recommendations: 修复建议
     """
+
     is_injection: bool
     risk_score: float
     risk_level: RiskLevel
@@ -315,7 +321,7 @@ class SQLInjectionResult:
             "injection_type": self.injection_type.value if self.injection_type else None,
             "description": self.description,
             "affected_params": self.affected_params,
-            "recommendations": self.recommendations
+            "recommendations": self.recommendations,
         }
 
 
@@ -329,6 +335,7 @@ class SensitiveDataResult:
         sensitive_columns: 识别出的敏感列列表
         scan_duration: 扫描耗时（秒）
     """
+
     total_tables: int = 0
     total_columns: int = 0
     sensitive_columns: List[SensitiveColumn] = field(default_factory=list)
@@ -340,7 +347,7 @@ class SensitiveDataResult:
             "total_tables": self.total_tables,
             "total_columns": self.total_columns,
             "sensitive_columns": [c.to_dict() for c in self.sensitive_columns],
-            "scan_duration": round(self.scan_duration, 2)
+            "scan_duration": round(self.scan_duration, 2),
         }
 
 

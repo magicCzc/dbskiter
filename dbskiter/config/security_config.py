@@ -26,6 +26,7 @@ from pathlib import Path
 
 try:
     from dotenv import load_dotenv
+
     HAS_DOTENV = True
 except ImportError:
     HAS_DOTENV = False
@@ -43,6 +44,7 @@ class SecurityLevel(Enum):
         HIGH: 高风险，必须确认
         CRITICAL: 极高风险，默认禁止
     """
+
     SAFE = "SAFE"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -51,6 +53,7 @@ class SecurityLevel(Enum):
 
 class OperationType(Enum):
     """操作类型枚举"""
+
     SELECT = "SELECT"
     INSERT = "INSERT"
     UPDATE = "UPDATE"
@@ -175,7 +178,7 @@ class SecurityConfig:
             "enable_audit": False,
             "enable_backup_reminder": False,
             "enable_impact_preview": False,
-        }
+        },
     }
 
     # 环境变量映射
@@ -209,6 +212,7 @@ class SecurityConfig:
         # 加载.env文件（使用 dotenv_values 避免 load_dotenv 副作用）
         try:
             from dbskiter.cli.config import _load_env_values
+
             env_values = _load_env_values()
             logger.debug(f"已加载环境变量文件")
         except ImportError:
@@ -257,7 +261,9 @@ class SecurityConfig:
         """加载基础配置模板"""
         return self._TEMPLATES[environment].copy()
 
-    def _apply_env_overrides(self, config: Dict[str, Any], env_values: Dict[str, Optional[str]] = None) -> Dict[str, Any]:
+    def _apply_env_overrides(
+        self, config: Dict[str, Any], env_values: Dict[str, Optional[str]] = None
+    ) -> Dict[str, Any]:
         """
         应用环境变量覆盖
 
@@ -295,25 +301,13 @@ class SecurityConfig:
 
         # 集合类型（逗号分隔）
         if value := _get_env("DBSKITER_BLOCKED_OPERATIONS"):
-            config["blocked_operations"] = {
-                op.strip().upper()
-                for op in value.split(",")
-                if op.strip()
-            }
+            config["blocked_operations"] = {op.strip().upper() for op in value.split(",") if op.strip()}
 
         if value := _get_env("DBSKITER_WHITELIST_TABLES"):
-            config["whitelist_tables"] = {
-                t.strip()
-                for t in value.split(",")
-                if t.strip()
-            }
+            config["whitelist_tables"] = {t.strip() for t in value.split(",") if t.strip()}
 
         if value := _get_env("DBSKITER_BLACKLIST_TABLES"):
-            config["blacklist_tables"] = {
-                t.strip()
-                for t in value.split(",")
-                if t.strip()
-            }
+            config["blacklist_tables"] = {t.strip() for t in value.split(",") if t.strip()}
 
         # 布尔类型
         if value := _get_env("DBSKITER_ENABLE_AUDIT"):
@@ -339,7 +333,9 @@ class SecurityConfig:
                 config["require_confirmation_levels"] = {SecurityLevel.CRITICAL}
             else:
                 config["require_confirmation_levels"] = {
-                    SecurityLevel.MEDIUM, SecurityLevel.HIGH, SecurityLevel.CRITICAL
+                    SecurityLevel.MEDIUM,
+                    SecurityLevel.HIGH,
+                    SecurityLevel.CRITICAL,
                 }
 
         return config
@@ -375,13 +371,9 @@ class SecurityConfig:
                 "blocked_operations": list(self._policy.blocked_operations),
                 "whitelist_tables": list(self._policy.whitelist_tables),
                 "blacklist_tables": list(self._policy.blacklist_tables),
-                "require_confirmation_levels": [
-                    level.value for level in self._policy.require_confirmation_levels
-                ],
-                "require_force_levels": [
-                    level.value for level in self._policy.require_force_levels
-                ],
-            }
+                "require_confirmation_levels": [level.value for level in self._policy.require_confirmation_levels],
+                "require_force_levels": [level.value for level in self._policy.require_force_levels],
+            },
         }
 
 

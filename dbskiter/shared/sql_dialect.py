@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 
 class SQLDialect(Enum):
     """SQL方言枚举"""
+
     MYSQL = "mysql"
     POSTGRESQL = "postgresql"
     ORACLE = "oracle"

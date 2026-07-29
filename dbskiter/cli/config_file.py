@@ -13,12 +13,14 @@ from dataclasses import dataclass, asdict
 
 try:
     import yaml
+
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
 
 try:
     import toml
+
     HAS_TOML = True
 except ImportError:
     HAS_TOML = False
@@ -30,7 +32,7 @@ from .exceptions import ConfigError
 class ProfileConfig:
     """
     配置文件中的单个 profile
-    
+
     属性:
         dialect: 数据库类型
         host: 数据库主机
@@ -39,13 +41,14 @@ class ProfileConfig:
         password: 密码
         database: 数据库名
     """
+
     dialect: str = "mysql"
     host: str = "localhost"
     port: int = 3306
     username: str = "root"
     password: str = ""
     database: str = ""
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ProfileConfig":
         """
@@ -67,7 +70,7 @@ class ProfileConfig:
             password=data.get("password", ""),
             database=data.get("database", data.get("db", "")),
         )
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """
         转换为字典
@@ -93,14 +96,14 @@ class ProfileConfig:
 class ConfigFileManager:
     """
     配置文件管理器
-    
+
     管理配置文件的读取、写入和解析
-    
+
     用法:
         >>> manager = ConfigFileManager()
         >>> config = manager.load_profile("production")
     """
-    
+
     # 默认配置文件路径（按优先级排序）
     DEFAULT_PATHS = [
         Path("./dbskiter.yaml"),
@@ -110,21 +113,21 @@ class ConfigFileManager:
         Path.home() / ".config" / "dbskiter" / "config.yaml",
         Path.home() / ".dbskiter.yaml",
     ]
-    
+
     def __init__(self, config_path: Optional[Path] = None):
         """
         初始化配置文件管理器
-        
+
         参数:
             config_path: 配置文件路径，None 表示自动查找
         """
         self.config_path = config_path
         self._config_data: Optional[Dict[str, Any]] = None
-    
+
     def find_config_file(self) -> Optional[Path]:
         """
         查找配置文件
-        
+
         返回:
             Optional[Path]: 找到的配置文件路径，未找到返回 None
         """
@@ -133,21 +136,21 @@ class ConfigFileManager:
             if self.config_path.exists():
                 return self.config_path
             return None
-        
+
         # 按优先级查找
         for path in self.DEFAULT_PATHS:
             if path.exists():
                 return path
-        
+
         return None
-    
+
     def load(self) -> Dict[str, Any]:
         """
         加载配置文件
-        
+
         返回:
             Dict: 配置数据
-            
+
         异常:
             ConfigError: 配置文件不存在或格式错误
         """
@@ -156,7 +159,7 @@ class ConfigFileManager:
             if self.config_path:
                 raise ConfigError(f"配置文件不存在: {self.config_path}")
             return {}
-        
+
         try:
             content = config_file.read_text(encoding="utf-8")
             self._config_data = self._parse_content(content, config_file.suffix)
@@ -172,7 +175,7 @@ class ConfigFileManager:
     def _parse_content(content: str, suffix: str) -> Dict[str, Any]:
         """
         解析配置文件内容
-        
+
         参数说明：
             - content: 文件内容
             - suffix: 文件后缀（如 .yaml, .json, .toml）
@@ -196,7 +199,7 @@ class ConfigFileManager:
             return toml.loads(content)
         else:
             raise ConfigError(f"不支持的配置文件格式: {suffix}")
-    
+
     def load_profile(self, profile_name: Optional[str] = None) -> ProfileConfig:
         """
         加载指定 profile
@@ -278,18 +281,18 @@ class ConfigFileManager:
     def list_profiles(self) -> list:
         """
         列出所有可用的 profiles
-        
+
         返回:
             list: profile 名称列表
         """
         data = self.load()
         profiles = data.get("profiles", {})
         return list(profiles.keys())
-    
+
     def save(self, data: Dict[str, Any], path: Optional[Path] = None) -> None:
         """
         保存配置文件
-        
+
         参数:
             data: 配置数据
             path: 保存路径，None 使用当前路径
@@ -327,14 +330,14 @@ class ConfigFileManager:
             if not HAS_YAML:
                 raise ConfigError("需要安装 PyYAML: pip install pyyaml")
             return yaml.dump(data, default_flow_style=False, allow_unicode=True)
-    
+
     def create_sample_config(self, path: Optional[Path] = None) -> Path:
         """
         创建示例配置文件
-        
+
         参数:
             path: 保存路径，None 使用默认路径
-            
+
         返回:
             Path: 创建的文件路径
         """
@@ -347,7 +350,7 @@ class ConfigFileManager:
                     "port": 3306,
                     "username": "root",
                     "password": "",
-                    "database": "dev_db"
+                    "database": "dev_db",
                 },
                 "production": {
                     "dialect": "mysql",
@@ -355,36 +358,26 @@ class ConfigFileManager:
                     "port": 3306,
                     "username": "app_user",
                     "password": "${DB_PASSWORD}",  # 可以使用环境变量
-                    "database": "prod_db"
+                    "database": "prod_db",
                 },
-                "testing": {
-                    "dialect": "sqlite",
-                    "database": "./test.db"
-                }
+                "testing": {"dialect": "sqlite", "database": "./test.db"},
             },
-            "settings": {
-                "default_output_format": "table",
-                "max_rows": 1000,
-                "timeout": 30
-            }
+            "settings": {"default_output_format": "table", "max_rows": 1000, "timeout": 30},
         }
-        
+
         save_path = path or Path("./dbskiter.yaml")
         self.save(sample_data, save_path)
         return save_path
 
 
-def load_config_with_profile(
-    config_path: Optional[str] = None,
-    profile: Optional[str] = None
-) -> Dict[str, Any]:
+def load_config_with_profile(config_path: Optional[str] = None, profile: Optional[str] = None) -> Dict[str, Any]:
     """
     便捷函数：加载配置文件和 profile
-    
+
     参数:
         config_path: 配置文件路径
         profile: profile 名称
-        
+
     返回:
         Dict: 配置字典
     """

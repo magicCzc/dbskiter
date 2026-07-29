@@ -57,12 +57,7 @@ class TableAnalyzer:
         self.metadata_service = DBMetadataService(connector)
         logger.info(f"TableAnalyzer 初始化完成 (dialect={connector.dialect})")
 
-    def analyze(
-        self,
-        table_name: str,
-        include_indexes: bool = True,
-        include_statistics: bool = True
-    ) -> Dict[str, Any]:
+    def analyze(self, table_name: str, include_indexes: bool = True, include_statistics: bool = True) -> Dict[str, Any]:
         """
         诊断单表健康状况
 
@@ -98,14 +93,13 @@ class TableAnalyzer:
                 "statistics": {},
                 "indexes": [],
                 "issues": [],
-                "suggestions": []
+                "suggestions": [],
             }
 
             # 验证表名安全性
             if not self._is_valid_identifier(table_name):
                 return create_error_response(
-                    Exception(f"无效的表名: {table_name}"),
-                    context=f"analyze_table({table_name})"
+                    Exception(f"无效的表名: {table_name}"), context=f"analyze_table({table_name})"
                 )
 
             # 使用元数据服务获取表统计信息
@@ -139,7 +133,7 @@ class TableAnalyzer:
                         indexes[idx.name] = {
                             "columns": idx.columns,
                             "is_unique": idx.is_unique,
-                            "index_type": idx.index_type
+                            "index_type": idx.index_type,
                         }
 
                     result_data["indexes"] = [
@@ -147,7 +141,7 @@ class TableAnalyzer:
                             "name": name,
                             "columns": info["columns"],
                             "is_unique": info["is_unique"],
-                            "index_type": info.get("index_type", "BTREE")
+                            "index_type": info.get("index_type", "BTREE"),
                         }
                         for name, info in indexes.items()
                     ]
@@ -169,10 +163,7 @@ class TableAnalyzer:
                     logger.warning(f"获取表 {table_name} 索引信息时数据库错误: {e}")
                     result_data["issues"].append(f"无法获取索引信息（数据库错误: {str(e)[:50]}）")
 
-            return create_success_response(
-                message=f"表 {table_name} 诊断完成",
-                data=result_data
-            )
+            return create_success_response(message=f"表 {table_name} 诊断完成", data=result_data)
 
         except Exception as e:
             return handle_exception(e, context=f"诊断表 {table_name}")
@@ -200,14 +191,14 @@ class TableAnalyzer:
         index_list = list(indexes.items())
 
         for i, (name1, info1) in enumerate(index_list):
-            for name2, info2 in index_list[i+1:]:
+            for name2, info2 in index_list[i + 1 :]:
                 # 检查前缀重复
                 cols1 = info1["columns"]
                 cols2 = info2["columns"]
 
-                if len(cols1) < len(cols2) and cols2[:len(cols1)] == cols1:
+                if len(cols1) < len(cols2) and cols2[: len(cols1)] == cols1:
                     redundant.append(f"索引 {name2} 是 {name1} 的前缀，可能冗余")
-                elif len(cols2) < len(cols1) and cols1[:len(cols2)] == cols2:
+                elif len(cols2) < len(cols1) and cols1[: len(cols2)] == cols2:
                     redundant.append(f"索引 {name1} 是 {name2} 的前缀，可能冗余")
 
         return redundant
@@ -234,5 +225,5 @@ class TableAnalyzer:
             return False
 
         # 匹配有效的SQL标识符
-        pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+        pattern = r"^[a-zA-Z_][a-zA-Z0-9_]*$"
         return bool(re.match(pattern, name))

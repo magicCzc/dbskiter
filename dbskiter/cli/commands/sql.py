@@ -39,17 +39,13 @@ class SQLCommand(BaseCommand):
         parser.add_argument("--sql", help="直接执行SQL语句（简化写法）")
         parser.add_argument("--params", help="SQL参数（JSON格式）")
         parser.add_argument("--limit", type=int, default=100, help="返回行数限制（默认100）")
-        
+
         # 安全控制参数
         parser.add_argument(
-            "--read-only",
-            action="store_true",
-            help="只读模式，禁止执行任何写操作（INSERT/UPDATE/DELETE/DROP等）"
+            "--read-only", action="store_true", help="只读模式，禁止执行任何写操作（INSERT/UPDATE/DELETE/DROP等）"
         )
         parser.add_argument(
-            "--force",
-            action="store_true",
-            help="强制执行危险操作（如DROP DATABASE/TABLE等极高风险操作）"
+            "--force", action="store_true", help="强制执行危险操作（如DROP DATABASE/TABLE等极高风险操作）"
         )
 
         subparsers = parser.add_subparsers(dest="sql_action", help="SQL操作")
@@ -61,16 +57,8 @@ class SQLCommand(BaseCommand):
         execute_parser.add_argument("sql", help="SQL语句")
         execute_parser.add_argument("--params", help="SQL参数（JSON格式）")
         execute_parser.add_argument("--limit", type=int, default=100, help="返回行数限制")
-        execute_parser.add_argument(
-            "--read-only",
-            action="store_true",
-            help="只读模式，禁止执行写操作"
-        )
-        execute_parser.add_argument(
-            "--force",
-            action="store_true",
-            help="强制执行危险操作"
-        )
+        execute_parser.add_argument("--read-only", action="store_true", help="只读模式，禁止执行写操作")
+        execute_parser.add_argument("--force", action="store_true", help="强制执行危险操作")
 
         # rewrite 子命令 - 重写优化
         rewrite_parser = subparsers.add_parser("rewrite", help="重写SQL优化")
@@ -102,7 +90,9 @@ class SQLCommand(BaseCommand):
         export_parser.add_argument("--table", help="表名（与--query二选一）")
         export_parser.add_argument("--query", help="SQL查询（与--table二选一）")
         export_parser.add_argument("--output", "-o", required=True, help="输出文件路径")
-        export_parser.add_argument("--format", "-f", choices=["csv", "json", "sql", "excel"], default="csv", help="导出格式")
+        export_parser.add_argument(
+            "--format", "-f", choices=["csv", "json", "sql", "excel"], default="csv", help="导出格式"
+        )
         export_parser.add_argument("--where", help="WHERE条件（仅table模式）")
         export_parser.add_argument("--limit", type=int, help="限制行数")
 
@@ -134,12 +124,12 @@ class SQLCommand(BaseCommand):
         """执行SQL命令"""
         from dbskiter.sql_master.skill import SQLMasterSkill
 
-        action = getattr(self.args, 'sql_action', None)
-        direct_sql = getattr(self.args, 'sql', None)
+        action = getattr(self.args, "sql_action", None)
+        direct_sql = getattr(self.args, "sql", None)
 
         if not action and not direct_sql:
             self.output.error("请指定SQL操作: execute, rewrite, analyze, data, complete, schema")
-            self.output.info("或直接使用: dbskiter sql --sql \"SELECT * FROM table\"")
+            self.output.info('或直接使用: dbskiter sql --sql "SELECT * FROM table"')
             return 1
 
         try:
@@ -148,20 +138,20 @@ class SQLCommand(BaseCommand):
             if self.output_mode != "rule":
                 method_map = {
                     "execute": lambda: skill.execute(
-                        direct_sql or getattr(self.args, 'sql', ''),
-                        json.loads(self.args.params) if getattr(self.args, 'params', None) else None,
-                        getattr(self.args, 'limit', 100),
+                        direct_sql or getattr(self.args, "sql", ""),
+                        json.loads(self.args.params) if getattr(self.args, "params", None) else None,
+                        getattr(self.args, "limit", 100),
                         allow_write=False,
-                        force=getattr(self.args, 'force', False),
+                        force=getattr(self.args, "force", False),
                     ),
-                    "rewrite": lambda: skill.rewrite_sql(getattr(self.args, 'sql', '')),
-                    "analyze": lambda: skill.analyze_sql_quality(getattr(self.args, 'sql', '')),
-                    "data": lambda: skill.analyze_data(getattr(self.args, 'sql', '')),
+                    "rewrite": lambda: skill.rewrite_sql(getattr(self.args, "sql", "")),
+                    "analyze": lambda: skill.analyze_sql_quality(getattr(self.args, "sql", "")),
+                    "data": lambda: skill.analyze_data(getattr(self.args, "sql", "")),
                     "schema": lambda: skill.get_schema_info(
-                        table_name=getattr(self.args, 'table', None) or '',
+                        table_name=getattr(self.args, "table", None) or "",
                     ),
                     "complete": lambda: skill.get_suggestions(
-                        getattr(self.args, 'partial', ''),
+                        getattr(self.args, "partial", ""),
                     ),
                 }
                 scenario_map = {
@@ -179,31 +169,25 @@ class SQLCommand(BaseCommand):
             if not action and direct_sql:
                 # 检查全局只读模式
                 global_readonly = is_readonly_mode()
-                arg_readonly = getattr(self.args, 'read_only', False)
+                arg_readonly = getattr(self.args, "read_only", False)
                 read_only = global_readonly or arg_readonly
-                
+
                 if global_readonly and not arg_readonly:
                     self.output.warning("系统处于全局只读模式（DBSKITER_READ_ONLY=true）")
-                
+
                 # 使用ReadOnlyEnforcer进行额外检查
                 enforcer = ReadOnlyEnforcer(enabled=read_only)
                 allowed, reason = enforcer.check(direct_sql)
                 if not allowed:
                     self.output.error(f"执行被拒绝: {reason}")
                     return 1
-                
-                params = getattr(self.args, 'params', None)
+
+                params = getattr(self.args, "params", None)
                 if params:
                     params = json.loads(params)
-                limit = getattr(self.args, 'limit', 100)
-                force = getattr(self.args, 'force', False)
-                result = skill.execute(
-                    direct_sql,
-                    params,
-                    limit,
-                    allow_write=not read_only,
-                    force=force
-                )
+                limit = getattr(self.args, "limit", 100)
+                force = getattr(self.args, "force", False)
+                result = skill.execute(direct_sql, params, limit, allow_write=not read_only, force=force)
                 return self._print_execute_result(result)
 
             if action == "execute":
@@ -236,45 +220,47 @@ class SQLCommand(BaseCommand):
             self.output.error(f"SQL操作失败: {e}")
             return 1
         finally:
-            if 'skill' in locals():
+            if "skill" in locals():
                 skill.close()
 
     def _execute_direct(self, skill) -> int:
         """直接执行SQL（简化用法）"""
         sql = self.args.sql
-        
+
         # 检查全局只读模式
         global_readonly = is_readonly_mode()
-        arg_readonly = getattr(self.args, 'read_only', False)
+        arg_readonly = getattr(self.args, "read_only", False)
         read_only = global_readonly or arg_readonly
-        
+
         if global_readonly and not arg_readonly:
             self.output.warning("系统处于全局只读模式（DBSKITER_READ_ONLY=true）")
-        
+
         # 使用ReadOnlyEnforcer进行额外检查
         enforcer = ReadOnlyEnforcer(enabled=read_only)
         allowed, reason = enforcer.check(sql)
         if not allowed:
             self.output.error(f"执行被拒绝: {reason}")
             return 1
-        
-        # 获取安全控制参数
-        force = getattr(self.args, 'force', False)
 
-        result = skill.execute(sql, params=None, limit=getattr(self.args, 'limit', 100), allow_write=not read_only, force=force)
+        # 获取安全控制参数
+        force = getattr(self.args, "force", False)
+
+        result = skill.execute(
+            sql, params=None, limit=getattr(self.args, "limit", 100), allow_write=not read_only, force=force
+        )
 
         if not result.get("success"):
-            error_msg = result.get('error', '未知错误')
-            extra = result.get('extra', {})
+            error_msg = result.get("error", "未知错误")
+            extra = result.get("extra", {})
 
             # 处理危险操作错误
-            if extra.get('requires_force'):
+            if extra.get("requires_force"):
                 self.output.error(f"执行失败: {error_msg}")
                 self.output.info("提示: 如果确定要执行此操作，请添加 --force 参数")
-            elif extra.get('risk_level') in ('HIGH', 'CRITICAL'):
+            elif extra.get("risk_level") in ("HIGH", "CRITICAL"):
                 self.output.error(f"执行失败: {error_msg}")
                 self.output.info(f"风险等级: {extra.get('risk_level')}")
-                if extra.get('risk_description'):
+                if extra.get("risk_description"):
                     self.output.info(f"风险说明: {extra.get('risk_description')}")
             else:
                 self.output.error(f"执行失败: {error_msg}")
@@ -319,50 +305,44 @@ class SQLCommand(BaseCommand):
         params = None
         if self.args.params:
             params = json.loads(self.args.params)
-        
+
         # 检查全局只读模式
         global_readonly = is_readonly_mode()
-        arg_readonly = getattr(self.args, 'read_only', False)
+        arg_readonly = getattr(self.args, "read_only", False)
         read_only = global_readonly or arg_readonly
-        
+
         if global_readonly and not arg_readonly:
             self.output.warning("系统处于全局只读模式（DBSKITER_READ_ONLY=true）")
-        
+
         # 使用ReadOnlyEnforcer进行额外检查
         enforcer = ReadOnlyEnforcer(enabled=read_only)
         allowed, reason = enforcer.check(self.args.sql)
         if not allowed:
             self.output.error(f"执行被拒绝: {reason}")
             return 1
-        
+
         # 获取安全控制参数
-        force = getattr(self.args, 'force', False)
+        force = getattr(self.args, "force", False)
 
         try:
-            result = skill.execute(
-                self.args.sql,
-                params,
-                self.args.limit,
-                allow_write=not read_only,
-                force=force
-            )
+            result = skill.execute(self.args.sql, params, self.args.limit, allow_write=not read_only, force=force)
         except Exception as e:
             self.output.error(f"执行异常: {e}")
             self.output.print(traceback.format_exc())
             return 1
 
         if not result.get("success"):
-            error_msg = result.get('error', '未知错误')
-            extra = result.get('extra', {})
-            
+            error_msg = result.get("error", "未知错误")
+            extra = result.get("extra", {})
+
             # 处理危险操作错误
-            if extra.get('requires_force'):
+            if extra.get("requires_force"):
                 self.output.error(f"执行失败: {error_msg}")
                 self.output.info("提示: 如果确定要执行此操作，请添加 --force 参数")
-            elif extra.get('risk_level') in ('HIGH', 'CRITICAL'):
+            elif extra.get("risk_level") in ("HIGH", "CRITICAL"):
                 self.output.error(f"执行失败: {error_msg}")
                 self.output.info(f"风险等级: {extra.get('risk_level')}")
-                if extra.get('risk_description'):
+                if extra.get("risk_description"):
                     self.output.info(f"风险说明: {extra.get('risk_description')}")
             else:
                 self.output.error(f"执行失败: {error_msg}")
@@ -432,7 +412,9 @@ class SQLCommand(BaseCommand):
             if suggestions:
                 self.output.print(f"\n优化建议 ({len(suggestions)}个):")
                 for i, sug in enumerate(suggestions, 1):
-                    impact_text = "高危" if sug.get("impact") == "high" else "中危" if sug.get("impact") == "medium" else "低危"
+                    impact_text = (
+                        "高危" if sug.get("impact") == "high" else "中危" if sug.get("impact") == "medium" else "低危"
+                    )
                     self.output.print(f"\n  [{i}] {impact_text} - {sug.get('type', '')}")
                     self.output.print(f"      原因: {sug.get('reason', '')}")
                     self.output.print(f"      置信度: {sug.get('confidence', 0):.0%}")
@@ -461,7 +443,7 @@ class SQLCommand(BaseCommand):
         complexity = result.get("complexity", "low")
         issues = result.get("issues", [])
         suggestions = result.get("suggestions", [])
-        
+
         # 计算等级
         if score >= 90:
             grade = "A"
@@ -671,14 +653,14 @@ class SQLCommand(BaseCommand):
             return 1
 
         # 读取SQL文件
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             lines = f.readlines()
 
         # 解析SQL（每行一个，忽略空行和注释）
         sqls = []
         for line in lines:
             line = line.strip()
-            if line and not line.startswith('--') and not line.startswith('#'):
+            if line and not line.startswith("--") and not line.startswith("#"):
                 sqls.append(line)
 
         if not sqls:
@@ -713,12 +695,12 @@ class SQLCommand(BaseCommand):
 
     def _export_data(self, skill) -> int:
         """导出数据"""
-        table = getattr(self.args, 'table', None)
-        query = getattr(self.args, 'query', None)
+        table = getattr(self.args, "table", None)
+        query = getattr(self.args, "query", None)
         output = self.args.output
         format = self.args.format
-        where = getattr(self.args, 'where', None)
-        limit = getattr(self.args, 'limit', None)
+        where = getattr(self.args, "where", None)
+        limit = getattr(self.args, "limit", None)
 
         if not table and not query:
             self.output.error("请指定--table或--query参数")
@@ -728,21 +710,13 @@ class SQLCommand(BaseCommand):
             if table:
                 # 导出表
                 result = skill.export_table(
-                    table_name=table,
-                    output_path=output,
-                    format=format,
-                    where=where,
-                    limit=limit
+                    table_name=table, output_path=output, format=format, where=where, limit=limit
                 )
             else:
                 # 导出查询
-                result = skill.export_query(
-                    sql=query,
-                    output_path=output,
-                    format=format
-                )
+                result = skill.export_query(sql=query, output_path=output, format=format)
 
-            if not result.get('success'):
+            if not result.get("success"):
                 self.output.error(f"导出失败: {result.get('message', '未知错误')}")
                 return 1
 
@@ -770,36 +744,28 @@ class SQLCommand(BaseCommand):
         file_path = self.args.file
         table = self.args.table
         format = self.args.format
-        columns = getattr(self.args, 'columns', None)
+        columns = getattr(self.args, "columns", None)
         batch_size = self.args.batch_size
 
         import os
+
         if not os.path.exists(file_path):
             self.output.error(f"文件不存在: {file_path}")
             return 1
 
         try:
-            if format == 'csv':
-                cols = columns.split(',') if columns else None
-                result = skill.import_csv(
-                    input_path=file_path,
-                    table_name=table,
-                    columns=cols,
-                    batch_size=batch_size
-                )
-            elif format == 'json':
-                result = skill.import_json(
-                    input_path=file_path,
-                    table_name=table,
-                    batch_size=batch_size
-                )
-            elif format == 'sql':
+            if format == "csv":
+                cols = columns.split(",") if columns else None
+                result = skill.import_csv(input_path=file_path, table_name=table, columns=cols, batch_size=batch_size)
+            elif format == "json":
+                result = skill.import_json(input_path=file_path, table_name=table, batch_size=batch_size)
+            elif format == "sql":
                 result = skill.import_sql(file_path)
             else:
                 self.output.error(f"不支持的格式: {format}")
                 return 1
 
-            if not result.get('success'):
+            if not result.get("success"):
                 self.output.error(f"导入失败: {result.get('message', '未知错误')}")
                 return 1
 
@@ -818,7 +784,7 @@ class SQLCommand(BaseCommand):
         table = self.args.table
         output = self.args.output
         format = self.args.format
-        where = getattr(self.args, 'where', None)
+        where = getattr(self.args, "where", None)
         batch_size = self.args.batch_size
 
         try:
@@ -826,14 +792,10 @@ class SQLCommand(BaseCommand):
             self.output.print(f"批次大小: {batch_size}")
 
             result = skill.export_table_streaming(
-                table_name=table,
-                output_path=output,
-                format=format,
-                where=where,
-                batch_size=batch_size
+                table_name=table, output_path=output, format=format, where=where, batch_size=batch_size
             )
 
-            if not result.get('success'):
+            if not result.get("success"):
                 self.output.error(f"导出失败: {result.get('message', '未知错误')}")
                 return 1
 
@@ -851,7 +813,7 @@ class SQLCommand(BaseCommand):
     def _query_audit_logs(self, skill) -> int:
         """查询审计日志"""
         # 处理清理操作
-        cleanup_days = getattr(self.args, 'cleanup', None)
+        cleanup_days = getattr(self.args, "cleanup", None)
         if cleanup_days is not None:
             try:
                 deleted = skill.cleanup_audit_logs(days=cleanup_days)
@@ -862,7 +824,7 @@ class SQLCommand(BaseCommand):
                 return 1
 
         # 显示统计信息
-        show_stats = getattr(self.args, 'stats', False)
+        show_stats = getattr(self.args, "stats", False)
         if show_stats:
             try:
                 stats = skill.get_audit_statistics(days=7)
@@ -873,14 +835,14 @@ class SQLCommand(BaseCommand):
                 self.output.print(f"成功率: {stats['success_rate']}%")
                 self.output.print(f"force使用次数: {stats['force_used_count']}")
 
-                if stats['risk_level_distribution']:
+                if stats["risk_level_distribution"]:
                     self.output.print(f"\n风险等级分布:")
-                    for level, count in stats['risk_level_distribution'].items():
+                    for level, count in stats["risk_level_distribution"].items():
                         self.output.print(f"  {level}: {count} 条")
 
-                if stats['operation_distribution']:
+                if stats["operation_distribution"]:
                     self.output.print(f"\n操作类型分布:")
-                    for op, count in stats['operation_distribution'].items():
+                    for op, count in stats["operation_distribution"].items():
                         self.output.print(f"  {op}: {count} 条")
 
                 return 0
@@ -889,16 +851,12 @@ class SQLCommand(BaseCommand):
                 return 1
 
         # 查询审计记录
-        risk_level = getattr(self.args, 'risk_level', None)
-        hours = getattr(self.args, 'hours', 24)
-        limit = getattr(self.args, 'limit', 50)
+        risk_level = getattr(self.args, "risk_level", None)
+        hours = getattr(self.args, "hours", 24)
+        limit = getattr(self.args, "limit", 50)
 
         try:
-            records = skill.get_audit_records(
-                risk_level=risk_level,
-                hours=hours,
-                limit=limit
-            )
+            records = skill.get_audit_records(risk_level=risk_level, hours=hours, limit=limit)
 
             if not records:
                 self.output.info(f"未找到符合条件的审计记录")
@@ -911,13 +869,13 @@ class SQLCommand(BaseCommand):
             self.output.print(f"{'='*60}")
 
             for i, record in enumerate(records, 1):
-                risk = record.get('risk_level', 'SAFE')
-                success = record.get('success', True)
+                risk = record.get("risk_level", "SAFE")
+                success = record.get("success", True)
 
                 # 根据风险等级和成功状态选择颜色
-                if risk in ('CRITICAL', 'HIGH'):
+                if risk in ("CRITICAL", "HIGH"):
                     status_symbol = "[!]"
-                elif risk == 'MEDIUM':
+                elif risk == "MEDIUM":
                     status_symbol = "[*]"
                 else:
                     status_symbol = "[ ]"
@@ -931,19 +889,19 @@ class SQLCommand(BaseCommand):
                 self.output.print(f"  风险等级: {risk}")
                 self.output.print(f"  SQL: {record.get('sql_preview', 'N/A')}")
 
-                if record.get('risk_description'):
+                if record.get("risk_description"):
                     self.output.print(f"  风险描述: {record.get('risk_description')}")
 
-                if record.get('force_used'):
+                if record.get("force_used"):
                     self.output.warning(f"  注意: 使用了--force强制执行")
 
-                if not success and record.get('error'):
+                if not success and record.get("error"):
                     self.output.error(f"  错误: {record.get('error')}")
 
-                if record.get('execution_time_ms'):
+                if record.get("execution_time_ms"):
                     self.output.print(f"  执行时间: {record.get('execution_time_ms'):.2f}ms")
 
-                if record.get('row_count') is not None:
+                if record.get("row_count") is not None:
                     self.output.print(f"  影响行数: {record.get('row_count')}")
 
             self.output.print(f"\n{'='*60}")

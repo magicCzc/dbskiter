@@ -32,15 +32,9 @@ from datetime import datetime
 from enum import Enum
 
 from dbskiter.sql_master.sql_parser import SQLParser, SQLType, ParsedSQL
-from dbskiter.sql_master.audit_logger import (
-    AuditLogger, AuditLogEntry, OperationStatus, StorageBackend
-)
-from dbskiter.sql_master.security_checker import (
-    SecurityChecker, SQLInjectionDetector, RateLimiter
-)
-from dbskiter.config.security_config import (
-    SecurityLevel, SecurityPolicy, get_security_policy
-)
+from dbskiter.sql_master.audit_logger import AuditLogger, AuditLogEntry, OperationStatus, StorageBackend
+from dbskiter.sql_master.security_checker import SecurityChecker, SQLInjectionDetector, RateLimiter
+from dbskiter.config.security_config import SecurityLevel, SecurityPolicy, get_security_policy
 from dbskiter.shared.unified_connector import UnifiedConnector
 from dbskiter.shared.error_handler import ErrorCode, create_error_response
 
@@ -49,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 class OperationType(Enum):
     """操作类型"""
+
     SELECT = "SELECT"
     INSERT = "INSERT"
     UPDATE = "UPDATE"
@@ -67,6 +62,7 @@ class ExecutionContext:
 
     记录执行环境信息，用于安全检查和审计
     """
+
     execution_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     timestamp: datetime = field(default_factory=datetime.now)
     user: str = "anonymous"
@@ -90,6 +86,7 @@ class SecurityCheckResult:
         message: 检查消息
         details: 详细信息
     """
+
     passed: bool
     risk_level: SecurityLevel
     risk_description: str
@@ -137,7 +134,7 @@ class SecurityExecutor:
         policy: Optional[SecurityPolicy] = None,
         audit_logger: Optional[AuditLogger] = None,
         enable_injection_detection: bool = True,
-        enable_rate_limiting: bool = True
+        enable_rate_limiting: bool = True,
     ):
         """
         初始化安全执行器
@@ -155,8 +152,7 @@ class SecurityExecutor:
 
         # 安全检查器
         self.security_checker = SecurityChecker(
-            enable_injection_detection=enable_injection_detection,
-            enable_rate_limiting=enable_rate_limiting
+            enable_injection_detection=enable_injection_detection, enable_rate_limiting=enable_rate_limiting
         )
 
         # 审计日志
@@ -172,6 +168,7 @@ class SecurityExecutor:
     def _create_default_audit_logger(self) -> AuditLogger:
         """创建默认审计日志记录器"""
         import os
+
         audit_path = os.getenv("DBSKITER_AUDIT_PATH", "./logs/audit.db")
         backend_str = os.getenv("DBSKITER_AUDIT_BACKEND", "sqlite")
 
@@ -190,7 +187,7 @@ class SecurityExecutor:
         confirmed: bool = False,
         user: Optional[str] = None,
         client_ip: Optional[str] = None,
-        **kwargs
+        **kwargs,
     ) -> Dict[str, Any]:
         """
         安全执行SQL
@@ -220,25 +217,18 @@ class SecurityExecutor:
             Dict: 执行结果
         """
         # 创建执行上下文
-        context = ExecutionContext(
-            user=user or "anonymous",
-            client_ip=client_ip,
-            database=database
-        )
+        context = ExecutionContext(user=user or "anonymous", client_ip=client_ip, database=database)
 
         # 1. 基础验证
         if not sql or not sql.strip():
-            return create_error_response(
-                ErrorCode.INVALID_SQL,
-                "SQL语句不能为空"
-            )
+            return create_error_response(ErrorCode.INVALID_SQL, "SQL语句不能为空")
 
         # 2-5. 统一安全检查
         check_result = self.security_checker.check(
             sql=sql,
             user_id=context.user,
             whitelist_tables=self.policy.whitelist_tables,
-            blacklist_tables=self.policy.blacklist_tables
+            blacklist_tables=self.policy.blacklist_tables,
         )
 
         if not check_result["passed"]:
@@ -248,10 +238,7 @@ class SecurityExecutor:
             return create_error_response(
                 ErrorCode.PERMISSION_DENIED,
                 check_result["reason"],
-                details={
-                    "risk_level": check_result["risk_level"].value,
-                    "execution_id": context.execution_id
-                }
+                details={"risk_level": check_result["risk_level"].value, "execution_id": context.execution_id},
             )
 
         # 解析SQL
@@ -266,10 +253,7 @@ class SecurityExecutor:
             return create_error_response(
                 ErrorCode.PERMISSION_DENIED,
                 f"操作 '{operation_type}' 被安全策略禁止",
-                details={
-                    "blocked_operation": operation_type,
-                    "execution_id": context.execution_id
-                }
+                details={"blocked_operation": operation_type, "execution_id": context.execution_id},
             )
 
         # 7. 影响预览
@@ -288,7 +272,7 @@ class SecurityExecutor:
                 "impact_preview": impact_preview,
                 "message": f"{check_result['risk_description']}，请确认是否继续",
                 "sql": sql,
-                "execution_id": context.execution_id
+                "execution_id": context.execution_id,
             }
 
         # 9. force参数检查（含二次验证）
@@ -297,11 +281,7 @@ class SecurityExecutor:
             return create_error_response(
                 ErrorCode.PERMISSION_DENIED,
                 f"{check_result['risk_description']}，必须使用 --force 参数强制执行",
-                details={
-                    "risk_level": risk_level.value,
-                    "requires_force": True,
-                    "execution_id": context.execution_id
-                }
+                details={"risk_level": risk_level.value, "requires_force": True, "execution_id": context.execution_id},
             )
 
         # 对 CRITICAL 级别的操作增加环境变量守卫
@@ -309,6 +289,7 @@ class SecurityExecutor:
         # 防止脚本被篡改后自动执行高危操作
         if requires_force and risk_level == SecurityLevel.CRITICAL:
             import os
+
             if os.getenv("DBSKITER_FORCE_CONFIRMED", "").lower() not in ("true", "1", "yes"):
                 return create_error_response(
                     ErrorCode.PERMISSION_DENIED,
@@ -319,8 +300,8 @@ class SecurityExecutor:
                         "risk_level": risk_level.value,
                         "requires_force": True,
                         "message": "这是最后一道安全栅栏，防止自动化脚本意外执行 CRITICAL 操作",
-                        "execution_id": context.execution_id
-                    }
+                        "execution_id": context.execution_id,
+                    },
                 )
 
         # 10. 执行并审计
@@ -330,12 +311,7 @@ class SecurityExecutor:
             # 记录审计日志
             if self.audit_logger:
                 self._record_audit(
-                    context=context,
-                    sql=sql,
-                    parsed=parsed,
-                    risk_level=risk_level,
-                    result=execution_result,
-                    force=force
+                    context=context, sql=sql, parsed=parsed, risk_level=risk_level, result=execution_result, force=force
                 )
 
             # 添加安全信息到结果
@@ -343,7 +319,7 @@ class SecurityExecutor:
                 "risk_level": risk_level.value,
                 "execution_id": context.execution_id,
                 "confirmed": confirmed,
-                "force": force
+                "force": force,
             }
 
             return execution_result
@@ -361,16 +337,13 @@ class SecurityExecutor:
                     result=None,
                     force=force,
                     failed=True,
-                    error_message=str(e)
+                    error_message=str(e),
                 )
 
             return create_error_response(
                 ErrorCode.QUERY_FAILED,
                 f"SQL执行失败: {str(e)}",
-                details={
-                    "sql": sql,
-                    "execution_id": context.execution_id
-                }
+                details={"sql": sql, "execution_id": context.execution_id},
             )
 
     def _get_operation_type(self, parsed: ParsedSQL) -> str:
@@ -382,11 +355,7 @@ class SecurityExecutor:
             return "DROP_TABLE"
         return parsed.sql_type.value
 
-    def _preview_impact(
-        self,
-        context: ExecutionContext,
-        parsed: ParsedSQL
-    ) -> Optional[Dict[str, Any]]:
+    def _preview_impact(self, context: ExecutionContext, parsed: ParsedSQL) -> Optional[Dict[str, Any]]:
         """
         预览影响范围
 
@@ -407,11 +376,7 @@ class SecurityExecutor:
 
         return None
 
-    def _preview_delete_impact(
-        self,
-        context: ExecutionContext,
-        parsed: ParsedSQL
-    ) -> Dict[str, Any]:
+    def _preview_delete_impact(self, context: ExecutionContext, parsed: ParsedSQL) -> Dict[str, Any]:
         """预览DELETE影响（使用参数化查询）"""
         table = parsed.get_main_table()
         if not table:
@@ -438,7 +403,7 @@ class SecurityExecutor:
                     "total_rows": total_rows,
                     "has_where": True,
                     "warning": f"表共有 {total_rows} 行数据，WHERE条件将影响其中部分数据",
-                    "note": "实际影响行数取决于WHERE条件"
+                    "note": "实际影响行数取决于WHERE条件",
                 }
             else:
                 # 无WHERE子句，将删除所有数据
@@ -448,17 +413,13 @@ class SecurityExecutor:
                     "affected_rows": total_rows,
                     "has_where": False,
                     "warning": f"将删除全部 {total_rows} 行数据",
-                    "risk": "极高风险：无WHERE子句"
+                    "risk": "极高风险：无WHERE子句",
                 }
 
         except Exception as e:
             return {"error": f"无法预览影响: {str(e)}"}
 
-    def _preview_update_impact(
-        self,
-        context: ExecutionContext,
-        parsed: ParsedSQL
-    ) -> Dict[str, Any]:
+    def _preview_update_impact(self, context: ExecutionContext, parsed: ParsedSQL) -> Dict[str, Any]:
         """预览UPDATE影响"""
         table = parsed.get_main_table()
         if not table:
@@ -477,7 +438,7 @@ class SecurityExecutor:
                     "table": table,
                     "total_rows": total_rows,
                     "has_where": True,
-                    "warning": f"表共有 {total_rows} 行数据，WHERE条件将影响其中部分数据"
+                    "warning": f"表共有 {total_rows} 行数据，WHERE条件将影响其中部分数据",
                 }
             else:
                 return {
@@ -486,17 +447,13 @@ class SecurityExecutor:
                     "affected_rows": total_rows,
                     "has_where": False,
                     "warning": f"将更新全部 {total_rows} 行数据",
-                    "risk": "极高风险：无WHERE子句"
+                    "risk": "极高风险：无WHERE子句",
                 }
 
         except Exception as e:
             return {"error": f"无法预览影响: {str(e)}"}
 
-    def _preview_insert_impact(
-        self,
-        context: ExecutionContext,
-        parsed: ParsedSQL
-    ) -> Dict[str, Any]:
+    def _preview_insert_impact(self, context: ExecutionContext, parsed: ParsedSQL) -> Dict[str, Any]:
         """预览INSERT影响"""
         table = parsed.get_main_table()
         if not table:
@@ -510,7 +467,7 @@ class SecurityExecutor:
             "operation": "INSERT",
             "table": table,
             "estimated_rows": values_count if values_count > 0 else 1,
-            "warning": f"将向表 {table} 插入数据"
+            "warning": f"将向表 {table} 插入数据",
         }
 
     def _escape_identifier(self, identifier: str) -> str:
@@ -520,14 +477,15 @@ class SecurityExecutor:
         防止标识符注入攻击
         """
         # 移除危险字符
-        dangerous_chars = [';', '--', '/*', '*/', "'", '"']
+        dangerous_chars = [";", "--", "/*", "*/", "'", '"']
         result = identifier
         for char in dangerous_chars:
-            result = result.replace(char, '')
+            result = result.replace(char, "")
 
         # 只允许字母数字下划线
         import re
-        result = re.sub(r'[^\w]', '', result)
+
+        result = re.sub(r"[^\w]", "", result)
 
         if not result:
             raise ValueError(f"无效的标识符: {identifier}")
@@ -538,12 +496,7 @@ class SecurityExecutor:
         """实际执行SQL"""
         return self.connector.execute(sql, database=database)
 
-    def _log_blocked_operation(
-        self,
-        context: ExecutionContext,
-        sql: str,
-        check_result: Dict[str, Any]
-    ):
+    def _log_blocked_operation(self, context: ExecutionContext, sql: str, check_result: Dict[str, Any]):
         """记录被拦截的操作"""
         if not self.audit_logger:
             return
@@ -559,7 +512,7 @@ class SecurityExecutor:
                 status=OperationStatus.BLOCKED,
                 blocked_reason=check_result["reason"],
                 user=context.user,
-                client_ip=context.client_ip
+                client_ip=context.client_ip,
             )
         except Exception as e:
             logger.error(f"记录审计日志失败: {str(e)}")
@@ -573,7 +526,7 @@ class SecurityExecutor:
         result: Optional[Dict[str, Any]],
         force: bool,
         failed: bool = False,
-        error_message: str = ""
+        error_message: str = "",
     ):
         """记录审计日志"""
         if not self.audit_logger:
@@ -595,7 +548,7 @@ class SecurityExecutor:
                 user=context.user,
                 client_ip=context.client_ip,
                 force_used=force,
-                error_message=error_message if failed else None
+                error_message=error_message if failed else None,
             )
         except Exception as e:
             logger.error(f"记录审计日志失败: {str(e)}")

@@ -83,11 +83,13 @@ class ExecutionTimer:
         finally:
             step_end = time.perf_counter()
             elapsed_ms = (step_end - step_start) * 1000
-            self.steps.append({
-                "name": name,
-                "description": description or name,
-                "elapsed_ms": round(elapsed_ms, 2),
-            })
+            self.steps.append(
+                {
+                    "name": name,
+                    "description": description or name,
+                    "elapsed_ms": round(elapsed_ms, 2),
+                }
+            )
 
     def add_step(self, name: str, description: str, elapsed_ms: float) -> None:
         """
@@ -98,11 +100,13 @@ class ExecutionTimer:
             description: 步骤说明
             elapsed_ms: 耗时（毫秒）
         """
-        self.steps.append({
-            "name": name,
-            "description": description or name,
-            "elapsed_ms": round(elapsed_ms, 2),
-        })
+        self.steps.append(
+            {
+                "name": name,
+                "description": description or name,
+                "elapsed_ms": round(elapsed_ms, 2),
+            }
+        )
 
     def stop(self) -> float:
         """
@@ -112,9 +116,7 @@ class ExecutionTimer:
             float: 总耗时（毫秒）
         """
         if self._total_start is not None:
-            self.total_elapsed_ms = round(
-                (time.perf_counter() - self._total_start) * 1000, 2
-            )
+            self.total_elapsed_ms = round((time.perf_counter() - self._total_start) * 1000, 2)
             return self.total_elapsed_ms
         return 0.0
 
@@ -192,6 +194,7 @@ def timed(name: str = "", description: str = ""):
         >>> print(result["_execution_time"])
         {'total_ms': 450.2, 'steps': [...]}
     """
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs) -> Dict[str, Any]:
@@ -209,5 +212,7 @@ def timed(name: str = "", description: str = ""):
                     "steps": [{"name": step_name, "description": step_desc, "elapsed_ms": total_ms}],
                 }
             return result
+
         return wrapper
+
     return decorator

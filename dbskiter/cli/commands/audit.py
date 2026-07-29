@@ -42,70 +42,33 @@ class SQLAuditCommand(BaseCommand):
 
         # sql 子命令 - 审核SQL语句
         sql_parser = subparsers.add_parser("sql", help="审核SQL语句")
-        sql_parser.add_argument(
-            "sql",
-            help="要审核的SQL语句"
-        )
-        sql_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json"],
-            default="text",
-            help="输出格式"
-        )
+        sql_parser.add_argument("sql", help="要审核的SQL语句")
+        sql_parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
 
         # file 子命令 - 审核SQL文件
         file_parser = subparsers.add_parser("file", help="审核SQL文件")
-        file_parser.add_argument(
-            "filepath",
-            help="SQL文件路径"
-        )
-        file_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json"],
-            default="text",
-            help="输出格式"
-        )
+        file_parser.add_argument("filepath", help="SQL文件路径")
+        file_parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
 
         # ddl 子命令 - DDL影响分析
         ddl_parser = subparsers.add_parser("ddl", help="DDL影响分析")
-        ddl_parser.add_argument(
-            "ddl_sql",
-            help="DDL语句"
-        )
+        ddl_parser.add_argument("ddl_sql", help="DDL语句")
 
         # rules 子命令 - 查看审核规则
         rules_parser = subparsers.add_parser("rules", help="查看审核规则")
         rules_parser.add_argument(
-            "--type", "-t",
-            choices=["syntax", "performance", "security", "style", "ddl"],
-            help="规则类型过滤"
+            "--type", "-t", choices=["syntax", "performance", "security", "style", "ddl"], help="规则类型过滤"
         )
 
         # optimize 子命令 - SQL优化
         optimize_parser = subparsers.add_parser("optimize", help="SQL智能优化")
-        optimize_parser.add_argument(
-            "sql",
-            help="要优化的SQL语句"
-        )
-        optimize_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json"],
-            default="text",
-            help="输出格式"
-        )
+        optimize_parser.add_argument("sql", help="要优化的SQL语句")
+        optimize_parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
 
         # recommend-indexes 子命令 - 索引推荐
         indexes_parser = subparsers.add_parser("recommend-indexes", help="索引推荐")
-        indexes_parser.add_argument(
-            "sql",
-            help="SQL语句"
-        )
-        indexes_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json"],
-            default="text",
-            help="输出格式"
-        )
+        indexes_parser.add_argument("sql", help="SQL语句")
+        indexes_parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
 
     def execute(self) -> int:
         """执行审核命令"""
@@ -120,16 +83,16 @@ class SQLAuditCommand(BaseCommand):
         try:
             skill = SQLAuditorSkill(self.connector)
 
-            action = getattr(self.args, 'audit_action', None)
+            action = getattr(self.args, "audit_action", None)
 
             if self.output_mode != "rule":
                 method_map = {
                     "sql": lambda: skill.audit_sql(self.args.sql),
                     "file": lambda: self._audit_file_ai(skill),
                     "ddl": lambda: skill.analyze_ddl_impact(self.args.ddl_sql),
-                    "optimize": lambda: skill.optimize_sql(getattr(self.args, 'sql', '')),
+                    "optimize": lambda: skill.optimize_sql(getattr(self.args, "sql", "")),
                     "recommend-indexes": lambda: skill.recommend_indexes(
-                        getattr(self.args, 'sql', ''),
+                        getattr(self.args, "sql", ""),
                         {},
                     ),
                 }
@@ -166,22 +129,22 @@ class SQLAuditCommand(BaseCommand):
             self.output.error(f"审核失败: {e}")
             return 1
         finally:
-            if 'skill' in locals():
+            if "skill" in locals():
                 skill.close()
 
     def _audit_sql(self, skill) -> int:
         """审核SQL"""
         response = skill.audit_sql(self.args.sql)
-        
+
         # 检查是否成功
-        if not response.get('success'):
+        if not response.get("success"):
             self.output.error(f"审核失败: {response.get('message', '未知错误')}")
             return 1
-        
-        # 获取审核结果数据
-        result = response.get('data', {})
 
-        output_format = getattr(self.args, 'format', 'text')
+        # 获取审核结果数据
+        result = response.get("data", {})
+
+        output_format = getattr(self.args, "format", "text")
 
         if output_format == "json":
             self.output.print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -192,10 +155,10 @@ class SQLAuditCommand(BaseCommand):
         self.output.print("SQL审核结果")
         self.output.print(f"{'='*60}")
 
-        sql_type = result.get('sql_type', 'unknown')
-        score = result.get('score', 0)
-        passed = result.get('passed', False)
-        
+        sql_type = result.get("sql_type", "unknown")
+        score = result.get("score", 0)
+        passed = result.get("passed", False)
+
         self.output.print(f"\nSQL类型: {sql_type}")
         self.output.print(f"审核评分: {score:.1f}/100")
 
@@ -205,12 +168,12 @@ class SQLAuditCommand(BaseCommand):
             self.output.error(f"审核状态: 未通过")
 
         # 问题统计
-        issues = result.get('issues', [])
-        critical_count = sum(1 for i in issues if i.get('level') == 'critical')
-        high_count = sum(1 for i in issues if i.get('level') == 'high')
-        medium_count = sum(1 for i in issues if i.get('level') == 'medium')
-        low_count = sum(1 for i in issues if i.get('level') == 'low')
-        
+        issues = result.get("issues", [])
+        critical_count = sum(1 for i in issues if i.get("level") == "critical")
+        high_count = sum(1 for i in issues if i.get("level") == "high")
+        medium_count = sum(1 for i in issues if i.get("level") == "medium")
+        low_count = sum(1 for i in issues if i.get("level") == "low")
+
         self.output.print(f"\n问题统计:")
         self.output.print(f"  严重: {critical_count}")
         self.output.print(f"  高危: {high_count}")
@@ -220,13 +183,13 @@ class SQLAuditCommand(BaseCommand):
         if issues:
             self.output.warning(f"\n问题详情:")
             for issue in issues:
-                level = issue.get('level', 'unknown')
+                level = issue.get("level", "unknown")
                 level_str = f"[{level.upper()}]"
-                rule_name = issue.get('rule_name', '未知规则')
-                message = issue.get('message', '无说明')
-                suggestion = issue.get('suggestion', '无建议')
-                sql_fragment = issue.get('sql_fragment', '')
-                
+                rule_name = issue.get("rule_name", "未知规则")
+                message = issue.get("message", "无说明")
+                suggestion = issue.get("suggestion", "无建议")
+                sql_fragment = issue.get("sql_fragment", "")
+
                 self.output.print(f"\n  {level_str} {rule_name}")
                 self.output.print(f"    说明: {message}")
                 self.output.print(f"    建议: {suggestion}")
@@ -238,10 +201,10 @@ class SQLAuditCommand(BaseCommand):
     def _audit_file_ai(self, skill) -> Dict[str, Any]:
         """AI模式审核SQL文件"""
         try:
-            with open(self.args.filepath, 'r', encoding='utf-8') as f:
+            with open(self.args.filepath, "r", encoding="utf-8") as f:
                 content = f.read()
 
-            sql_list = [s.strip() for s in content.split(';') if s.strip()]
+            sql_list = [s.strip() for s in content.split(";") if s.strip()]
 
             return skill.audit_sql_list(sql_list)
         except FileNotFoundError:
@@ -252,26 +215,26 @@ class SQLAuditCommand(BaseCommand):
     def _audit_file(self, skill) -> int:
         """审核SQL文件"""
         try:
-            with open(self.args.filepath, 'r', encoding='utf-8') as f:
+            with open(self.args.filepath, "r", encoding="utf-8") as f:
                 content = f.read()
 
             # 简单分割SQL（实际应该用更复杂的解析）
-            sql_list = [s.strip() for s in content.split(';') if s.strip()]
+            sql_list = [s.strip() for s in content.split(";") if s.strip()]
 
             response = skill.audit_sql_list(sql_list)
 
             # 检查是否成功
-            if not response.get('success'):
+            if not response.get("success"):
                 self.output.error(f"审核失败: {response.get('message', '未知错误')}")
                 return 1
 
-            data = response.get('data', {})
-            results = data.get('results', [])
+            data = response.get("data", {})
+            results = data.get("results", [])
 
-            total_passed = sum(1 for r in results if r.get('passed', False))
-            total_issues = sum(r.get('total_issues', 0) for r in results)
+            total_passed = sum(1 for r in results if r.get("passed", False))
+            total_issues = sum(r.get("total_issues", 0) for r in results)
 
-            output_format = getattr(self.args, 'format', 'text')
+            output_format = getattr(self.args, "format", "text")
 
             if output_format == "json":
                 result = {
@@ -280,7 +243,7 @@ class SQLAuditCommand(BaseCommand):
                     "passed": total_passed,
                     "failed": len(sql_list) - total_passed,
                     "total_issues": total_issues,
-                    "results": results
+                    "results": results,
                 }
                 self.output.print(json.dumps(result, ensure_ascii=False, indent=2))
                 return 0
@@ -308,11 +271,11 @@ class SQLAuditCommand(BaseCommand):
         response = skill.analyze_ddl_impact(self.args.ddl_sql)
 
         # 检查是否成功
-        if not response.get('success'):
+        if not response.get("success"):
             self.output.error(f"DDL分析失败: {response.get('message', '未知错误')}")
             return 1
 
-        impact = response.get('data', {})
+        impact = response.get("data", {})
 
         self.output.print(f"\n{'='*60}")
         self.output.print("DDL影响分析")
@@ -322,21 +285,21 @@ class SQLAuditCommand(BaseCommand):
         self.output.print(f"目标表: {impact.get('table_name', 'unknown')}")
         self.output.print(f"预估执行时间: {impact.get('execution_time_estimate', 'unknown')}")
 
-        table_size_mb = impact.get('table_size_mb')
+        table_size_mb = impact.get("table_size_mb")
         if table_size_mb:
             self.output.print(f"表大小: {table_size_mb} MB")
 
-        rows_estimate = impact.get('rows_estimate')
+        rows_estimate = impact.get("rows_estimate")
         if rows_estimate:
             self.output.print(f"预估行数: {rows_estimate}")
 
-        risks = impact.get('risks', [])
+        risks = impact.get("risks", [])
         if risks:
             self.output.print(f"\n风险点:")
             for risk in risks:
                 self.output.print(f"  - {risk}")
 
-        suggestions = impact.get('suggestions', [])
+        suggestions = impact.get("suggestions", [])
         if suggestions:
             self.output.print(f"\n建议:")
             for suggestion in suggestions:
@@ -349,22 +312,22 @@ class SQLAuditCommand(BaseCommand):
         try:
             rules = skill.get_rules()
 
-            rule_type = getattr(self.args, 'type', None)
+            rule_type = getattr(self.args, "type", None)
             if rule_type:
-                rules = [r for r in rules if r.get('audit_type') == rule_type]
+                rules = [r for r in rules if r.get("audit_type") == rule_type]
 
             self.output.print(f"\n{'='*60}")
             self.output.print(f"审核规则列表 ({len(rules)}条)")
             self.output.print(f"{'='*60}")
 
             for rule in rules:
-                status = "启用" if rule.get('enabled', False) else "禁用"
-                rule_id = rule.get('rule_id', 'unknown')
-                rule_name = rule.get('rule_name', '未命名')
-                audit_type = rule.get('audit_type', 'unknown')
-                level = rule.get('level', 'unknown')
-                description = rule.get('description', '无说明')
-                
+                status = "启用" if rule.get("enabled", False) else "禁用"
+                rule_id = rule.get("rule_id", "unknown")
+                rule_name = rule.get("rule_name", "未命名")
+                audit_type = rule.get("audit_type", "unknown")
+                level = rule.get("level", "unknown")
+                description = rule.get("description", "无说明")
+
                 self.output.print(f"\n{rule_id}: {rule_name} [{status}]")
                 self.output.print(f"  类型: {audit_type}")
                 self.output.print(f"  级别: {level}")
@@ -380,12 +343,12 @@ class SQLAuditCommand(BaseCommand):
         response = skill.optimize_sql(self.args.sql)
 
         # 检查是否成功
-        if not response.get('success'):
+        if not response.get("success"):
             self.output.error(f"SQL优化失败: {response.get('message', '未知错误')}")
             return 1
 
-        result = response.get('data', {})
-        output_format = getattr(self.args, 'format', 'text')
+        result = response.get("data", {})
+        output_format = getattr(self.args, "format", "text")
 
         if output_format == "json":
             self.output.print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -395,17 +358,17 @@ class SQLAuditCommand(BaseCommand):
         self.output.print("SQL智能优化结果")
         self.output.print(f"{'='*60}")
 
-        original_sql = result.get('original_sql', '')
+        original_sql = result.get("original_sql", "")
         self.output.print(f"\n原始SQL:")
         self.output.print(f"  {original_sql[:100]}...")
 
-        recommendations = result.get('recommendations', [])
+        recommendations = result.get("recommendations", [])
         if recommendations:
             self.output.print(f"\n优化建议 ({len(recommendations)}条):")
             for i, rec in enumerate(recommendations[:5], 1):
                 self.output.print(f"\n  {i}. {rec.get('type', 'unknown')}")
                 self.output.print(f"     说明: {rec.get('description', '无说明')}")
-                if rec.get('optimized_sql'):
+                if rec.get("optimized_sql"):
                     self.output.print(f"     优化SQL: {rec.get('optimized_sql')[:80]}...")
 
         return 0
@@ -415,12 +378,12 @@ class SQLAuditCommand(BaseCommand):
         response = skill.recommend_indexes(self.args.sql, {})
 
         # 检查是否成功
-        if not response.get('success'):
+        if not response.get("success"):
             self.output.error(f"索引推荐失败: {response.get('message', '未知错误')}")
             return 1
 
-        result = response.get('data', {})
-        output_format = getattr(self.args, 'format', 'text')
+        result = response.get("data", {})
+        output_format = getattr(self.args, "format", "text")
 
         if output_format == "json":
             self.output.print(json.dumps(result, ensure_ascii=False, indent=2))
@@ -430,7 +393,7 @@ class SQLAuditCommand(BaseCommand):
         self.output.print("索引推荐结果")
         self.output.print(f"{'='*60}")
 
-        indexes = result.get('recommendations', [])
+        indexes = result.get("recommendations", [])
         if indexes:
             self.output.print(f"\n推荐索引 ({len(indexes)}个):")
             for i, idx in enumerate(indexes, 1):
@@ -439,7 +402,7 @@ class SQLAuditCommand(BaseCommand):
                 self.output.print(f"     列: {', '.join(idx.get('columns', []))}")
                 self.output.print(f"     类型: {idx.get('index_type', 'BTREE')}")
                 self.output.print(f"     理由: {idx.get('reason', '无说明')}")
-                if idx.get('priority'):
+                if idx.get("priority"):
                     self.output.print(f"     优先级: {idx.get('priority', 'medium')}")
         else:
             self.output.print("\n无需添加新索引")

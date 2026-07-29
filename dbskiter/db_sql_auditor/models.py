@@ -28,10 +28,10 @@ from enum import Enum
 # 从shared模块导入标准响应函数
 from dbskiter.shared.error_handler import create_success_response, create_error_response
 
-
 # =============================================================================
 # 错误码体系
 # =============================================================================
+
 
 class ErrorCode:
     """
@@ -102,6 +102,7 @@ class ErrorMessage:
 # 响应函数
 # =============================================================================
 
+
 class AuditLevel(str, Enum):
     """
     审核级别
@@ -113,6 +114,7 @@ class AuditLevel(str, Enum):
         LOW: 低危 - 可选修复，编码风格问题
         INFO: 信息 - 仅供参考，不影响功能
     """
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -132,6 +134,7 @@ class AuditType(str, Enum):
         DDL: DDL规范检查
         DML: DML规范检查
     """
+
     SYNTAX = "syntax"
     PERFORMANCE = "performance"
     SECURITY = "security"
@@ -149,6 +152,7 @@ class SQLType(str, Enum):
         CREATE/ALTER/DROP/TRUNCATE: DDL操作
         UNKNOWN: 未知类型
     """
+
     SELECT = "SELECT"
     INSERT = "INSERT"
     UPDATE = "UPDATE"
@@ -163,6 +167,7 @@ class SQLType(str, Enum):
 # =============================================================================
 # 数据类定义
 # =============================================================================
+
 
 @dataclass
 class AuditConfig:
@@ -179,6 +184,7 @@ class AuditConfig:
         max_issues_per_sql: 单SQL最大问题数
         custom_rules: 自定义规则配置
     """
+
     enable_syntax_check: bool = True
     enable_performance_check: bool = True
     enable_security_check: bool = True
@@ -218,6 +224,7 @@ class AuditIssue:
         column_position: 列位置（可选）
         sql_fragment: 相关SQL片段（可选）
     """
+
     rule_id: str
     rule_name: str
     audit_type: AuditType
@@ -264,6 +271,7 @@ class AuditResult:
         estimated_cost: 预估成本（可选）
         estimated_rows: 预估扫描行数（可选）
     """
+
     audit_id: str
     sql_content: str
     sql_type: SQLType
@@ -322,6 +330,7 @@ class AuditRule:
         enabled: 是否启用
         custom_config: 自定义配置
     """
+
     rule_id: str
     rule_name: str
     audit_type: AuditType
@@ -359,6 +368,7 @@ class DDLImpact:
         suggestions: 建议列表
         dependent_objects: 依赖对象列表
     """
+
     ddl_sql: str
     table_name: str
     operation: str
@@ -398,6 +408,7 @@ class BatchAuditResult:
         summary: 汇总信息
         audit_time: 审核时间
     """
+
     batch_id: str
     total_count: int
     success_count: int = 0

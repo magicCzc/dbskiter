@@ -98,7 +98,7 @@ class SQLMasterSkill:
         enable_cache: bool = True,
         max_rows: int = 1000,
         cache_size: int = 1000,
-        cache_ttl: int = 300
+        cache_ttl: int = 300,
     ):
         """
         初始化 SQL Master Skill
@@ -122,7 +122,7 @@ class SQLMasterSkill:
             enable_cache=enable_cache,
             max_rows=max_rows,
             cache_size=cache_size,
-            cache_ttl=cache_ttl
+            cache_ttl=cache_ttl,
         )
 
         # 初始化工具类
@@ -137,22 +137,18 @@ class SQLMasterSkill:
         self.rewriter = SQLRewriter(connector) if self.config.enable_rewriter else None
         self.analyzer = DataAnalyzer(connector) if self.config.enable_analyzer else None
         self.schema_optimizer = SchemaAwareOptimizer(connector)
-        self.intellisense = SQLIntelliSense(self.schema_optimizer.schema_cache) if self.config.enable_intellisense else None
+        self.intellisense = (
+            SQLIntelliSense(self.schema_optimizer.schema_cache) if self.config.enable_intellisense else None
+        )
 
         # 安全检查器（从环境变量读取注入检测和速率限制开关）
         self.security_checker = SecurityChecker()
 
         # 缓存管理器
         if self.config.enable_cache:
-            self.cache_manager = SQLCacheManager(
-                max_size=self.config.cache_size,
-                default_ttl=self.config.cache_ttl
-            )
+            self.cache_manager = SQLCacheManager(max_size=self.config.cache_size, default_ttl=self.config.cache_ttl)
             self.smart_executor = SmartCachedExecutor(
-                self.executor,
-                self.cache_manager,
-                enable_cache=True,
-                enable_auto_invalidate=True
+                self.executor, self.cache_manager, enable_cache=True, enable_auto_invalidate=True
             )
         else:
             self.cache_manager = None
@@ -160,7 +156,7 @@ class SQLMasterSkill:
 
         # 检测连接器类型
         self._is_unified = isinstance(connector, UnifiedConnector)
-        self._is_jdbc = "+jdbc" in connector.dialect if hasattr(connector, 'dialect') else False
+        self._is_jdbc = "+jdbc" in connector.dialect if hasattr(connector, "dialect") else False
 
         # 初始化数据导入导出器
         self.data_exporter = DataExporter(connector)
@@ -174,10 +170,10 @@ class SQLMasterSkill:
     def close(self):
         """
         关闭资源
-        
+
         关闭所有数据库连接和存储资源
         """
-        if hasattr(self, 'audit_storage') and self.audit_storage:
+        if hasattr(self, "audit_storage") and self.audit_storage:
             self.audit_storage.close()
             logger.info("SQLMasterSkill 资源已关闭")
 
@@ -190,7 +186,7 @@ class SQLMasterSkill:
         params: Optional[Dict[str, Any]] = None,
         limit: Optional[int] = None,
         allow_write: bool = False,
-        force: bool = False
+        force: bool = False,
     ) -> Dict[str, Any]:
         """
         执行SQL语句
@@ -204,7 +200,7 @@ class SQLMasterSkill:
 
         返回:
             Dict: 执行结果
-            
+
         示例:
             >>> # 普通查询
             >>> result = skill.execute("SELECT * FROM users")
@@ -218,7 +214,7 @@ class SQLMasterSkill:
 
         # SQL安全检查（包含危险操作检测）
         check_result = self.security_checker.check(sql)
-        
+
         # 处理检查结果
         if not check_result["passed"]:
             logger.warning(f"SQL安全检查失败: {check_result['reason']}")
@@ -228,22 +224,20 @@ class SQLMasterSkill:
                 {
                     "risk_level": check_result.get("risk_level"),
                     "risk_description": check_result.get("risk_description"),
-                }
+                },
             )
-        
+
         # 检查是否为写操作，如果只读模式则阻止
         parsed_sql = check_result.get("parsed_sql")
         if not allow_write and parsed_sql and not parsed_sql.is_read_only:
             return create_error_response(
-                "只读模式下禁止执行写操作",
-                ErrorCode.PERMISSION_DENIED,
-                {"risk_level": "HIGH"}
+                "只读模式下禁止执行写操作", ErrorCode.PERMISSION_DENIED, {"risk_level": "HIGH"}
             )
-        
+
         # 高风险操作检查
         risk_level = check_result.get("risk_level")
         risk_description = check_result.get("risk_description", "")
-        
+
         # 如果被系统安全策略禁止，直接拒绝执行
         if "被系统安全策略禁止" in risk_description:
             return create_error_response(
@@ -252,9 +246,9 @@ class SQLMasterSkill:
                 {
                     "risk_level": risk_level,
                     "risk_description": risk_description,
-                }
+                },
             )
-        
+
         # CRITICAL 级别操作需要 --force 参数
         if risk_level == "CRITICAL" and not force:
             return create_error_response(
@@ -264,9 +258,9 @@ class SQLMasterSkill:
                     "risk_level": risk_level,
                     "risk_description": risk_description,
                     "requires_force": True,
-                }
+                },
             )
-        
+
         # HIGH 级别操作警告
         if risk_level == "HIGH":
             logger.warning(f"高风险操作: {risk_description}")
@@ -296,7 +290,7 @@ class SQLMasterSkill:
 
             # 计算执行时间和行数
             execution_time_ms = timer.elapsed * 1000
-            row_count = len(result.rows) if hasattr(result, 'rows') else 0
+            row_count = len(result.rows) if hasattr(result, "rows") else 0
 
             # 记录审计日志（所有操作都记录，危险操作额外标记）
             if risk_level in ("CRITICAL", "HIGH", "MEDIUM"):
@@ -309,24 +303,23 @@ class SQLMasterSkill:
                     read_only_mode=not allow_write,
                     execution_time_ms=execution_time_ms,
                     row_count=row_count,
-                    success=True
+                    success=True,
                 )
 
             # 记录成功执行
-            logger.info(
-                f"SQL执行成功: {sanitized_sql[:50]}... "
-                f"风险等级={risk_level}, "
-                f"影响行数={row_count}"
-            )
+            logger.info(f"SQL执行成功: {sanitized_sql[:50]}... " f"风险等级={risk_level}, " f"影响行数={row_count}")
 
-            return create_success_response({
-                "sql": sanitized_sql,
-                "row_count": row_count,
-                "columns": result.columns if hasattr(result, 'columns') else [],
-                "rows": result.rows if hasattr(result, 'rows') else [],
-                "execution_time": timer.elapsed,
-                "risk_level": risk_level,
-            }, "SQL执行成功")
+            return create_success_response(
+                {
+                    "sql": sanitized_sql,
+                    "row_count": row_count,
+                    "columns": result.columns if hasattr(result, "columns") else [],
+                    "rows": result.rows if hasattr(result, "rows") else [],
+                    "execution_time": timer.elapsed,
+                    "risk_level": risk_level,
+                },
+                "SQL执行成功",
+            )
 
         except Exception as e:
             logger.error(f"SQL执行失败: {e}")
@@ -340,13 +333,9 @@ class SQLMasterSkill:
                     force_used=force,
                     read_only_mode=not allow_write,
                     error=str(e),
-                    success=False
+                    success=False,
                 )
-            return create_error_response(
-                str(e),
-                ErrorCode.EXECUTION_FAILED,
-                {"sql": sanitized_sql}
-            )
+            return create_error_response(str(e), ErrorCode.EXECUTION_FAILED, {"sql": sanitized_sql})
 
     def _log_audit(
         self,
@@ -359,7 +348,7 @@ class SQLMasterSkill:
         error: Optional[str] = None,
         execution_time_ms: Optional[float] = None,
         row_count: Optional[int] = None,
-        success: bool = True
+        success: bool = True,
     ) -> None:
         """
         记录审计日志
@@ -392,26 +381,22 @@ class SQLMasterSkill:
             risk_description=risk_description,
             force_used=force_used,
             read_only_mode=read_only_mode,
-            dialect=getattr(self.connector, 'dialect', 'unknown'),
+            dialect=getattr(self.connector, "dialect", "unknown"),
             success=success,
             error=error,
             execution_time_ms=execution_time_ms,
-            row_count=row_count
+            row_count=row_count,
         )
 
         # 持久化到数据库
         try:
-            if hasattr(self, 'audit_storage') and self.audit_storage:
+            if hasattr(self, "audit_storage") and self.audit_storage:
                 self.audit_storage.save_record(record)
         except Exception as e:
             logger.error(f"审计日志保存失败: {e}")
 
         # 同时输出到日志
-        log_message = (
-            f"审计日志: {record.operation} | "
-            f"风险={record.risk_level} | "
-            f"SQL={record.sql_preview[:50]}"
-        )
+        log_message = f"审计日志: {record.operation} | " f"风险={record.risk_level} | " f"SQL={record.sql_preview[:50]}"
         if risk_level in ("CRITICAL", "HIGH"):
             logger.warning(log_message)
         else:
@@ -424,7 +409,7 @@ class SQLMasterSkill:
         params_list: Optional[List[Dict[str, Any]]] = None,
         allow_write: bool = False,
         force: bool = False,
-        stop_on_error: bool = True
+        stop_on_error: bool = True,
     ) -> List[Dict[str, Any]]:
         """
         批量执行SQL
@@ -461,10 +446,7 @@ class SQLMasterSkill:
     # ==================== 审计日志查询 ====================
 
     def get_audit_records(
-        self,
-        risk_level: Optional[str] = None,
-        hours: Optional[int] = None,
-        limit: int = 100
+        self, risk_level: Optional[str] = None, hours: Optional[int] = None, limit: int = 100
     ) -> List[Dict[str, Any]]:
         """
         查询审计日志记录
@@ -482,14 +464,10 @@ class SQLMasterSkill:
             >>> for record in records:
             ...     print(f"{record['timestamp']}: {record['sql_preview']}")
         """
-        if not hasattr(self, 'audit_storage') or not self.audit_storage:
+        if not hasattr(self, "audit_storage") or not self.audit_storage:
             return []
 
-        records = self.audit_storage.query_records(
-            risk_level=risk_level,
-            hours=hours,
-            limit=limit
-        )
+        records = self.audit_storage.query_records(risk_level=risk_level, hours=hours, limit=limit)
         return [r.to_dict() for r in records]
 
     def get_audit_statistics(self, days: int = 7) -> Dict[str, Any]:
@@ -507,7 +485,7 @@ class SQLMasterSkill:
             >>> print(f"总操作数: {stats['total_records']}")
             >>> print(f"成功率: {stats['success_rate']}%")
         """
-        if not hasattr(self, 'audit_storage') or not self.audit_storage:
+        if not hasattr(self, "audit_storage") or not self.audit_storage:
             return {
                 "period_days": days,
                 "total_records": 0,
@@ -533,7 +511,7 @@ class SQLMasterSkill:
             >>> deleted = skill.cleanup_audit_logs(days=30)
             >>> print(f"清理了 {deleted} 条过期记录")
         """
-        if not hasattr(self, 'audit_storage') or not self.audit_storage:
+        if not hasattr(self, "audit_storage") or not self.audit_storage:
             return 0
 
         return self.audit_storage.cleanup_old_records(days=days)
@@ -558,8 +536,7 @@ class SQLMasterSkill:
         """重写SQL以优化性能"""
         if not self.config.enable_rewriter or not self.rewriter:
             return create_success_response(
-                data={"status": "disabled", "message": "SQL重写已禁用"},
-                message="SQL重写已禁用"
+                data={"status": "disabled", "message": "SQL重写已禁用"}, message="SQL重写已禁用"
             )
 
         sanitized_sql = sanitize_sql(sql)
@@ -568,30 +545,29 @@ class SQLMasterSkill:
         try:
             result = self.rewriter.rewrite(sql)
 
-            return create_success_response({
-                "original_sql": sql,
-                "can_optimize": result.can_rewrite,
-                "optimized_sql": result.best_rewrite if result.best_rewrite else sql,
-                "suggestions_count": len(result.suggestions),
-                "suggestions": [
-                    {
-                        "type": s.rewrite_type.value if hasattr(s.rewrite_type, 'value') else str(s.rewrite_type),
-                        "impact": s.impact,
-                        "reason": s.reason,
-                        "confidence": s.confidence,
-                        "rewritten_sql": s.rewritten_sql if s.rewritten_sql else None
-                    }
-                    for s in result.suggestions
-                ]
-            }, "SQL重写完成")
+            return create_success_response(
+                {
+                    "original_sql": sql,
+                    "can_optimize": result.can_rewrite,
+                    "optimized_sql": result.best_rewrite if result.best_rewrite else sql,
+                    "suggestions_count": len(result.suggestions),
+                    "suggestions": [
+                        {
+                            "type": s.rewrite_type.value if hasattr(s.rewrite_type, "value") else str(s.rewrite_type),
+                            "impact": s.impact,
+                            "reason": s.reason,
+                            "confidence": s.confidence,
+                            "rewritten_sql": s.rewritten_sql if s.rewritten_sql else None,
+                        }
+                        for s in result.suggestions
+                    ],
+                },
+                "SQL重写完成",
+            )
 
         except Exception as e:
             logger.error(f"SQL重写失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.REWRITE_FAILED,
-                {"sql": sanitized_sql}
-            )
+            return create_error_response(str(e), ErrorCode.REWRITE_FAILED, {"sql": sanitized_sql})
 
     @validate_params(sqls=Validator.not_empty_list)
     def rewrite_batch(self, sqls: List[str]) -> List[Dict[str, Any]]:
@@ -622,7 +598,7 @@ class SQLMasterSkill:
                 score=score,
                 issues=complexity.get("issues", []),
                 suggestions=complexity.get("suggestions", []),
-                complexity=complexity["level"]
+                complexity=complexity["level"],
             )
 
             # 添加复杂度相关建议
@@ -638,18 +614,14 @@ class SQLMasterSkill:
 
         except Exception as e:
             logger.error(f"SQL质量分析失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.ANALYSIS_FAILED
-            )
+            return create_error_response(str(e), ErrorCode.ANALYSIS_FAILED)
 
     @validate_params(sql=Validator.not_empty_string)
     def analyze_data(self, sql: str) -> Dict[str, Any]:
         """分析查询数据"""
         if not self.config.enable_analyzer or not self.analyzer:
             return create_success_response(
-                data={"status": "disabled", "message": "数据分析已禁用"},
-                message="数据分析已禁用"
+                data={"status": "disabled", "message": "数据分析已禁用"}, message="数据分析已禁用"
             )
 
         logger.info(f"分析数据: {sanitize_sql(sql)}")
@@ -664,52 +636,41 @@ class SQLMasterSkill:
             columns = data.get("columns", [])
 
             if not rows:
-                return create_success_response({
-                    "row_count": 0,
-                    "columns": columns,
-                    "summary": "无数据"
-                }, "数据分析完成")
+                return create_success_response(
+                    {"row_count": 0, "columns": columns, "summary": "无数据"}, "数据分析完成"
+                )
 
             # 使用数据分析器
             analysis = self.analyzer.analyze(rows, columns)
 
-            return create_success_response({
-                "row_count": len(rows),
-                "columns": columns,
-                "analysis": analysis if hasattr(analysis, 'to_dict') else analysis
-            }, "数据分析完成")
+            return create_success_response(
+                {
+                    "row_count": len(rows),
+                    "columns": columns,
+                    "analysis": analysis if hasattr(analysis, "to_dict") else analysis,
+                },
+                "数据分析完成",
+            )
 
         except Exception as e:
             logger.error(f"数据分析失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.ANALYSIS_FAILED
-            )
+            return create_error_response(str(e), ErrorCode.ANALYSIS_FAILED)
 
     # ==================== 智能提示 ====================
 
     def get_suggestions(self, sql: str, cursor_position: Optional[int] = None) -> Dict[str, Any]:
         """获取SQL补全建议"""
         if not self.config.enable_intellisense or not self.intellisense:
-            return create_success_response({
-                "partial_sql": sql,
-                "suggestions": []
-            }, "智能补全已禁用")
+            return create_success_response({"partial_sql": sql, "suggestions": []}, "智能补全已禁用")
 
         try:
             suggestions = self.intellisense.get_suggestions(sql, cursor_position)
             # 将 SemanticSuggestion 对象转换为字典
             suggestions_dict = [s.to_dict() for s in suggestions]
-            return create_success_response({
-                "partial_sql": sql,
-                "suggestions": suggestions_dict
-            }, "获取补全建议成功")
+            return create_success_response({"partial_sql": sql, "suggestions": suggestions_dict}, "获取补全建议成功")
         except Exception as e:
             logger.error(f"获取建议失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.ANALYSIS_FAILED
-            )
+            return create_error_response(str(e), ErrorCode.ANALYSIS_FAILED)
 
     # ==================== Schema信息 ====================
 
@@ -719,10 +680,7 @@ class SQLMasterSkill:
             return self.schema_optimizer.get_table_schema(table_name)
         except Exception as e:
             logger.error(f"获取Schema失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.NOT_FOUND
-            )
+            return create_error_response(str(e), ErrorCode.NOT_FOUND)
 
     def list_tables(self) -> List[str]:
         """列出所有表"""
@@ -760,11 +718,13 @@ class SQLMasterSkill:
                         else:
                             report.low_impact += 1
 
-                    report.optimized_sqls.append({
-                        "original": sql,
-                        "optimized": data.get("optimized_sql", sql),
-                        "suggestions": data.get("suggestions", [])
-                    })
+                    report.optimized_sqls.append(
+                        {
+                            "original": sql,
+                            "optimized": data.get("optimized_sql", sql),
+                            "suggestions": data.get("suggestions", []),
+                        }
+                    )
 
         return create_success_response(report.to_dict(), "优化报告生成完成")
 
@@ -779,10 +739,7 @@ class SQLMasterSkill:
     def get_cache_stats(self) -> Dict[str, Any]:
         """获取缓存统计信息"""
         if not self.config.enable_cache or not self.cache_manager:
-            return create_success_response(
-                data={"status": "disabled", "message": "缓存已禁用"},
-                message="缓存已禁用"
-            )
+            return create_success_response(data={"status": "disabled", "message": "缓存已禁用"}, message="缓存已禁用")
 
         stats = self.cache_manager.get_stats()
 
@@ -795,16 +752,10 @@ class SQLMasterSkill:
     def clear_cache(self) -> Dict[str, Any]:
         """清除缓存"""
         if not self.config.enable_cache or not self.cache_manager:
-            return create_success_response(
-                data={"status": "disabled", "message": "缓存已禁用"},
-                message="缓存已禁用"
-            )
+            return create_success_response(data={"status": "disabled", "message": "缓存已禁用"}, message="缓存已禁用")
 
         count = self.cache_manager.invalidate()
-        return create_success_response(
-            {"cleared_entries": count},
-            f"已清除 {count} 条缓存"
-        )
+        return create_success_response({"cleared_entries": count}, f"已清除 {count} 条缓存")
 
     # ==================== 数据导入导出 ====================
 
@@ -815,7 +766,7 @@ class SQLMasterSkill:
         format: str = "csv",
         where: Optional[str] = None,
         limit: Optional[int] = None,
-        columns: Optional[List[str]] = None
+        columns: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         导出表数据
@@ -837,27 +788,14 @@ class SQLMasterSkill:
         """
         try:
             result = self.data_exporter.export_table(
-                table_name=table_name,
-                output_path=output_path,
-                format=format,
-                where=where,
-                limit=limit,
-                columns=columns
+                table_name=table_name, output_path=output_path, format=format, where=where, limit=limit, columns=columns
             )
             return result
         except Exception as e:
             logger.error(f"导出表数据失败: {e}")
-            return create_error_response(
-                f"导出失败: {str(e)}",
-                ErrorCode.EXECUTION_ERROR
-            )
+            return create_error_response(f"导出失败: {str(e)}", ErrorCode.EXECUTION_ERROR)
 
-    def export_query(
-        self,
-        sql: str,
-        output_path: str,
-        format: str = "csv"
-    ) -> Dict[str, Any]:
+    def export_query(self, sql: str, output_path: str, format: str = "csv") -> Dict[str, Any]:
         """
         导出查询结果
 
@@ -870,18 +808,11 @@ class SQLMasterSkill:
             Dict: 导出结果
         """
         try:
-            result = self.data_exporter.export_query(
-                sql=sql,
-                output_path=output_path,
-                format=format
-            )
+            result = self.data_exporter.export_query(sql=sql, output_path=output_path, format=format)
             return result
         except Exception as e:
             logger.error(f"导出查询结果失败: {e}")
-            return create_error_response(
-                f"导出失败: {str(e)}",
-                ErrorCode.EXECUTION_ERROR
-            )
+            return create_error_response(f"导出失败: {str(e)}", ErrorCode.EXECUTION_ERROR)
 
     def export_table_streaming(
         self,
@@ -890,7 +821,7 @@ class SQLMasterSkill:
         format: str = "csv",
         where: Optional[str] = None,
         batch_size: int = 10000,
-        columns: Optional[List[str]] = None
+        columns: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
         """
         流式导出大表数据（分批导出，避免内存溢出）
@@ -916,15 +847,12 @@ class SQLMasterSkill:
                 format=format,
                 where=where,
                 batch_size=batch_size,
-                columns=columns
+                columns=columns,
             )
             return result
         except Exception as e:
             logger.error(f"流式导出失败: {e}")
-            return create_error_response(
-                f"流式导出失败: {str(e)}",
-                ErrorCode.EXECUTION_ERROR
-            )
+            return create_error_response(f"流式导出失败: {str(e)}", ErrorCode.EXECUTION_ERROR)
 
     def import_csv(
         self,
@@ -932,7 +860,7 @@ class SQLMasterSkill:
         table_name: str,
         columns: Optional[List[str]] = None,
         batch_size: int = 1000,
-        skip_header: bool = True
+        skip_header: bool = True,
     ) -> Dict[str, Any]:
         """
         从CSV文件导入数据
@@ -957,22 +885,14 @@ class SQLMasterSkill:
                 table_name=table_name,
                 columns=columns,
                 batch_size=batch_size,
-                skip_header=skip_header
+                skip_header=skip_header,
             )
             return result
         except Exception as e:
             logger.error(f"导入CSV失败: {e}")
-            return create_error_response(
-                f"导入失败: {str(e)}",
-                ErrorCode.EXECUTION_ERROR
-            )
+            return create_error_response(f"导入失败: {str(e)}", ErrorCode.EXECUTION_ERROR)
 
-    def import_json(
-        self,
-        input_path: str,
-        table_name: str,
-        batch_size: int = 1000
-    ) -> Dict[str, Any]:
+    def import_json(self, input_path: str, table_name: str, batch_size: int = 1000) -> Dict[str, Any]:
         """
         从JSON文件导入数据
 
@@ -985,18 +905,11 @@ class SQLMasterSkill:
             Dict: 导入结果
         """
         try:
-            result = self.data_importer.import_json(
-                input_path=input_path,
-                table_name=table_name,
-                batch_size=batch_size
-            )
+            result = self.data_importer.import_json(input_path=input_path, table_name=table_name, batch_size=batch_size)
             return result
         except Exception as e:
             logger.error(f"导入JSON失败: {e}")
-            return create_error_response(
-                f"导入失败: {str(e)}",
-                ErrorCode.EXECUTION_ERROR
-            )
+            return create_error_response(f"导入失败: {str(e)}", ErrorCode.EXECUTION_ERROR)
 
     def import_sql(self, input_path: str) -> Dict[str, Any]:
         """
@@ -1013,10 +926,7 @@ class SQLMasterSkill:
             return result
         except Exception as e:
             logger.error(f"导入SQL失败: {e}")
-            return create_error_response(
-                f"导入失败: {str(e)}",
-                ErrorCode.EXECUTION_ERROR
-            )
+            return create_error_response(f"导入失败: {str(e)}", ErrorCode.EXECUTION_ERROR)
 
     def close(self):
         """关闭Skill，释放资源"""
@@ -1030,11 +940,7 @@ class SQLMasterSkill:
 
     # ==================== AI上下文构建 ====================
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "sql_execute"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "sql_execute") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -1048,8 +954,8 @@ class SQLMasterSkill:
         from dbskiter.shared.ai_context import AIContextBuilder
 
         builder = AIContextBuilder(
-            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
-            database_name=getattr(self.connector, 'database', ''),
+            dialect=self.connector.dialect if hasattr(self.connector, "dialect") else "unknown",
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -1072,11 +978,7 @@ class SQLMasterSkill:
             "inspection_trace": inspection_trace,
         }
 
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建SQL执行透明度追踪信息
 
@@ -1087,13 +989,7 @@ class SQLMasterSkill:
         返回:
             Dict[str, Any]: 追踪信息
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         if scenario == "sql_execute":
             trace["metrics_checked"] = [
@@ -1202,11 +1098,23 @@ class SQLMasterSkill:
         execution_time = data.get("execution_time", 0)
         if isinstance(execution_time, (int, float)):
             if execution_time > 10000:  # 10秒
-                flags["very_slow_execution"] = {"flagged": True, "level": "critical", "reason": f"执行时间过长: {execution_time}ms"}
+                flags["very_slow_execution"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"执行时间过长: {execution_time}ms",
+                }
             elif execution_time > 1000:  # 1秒
-                flags["slow_execution"] = {"flagged": True, "level": "high", "reason": f"执行时间较长: {execution_time}ms"}
+                flags["slow_execution"] = {
+                    "flagged": True,
+                    "level": "high",
+                    "reason": f"执行时间较长: {execution_time}ms",
+                }
             elif execution_time > 100:
-                flags["moderate_execution"] = {"flagged": True, "level": "medium", "reason": f"执行时间中等: {execution_time}ms"}
+                flags["moderate_execution"] = {
+                    "flagged": True,
+                    "level": "medium",
+                    "reason": f"执行时间中等: {execution_time}ms",
+                }
 
         # SQL问题标记
         issues = data.get("issues", [])
@@ -1215,9 +1123,17 @@ class SQLMasterSkill:
             critical_issues = [i for i in issues if isinstance(i, dict) and i.get("severity") == "critical"]
             high_issues = [i for i in issues if isinstance(i, dict) and i.get("severity") == "high"]
             if critical_issues:
-                flags["critical_sql_issues"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical_issues)} 个严重问题"}
+                flags["critical_sql_issues"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"发现 {len(critical_issues)} 个严重问题",
+                }
             if high_issues:
-                flags["high_sql_issues"] = {"flagged": True, "level": "high", "reason": f"发现 {len(high_issues)} 个高危问题"}
+                flags["high_sql_issues"] = {
+                    "flagged": True,
+                    "level": "high",
+                    "reason": f"发现 {len(high_issues)} 个高危问题",
+                }
 
         # 错误标记
         if data.get("status") == "error" or data.get("error"):
@@ -1242,7 +1158,7 @@ class SQLMasterSkill:
     def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """构建AI提示"""
         hints = {"focus_areas": [], "related_commands": []}
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         execution_time = data.get("execution_time", 0)
         issues = data.get("issues", [])
@@ -1269,7 +1185,9 @@ class SQLMasterSkill:
 
             if isinstance(issues, list) and issues:
                 # issues 可能是 List[str] 或 List[Dict]，统一兼容
-                performance_issues = [i for i in issues if isinstance(i, dict) and "performance" in i.get("category", "").lower()]
+                performance_issues = [
+                    i for i in issues if isinstance(i, dict) and "performance" in i.get("category", "").lower()
+                ]
                 if performance_issues:
                     hints["focus_areas"].append("performance_tuning")
 
@@ -1291,5 +1209,3 @@ class SQLMasterSkill:
             hints["focus_areas"] = ["import_performance", "data_validation", "error_handling"]
 
         return hints
-
-

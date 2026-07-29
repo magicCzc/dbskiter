@@ -30,23 +30,14 @@ from datetime import datetime
 from dbskiter.shared.unified_connector import UnifiedConnector
 
 # 导入子模块
-from .models import (
-    ErrorCode,
-    Risk, SecurityConfig,
-    create_success_response, create_error_response
-)
-from .utils import (
-    RiskScorer, ReportFormatter, SecurityAuditor
-)
+from .models import ErrorCode, Risk, SecurityConfig, create_success_response, create_error_response
+from .utils import RiskScorer, ReportFormatter, SecurityAuditor
 from .sql_injection_detector import SQLInjectionDetector
 from .sensitive_data_scanner import SensitiveDataScanner
 from .login_security_monitor import LoginSecurityMonitor
 from .audit_log_analyzer import AuditLogAnalyzer
 from .password_policy_checker import PasswordPolicyChecker
-from .advanced_security_analyzer import (
-    AdvancedSecurityAnalyzer,
-    ThreatLevel
-)
+from .advanced_security_analyzer import AdvancedSecurityAnalyzer, ThreatLevel
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +66,7 @@ class SecuritySkill:
         enable_sql_injection_detection: bool = True,
         enable_sensitive_data_scan: bool = True,
         enable_permission_audit: bool = True,
-        enable_config_audit: bool = True
+        enable_config_audit: bool = True,
     ):
         """
         初始化安全Skill
@@ -93,7 +84,7 @@ class SecuritySkill:
             enable_sql_injection_detection=enable_sql_injection_detection,
             enable_sensitive_data_scan=enable_sensitive_data_scan,
             enable_permission_audit=enable_permission_audit,
-            enable_config_audit=enable_config_audit
+            enable_config_audit=enable_config_audit,
         )
 
         # 初始化检测器
@@ -115,15 +106,12 @@ class SecuritySkill:
 
         # 检测连接器类型 - 传入 dialect 字符串而非 connector 对象
         self._is_unified = True
-        self._is_jdbc = "jdbc" in connector.dialect.lower() if hasattr(connector, 'dialect') else False
+        self._is_jdbc = "jdbc" in connector.dialect.lower() if hasattr(connector, "dialect") else False
 
         logger.info(f"SecuritySkill 初始化完成 (dialect={connector.dialect})")
 
     def detect_sql_injection(
-        self,
-        sql: str,
-        params: Optional[Dict[str, Any]] = None,
-        dialect: str = "mysql"
+        self, sql: str, params: Optional[Dict[str, Any]] = None, dialect: str = "mysql"
     ) -> Dict[str, Any]:
         """
         检测SQL注入风险（已接入多步骤计时）
@@ -137,41 +125,28 @@ class SecuritySkill:
             Dict: 检测结果，包含 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         if not self.config.enable_sql_injection_detection:
-            return create_error_response(
-                "SQL注入检测已禁用",
-                ErrorCode.INVALID_PARAM
-            )
+            return create_error_response("SQL注入检测已禁用", ErrorCode.INVALID_PARAM)
 
         if not sql or not sql.strip():
-            return create_error_response(
-                "SQL语句不能为空",
-                ErrorCode.INVALID_PARAM
-            )
+            return create_error_response("SQL语句不能为空", ErrorCode.INVALID_PARAM)
 
         try:
             with timer.step("detect_sql", "检测SQL注入风险"):
                 result = self.sql_detector.detect(sql, params, dialect)
 
-            response = create_success_response(
-                data=result,
-                message="SQL注入检测完成"
-            )
+            response = create_success_response(data=result, message="SQL注入检测完成")
             response["_execution_time"] = timer.to_summary()
             return response
         except Exception as e:
             logger.error(f"SQL注入检测失败: {e}")
-            return create_error_response(
-                f"检测失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"检测失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
     def scan_sensitive_data(
-        self,
-        tables: Optional[List[str]] = None,
-        sample_size: Optional[int] = None
+        self, tables: Optional[List[str]] = None, sample_size: Optional[int] = None
     ) -> Dict[str, Any]:
         """
         扫描敏感数据（已接入多步骤计时）
@@ -184,28 +159,23 @@ class SecuritySkill:
             Dict: 扫描结果，包含 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         if not self.config.enable_sensitive_data_scan:
-            return create_error_response(
-                "敏感数据扫描已禁用",
-                ErrorCode.INVALID_PARAM
-            )
+            return create_error_response("敏感数据扫描已禁用", ErrorCode.INVALID_PARAM)
 
         sample = sample_size or self.config.sample_size
 
         try:
             with timer.step("scan_data", "扫描敏感数据"):
-                result = self.data_scanner.scan(
-                    tables=tables,
-                    sample_size=sample
-                )
+                result = self.data_scanner.scan(tables=tables, sample_size=sample)
 
             # 构建详细的执行信息
             with timer.step("build_result", "构建扫描结果"):
-                total_tables = result.get('total_tables', 0)
-                tables_scanned = result.get('tables_scanned', 0)
-                total_findings = result.get('total_findings', 0)
+                total_tables = result.get("total_tables", 0)
+                tables_scanned = result.get("tables_scanned", 0)
+                total_findings = result.get("total_findings", 0)
 
                 message = f"扫描了{total_tables}个表，在{tables_scanned}个表中发现{total_findings}个敏感字段"
                 if total_findings == 0:
@@ -214,20 +184,17 @@ class SecuritySkill:
                 response = create_success_response(
                     data={
                         **result,
-                        'total_checked': total_tables,  # 用于CLI显示
-                        'risks_found': total_findings   # 用于CLI显示
+                        "total_checked": total_tables,  # 用于CLI显示
+                        "risks_found": total_findings,  # 用于CLI显示
                     },
-                    message=message
+                    message=message,
                 )
 
             response["_execution_time"] = timer.to_summary()
             return response
         except Exception as e:
             logger.error(f"敏感数据扫描失败: {e}")
-            return create_error_response(
-                f"扫描失败: {str(e)}",
-                ErrorCode.SCAN_FAILED
-            )
+            return create_error_response(f"扫描失败: {str(e)}", ErrorCode.SCAN_FAILED)
 
     def audit_permissions(self) -> Dict[str, Any]:
         """
@@ -237,23 +204,14 @@ class SecuritySkill:
             Dict: 审计结果
         """
         if not self.config.enable_permission_audit:
-            return create_error_response(
-                "权限审计已禁用",
-                ErrorCode.INVALID_PARAM
-            )
+            return create_error_response("权限审计已禁用", ErrorCode.INVALID_PARAM)
 
         try:
             result = self.auditor.audit_permissions()
-            return create_success_response(
-                data=result,
-                message="权限审计完成"
-            )
+            return create_success_response(data=result, message="权限审计完成")
         except Exception as e:
             logger.error(f"权限审计失败: {e}")
-            return create_error_response(
-                f"审计失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"审计失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
     def audit_config(self) -> Dict[str, Any]:
         """
@@ -263,23 +221,14 @@ class SecuritySkill:
             Dict: 审计结果
         """
         if not self.config.enable_config_audit:
-            return create_error_response(
-                "配置审计已禁用",
-                ErrorCode.INVALID_PARAM
-            )
+            return create_error_response("配置审计已禁用", ErrorCode.INVALID_PARAM)
 
         try:
             result = self.auditor.audit_config()
-            return create_success_response(
-                data=result,
-                message="配置审计完成"
-            )
+            return create_success_response(data=result, message="配置审计完成")
         except Exception as e:
             logger.error(f"配置审计失败: {e}")
-            return create_error_response(
-                f"审计失败: {str(e)}",
-                ErrorCode.CONFIG_AUDIT_FAILED
-            )
+            return create_error_response(f"审计失败: {str(e)}", ErrorCode.CONFIG_AUDIT_FAILED)
 
     def full_audit(self) -> Dict[str, Any]:
         """
@@ -299,10 +248,7 @@ class SecuritySkill:
                 modules["sql_injection"] = sql_injection_result
             except Exception as e:
                 logger.error(f"SQL注入检测失败: {e}")
-                modules["sql_injection"] = {
-                    "status": "failed",
-                    "message": f"SQL注入检测失败: {str(e)}"
-                }
+                modules["sql_injection"] = {"status": "failed", "message": f"SQL注入检测失败: {str(e)}"}
 
         # 敏感数据扫描
         if self.config.enable_sensitive_data_scan:
@@ -334,18 +280,15 @@ class SecuritySkill:
                 "critical": report.critical_count,
                 "high": report.high_count,
                 "medium": report.medium_count,
-                "low": report.low_count
+                "low": report.low_count,
             },
             "modules": modules,
-            "deductions": deductions[:20]
+            "deductions": deductions[:20],
         }
 
         logger.info(f"安全审计完成，评分: {score:.1f}，等级: {grade}")
 
-        return create_success_response(
-            data=result,
-            message="安全审计完成"
-        )
+        return create_success_response(data=result, message="安全审计完成")
 
     def calculate_security_score(self) -> Dict[str, Any]:
         """
@@ -357,22 +300,13 @@ class SecuritySkill:
         audit_result = self.full_audit()
 
         if not audit_result.get("success"):
-            return create_error_response(
-                "安全评分失败: 无法完成安全审计",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response("安全评分失败: 无法完成安全审计", ErrorCode.AUDIT_FAILED)
 
         data = audit_result.get("data", {})
 
         # 确定评估结果
         grade = data.get("grade", "F")
-        assessment_map = {
-            "A": "优秀",
-            "B": "良好",
-            "C": "一般",
-            "D": "较差",
-            "F": "危险"
-        }
+        assessment_map = {"A": "优秀", "B": "良好", "C": "一般", "D": "较差", "F": "危险"}
 
         return create_success_response(
             data={
@@ -381,9 +315,9 @@ class SecuritySkill:
                 "assessment": assessment_map.get(grade, "未知"),
                 "deductions": data.get("deductions", []),
                 "risk_summary": data.get("risk_summary", {}),
-                "checked_at": datetime.now().isoformat()
+                "checked_at": datetime.now().isoformat(),
             },
-            message="安全评分完成"
+            message="安全评分完成",
         )
 
     def format_report(self, report: Dict[str, Any]) -> str:
@@ -403,18 +337,16 @@ class SecuritySkill:
         for module, result in report.get("modules", {}).items():
             if isinstance(result, dict):
                 for risk in result.get("risks", []):
-                    risks.append(Risk(
-                        severity=risk.get("severity", "low"),
-                        description=risk.get("description", ""),
-                        category=risk.get("category", module)
-                    ))
+                    risks.append(
+                        Risk(
+                            severity=risk.get("severity", "low"),
+                            description=risk.get("description", ""),
+                            category=risk.get("category", module),
+                        )
+                    )
 
         return self.report_formatter.format_text_report(
-            title="数据库安全审计报告",
-            score=score,
-            grade=grade,
-            risks=risks,
-            modules=report.get("modules")
+            title="数据库安全审计报告", score=score, grade=grade, risks=risks, modules=report.get("modules")
         )
 
     def summary(self) -> str:
@@ -430,7 +362,7 @@ class SecuritySkill:
             score=score_data.get("overall_score", 0),
             grade=score_data.get("grade", "N/A"),
             deductions=score_data.get("deductions", []),
-            checked_at=score_data.get("checked_at", "")
+            checked_at=score_data.get("checked_at", ""),
         )
 
     def update_config(self, **kwargs) -> None:
@@ -454,10 +386,7 @@ class SecuritySkill:
         """
         return self.config.to_dict()
 
-    def check_login_security(
-        self,
-        hours: int = 24
-    ) -> Dict[str, Any]:
+    def check_login_security(self, hours: int = 24) -> Dict[str, Any]:
         """
         检查登录安全状况
 
@@ -474,24 +403,17 @@ class SecuritySkill:
 
             return create_success_response(
                 data={
-                    "failed_logins": failed_logins.get('data', {}),
-                    "brute_force": brute_force.get('data', {}),
-                    "suspicious_ips": suspicious_ips.get('data', {})
+                    "failed_logins": failed_logins.get("data", {}),
+                    "brute_force": brute_force.get("data", {}),
+                    "suspicious_ips": suspicious_ips.get("data", {}),
                 },
-                message="登录安全检查完成"
+                message="登录安全检查完成",
             )
         except Exception as e:
             logger.error(f"登录安全检查失败: {e}")
-            return create_error_response(
-                f"检查失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"检查失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
-    def analyze_audit_log(
-        self,
-        hours: int = 24,
-        users: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+    def analyze_audit_log(self, hours: int = 24, users: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         分析审计日志
 
@@ -504,10 +426,7 @@ class SecuritySkill:
         """
         return self.audit_analyzer.analyze_audit_log(hours=hours, users=users)
 
-    def detect_high_risk_operations(
-        self,
-        hours: int = 24
-    ) -> Dict[str, Any]:
+    def detect_high_risk_operations(self, hours: int = 24) -> Dict[str, Any]:
         """
         检测高危操作
 
@@ -561,7 +480,7 @@ class SecuritySkill:
                     "total_checked": 0,
                     "risks_found": 0,
                     "samples": [],
-                    "note": "如需检测SQL注入，请确保：1) performance_schema启用 2) 有SQL执行记录"
+                    "note": "如需检测SQL注入，请确保：1) performance_schema启用 2) 有SQL执行记录",
                 }
 
             # 检测每个SQL样本
@@ -569,16 +488,18 @@ class SecuritySkill:
             for sql in sql_samples:
                 try:
                     result = self.sql_detector.analyze_sql(sql)
-                    findings = result.get('findings', [])
+                    findings = result.get("findings", [])
                     if findings:
                         # 计算风险评分
-                        risk_score = result.get('risk_score', 0)
-                        risks.append({
-                            "sql": sql[:100] + "..." if len(sql) > 100 else sql,
-                            "risk_score": risk_score,
-                            "vulnerability_types": [f.get('injection_type', 'unknown') for f in findings],
-                            "findings_count": len(findings)
-                        })
+                        risk_score = result.get("risk_score", 0)
+                        risks.append(
+                            {
+                                "sql": sql[:100] + "..." if len(sql) > 100 else sql,
+                                "risk_score": risk_score,
+                                "vulnerability_types": [f.get("injection_type", "unknown") for f in findings],
+                                "findings_count": len(findings),
+                            }
+                        )
                 except Exception as e:
                     logger.warning(f"分析SQL样本失败: {e}")
                     continue
@@ -588,19 +509,20 @@ class SecuritySkill:
                 "message": f"检查了{len(sql_samples)}个SQL样本，发现{len(risks)}个风险",
                 "total_checked": len(sql_samples),
                 "risks_found": len(risks),
-                "risks": risks[:10]  # 最多返回10个
+                "risks": risks[:10],  # 最多返回10个
             }
 
         except Exception as e:
             logger.error(f"SQL注入审计失败: {e}")
             import traceback
+
             logger.error(traceback.format_exc())
             return {
                 "status": "failed",
                 "message": f"SQL注入审计失败: {str(e)}",
                 "total_checked": 0,
                 "risks_found": 0,
-                "risks": []
+                "risks": [],
             }
 
     def _collect_sql_samples(self) -> List[str]:
@@ -615,18 +537,18 @@ class SecuritySkill:
         try:
             # 根据数据库类型尝试获取SQL样本
             # UnifiedConnector 使用 dialect 属性
-            db_type = self.connector.dialect if hasattr(self.connector, 'dialect') else 'mysql'
+            db_type = self.connector.dialect if hasattr(self.connector, "dialect") else "mysql"
             # 处理 dialect 如 'mysql+pymysql' 的情况
-            if 'mysql' in db_type.lower():
-                db_type = 'mysql'
-            elif 'oracle' in db_type.lower():
-                db_type = 'oracle'
-            elif 'postgres' in db_type.lower():
-                db_type = 'postgresql'
-            elif 'mssql' in db_type.lower() or 'sqlserver' in db_type.lower():
-                db_type = 'mssql'
+            if "mysql" in db_type.lower():
+                db_type = "mysql"
+            elif "oracle" in db_type.lower():
+                db_type = "oracle"
+            elif "postgres" in db_type.lower():
+                db_type = "postgresql"
+            elif "mssql" in db_type.lower() or "sqlserver" in db_type.lower():
+                db_type = "mssql"
 
-            if db_type == 'mysql':
+            if db_type == "mysql":
                 # 尝试从performance_schema获取最近的SQL
                 try:
                     result = self.connector.execute("""
@@ -658,7 +580,7 @@ class SecuritySkill:
                 except Exception as e:
                     logger.warning(f"无法从slow_log获取SQL: {e}")
 
-            elif db_type == 'postgresql':
+            elif db_type == "postgresql":
                 # 从pg_stat_statements获取
                 try:
                     result = self.connector.execute("""
@@ -674,7 +596,7 @@ class SecuritySkill:
                 except Exception as e:
                     logger.warning(f"无法从pg_stat_statements获取SQL: {e}")
 
-            elif db_type == 'oracle':
+            elif db_type == "oracle":
                 # 从v$sql获取当前SQL缓存
                 try:
                     result = self.connector.execute("""
@@ -719,7 +641,7 @@ class SecuritySkill:
                 except Exception as e:
                     logger.warning(f"无法从AWR获取SQL: {e}")
 
-            elif db_type == 'mssql':
+            elif db_type == "mssql":
                 # 从Query Store获取SQL样本（SQL Server 2016+）
                 try:
                     result = self.connector.execute("""
@@ -770,19 +692,15 @@ class SecuritySkill:
         """关闭Skill，释放资源"""
         logger.info("关闭 SecuritySkill...")
         # 关闭子组件
-        if hasattr(self, 'sql_detector') and hasattr(self.sql_detector, 'close'):
+        if hasattr(self, "sql_detector") and hasattr(self.sql_detector, "close"):
             self.sql_detector.close()
-        if hasattr(self, 'data_scanner') and hasattr(self.data_scanner, 'close'):
+        if hasattr(self, "data_scanner") and hasattr(self.data_scanner, "close"):
             self.data_scanner.close()
         logger.info("SecuritySkill 已关闭")
 
     # ==================== AI上下文构建 ====================
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "security"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "security") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -798,8 +716,8 @@ class SecuritySkill:
         from dbskiter.shared.ai_context import AIContextBuilder
 
         builder = AIContextBuilder(
-            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
-            database_name=getattr(self.connector, 'database', ''),
+            dialect=self.connector.dialect if hasattr(self.connector, "dialect") else "unknown",
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -822,11 +740,7 @@ class SecuritySkill:
             "inspection_trace": inspection_trace,
         }
 
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建安全审计透明度追踪信息
 
@@ -837,13 +751,7 @@ class SecuritySkill:
         返回:
             Dict[str, Any]: 追踪信息
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         if scenario == "security":
             trace["metrics_checked"] = [
@@ -940,11 +848,7 @@ class SecuritySkill:
 
         return trace
 
-    def _extract_raw_metrics_for_ai(
-        self,
-        data: Dict[str, Any],
-        scenario: str
-    ) -> Dict[str, Any]:
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """从Skill结果中提取原始指标数据"""
         metrics = {}
 
@@ -985,9 +889,26 @@ class SecuritySkill:
             if "sampling_info" in data:
                 metrics["sampling_info"] = data["sampling_info"]
 
-        elif scenario in ("permissions", "login_security", "audit_log", "high_risk", "password_policy", "weak_passwords", "config_security"):
+        elif scenario in (
+            "permissions",
+            "login_security",
+            "audit_log",
+            "high_risk",
+            "password_policy",
+            "weak_passwords",
+            "config_security",
+        ):
             # 这些场景直接返回data中的关键字段
-            for key in ["risks", "violations", "findings", "issues", "failed_logins", "brute_force", "suspicious_ips", "weak_passwords"]:
+            for key in [
+                "risks",
+                "violations",
+                "findings",
+                "issues",
+                "failed_logins",
+                "brute_force",
+                "suspicious_ips",
+                "weak_passwords",
+            ]:
                 if key in data:
                     metrics[key] = data[key]
 
@@ -996,11 +917,7 @@ class SecuritySkill:
 
         return metrics
 
-    def _extract_rule_flags_for_ai(
-        self,
-        data: Dict[str, Any],
-        scenario: str
-    ) -> Dict[str, Any]:
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """从Skill结果中提取规则初筛标记"""
         flags = {}
 
@@ -1043,16 +960,16 @@ class SecuritySkill:
                     "reason": f"安全评分一般: {score}/100",
                 }
 
-        return {
-            "_disclaimer": "规则初筛结果仅供参考，请结合上下文判断是否为真正问题",
-            "flags": flags,
-        } if flags else {"_disclaimer": "规则初筛结果仅供参考", "flags": {}}
+        return (
+            {
+                "_disclaimer": "规则初筛结果仅供参考，请结合上下文判断是否为真正问题",
+                "flags": flags,
+            }
+            if flags
+            else {"_disclaimer": "规则初筛结果仅供参考", "flags": {}}
+        )
 
-    def _build_context_for_ai(
-        self,
-        builder: "AIContextBuilder",
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_context_for_ai(self, builder: "AIContextBuilder", data: Dict[str, Any]) -> Dict[str, Any]:
         """构建业务上下文"""
         ctx = builder.build_database_profile(self.connector)
 
@@ -1091,18 +1008,14 @@ class SecuritySkill:
 
         return references
 
-    def _build_ai_hints(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """构建AI分析提示"""
         hints: Dict[str, Any] = {
             "focus_areas": [],
             "related_commands": [],
         }
 
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         if scenario == "security":
             hints["focus_areas"] = ["risk_distribution", "module_vulnerabilities", "compliance_gaps"]
@@ -1130,19 +1043,13 @@ class SecuritySkill:
         risk_summary = data.get("risk_summary", {})
         total_risks = risk_summary.get("total", 0)
         if total_risks > 0:
-            hints["additional_notes"] = [
-                f"共发现 {total_risks} 个安全风险，建议优先处理 critical 和 high 级别的问题"
-            ]
+            hints["additional_notes"] = [f"共发现 {total_risks} 个安全风险，建议优先处理 critical 和 high 级别的问题"]
 
         return hints
 
     # ==================== 高级安全分析 API ====================
 
-    def analyze_user_behavior(
-        self,
-        user_id: str,
-        audit_logs: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def analyze_user_behavior(self, user_id: str, audit_logs: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         分析用户行为
 
@@ -1164,21 +1071,15 @@ class SecuritySkill:
                     "off_hours_access": profile.off_hours_access,
                     "privilege_escalation_attempts": profile.privilege_escalation_attempts,
                     "query_patterns": profile.query_patterns,
-                    "accessed_tables": list(profile.accessed_tables)
+                    "accessed_tables": list(profile.accessed_tables),
                 },
-                message="用户行为分析完成"
+                message="用户行为分析完成",
             )
         except Exception as e:
             logger.error(f"用户行为分析失败: {e}")
-            return create_error_response(
-                f"分析失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"分析失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
-    def detect_anomalies(
-        self,
-        audit_logs: List[Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def detect_anomalies(self, audit_logs: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
         检测异常行为
 
@@ -1204,24 +1105,19 @@ class SecuritySkill:
                             "event_type": a.event_type,
                             "description": a.description,
                             "severity": a.severity.value,
-                            "recommendation": a.recommendation
+                            "recommendation": a.recommendation,
                         }
                         for a in anomalies
-                    ]
+                    ],
                 },
-                message=f"检测到 {len(anomalies)} 个异常事件"
+                message=f"检测到 {len(anomalies)} 个异常事件",
             )
         except Exception as e:
             logger.error(f"异常检测失败: {e}")
-            return create_error_response(
-                f"检测失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"检测失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
     def analyze_data_flow(
-        self,
-        sensitive_columns: List[Tuple[str, str]],
-        audit_logs: List[Dict[str, Any]]
+        self, sensitive_columns: List[Tuple[str, str]], audit_logs: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
         分析敏感数据流向
@@ -1234,9 +1130,7 @@ class SecuritySkill:
             Dict: 数据流向分析结果
         """
         try:
-            flows = self.advanced_analyzer.analyze_sensitive_data_flow(
-                sensitive_columns, audit_logs
-            )
+            flows = self.advanced_analyzer.analyze_sensitive_data_flow(sensitive_columns, audit_logs)
             risks = self.advanced_analyzer.data_flow_analyzer.identify_data_leak_risks(flows)
 
             return create_success_response(
@@ -1249,25 +1143,19 @@ class SecuritySkill:
                             "destination": f.destination,
                             "access_count": f.access_count,
                             "last_access": f.last_access.isoformat() if f.last_access else None,
-                            "risk_level": f.risk_level.value
+                            "risk_level": f.risk_level.value,
                         }
                         for f in flows
                     ],
-                    "risks": risks
+                    "risks": risks,
                 },
-                message=f"发现 {len(flows)} 条数据流向，{len(risks)} 个高风险"
+                message=f"发现 {len(flows)} 条数据流向，{len(risks)} 个高风险",
             )
         except Exception as e:
             logger.error(f"数据流向分析失败: {e}")
-            return create_error_response(
-                f"分析失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"分析失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
-    def check_compliance(
-        self,
-        standard: str
-    ) -> Dict[str, Any]:
+    def check_compliance(self, standard: str) -> Dict[str, Any]:
         """
         检查合规性
 
@@ -1287,22 +1175,16 @@ class SecuritySkill:
                     "passed_rules": result.passed_rules,
                     "failed_rules": result.failed_rules,
                     "violations": result.violations,
-                    "report_time": result.report_time.isoformat()
+                    "report_time": result.report_time.isoformat(),
                 },
-                message=f"{standard} 合规检查完成，得分: {result.compliance_score:.1f}"
+                message=f"{standard} 合规检查完成，得分: {result.compliance_score:.1f}",
             )
         except Exception as e:
             logger.error(f"合规检查失败: {e}")
-            return create_error_response(
-                f"检查失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"检查失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
     def generate_advanced_security_report(
-        self,
-        audit_logs: List[Dict[str, Any]],
-        sensitive_columns: List[Tuple[str, str]],
-        standards: List[str]
+        self, audit_logs: List[Dict[str, Any]], sensitive_columns: List[Tuple[str, str]], standards: List[str]
     ) -> Dict[str, Any]:
         """
         生成高级安全报告
@@ -1316,19 +1198,11 @@ class SecuritySkill:
             Dict: 综合安全报告
         """
         try:
-            report = self.advanced_analyzer.generate_comprehensive_report(
-                audit_logs, sensitive_columns, standards
-            )
-            return create_success_response(
-                data=report,
-                message="高级安全报告生成完成"
-            )
+            report = self.advanced_analyzer.generate_comprehensive_report(audit_logs, sensitive_columns, standards)
+            return create_success_response(data=report, message="高级安全报告生成完成")
         except Exception as e:
             logger.error(f"生成安全报告失败: {e}")
-            return create_error_response(
-                f"报告生成失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"报告生成失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
     def get_supported_compliance_standards(self) -> List[str]:
         """
@@ -1338,5 +1212,3 @@ class SecuritySkill:
             List[str]: 合规标准列表
         """
         return self.advanced_analyzer.compliance_checker.get_supported_standards()
-
-

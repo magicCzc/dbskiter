@@ -32,7 +32,7 @@ from rich.theme import Theme
 class ThemeColor:
     """
     DBSKiter CLI 品牌配色
-    
+
     设计原则：
     - 专业克制，避免高饱和刺眼色
     - 语义清晰，颜色即含义
@@ -40,20 +40,20 @@ class ThemeColor:
     """
 
     # 品牌主色（数据库蓝）
-    PRIMARY = "#2563EB"       # 命令名、主标题
+    PRIMARY = "#2563EB"  # 命令名、主标题
     PRIMARY_BRIGHT = "#3B82F6"  # 高亮强调
-    PRIMARY_DIM = "#1D4ED8"   # 次要强调
+    PRIMARY_DIM = "#1D4ED8"  # 次要强调
 
     # 状态色
-    SUCCESS = "#10B981"       # 成功、正常指标
-    WARNING = "#F59E0B"       # 警告、慢查询、锁等待
-    ERROR = "#EF4444"         # 错误、死锁、注入风险
-    INFO = "#06B6D4"          # 信息提示
+    SUCCESS = "#10B981"  # 成功、正常指标
+    WARNING = "#F59E0B"  # 警告、慢查询、锁等待
+    ERROR = "#EF4444"  # 错误、死锁、注入风险
+    INFO = "#06B6D4"  # 信息提示
 
     # 中性色
-    MUTED = "#6B7280"         # 元信息、时间戳、版本号
-    TEXT = "#E5E7EB"          # 主文本（暗色终端）
-    BORDER = "#4B5563"        # 边框、分隔线
+    MUTED = "#6B7280"  # 元信息、时间戳、版本号
+    TEXT = "#E5E7EB"  # 主文本（暗色终端）
+    BORDER = "#4B5563"  # 边框、分隔线
 
     # 数据展示色（用于表格/图表区分）
     CYAN = "#22D3EE"
@@ -66,24 +66,26 @@ class ThemeColor:
 # ──────────────────────────────────────────────
 # Rich 自定义主题
 # ──────────────────────────────────────────────
-DBSKITER_THEME = Theme({
-    "primary": f"bold {ThemeColor.PRIMARY}",
-    "primary.dim": ThemeColor.PRIMARY_DIM,
-    "success": f"bold {ThemeColor.SUCCESS}",
-    "warning": f"bold {ThemeColor.WARNING}",
-    "error": f"bold {ThemeColor.ERROR}",
-    "info": ThemeColor.INFO,
-    "muted": ThemeColor.MUTED,
-    "border": ThemeColor.BORDER,
-    "title": f"bold {ThemeColor.PRIMARY_BRIGHT}",
-    "header": f"bold underline {ThemeColor.PRIMARY}",
-    "metric.good": f"bold {ThemeColor.SUCCESS}",
-    "metric.warn": f"bold {ThemeColor.WARNING}",
-    "metric.bad": f"bold {ThemeColor.ERROR}",
-    "sql.keyword": f"bold {ThemeColor.MAGENTA}",
-    "sql.table": f"bold {ThemeColor.CYAN}",
-    "sql.string": ThemeColor.YELLOW,
-})
+DBSKITER_THEME = Theme(
+    {
+        "primary": f"bold {ThemeColor.PRIMARY}",
+        "primary.dim": ThemeColor.PRIMARY_DIM,
+        "success": f"bold {ThemeColor.SUCCESS}",
+        "warning": f"bold {ThemeColor.WARNING}",
+        "error": f"bold {ThemeColor.ERROR}",
+        "info": ThemeColor.INFO,
+        "muted": ThemeColor.MUTED,
+        "border": ThemeColor.BORDER,
+        "title": f"bold {ThemeColor.PRIMARY_BRIGHT}",
+        "header": f"bold underline {ThemeColor.PRIMARY}",
+        "metric.good": f"bold {ThemeColor.SUCCESS}",
+        "metric.warn": f"bold {ThemeColor.WARNING}",
+        "metric.bad": f"bold {ThemeColor.ERROR}",
+        "sql.keyword": f"bold {ThemeColor.MAGENTA}",
+        "sql.table": f"bold {ThemeColor.CYAN}",
+        "sql.string": ThemeColor.YELLOW,
+    }
+)
 
 
 # ──────────────────────────────────────────────
@@ -92,12 +94,12 @@ DBSKITER_THEME = Theme({
 def should_disable_color() -> bool:
     """
     判断是否应禁用颜色输出
-    
+
     检查优先级：
     1. NO_COLOR 环境变量（行业标配）
     2. 不是 TTY（管道/重定向）
     3. TERM=dumb
-    
+
     返回:
         bool: True 表示禁用颜色
     """
@@ -118,16 +120,16 @@ def get_console(
 ) -> Optional[Console]:
     """
     获取配置好的 Rich Console 实例
-    
+
     参数说明：
     - quiet: 静默模式 → 返回 None，调用方应不输出装饰
     - json_mode: JSON 模式 → 返回 None，只输出结构化数据
     - force_color: 强制启用颜色（覆盖 NO_COLOR，测试用）
     - width: 指定终端宽度，None 表示自动检测
-    
+
     返回:
         Console 实例，或在 quiet/json 模式下返回 None
-    
+
     使用示例:
         >>> console = get_console(quiet=args.quiet, json_mode=args.json)
         >>> if console:
@@ -152,9 +154,9 @@ def get_console(
 def get_stderr_console(force_color: bool = False) -> Console:
     """
     获取错误输出用的 Console 实例
-    
+
     错误信息始终可以带颜色（除非 NO_COLOR），不受 quiet 影响
-    
+
     使用示例:
         >>> err_console = get_stderr_console()
         >>> err_console.print("[error]连接失败[/error]", style="error")
@@ -177,14 +179,14 @@ def get_stderr_console(force_color: bool = False) -> Console:
 def make_style(text: str, style: str = "primary") -> str:
     """
     给文本包裹 Rich 样式标签
-    
+
     参数:
         text: 原始文本
         style: 样式名（对应 DBSKITER_THEME 中的键）
-        
+
     返回:
         str: 带样式标签的文本，如 "[success]完成[/success]"
-    
+
     使用示例:
         >>> print(make_style("数据库连接正常", "success"))
         [success]数据库连接正常[/success]

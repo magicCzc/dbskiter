@@ -88,6 +88,7 @@ class ErrorMessage:
 
 class DiagnoseLevel(Enum):
     """诊断级别"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -97,6 +98,7 @@ class DiagnoseLevel(Enum):
 
 class DiagnoseType(Enum):
     """诊断类型"""
+
     SQL_ANALYSIS = "sql_analysis"
     PERFORMANCE = "performance"
     SLOW_QUERY = "slow_query"
@@ -106,6 +108,7 @@ class DiagnoseType(Enum):
 
 class DatabaseType(Enum):
     """数据库类型"""
+
     MYSQL = "mysql"
     ORACLE = "oracle"
     POSTGRESQL = "postgresql"
@@ -115,6 +118,7 @@ class DatabaseType(Enum):
 @dataclass
 class DiagnoseConfig:
     """诊断配置"""
+
     enable_deep_analysis: bool = True
     enable_index_suggestion: bool = True
     enable_performance_analysis: bool = True
@@ -147,6 +151,7 @@ class DiagnoseResult:
         summary: 人类可读的总结
         diagnosed_at: 诊断时间（ISO 8601 格式）
     """
+
     sql: str = ""
     sql_type: str = ""
     score: float = 0.0
@@ -180,6 +185,7 @@ class IndexSuggestion:
         priority: 优先级（critical/high/medium/low）
         create_sql: 创建索引的 SQL 语句
     """
+
     table: str = ""
     columns: List[str] = field(default_factory=list)
     index_type: str = "btree"
@@ -218,6 +224,7 @@ class SlowQuery:
         rows_examined: 扫描行数
         rows_sent: 返回行数
     """
+
     sql: str = ""
     execution_time: float = 0.0
     execution_count: int = 0
@@ -253,6 +260,7 @@ class PerformanceMetrics:
         tps: 每秒事务数
         collected_at: 采集时间（ISO 8601 格式）
     """
+
     cpu_usage: float = 0.0
     memory_usage: float = 0.0
     disk_io: float = 0.0
@@ -288,6 +296,7 @@ class TableDiagnoseResult:
         issues: 发现的问题（碎片、膨胀、缺失索引等）
         suggestions: 优化建议（OPTIMIZE TABLE、ADD INDEX 等）
     """
+
     table_name: str = ""
     row_count: int = 0
     size_mb: float = 0.0
@@ -322,6 +331,7 @@ class DiagnoseReport:
         results: 各 SQL 的诊断结果列表
         generated_at: 报告生成时间（ISO 8601 格式）
     """
+
     title: str = "SQL诊断报告"
     total_sqls: int = 0
     total_issues: int = 0

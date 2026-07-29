@@ -190,18 +190,19 @@ class Config:
             database=parsed.get("database", ""),
             source="url",
         )
+
     @classmethod
     def from_env(cls, env_file: Optional[Path] = None, prefix: str = "DB") -> "Config":
         """
         从环境变量加载配置
-        
+
         参数:
             env_file: 可选的 .env 文件路径
             prefix: 环境变量前缀，如 "DB" 或 "ORACLE"
-            
+
         返回:
             Config: 配置对象
-            
+
         示例:
             >>> config = Config.from_env()
             >>> print(config.host)
@@ -209,14 +210,14 @@ class Config:
         """
         # 加载 .env 文件到缓存字典（避免 load_dotenv 副作用）
         env_values = _load_env_values(env_file)
-        
+
         # 动态构建环境变量映射
         # 统一使用 _NAME 后缀，同时兼容 _SERVICE（Oracle 等特殊场景）
         database_env_var = f"{prefix}_NAME"
         if prefix != "DB" and env_values.get(database_env_var) is None:
             # 如果没有 _NAME，尝试 _SERVICE（向后兼容）
             database_env_var = f"{prefix}_SERVICE"
-        
+
         env_mapping = {
             "dialect": f"{prefix}_DIALECT",
             "host": f"{prefix}_HOST",
@@ -225,7 +226,7 @@ class Config:
             "password": f"{prefix}_PASSWORD",
             "database": database_env_var,
         }
-        
+
         # 从 env_values 字典构建配置（同时兼容 os.environ 中已存在的变量）
         kwargs = {}
         extra = {}
@@ -303,7 +304,7 @@ class Config:
         kwargs["source_map"] = source_map
 
         return cls(**kwargs)
-    
+
     @classmethod
     def _has_cli_connection(cls, args) -> bool:
         """
@@ -370,6 +371,7 @@ class Config:
             # 密码从 stdin 读取
             if getattr(args, "password_stdin", False):
                 import sys
+
                 config.password = sys.stdin.readline().strip()
             # CLI 参数覆盖 URL 中的值
             config = cls._apply_cli_overrides(config, args)
@@ -438,6 +440,7 @@ class Config:
         # 从 stdin 读取密码
         if getattr(args, "password_stdin", False):
             import sys
+
             password = sys.stdin.readline().strip()
 
         # 端口类型转换
@@ -470,9 +473,7 @@ class Config:
             return cls()
 
     @classmethod
-    def _apply_config_file(
-        cls, config: "Config", config_path: Optional[str], profile: Optional[str], args
-    ) -> "Config":
+    def _apply_config_file(cls, config: "Config", config_path: Optional[str], profile: Optional[str], args) -> "Config":
         """
         从配置文件加载并覆盖配置
 
@@ -494,22 +495,22 @@ class Config:
 
         # 检查用户是否通过命令行提供了可直接建立连接的参数
         # 注意：--database 是别名引用，不在此检查范围内（它需要 .env/配置文件解析）
-        has_direct_connection_params = any([
-            getattr(args, "host", None),
-            getattr(args, "user", None),
-            getattr(args, "password", None),
-            getattr(args, "dialect", None),
-            getattr(args, "port", None),
-        ])
+        has_direct_connection_params = any(
+            [
+                getattr(args, "host", None),
+                getattr(args, "user", None),
+                getattr(args, "password", None),
+                getattr(args, "dialect", None),
+                getattr(args, "port", None),
+            ]
+        )
         # 如果没有指定 --config 但用户提供了直接连接参数，跳过配置文件加载
         # 因为 CLI 参数优先级高于配置文件，此时加载配置文件无意义
         if not config_path and has_direct_connection_params:
             return config
 
         try:
-            manager = ConfigFileManager(
-                Path(config_path) if config_path else None
-            )
+            manager = ConfigFileManager(Path(config_path) if config_path else None)
             profile_config = manager.load_profile(profile)
             # 用配置文件逐项覆盖
             for field in ("dialect", "host", "port", "username", "password", "database"):
@@ -522,9 +523,7 @@ class Config:
         return config
 
     @classmethod
-    def _apply_database_arg(
-        cls, config: "Config", database_arg: Optional[str]
-    ) -> "Config":
+    def _apply_database_arg(cls, config: "Config", database_arg: Optional[str]) -> "Config":
         """
         处理 --database 参数（别名优先，未匹配则作为数据库名）
 
@@ -567,6 +566,7 @@ class Config:
         # 策略2：尝试从 YAML 配置文件匹配别名
         try:
             from .config_file import ConfigFileManager
+
             manager = ConfigFileManager()
             yaml_config = manager.get_database_config(alias)
             if yaml_config:
@@ -614,16 +614,17 @@ class Config:
             "username": getattr(args, "user", None),
             "password": getattr(args, "password", None),
         }
-        
+
         # 安全警告：如果使用了 --password 参数，提示历史记录风险
         if overrides.get("password"):
             import sys
+
             sys.stderr.write(
                 "[SECURITY WARNING] 密码通过命令行 --password 参数传入，可能被记录到 shell 历史记录。\n"
                 "                 建议使用 --password-file 或环境变量 DBSKITER_PASSWORD 来提高安全性。\n"
             )
             sys.stderr.flush()
-        
+
         for field, value in overrides.items():
             if value:
                 setattr(config, field, value)
@@ -758,15 +759,15 @@ class Config:
         # 验证数据库类型（支持任何 SQLAlchemy 兼容的方言）
         if not self.dialect or not self.dialect.strip():
             raise ValidationError("数据库方言不能为空")
-        
+
         # 验证端口范围
         if not 1 <= self.port <= 65535:
             raise ValidationError(f"端口号必须在 1-65535 之间: {self.port}")
-        
+
         # 验证必填项
         if not self.database:
             raise ValidationError("数据库名不能为空")
-        
+
         # SQLite 特殊处理
         if self.dialect in ("sqlite", "sqlite3"):
             # SQLite 不需要 host/port/username/password
@@ -775,7 +776,7 @@ class Config:
             # 其他数据库需要 host
             if not self.host:
                 raise ValidationError("数据库主机不能为空")
-    
+
     def _set_source(self, field: str, source: str) -> None:
         """
         记录配置字段的来源
@@ -800,9 +801,9 @@ class Config:
             "username": self.username,
             "password": self.password,
             "database": self.database,
-            **self.extra
+            **self.extra,
         }
-    
+
     def __repr__(self) -> str:
         # 隐藏密码
         return (
@@ -815,39 +816,39 @@ class Config:
 class MultiDBConfig:
     """
     多数据库配置管理器 - 使用别名方式管理
-    
+
     统一管理多个数据库实例的配置，支持使用有意义的别名（如 jump, chenzc, orcl）
-    
+
     配置格式:
         DB_{别名}_HOST=192.168.1.1
         DB_{别名}_PORT=3306
         DB_{别名}_NAME=dbname
         ...
-    
+
     使用示例:
         >>> multi_config = MultiDBConfig()
-        >>> 
+        >>>
         >>> # 获取所有配置的数据库别名
         >>> aliases = multi_config.list_aliases()
         >>> print(aliases)  # ['jump', 'chenzc', 'orcl']
-        >>> 
+        >>>
         >>> # 通过别名获取配置
         >>> config = multi_config.get_config_by_alias('jump')
-        >>> 
+        >>>
         >>> # 通过数据库名查找配置（向后兼容）
         >>> config = multi_config.find_config_by_database('jump')
-        >>> 
+        >>>
         >>> # 获取所有配置
         >>> all_configs = multi_config.load_all_configs()
     """
-    
+
     # 别名模式：DB_{ALIAS}_HOST
-    ALIAS_PATTERN = re.compile(r'^DB_([A-Z0-9_]+)_HOST$')
-    
+    ALIAS_PATTERN = re.compile(r"^DB_([A-Z0-9_]+)_HOST$")
+
     def __init__(self, env_file: Optional[Path] = None):
         """
         初始化多数据库配置管理器
-        
+
         参数:
             env_file: 可选的 .env 文件路径
         """
@@ -857,12 +858,12 @@ class MultiDBConfig:
     def list_aliases(self) -> List[str]:
         """
         获取所有配置的数据库别名
-        
+
         通过扫描 DB_{ALIAS}_HOST 格式的环境变量来发现别名
-        
+
         返回:
             List[str]: 别名列表（如 ['jump', 'chenzc', 'orcl']）
-            
+
         示例:
             >>> multi_config = MultiDBConfig()
             >>> aliases = multi_config.list_aliases()
@@ -871,21 +872,21 @@ class MultiDBConfig:
         """
         env_values = _load_env_values()
         aliases = []
-        
+
         for key in env_values.keys():
             match = self.ALIAS_PATTERN.match(key)
             if match:
                 alias = match.group(1).lower()  # 转换为小写
                 aliases.append(alias)
-        
+
         return sorted(aliases)
-    
+
     def list_instances(self) -> List[str]:
         """
         向后兼容：返回所有实例标识（使用别名）
         """
         return self.list_aliases()
-    
+
     def get_config_by_alias(self, alias: str) -> Optional[Config]:
         """
         通过别名获取配置
@@ -910,17 +911,17 @@ class MultiDBConfig:
             # 验证配置是否有效（只要有host即可，不排除localhost）
             if config.host:
                 # 保存别名信息
-                config.extra['alias'] = alias.lower()
+                config.extra["alias"] = alias.lower()
                 return config
         except Exception:
             pass
 
         return None
-    
+
     def get_config(self, instance_name: str) -> Optional[Config]:
         """
         向后兼容：通过实例名/别名获取配置
-        
+
         参数:
             instance_name: 实例名或别名（如 'jump', 'DB', 'ORACLE'）
         """
@@ -928,7 +929,7 @@ class MultiDBConfig:
         config = self.get_config_by_alias(instance_name.lower())
         if config:
             return config
-        
+
         # 向后兼容：尝试旧的前缀方式
         try:
             config = Config.from_env(prefix=instance_name)
@@ -936,21 +937,21 @@ class MultiDBConfig:
                 return config
         except Exception:
             pass
-        
+
         return None
-    
+
     def find_config_by_database(self, database_name: str) -> Optional[Config]:
         """
         通过数据库名查找配置
-        
+
         在所有配置的实例中搜索匹配的数据库名
-        
+
         参数:
             database_name: 数据库名（如 'jump', 'chenzc'）
-            
+
         返回:
             Optional[Config]: 匹配的配置对象，如果不存在返回 None
-            
+
         示例:
             >>> multi_config = MultiDBConfig()
             >>> config = multi_config.find_config_by_database('chenzc')
@@ -962,14 +963,14 @@ class MultiDBConfig:
             if config and config.database == database_name:
                 return config
         return None
-    
+
     def load_all_configs(self) -> Dict[str, Config]:
         """
         加载所有有效的数据库配置
-        
+
         返回:
             Dict[str, Config]: 配置字典，key为别名，value为配置对象
-            
+
         示例:
             >>> multi_config = MultiDBConfig()
             >>> configs = multi_config.load_all_configs()
@@ -982,14 +983,14 @@ class MultiDBConfig:
             if config:
                 configs[alias] = config
         return configs
-    
+
     def get_alias_by_database(self, database_name: str) -> Optional[str]:
         """
         通过数据库名获取别名
-        
+
         参数:
             database_name: 数据库名
-            
+
         返回:
             Optional[str]: 别名，如果不存在返回 None
         """
@@ -998,7 +999,7 @@ class MultiDBConfig:
             if config and config.database == database_name:
                 return alias
         return None
-    
+
     def get_instance_by_database(self, database_name: str) -> Optional[str]:
         """
         向后兼容：通过数据库名获取实例名/别名
@@ -1010,13 +1011,13 @@ class MultiDBConfig:
 def get_db_config(args) -> Dict[str, Any]:
     """
     获取数据库配置（兼容旧接口）
-    
+
     参数:
         args: 命令行参数
-        
+
     返回:
         Dict: 数据库配置字典
-        
+
     注意:
         此函数为兼容性保留，新代码建议使用 Config.from_args()
     """

@@ -1,5 +1,6 @@
 """HTML/CSS templates for report generator."""
-HTML_TEMPLATE = '''<!DOCTYPE html>
+
+HTML_TEMPLATE = """<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -1153,4 +1154,4 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
         }});
     </script>
 </body>
-</html>'''
+</html>"""

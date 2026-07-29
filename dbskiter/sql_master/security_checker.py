@@ -37,6 +37,7 @@ try:
     from dbskiter.db_security.sql_injection_detector import (
         SQLInjectionDetector as _DBSecurityInjectionDetector,
     )
+
     _HAS_V2_DETECTOR = True
 except ImportError:
     _DBSecurityInjectionDetector = None
@@ -48,6 +49,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class InjectionCheckResult:
     """SQL注入检查结果"""
+
     is_injection: bool
     confidence: float  # 0.0 - 1.0
     pattern_matched: Optional[str]
@@ -57,6 +59,7 @@ class InjectionCheckResult:
 @dataclass
 class RateLimitStatus:
     """速率限制状态"""
+
     allowed: bool
     remaining: int
     reset_time: datetime
@@ -202,13 +205,13 @@ class SQLInjectionDetector:
                             is_injection=True,
                             confidence=top.get("confidence", 0.85),
                             pattern_matched=top.get("injection_type", "unknown"),
-                            description=top.get("description", "检测到SQL注入")
+                            description=top.get("description", "检测到SQL注入"),
                         )
                     return InjectionCheckResult(
                         is_injection=True,
                         confidence=0.85,
                         pattern_matched="v2_detection",
-                        description="V2检测器发现注入风险"
+                        description="V2检测器发现注入风险",
                     )
                 return InjectionCheckResult(False, 0.0, None, "V2检测器未发现问题")
             except Exception as e:
@@ -224,10 +227,7 @@ class SQLInjectionDetector:
         for pattern, desc in self._high_risk_patterns:
             if pattern.search(sql_normalized):
                 return InjectionCheckResult(
-                    is_injection=True,
-                    confidence=0.95,
-                    pattern_matched=desc,
-                    description=f"检测到高危注入模式: {desc}"
+                    is_injection=True, confidence=0.95, pattern_matched=desc, description=f"检测到高危注入模式: {desc}"
                 )
 
         # 2. 检查中危模式（需要多个匹配才判定）
@@ -241,7 +241,7 @@ class SQLInjectionDetector:
                 is_injection=True,
                 confidence=0.75,
                 pattern_matched=", ".join(medium_matches),
-                description=f"检测到多个中危注入模式: {', '.join(medium_matches)}"
+                description=f"检测到多个中危注入模式: {', '.join(medium_matches)}",
             )
 
         # 3. 语义分析
@@ -271,6 +271,7 @@ class SQLInjectionDetector:
 
         # 1. URL解码（处理 %27, %20 等）
         import urllib.parse
+
         try:
             decoded = urllib.parse.unquote(sql)
             # 如果解码后有变化，继续处理解码后的内容
@@ -280,36 +281,36 @@ class SQLInjectionDetector:
             pass
 
         # 2. Unicode规范化（处理 \u0027 等）
-        sql = sql.encode('utf-8').decode('unicode_escape') if '\\u' in sql else sql
+        sql = sql.encode("utf-8").decode("unicode_escape") if "\\u" in sql else sql
 
         # 3. 去除单行注释
-        sql = re.sub(r'--[^\n]*', ' ', sql)
+        sql = re.sub(r"--[^\n]*", " ", sql)
 
         # 4. 去除多行注释（但保留MySQL条件注释的内容）
         # MySQL条件注释: /*!50000 SELECT */ 应该保留 SELECT
         def replace_comment(match):
             comment = match.group(0)
             # 检查是否为MySQL条件注释
-            mysql_conditional = re.match(r'/\*!\d*\s*(.+?)\s*\*/', comment, re.DOTALL)
+            mysql_conditional = re.match(r"/\*!\d*\s*(.+?)\s*\*/", comment, re.DOTALL)
             if mysql_conditional:
-                return ' ' + mysql_conditional.group(1) + ' '
-            return ' '
+                return " " + mysql_conditional.group(1) + " "
+            return " "
 
-        sql = re.sub(r'/\*.*?\*/', replace_comment, sql, flags=re.DOTALL)
+        sql = re.sub(r"/\*.*?\*/", replace_comment, sql, flags=re.DOTALL)
 
         # 5. 处理十六进制编码（0x31 → '1'）
         def replace_hex(match):
             try:
                 hex_str = match.group(1)
-                decoded = bytes.fromhex(hex_str).decode('utf-8', errors='ignore')
+                decoded = bytes.fromhex(hex_str).decode("utf-8", errors="ignore")
                 return f"'{decoded}'"
             except Exception:
                 return match.group(0)
 
-        sql = re.sub(r'0x([0-9a-fA-F]+)', replace_hex, sql)
+        sql = re.sub(r"0x([0-9a-fA-F]+)", replace_hex, sql)
 
         # 6. 标准化空格和换行
-        sql = re.sub(r'[\s\n\r\t]+', ' ', sql)
+        sql = re.sub(r"[\s\n\r\t]+", " ", sql)
 
         # 7. 去除首尾空格并转为大写
         return sql.strip().upper()
@@ -323,23 +324,23 @@ class SQLInjectionDetector:
         # 检查是否为标准的INSERT语句
         if sql.startswith("INSERT INTO"):
             # 标准INSERT格式：INSERT INTO table (cols) VALUES (vals)
-            if re.match(r'^INSERT INTO \w+\s*\([^)]+\)\s*VALUES\s*\(', sql):
+            if re.match(r"^INSERT INTO \w+\s*\([^)]+\)\s*VALUES\s*\(", sql):
                 return True
-            if re.match(r'^INSERT INTO \w+\s+VALUES\s*\(', sql):
+            if re.match(r"^INSERT INTO \w+\s+VALUES\s*\(", sql):
                 return True
 
         # 检查是否为标准的UPDATE语句
         if sql.startswith("UPDATE"):
             # 标准UPDATE格式：UPDATE table SET col = val
-            if re.match(r'^UPDATE \w+\s+SET\s+\w+\s*=', sql):
+            if re.match(r"^UPDATE \w+\s+SET\s+\w+\s*=", sql):
                 return True
 
         # 检查是否为标准的SELECT语句
         if sql.startswith("SELECT"):
             # 简单SELECT，没有可疑的UNION或子查询
-            if not re.search(r'\bUNION\b', sql) and not re.search(r'\bOR\s+1\s*=\s*1\b', sql):
+            if not re.search(r"\bUNION\b", sql) and not re.search(r"\bOR\s+1\s*=\s*1\b", sql):
                 # 检查是否有WHERE子句中的异常条件
-                where_match = re.search(r'WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)', sql)
+                where_match = re.search(r"WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)", sql)
                 if where_match:
                     where_clause = where_match.group(1)
                     # 检查单引号数量（0个或偶数个均为正常，奇数个可能表示未闭合）
@@ -367,10 +368,10 @@ class SQLInjectionDetector:
         """
         # 1. 检查UNION注入（包括各种绕过形式）
         union_patterns = [
-            r'\bUNION\s+SELECT\b',
-            r'\bUNION\s+ALL\s+SELECT\b',
-            r'\bUNION\s+DISTINCT\s+SELECT\b',
-            r'\bUNION\s*\(\s*SELECT\b',
+            r"\bUNION\s+SELECT\b",
+            r"\bUNION\s+ALL\s+SELECT\b",
+            r"\bUNION\s+DISTINCT\s+SELECT\b",
+            r"\bUNION\s*\(\s*SELECT\b",
         ]
         for pattern in union_patterns:
             if re.search(pattern, sql, re.IGNORECASE):
@@ -378,7 +379,7 @@ class SQLInjectionDetector:
                     is_injection=True,
                     confidence=0.85,
                     pattern_matched="UNION SELECT",
-                    description="检测到UNION SELECT结构，可能是注入攻击"
+                    description="检测到UNION SELECT结构，可能是注入攻击",
                 )
 
         # 2. 检查布尔盲注（恒真/恒假条件）
@@ -395,20 +396,20 @@ class SQLInjectionDetector:
                     is_injection=True,
                     confidence=0.8,
                     pattern_matched="布尔盲注",
-                    description="检测到布尔盲注模式（恒真条件）"
+                    description="检测到布尔盲注模式（恒真条件）",
                 )
 
         # 3. 检查WHERE子句中的异常逻辑
-        where_match = re.search(r'WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|HAVING|$)', sql, re.IGNORECASE)
+        where_match = re.search(r"WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|HAVING|$)", sql, re.IGNORECASE)
         if where_match:
             where_clause = where_match.group(1)
 
             # 检查异常的逻辑组合
             suspicious_patterns = [
-                r'\bOR\b.*\bOR\b',  # 多个OR
-                r'\bAND\b.*\bAND\b.*\bAND\b',  # 三个以上AND
+                r"\bOR\b.*\bOR\b",  # 多个OR
+                r"\bAND\b.*\bAND\b.*\bAND\b",  # 三个以上AND
                 r"'\s*OR\s*[^'\"]+\s*OR\s*'",  # ' OR something OR '
-                r'\)\s*OR\s*\(',  # ) OR (
+                r"\)\s*OR\s*\(",  # ) OR (
             ]
             for pattern in suspicious_patterns:
                 if re.search(pattern, where_clause, re.IGNORECASE):
@@ -416,42 +417,39 @@ class SQLInjectionDetector:
                         is_injection=True,
                         confidence=0.75,
                         pattern_matched="异常WHERE条件",
-                        description="WHERE子句包含可疑的逻辑组合"
+                        description="WHERE子句包含可疑的逻辑组合",
                     )
 
         # 4. 检查子查询异常
-        subquery_count = len(re.findall(r'\(SELECT', sql, re.IGNORECASE))
+        subquery_count = len(re.findall(r"\(SELECT", sql, re.IGNORECASE))
         if subquery_count > 2:
             return InjectionCheckResult(
                 is_injection=True,
                 confidence=0.7,
                 pattern_matched="多层子查询",
-                description=f"检测到{subquery_count}层子查询，可能是注入攻击"
+                description=f"检测到{subquery_count}层子查询，可能是注入攻击",
             )
 
         # 5. 检查堆叠查询（多语句）
-        statement_count = len(re.findall(r';\s*(?:SELECT|INSERT|UPDATE|DELETE|DROP)', sql, re.IGNORECASE))
+        statement_count = len(re.findall(r";\s*(?:SELECT|INSERT|UPDATE|DELETE|DROP)", sql, re.IGNORECASE))
         if statement_count > 0:
             return InjectionCheckResult(
                 is_injection=True,
                 confidence=0.8,
                 pattern_matched="堆叠查询",
-                description="检测到多个SQL语句，可能是堆叠查询注入"
+                description="检测到多个SQL语句，可能是堆叠查询注入",
             )
 
         # 6. 检查时间盲注函数组合
         time_based_patterns = [
-            r'\bIF\s*\([^)]+\)\s*,\s*\b(?:SLEEP|BENCHMARK|PG_SLEEP)',
-            r'\bCASE\b.*\bWHEN\b.*\bTHEN\b.*\b(?:SLEEP|BENCHMARK)',
-            r'\bIIF\s*\([^)]+\)\s*,\s*\b(?:SLEEP|BENCHMARK)',
+            r"\bIF\s*\([^)]+\)\s*,\s*\b(?:SLEEP|BENCHMARK|PG_SLEEP)",
+            r"\bCASE\b.*\bWHEN\b.*\bTHEN\b.*\b(?:SLEEP|BENCHMARK)",
+            r"\bIIF\s*\([^)]+\)\s*,\s*\b(?:SLEEP|BENCHMARK)",
         ]
         for pattern in time_based_patterns:
             if re.search(pattern, sql, re.IGNORECASE):
                 return InjectionCheckResult(
-                    is_injection=True,
-                    confidence=0.8,
-                    pattern_matched="时间盲注",
-                    description="检测到时间盲注函数组合"
+                    is_injection=True, confidence=0.8, pattern_matched="时间盲注", description="检测到时间盲注函数组合"
                 )
 
         return InjectionCheckResult(False, 0.0, None, "")
@@ -481,7 +479,7 @@ class SQLInjectionDetector:
                 is_injection=True,
                 confidence=0.6,
                 pattern_matched="高熵值",
-                description=f"SQL熵值异常({entropy:.2f})，可能存在编码绕过"
+                description=f"SQL熵值异常({entropy:.2f})，可能存在编码绕过",
             )
 
         return InjectionCheckResult(False, 0.0, None, "")
@@ -500,12 +498,7 @@ class RateLimiter:
             print(f"请等待{status.retry_after}秒")
     """
 
-    def __init__(
-        self,
-        max_requests: int = 60,
-        window_seconds: int = 60,
-        block_duration: int = 300
-    ):
+    def __init__(self, max_requests: int = 60, window_seconds: int = 60, block_duration: int = 300):
         """
         初始化速率限制器
 
@@ -542,12 +535,7 @@ class RateLimiter:
             unblock_time = self._blocked[user_id]
             if now < unblock_time:
                 retry_after = int((unblock_time - now).total_seconds())
-                return RateLimitStatus(
-                    allowed=False,
-                    remaining=0,
-                    reset_time=unblock_time,
-                    retry_after=retry_after
-                )
+                return RateLimitStatus(allowed=False, remaining=0, reset_time=unblock_time, retry_after=retry_after)
             else:
                 # 解封
                 del self._blocked[user_id]
@@ -566,31 +554,19 @@ class RateLimiter:
 
             logger.warning(f"用户 {user_id} 触发速率限制，封禁{self.block_duration}秒")
 
-            return RateLimitStatus(
-                allowed=False,
-                remaining=0,
-                reset_time=unblock_time,
-                retry_after=self.block_duration
-            )
+            return RateLimitStatus(allowed=False, remaining=0, reset_time=unblock_time, retry_after=self.block_duration)
 
         # 记录本次请求
         self._requests[user_id].append((now, operation))
 
         reset_time = now + timedelta(seconds=self.window_seconds)
 
-        return RateLimitStatus(
-            allowed=True,
-            remaining=remaining - 1,
-            reset_time=reset_time
-        )
+        return RateLimitStatus(allowed=True, remaining=remaining - 1, reset_time=reset_time)
 
     def _cleanup_old_requests(self, user_id: str, now: datetime):
         """清理过期的请求记录"""
         cutoff = now - timedelta(seconds=self.window_seconds)
-        self._requests[user_id] = [
-            (ts, op) for ts, op in self._requests[user_id]
-            if ts > cutoff
-        ]
+        self._requests[user_id] = [(ts, op) for ts, op in self._requests[user_id] if ts > cutoff]
 
     def get_stats(self, user_id: str) -> Dict[str, Any]:
         """获取用户统计信息"""
@@ -607,7 +583,7 @@ class RateLimiter:
             "remaining": max(0, self.max_requests - len(requests)),
             "operations": dict(operations),
             "is_blocked": user_id in self._blocked,
-            "unblock_time": self._blocked.get(user_id)
+            "unblock_time": self._blocked.get(user_id),
         }
 
 
@@ -633,7 +609,7 @@ class SecurityChecker:
         enable_injection_detection: Optional[bool] = None,
         enable_rate_limiting: Optional[bool] = None,
         max_requests: Optional[int] = None,
-        window_seconds: Optional[int] = None
+        window_seconds: Optional[int] = None,
     ):
         """
         初始化安全检查器
@@ -677,8 +653,10 @@ class SecurityChecker:
 
         self.sql_parser = SQLParser()
         self.injection_detector = SQLInjectionDetector() if self._enable_injection else None
-        self.rate_limiter = RateLimiter(effective_max_requests, effective_window_seconds) if self._enable_rate_limit else None
-        
+        self.rate_limiter = (
+            RateLimiter(effective_max_requests, effective_window_seconds) if self._enable_rate_limit else None
+        )
+
         # 加载安全配置
         self.security_config = SecurityConfig()
         self.policy = self.security_config.policy
@@ -689,7 +667,7 @@ class SecurityChecker:
         user_id: str = "anonymous",
         operation: str = "QUERY",
         whitelist_tables: Optional[Set[str]] = None,
-        blacklist_tables: Optional[Set[str]] = None
+        blacklist_tables: Optional[Set[str]] = None,
     ) -> Dict[str, Any]:
         """
         执行全面安全检查
@@ -706,11 +684,7 @@ class SecurityChecker:
         """
         # 1. 基础验证
         if not sql or not sql.strip():
-            return {
-                "passed": False,
-                "reason": "SQL语句不能为空",
-                "risk_level": SecurityLevel.CRITICAL
-            }
+            return {"passed": False, "reason": "SQL语句不能为空", "risk_level": SecurityLevel.CRITICAL}
 
         # 2. SQL注入检测
         if self.injection_detector:
@@ -721,7 +695,7 @@ class SecurityChecker:
                     "passed": False,
                     "reason": f"SQL注入检测失败: {injection_result.description}",
                     "risk_level": SecurityLevel.CRITICAL,
-                    "injection_result": injection_result
+                    "injection_result": injection_result,
                 }
 
         # 3. 速率限制检查
@@ -732,18 +706,14 @@ class SecurityChecker:
                     "passed": False,
                     "reason": f"请求过于频繁，请{rate_status.retry_after}秒后重试",
                     "risk_level": SecurityLevel.HIGH,
-                    "rate_limit_status": rate_status
+                    "rate_limit_status": rate_status,
                 }
 
         # 4. 解析SQL
         try:
             parsed = self.sql_parser.parse(sql)
         except Exception as e:
-            return {
-                "passed": False,
-                "reason": f"SQL解析失败: {str(e)}",
-                "risk_level": SecurityLevel.HIGH
-            }
+            return {"passed": False, "reason": f"SQL解析失败: {str(e)}", "risk_level": SecurityLevel.HIGH}
 
         # 5. 表级权限检查
         if parsed.tables:
@@ -755,7 +725,7 @@ class SecurityChecker:
                         return {
                             "passed": False,
                             "reason": f"表 '{table}' 在黑名单中，禁止操作",
-                            "risk_level": SecurityLevel.CRITICAL
+                            "risk_level": SecurityLevel.CRITICAL,
                         }
 
             # 检查白名单
@@ -766,7 +736,7 @@ class SecurityChecker:
                         return {
                             "passed": False,
                             "reason": f"表 '{table}' 不在白名单中，禁止操作",
-                            "risk_level": SecurityLevel.CRITICAL
+                            "risk_level": SecurityLevel.CRITICAL,
                         }
 
         # 6. 危险操作检测
@@ -778,13 +748,13 @@ class SecurityChecker:
             "risk_level": risk_result["level"],
             "risk_description": risk_result["description"],
             "parsed_sql": parsed,
-            "is_read_only": parsed.is_read_only
+            "is_read_only": parsed.is_read_only,
         }
 
     def _assess_risk(self, parsed: ParsedSQL) -> Dict[str, Any]:
         """评估风险等级"""
         sql_type = parsed.sql_type
-        
+
         # 检查是否在禁止操作列表中
         operation_name = sql_type.value.upper()
         if self.policy.is_blocked(operation_name):
@@ -823,11 +793,7 @@ class SecurityChecker:
 
 
 # 便捷函数
-def check_sql(
-    sql: str,
-    user_id: str = "anonymous",
-    **kwargs
-) -> Dict[str, Any]:
+def check_sql(sql: str, user_id: str = "anonymous", **kwargs) -> Dict[str, Any]:
     """
     快速检查SQL的便捷函数
 

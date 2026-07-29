@@ -38,9 +38,7 @@ import statistics
 
 from dbskiter.shared.unified_connector import UnifiedConnector
 from dbskiter.shared.sql_fingerprint import SQLFingerprinter, FingerprintResult
-from dbskiter.shared.slow_log_parser import (
-    MySQLSlowLogParser, ParsedSlowQuery, QueryAggregator, QueryPattern
-)
+from dbskiter.shared.slow_log_parser import MySQLSlowLogParser, ParsedSlowQuery, QueryAggregator, QueryPattern
 from dbskiter.shared.mysql_slow_query_collector import MySQLSlowQueryCollector
 
 logger = logging.getLogger(__name__)
@@ -69,12 +67,13 @@ class QueryPatternStats:
         last_seen: 最后出现时间
         time_distribution: 时间分布（按小时）
     """
+
     fingerprint: str
     sql_pattern: str
     count: int = 0
     total_time: float = 0.0
     avg_time: float = 0.0
-    min_time: float = float('inf')
+    min_time: float = float("inf")
     max_time: float = 0.0
     p95_time: float = 0.0
     p99_time: float = 0.0
@@ -104,6 +103,7 @@ class SlowQueryReport:
         hourly_distribution: 小时级分布
         recommendations: 优化建议
     """
+
     total_queries: int = 0
     unique_patterns: int = 0
     total_time: float = 0.0
@@ -118,30 +118,30 @@ class SlowQueryReport:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典格式"""
         return {
-            'summary': {
-                'total_queries': self.total_queries,
-                'unique_patterns': self.unique_patterns,
-                'total_time': round(self.total_time, 2),
-                'avg_time': round(self.avg_time, 3),
-                'time_range': [
+            "summary": {
+                "total_queries": self.total_queries,
+                "unique_patterns": self.unique_patterns,
+                "total_time": round(self.total_time, 2),
+                "avg_time": round(self.avg_time, 3),
+                "time_range": [
                     self.time_range[0].isoformat() if self.time_range[0] else None,
-                    self.time_range[1].isoformat() if self.time_range[1] else None
-                ]
+                    self.time_range[1].isoformat() if self.time_range[1] else None,
+                ],
             },
-            'top_patterns': [
+            "top_patterns": [
                 {
-                    'fingerprint': p.fingerprint,
-                    'sql_pattern': p.sql_pattern,
-                    'count': p.count,
-                    'total_time': round(p.total_time, 2),
-                    'avg_time': round(p.avg_time, 3),
-                    'p95_time': round(p.p95_time, 3),
-                    'rows_examined': p.total_rows_examined,
-                    'rows_sent': p.total_rows_sent
+                    "fingerprint": p.fingerprint,
+                    "sql_pattern": p.sql_pattern,
+                    "count": p.count,
+                    "total_time": round(p.total_time, 2),
+                    "avg_time": round(p.avg_time, 3),
+                    "p95_time": round(p.p95_time, 3),
+                    "rows_examined": p.total_rows_examined,
+                    "rows_sent": p.total_rows_sent,
                 }
                 for p in self.top_patterns[:10]
             ],
-            'recommendations': self.recommendations
+            "recommendations": self.recommendations,
         }
 
 
@@ -168,8 +168,7 @@ class SlowQueryAnalyzer:
         self.log_parser = MySQLSlowLogParser()
         self.realtime_collector = MySQLSlowQueryCollector(connector)
 
-    def analyze_realtime(self, limit: int = 20,
-                         min_time: float = 1.0) -> SlowQueryReport:
+    def analyze_realtime(self, limit: int = 20, min_time: float = 1.0) -> SlowQueryReport:
         """
         分析实时慢查询
 
@@ -183,39 +182,41 @@ class SlowQueryAnalyzer:
         logger.info(f"开始分析实时慢查询（limit={limit}, min_time={min_time}s）")
 
         # 采集慢查询
-        queries = self.realtime_collector.collect_slow_queries(
-            limit=limit,
-            min_time=min_time
-        )
+        queries = self.realtime_collector.collect_slow_queries(limit=limit, min_time=min_time)
 
         if not queries:
             return SlowQueryReport(
-                recommendations=["未采集到慢查询，请检查：\n"
-                               "1. performance_schema是否启用\n"
-                               "2. long_query_time配置\n"
-                               "3. 是否有慢查询产生"]
+                recommendations=[
+                    "未采集到慢查询，请检查：\n"
+                    "1. performance_schema是否启用\n"
+                    "2. long_query_time配置\n"
+                    "3. 是否有慢查询产生"
+                ]
             )
 
         # 转换为ParsedSlowQuery格式
         parsed_queries = []
         for q in queries:
             parsed = ParsedSlowQuery(
-                sql=getattr(q, 'sql', '') or getattr(q, 'sql_text', ''),
+                sql=getattr(q, "sql", "") or getattr(q, "sql_text", ""),
                 query_time=q.query_time,
                 rows_examined=q.rows_examined,
                 rows_sent=q.rows_sent,
-                first_seen=getattr(q, 'first_seen', None),
-                last_seen=getattr(q, 'last_seen', None),
-                db=getattr(q, 'database', None) or getattr(q, 'db', None)
+                first_seen=getattr(q, "first_seen", None),
+                last_seen=getattr(q, "last_seen", None),
+                db=getattr(q, "database", None) or getattr(q, "db", None),
             )
             parsed_queries.append(parsed)
 
         return self._analyze_queries(parsed_queries)
 
-    def analyze_log_file(self, file_path: str,
-                         since: Optional[Union[str, datetime]] = None,
-                         until: Optional[datetime] = None,
-                         min_time: float = 0.0) -> SlowQueryReport:
+    def analyze_log_file(
+        self,
+        file_path: str,
+        since: Optional[Union[str, datetime]] = None,
+        until: Optional[datetime] = None,
+        min_time: float = 0.0,
+    ) -> SlowQueryReport:
         """
         分析慢查询日志文件
 
@@ -241,9 +242,9 @@ class SlowQueryAnalyzer:
 
         if not queries:
             return SlowQueryReport(
-                recommendations=[f"未在日志中找到符合条件的慢查询\n"
-                               f"文件: {file_path}\n"
-                               f"时间范围: {since_dt} ~ {until}"]
+                recommendations=[
+                    f"未在日志中找到符合条件的慢查询\n" f"文件: {file_path}\n" f"时间范围: {since_dt} ~ {until}"
+                ]
             )
 
         return self._analyze_queries(queries)
@@ -258,10 +259,10 @@ class SlowQueryAnalyzer:
 
         if isinstance(since, str):
             # 支持相对时间格式：1h, 24h, 7d
-            if since.endswith('h'):
+            if since.endswith("h"):
                 hours = int(since[:-1])
                 return datetime.now() - timedelta(hours=hours)
-            elif since.endswith('d'):
+            elif since.endswith("d"):
                 days = int(since[:-1])
                 return datetime.now() - timedelta(days=days)
             else:
@@ -322,13 +323,12 @@ class SlowQueryAnalyzer:
             patterns_by_count=sorted(patterns, key=lambda x: x.count, reverse=True)[:10],
             patterns_by_avg_time=sorted(patterns, key=lambda x: x.avg_time, reverse=True)[:10],
             hourly_distribution=dict(hourly_dist),
-            recommendations=self._generate_recommendations(patterns)
+            recommendations=self._generate_recommendations(patterns),
         )
 
         return report
 
-    def _calculate_pattern_stats(self, fingerprint: str,
-                                  queries: List[ParsedSlowQuery]) -> QueryPatternStats:
+    def _calculate_pattern_stats(self, fingerprint: str, queries: List[ParsedSlowQuery]) -> QueryPatternStats:
         """计算查询模式的统计信息"""
         times = [q.query_time for q in queries]
         rows_examined = [q.rows_examined for q in queries]
@@ -344,7 +344,7 @@ class SlowQueryAnalyzer:
                 time_dist[q.timestamp.hour] += 1
 
         # 获取SQL示例
-        sql_example = queries[0].sql[:200] if queries else ''
+        sql_example = queries[0].sql[:200] if queries else ""
 
         return QueryPatternStats(
             fingerprint=fingerprint,
@@ -362,7 +362,7 @@ class SlowQueryAnalyzer:
             total_rows_sent=sum(q.rows_sent for q in queries),
             first_seen=min((q.timestamp for q in queries if q.timestamp), default=None),
             last_seen=max((q.timestamp for q in queries if q.timestamp), default=None),
-            time_distribution=dict(time_dist)
+            time_distribution=dict(time_dist),
         )
 
     def _percentile(self, data: List[float], percentile: int) -> float:
@@ -389,8 +389,7 @@ class SlowQueryAnalyzer:
         top_by_time = sorted(patterns, key=lambda x: x.total_time, reverse=True)[:3]
 
         # 检查全表扫描
-        full_scan_patterns = [p for p in patterns
-                             if p.avg_rows_examined > 10000 and p.avg_rows_sent < 100]
+        full_scan_patterns = [p for p in patterns if p.avg_rows_examined > 10000 and p.avg_rows_sent < 100]
         if full_scan_patterns:
             recommendations.append(
                 f"发现{len(full_scan_patterns)}个疑似全表扫描的查询模式，"
@@ -401,8 +400,7 @@ class SlowQueryAnalyzer:
         high_freq = [p for p in patterns if p.count > 100]
         if high_freq:
             recommendations.append(
-                f"发现{len(high_freq)}个高频查询模式，"
-                f"建议优化: {high_freq[0].sql_pattern[:80]}..."
+                f"发现{len(high_freq)}个高频查询模式，" f"建议优化: {high_freq[0].sql_pattern[:80]}..."
             )
 
         # 检查慢查询

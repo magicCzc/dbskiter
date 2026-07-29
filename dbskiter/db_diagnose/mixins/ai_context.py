@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Set, Tuple
 
@@ -30,11 +31,7 @@ from dbskiter.shared.error_handler import (
 class AiContextMixin:
     """ai_context for DiagnoseSkill"""
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "diagnose"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "diagnose") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -57,7 +54,7 @@ class AiContextMixin:
 
         builder = AIContextBuilder(
             dialect=self.dialect,
-            database_name=getattr(self.connector, 'database', ''),
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -80,12 +77,7 @@ class AiContextMixin:
             "inspection_trace": inspection_trace,
         }
 
-
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建诊断透明度追踪信息
 
@@ -98,18 +90,20 @@ class AiContextMixin:
         返回:
             Dict[str, Any]: 追踪信息，包含 metrics_checked / data_sources / confidence
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         if scenario == "slow_query":
             trace["metrics_checked"] = [
-                {"name": "slow_queries", "description": "执行时间超过阈值的SQL", "source": "performance_schema / slow log"},
-                {"name": "query_time", "description": "SQL执行耗时", "source": "performance_schema.events_statements_history_long"},
+                {
+                    "name": "slow_queries",
+                    "description": "执行时间超过阈值的SQL",
+                    "source": "performance_schema / slow log",
+                },
+                {
+                    "name": "query_time",
+                    "description": "SQL执行耗时",
+                    "source": "performance_schema.events_statements_history_long",
+                },
                 {"name": "execution_plan", "description": "执行计划分析", "source": "EXPLAIN 输出"},
             ]
             trace["data_sources"] = ["performance_schema", "slow_query_log"]
@@ -155,31 +149,22 @@ class AiContextMixin:
             trace["data_sources"] = ["performance_schema", "status_variables"]
 
         else:
-            trace["metrics_checked"] = [
-                {"name": "general_status", "description": "通用状态指标", "source": "自动检测"}
-            ]
+            trace["metrics_checked"] = [{"name": "general_status", "description": "通用状态指标", "source": "自动检测"}]
             trace["data_sources"] = ["auto_detection"]
             trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
 
         return trace
-
 
     def _has_external_monitor(self) -> bool:
         """检查是否使用了外部监控源"""
         # 简化的检测逻辑，实际可根据配置判断
         return False
 
-
     def _get_monitor_source(self) -> str:
         """获取当前使用的监控源名称"""
         return "直连数据库"
 
-
-    def _extract_raw_metrics_for_ai(
-        self,
-        data: Dict[str, Any],
-        scenario: str
-    ) -> Dict[str, Any]:
+    def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """
         从Skill结果中提取原始指标数据
 
@@ -197,7 +182,9 @@ class AiContextMixin:
             # 从data中提取慢查询数据（支持多种字段名）
             slow_queries = data.get("queries", data.get("slow_queries", []))
             metrics["slow_queries"] = slow_queries
-            metrics["slow_queries_count"] = data.get("total_queries", len(slow_queries) if isinstance(slow_queries, list) else 0)
+            metrics["slow_queries_count"] = data.get(
+                "total_queries", len(slow_queries) if isinstance(slow_queries, list) else 0
+            )
             metrics["unique_patterns"] = data.get("unique_patterns", 0)
             if isinstance(slow_queries, list) and slow_queries:
                 times = [q.get("query_time", q.get("execution_time", 0)) for q in slow_queries if isinstance(q, dict)]
@@ -285,12 +272,7 @@ class AiContextMixin:
 
         return metrics
 
-
-    def _extract_rule_flags_for_ai(
-        self,
-        data: Dict[str, Any],
-        scenario: str
-    ) -> Dict[str, Any]:
+    def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """
         从Skill结果中提取规则初筛标记
 
@@ -321,17 +303,16 @@ class AiContextMixin:
                     "reason": bp.get("description", bp.get("suggestion", "")),
                 }
 
-        return {
-            "_disclaimer": "规则初筛结果仅供参考，请结合上下文判断是否为真正问题",
-            "flags": flags,
-        } if flags else {"_disclaimer": "规则初筛结果仅供参考", "flags": {}}
+        return (
+            {
+                "_disclaimer": "规则初筛结果仅供参考，请结合上下文判断是否为真正问题",
+                "flags": flags,
+            }
+            if flags
+            else {"_disclaimer": "规则初筛结果仅供参考", "flags": {}}
+        )
 
-
-    def _build_context_for_ai(
-        self,
-        builder: "AIContextBuilder",
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_context_for_ai(self, builder: "AIContextBuilder", data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建业务上下文
 
@@ -350,7 +331,6 @@ class AiContextMixin:
             ctx["workload_context"] = data["workload_context"]
 
         return ctx
-
 
     def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
         """
@@ -437,12 +417,7 @@ class AiContextMixin:
 
         return references
 
-
-    def _build_ai_hints(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建AI分析提示
 
@@ -458,7 +433,7 @@ class AiContextMixin:
             "related_commands": [],
         }
 
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         if scenario in ("slow_query", "diagnose"):
             hints["focus_areas"] = ["slow_query_patterns", "query_performance", "index_coverage"]
@@ -554,33 +529,27 @@ class AiContextMixin:
 
         issues = data.get("issues", [])
         if issues:
-            hints["additional_notes"] = [
-                f"规则检测到 {len(issues)} 个潜在问题，请结合上下文判断严重程度"
-            ]
+            hints["additional_notes"] = [f"规则检测到 {len(issues)} 个潜在问题，请结合上下文判断严重程度"]
 
         return hints
-
 
     def close(self):
         """关闭Skill，释放资源"""
         logger.info("关闭 DiagnoseSkill...")
         # 关闭子组件（如有 close 方法）
-        for attr in ('fingerprinter', 'issue_classifier', 'table_analyzer', 'sql_analyzer'):
+        for attr in ("fingerprinter", "issue_classifier", "table_analyzer", "sql_analyzer"):
             comp = getattr(self, attr, None)
-            if comp and hasattr(comp, 'close'):
+            if comp and hasattr(comp, "close"):
                 try:
                     comp.close()
                 except Exception as e:
                     logger.debug(f"关闭 {attr} 失败: {e}")
         # 关闭底层连接器
-        if self.connector and hasattr(self.connector, 'close'):
+        if self.connector and hasattr(self.connector, "close"):
             try:
                 self.connector.close()
             except Exception as e:
                 logger.debug(f"关闭 connector 失败: {e}")
         logger.info("DiagnoseSkill 已关闭")
 
-
     # ==================== 新增: 实时诊断方法 (P0高频场景) ====================
-
-

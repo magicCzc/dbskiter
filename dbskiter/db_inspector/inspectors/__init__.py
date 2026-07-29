@@ -14,14 +14,14 @@ from .sqlite_inspector import SQLiteInspector
 from .generic_inspector import GenericInspector
 
 __all__ = [
-    'BaseInspector',
-    'MySQLInspector',
-    'OracleInspector',
-    'PostgreSQLInspector',
-    'MSSQLInspector',
-    'ClickHouseInspector',
-    'SQLiteInspector',
-    'GenericInspector',
+    "BaseInspector",
+    "MySQLInspector",
+    "OracleInspector",
+    "PostgreSQLInspector",
+    "MSSQLInspector",
+    "ClickHouseInspector",
+    "SQLiteInspector",
+    "GenericInspector",
 ]
 
 
@@ -42,17 +42,17 @@ def get_inspector(dialect: str, connector):
     """
     dialect = dialect.lower()
 
-    if 'mysql' in dialect:
+    if "mysql" in dialect:
         return MySQLInspector(connector)
-    elif 'oracle' in dialect:
+    elif "oracle" in dialect:
         return OracleInspector(connector)
-    elif 'postgresql' in dialect:
+    elif "postgresql" in dialect:
         return PostgreSQLInspector(connector)
-    elif 'mssql' in dialect or 'sqlserver' in dialect:
+    elif "mssql" in dialect or "sqlserver" in dialect:
         return MSSQLInspector(connector)
-    elif 'clickhouse' in dialect:
+    elif "clickhouse" in dialect:
         return ClickHouseInspector(connector)
-    elif 'sqlite' in dialect:
+    elif "sqlite" in dialect:
         return SQLiteInspector(connector)
     else:
         # 默认使用通用巡检器

@@ -58,6 +58,7 @@ class ParsedSlowQuery:
         fingerprint: SQL指纹（归一化后）
         query_id: 查询ID（如果存在）
     """
+
     sql: str
     query_time: float = 0.0
     lock_time: float = 0.0
@@ -90,12 +91,13 @@ class QueryPattern:
         first_seen: 首次出现时间
         last_seen: 最后出现时间
     """
+
     fingerprint: str
     sql_pattern: str
     count: int = 0
     total_time: float = 0.0
     avg_time: float = 0.0
-    min_time: float = float('inf')
+    min_time: float = float("inf")
     max_time: float = 0.0
     p95_time: float = 0.0
     total_rows_examined: int = 0
@@ -111,7 +113,7 @@ class SlowLogParser(ABC):
     提供通用的日志解析框架，具体实现由子类完成
     """
 
-    def __init__(self, encoding: str = 'utf-8', errors: str = 'replace'):
+    def __init__(self, encoding: str = "utf-8", errors: str = "replace"):
         """
         初始化解析器
 
@@ -125,9 +127,9 @@ class SlowLogParser(ABC):
         self._error_count = 0
 
     @abstractmethod
-    def parse_file(self, file_path: str,
-                   since: Optional[datetime] = None,
-                   until: Optional[datetime] = None) -> Iterator[ParsedSlowQuery]:
+    def parse_file(
+        self, file_path: str, since: Optional[datetime] = None, until: Optional[datetime] = None
+    ) -> Iterator[ParsedSlowQuery]:
         """
         解析日志文件
 
@@ -156,17 +158,14 @@ class SlowLogParser(ABC):
         if not path.exists():
             raise FileNotFoundError(f"日志文件不存在: {file_path}")
 
-        if file_path.endswith('.gz'):
-            return gzip.open(file_path, 'rt', encoding=self.encoding, errors=self.errors)
+        if file_path.endswith(".gz"):
+            return gzip.open(file_path, "rt", encoding=self.encoding, errors=self.errors)
         else:
-            return open(file_path, 'r', encoding=self.encoding, errors=self.errors)
+            return open(file_path, "r", encoding=self.encoding, errors=self.errors)
 
     def get_stats(self) -> Dict[str, int]:
         """获取解析统计信息"""
-        return {
-            'parsed_count': self._parsed_count,
-            'error_count': self._error_count
-        }
+        return {"parsed_count": self._parsed_count, "error_count": self._error_count}
 
 
 class MySQLSlowLogParser(SlowLogParser):
@@ -186,22 +185,17 @@ class MySQLSlowLogParser(SlowLogParser):
     """
 
     # 正则表达式模式
-    TIME_PATTERN = re.compile(
-        r'# Time:\s*(\d{4}-\d{2}-\d{2}T?\s*\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)'
-    )
-    USER_HOST_PATTERN = re.compile(
-        r'# User@Host:\s*(\S+)\[\S+\]\s+@\s+(\S+)\s*\[.*?\]'
-    )
+    TIME_PATTERN = re.compile(r"# Time:\s*(\d{4}-\d{2}-\d{2}T?\s*\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?)")
+    USER_HOST_PATTERN = re.compile(r"# User@Host:\s*(\S+)\[\S+\]\s+@\s+(\S+)\s*\[.*?\]")
     QUERY_TIME_PATTERN = re.compile(
-        r'# Query_time:\s*([\d.]+)\s+Lock_time:\s*([\d.]+)\s+'
-        r'Rows_sent:\s*(\d+)\s+Rows_examined:\s*(\d+)'
+        r"# Query_time:\s*([\d.]+)\s+Lock_time:\s*([\d.]+)\s+" r"Rows_sent:\s*(\d+)\s+Rows_examined:\s*(\d+)"
     )
-    TIMESTAMP_PATTERN = re.compile(r'SET timestamp=(\d+)')
-    USE_DB_PATTERN = re.compile(r'use\s+(\w+)', re.IGNORECASE)
+    TIMESTAMP_PATTERN = re.compile(r"SET timestamp=(\d+)")
+    USE_DB_PATTERN = re.compile(r"use\s+(\w+)", re.IGNORECASE)
 
-    def parse_file(self, file_path: str,
-                   since: Optional[datetime] = None,
-                   until: Optional[datetime] = None) -> Iterator[ParsedSlowQuery]:
+    def parse_file(
+        self, file_path: str, since: Optional[datetime] = None, until: Optional[datetime] = None
+    ) -> Iterator[ParsedSlowQuery]:
         """
         解析MySQL慢查询日志文件
 
@@ -216,9 +210,9 @@ class MySQLSlowLogParser(SlowLogParser):
         with self._open_file(file_path) as f:
             yield from self._parse_lines(f, since, until)
 
-    def _parse_lines(self, lines: Iterator[str],
-                     since: Optional[datetime],
-                     until: Optional[datetime]) -> Iterator[ParsedSlowQuery]:
+    def _parse_lines(
+        self, lines: Iterator[str], since: Optional[datetime], until: Optional[datetime]
+    ) -> Iterator[ParsedSlowQuery]:
         """
         逐行解析日志
 
@@ -251,7 +245,7 @@ class MySQLSlowLogParser(SlowLogParser):
                         self._parsed_count += 1
 
                 # 开始新条目
-                current_entry = {'time_str': time_match.group(1)}
+                current_entry = {"time_str": time_match.group(1)}
                 sql_lines = []
                 in_sql = False
                 continue
@@ -259,33 +253,33 @@ class MySQLSlowLogParser(SlowLogParser):
             # 解析User@Host
             user_match = self.USER_HOST_PATTERN.match(line)
             if user_match:
-                current_entry['user'] = user_match.group(1)
-                current_entry['host'] = user_match.group(2)
+                current_entry["user"] = user_match.group(1)
+                current_entry["host"] = user_match.group(2)
                 continue
 
             # 解析Query_time等
             query_match = self.QUERY_TIME_PATTERN.match(line)
             if query_match:
-                current_entry['query_time'] = float(query_match.group(1))
-                current_entry['lock_time'] = float(query_match.group(2))
-                current_entry['rows_sent'] = int(query_match.group(3))
-                current_entry['rows_examined'] = int(query_match.group(4))
+                current_entry["query_time"] = float(query_match.group(1))
+                current_entry["lock_time"] = float(query_match.group(2))
+                current_entry["rows_sent"] = int(query_match.group(3))
+                current_entry["rows_examined"] = int(query_match.group(4))
                 continue
 
             # 解析SET timestamp
             ts_match = self.TIMESTAMP_PATTERN.match(line)
             if ts_match:
-                current_entry['timestamp'] = int(ts_match.group(1))
+                current_entry["timestamp"] = int(ts_match.group(1))
                 continue
 
             # 解析use database
             db_match = self.USE_DB_PATTERN.match(line)
             if db_match:
-                current_entry['db'] = db_match.group(1)
+                current_entry["db"] = db_match.group(1)
                 continue
 
             # SQL语句（不以#开头）
-            if not line.startswith('#') and not line.startswith('/'):
+            if not line.startswith("#") and not line.startswith("/"):
                 sql_lines.append(line)
                 in_sql = True
 
@@ -308,27 +302,27 @@ class MySQLSlowLogParser(SlowLogParser):
             ParsedSlowQuery对象或None
         """
         try:
-            sql = ' '.join(sql_lines).strip()
-            if not sql or sql.startswith('SET timestamp='):
+            sql = " ".join(sql_lines).strip()
+            if not sql or sql.startswith("SET timestamp="):
                 return None
 
             # 解析时间戳
             timestamp = None
-            if 'timestamp' in entry:
-                timestamp = datetime.fromtimestamp(entry['timestamp'])
-            elif 'time_str' in entry:
-                timestamp = self._parse_time(entry['time_str'])
+            if "timestamp" in entry:
+                timestamp = datetime.fromtimestamp(entry["timestamp"])
+            elif "time_str" in entry:
+                timestamp = self._parse_time(entry["time_str"])
 
             return ParsedSlowQuery(
                 sql=sql,
-                query_time=entry.get('query_time', 0.0),
-                lock_time=entry.get('lock_time', 0.0),
-                rows_sent=entry.get('rows_sent', 0),
-                rows_examined=entry.get('rows_examined', 0),
+                query_time=entry.get("query_time", 0.0),
+                lock_time=entry.get("lock_time", 0.0),
+                rows_sent=entry.get("rows_sent", 0),
+                rows_examined=entry.get("rows_examined", 0),
                 timestamp=timestamp,
-                user=entry.get('user'),
-                host=entry.get('host'),
-                db=entry.get('db')
+                user=entry.get("user"),
+                host=entry.get("host"),
+                db=entry.get("db"),
             )
         except Exception as e:
             logger.debug(f"构建查询对象失败: {e}")
@@ -338,9 +332,9 @@ class MySQLSlowLogParser(SlowLogParser):
     def _parse_time(self, time_str: str) -> Optional[datetime]:
         """解析时间字符串"""
         formats = [
-            '%Y-%m-%dT%H:%M:%S.%fZ',
-            '%Y-%m-%d %H:%M:%S',
-            '%y%m%d %H:%M:%S',
+            "%Y-%m-%dT%H:%M:%S.%fZ",
+            "%Y-%m-%d %H:%M:%S",
+            "%y%m%d %H:%M:%S",
         ]
         for fmt in formats:
             try:
@@ -349,9 +343,7 @@ class MySQLSlowLogParser(SlowLogParser):
                 continue
         return None
 
-    def _filter_by_time(self, query: ParsedSlowQuery,
-                        since: Optional[datetime],
-                        until: Optional[datetime]) -> bool:
+    def _filter_by_time(self, query: ParsedSlowQuery, since: Optional[datetime], until: Optional[datetime]) -> bool:
         """按时间过滤"""
         if not query.timestamp:
             return True
@@ -387,8 +379,7 @@ class QueryAggregator:
 
         if fingerprint not in self.patterns:
             self.patterns[fingerprint] = QueryPattern(
-                fingerprint=fingerprint,
-                sql_pattern=query.sql[:200] if len(query.sql) > 200 else query.sql
+                fingerprint=fingerprint, sql_pattern=query.sql[:200] if len(query.sql) > 200 else query.sql
             )
 
         pattern = self.patterns[fingerprint]
@@ -411,8 +402,7 @@ class QueryAggregator:
             if pattern.count > 0:
                 pattern.avg_time = pattern.total_time / pattern.count
 
-    def get_top_patterns(self, n: int = 10,
-                         sort_by: str = 'total_time') -> List[QueryPattern]:
+    def get_top_patterns(self, n: int = 10, sort_by: str = "total_time") -> List[QueryPattern]:
         """
         获取TOP N查询模式
 
@@ -426,9 +416,9 @@ class QueryAggregator:
         patterns = list(self.patterns.values())
 
         sort_key = {
-            'total_time': lambda x: x.total_time,
-            'count': lambda x: x.count,
-            'avg_time': lambda x: x.avg_time,
+            "total_time": lambda x: x.total_time,
+            "count": lambda x: x.count,
+            "avg_time": lambda x: x.avg_time,
         }.get(sort_by, lambda x: x.total_time)
 
         patterns.sort(key=sort_key, reverse=True)
@@ -437,16 +427,11 @@ class QueryAggregator:
     def get_summary(self) -> Dict[str, Any]:
         """获取汇总统计"""
         if not self.patterns:
-            return {
-                'total_queries': 0,
-                'unique_patterns': 0,
-                'total_time': 0.0,
-                'avg_time': 0.0
-            }
+            return {"total_queries": 0, "unique_patterns": 0, "total_time": 0.0, "avg_time": 0.0}
 
         return {
-            'total_queries': self.total_queries,
-            'unique_patterns': len(self.patterns),
-            'total_time': self.total_time,
-            'avg_time': self.total_time / self.total_queries if self.total_queries > 0 else 0.0
+            "total_queries": self.total_queries,
+            "unique_patterns": len(self.patterns),
+            "total_time": self.total_time,
+            "avg_time": self.total_time / self.total_queries if self.total_queries > 0 else 0.0,
         }

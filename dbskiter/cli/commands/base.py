@@ -19,9 +19,9 @@ from ..config import Config
 from ..output import OutputFormatter
 from ..exceptions import CommandError
 
-
 try:
     from dbskiter.sql_master.audit_logger import AuditLogger, OperationStatus, StorageBackend
+
     _HAS_AUDIT = True
 except ImportError:
     _HAS_AUDIT = False
@@ -33,9 +33,10 @@ command_registry: Dict[str, Type["BaseCommand"]] = {}
 class CommandMeta(ABCMeta):
     """
     命令元类
-    
+
     自动注册命令到注册表（继承 ABCMeta 避免元类冲突）
     """
+
     def __new__(mcs, name, bases, namespace):
         cls = super().__new__(mcs, name, bases, namespace)
         # 不注册基类
@@ -47,30 +48,30 @@ class CommandMeta(ABCMeta):
 class BaseCommand(metaclass=CommandMeta):
     """
     命令基类
-    
+
     所有 CLI 命令的基类，定义统一接口
-    
+
     属性:
         name: 命令名称
         description: 命令描述
         help_text: 帮助文本
-    
+
     用法:
         >>> class MyCommand(BaseCommand):
         ...     name = "mycommand"
         ...     description = "My command"
-        ...     
+        ...
         ...     def add_arguments(self, parser):
         ...         parser.add_argument("--option")
-        ...     
+        ...
         ...     def execute(self):
         ...         self.output.print("Hello!")
     """
-    
+
     name: str = ""
     description: str = ""
     help_text: str = ""
-    
+
     def __init__(self, config: Config, output: OutputFormatter, args: Namespace):
         """
         初始化命令
@@ -94,10 +95,7 @@ class BaseCommand(metaclass=CommandMeta):
         if not _HAS_AUDIT:
             return None
         try:
-            audit_path = os.getenv(
-                "DBSKITER_AUDIT_PATH",
-                str(Path.home() / ".dbskiter" / "audit" / "audit.db")
-            )
+            audit_path = os.getenv("DBSKITER_AUDIT_PATH", str(Path.home() / ".dbskiter" / "audit" / "audit.db"))
             Path(audit_path).parent.mkdir(parents=True, exist_ok=True)
             backend_str = os.getenv("DBSKITER_AUDIT_BACKEND", "sqlite")
             backend = StorageBackend(backend_str)
@@ -106,10 +104,7 @@ class BaseCommand(metaclass=CommandMeta):
             return None
 
     def _record_audit(
-        self,
-        status: str,
-        error_message: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        self, status: str, error_message: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
     ) -> None:
         """记录命令执行审计日志（失败不阻断）"""
         if not self._audit_logger:
@@ -143,17 +138,17 @@ class BaseCommand(metaclass=CommandMeta):
                     "exit_code": 0 if status == "EXECUTED" else 1,
                     "error_message": error_message,
                     "execution_time_ms": duration_ms,
-                    **(metadata or {})
-                }
+                    **(metadata or {}),
+                },
             )
         except Exception:
             pass
-    
+
     @property
     def connector(self):
         """
         获取数据库连接器（延迟加载）
-        
+
         返回:
             UnifiedConnector 或 MockConnector: 数据库连接器
         """
@@ -161,10 +156,11 @@ class BaseCommand(metaclass=CommandMeta):
             # Demo/Mock 模式
             if getattr(self.args, "demo", False) or self.config.dialect == "mock":
                 from dbskiter.shared.mock_connector import MockConnector
+
                 self._connector = MockConnector()
             else:
                 from dbskiter.shared.unified_connector import UnifiedConnector
-                
+
                 # 使用配置中的数据库连接信息（支持--database参数覆盖）
                 # 传递 extra 参数（包含 Oracle service_name 和 jdbc_driver_path 等）
                 self._connector = UnifiedConnector(
@@ -174,35 +170,35 @@ class BaseCommand(metaclass=CommandMeta):
                     username=self.config.username,
                     password=self.config.password,
                     database=self.config.database,
-                    **self.config.extra
+                    **self.config.extra,
                 )
-            
+
         return self._connector
-    
+
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """
         添加命令参数
-        
+
         子类可重写此方法添加自定义参数
-        
+
         参数:
             parser: 参数解析器
         """
         pass
-    
+
     @abstractmethod
     def execute(self) -> int:
         """
         执行命令
-        
+
         子类必须实现此方法
-        
+
         返回:
             int: 退出码，0 表示成功
         """
         raise NotImplementedError
-    
+
     def run(self) -> int:
         """
         运行命令（包装 execute）
@@ -234,11 +230,11 @@ class BaseCommand(metaclass=CommandMeta):
             return 1
         finally:
             self.cleanup()
-    
+
     def cleanup(self) -> None:
         """
         清理资源
-        
+
         子类可重写此方法进行资源清理
         """
         if self._connector:
@@ -246,15 +242,15 @@ class BaseCommand(metaclass=CommandMeta):
                 self._connector.close()
             except Exception:
                 pass
-    
+
     def print_header(self, title: str) -> None:
         """打印命令头"""
         self.output.header(f"{self.description} - {self.config.database}")
-    
+
     def require_connector(self) -> None:
         """
         确保数据库连接可用
-        
+
         异常:
             CommandError: 连接失败时抛出
         """
@@ -271,7 +267,7 @@ class BaseCommand(metaclass=CommandMeta):
         返回:
             str: 输出模式 (rule/raw/ai)
         """
-        return getattr(self.args, 'output_mode', 'rule')
+        return getattr(self.args, "output_mode", "rule")
 
     @property
     def ai_depth(self) -> str:
@@ -281,7 +277,7 @@ class BaseCommand(metaclass=CommandMeta):
         返回:
             str: 详细程度 (summary/detail/full)
         """
-        return getattr(self.args, 'ai_depth', 'detail')
+        return getattr(self.args, "ai_depth", "detail")
 
     @property
     def show_trace(self) -> bool:
@@ -291,7 +287,7 @@ class BaseCommand(metaclass=CommandMeta):
         返回:
             bool: True=展示追踪信息
         """
-        return getattr(self.args, 'show_trace', False)
+        return getattr(self.args, "show_trace", False)
 
     @property
     def mask_sensitive(self) -> bool:
@@ -301,9 +297,9 @@ class BaseCommand(metaclass=CommandMeta):
         返回:
             bool: True表示脱敏
         """
-        if getattr(self.args, 'no_mask', False):
+        if getattr(self.args, "no_mask", False):
             return False
-        return getattr(self.args, 'mask_sensitive', True)
+        return getattr(self.args, "mask_sensitive", True)
 
     def _extract_error_message(self, result: Dict[str, Any]) -> str:
         """
@@ -319,9 +315,9 @@ class BaseCommand(metaclass=CommandMeta):
         返回:
             str: 错误消息
         """
-        if isinstance(result.get('error'), dict):
-            return result['error'].get('message', '未知错误')
-        return result.get('message', '未知错误')
+        if isinstance(result.get("error"), dict):
+            return result["error"].get("message", "未知错误")
+        return result.get("message", "未知错误")
 
     def format_ai_output(
         self,
@@ -420,11 +416,13 @@ class BaseCommand(metaclass=CommandMeta):
         if trace:
             trace["execution_time_ms"] = round(total_ms, 2)
             # 构建合并后的 steps：总览 + Skill 内部步骤 + 已有步骤
-            merged_steps: List[Dict[str, Any]] = [{
-                "name": "total",
-                "description": "总执行时间（含 CLI 层开销）",
-                "elapsed_ms": round(total_ms, 2),
-            }]
+            merged_steps: List[Dict[str, Any]] = [
+                {
+                    "name": "total",
+                    "description": "总执行时间（含 CLI 层开销）",
+                    "elapsed_ms": round(total_ms, 2),
+                }
+            ]
             # 添加 Skill 内部步骤（如 db_query、format_result）
             if skill_steps:
                 merged_steps.extend(skill_steps)
@@ -437,11 +435,13 @@ class BaseCommand(metaclass=CommandMeta):
             trace["steps"] = merged_steps
         else:
             # 如果 Skill 没有返回 inspection_trace，创建一个简化版
-            steps = [{
-                "name": action,
-                "description": f"执行 {action}",
-                "elapsed_ms": round(total_ms, 2),
-            }]
+            steps = [
+                {
+                    "name": action,
+                    "description": f"执行 {action}",
+                    "elapsed_ms": round(total_ms, 2),
+                }
+            ]
             if skill_steps:
                 steps.extend(skill_steps)
             skill_result["inspection_trace"] = {
@@ -454,11 +454,7 @@ class BaseCommand(metaclass=CommandMeta):
                 "steps": steps,
             }
 
-    def _assess_dynamic_confidence(
-        self,
-        declared_confidence: str,
-        skill_result: Dict[str, Any]
-    ) -> tuple:
+    def _assess_dynamic_confidence(self, declared_confidence: str, skill_result: Dict[str, Any]) -> tuple:
         """
         根据实际数据质量动态评估可信度
 
@@ -563,9 +559,7 @@ class BaseCommand(metaclass=CommandMeta):
         steps = trace.get("steps", [])
 
         # 动态可信度评估
-        final_confidence, dynamic_notes = self._assess_dynamic_confidence(
-            declared_confidence, skill_result
-        )
+        final_confidence, dynamic_notes = self._assess_dynamic_confidence(declared_confidence, skill_result)
         all_notes = static_notes + dynamic_notes
 
         # 使用 Rich Table 展示（如果 console 可用）
@@ -607,8 +601,10 @@ class BaseCommand(metaclass=CommandMeta):
                 for s in steps:
                     elapsed = s.get("elapsed_ms", 0)
                     # 根据耗时给颜色提示
-                    time_style = ThemeColor.SUCCESS if elapsed < 200 else (
-                        ThemeColor.WARNING if elapsed < 1000 else ThemeColor.ERROR
+                    time_style = (
+                        ThemeColor.SUCCESS
+                        if elapsed < 200
+                        else (ThemeColor.WARNING if elapsed < 1000 else ThemeColor.ERROR)
                     )
                     step_table.add_row(
                         s.get("name", ""),
@@ -654,11 +650,15 @@ class BaseCommand(metaclass=CommandMeta):
             # 降级到纯文本（JSON/quiet 模式或 console 不可用时）
             self.output.print("")
             time_str = f" | 耗时: {execution_time_ms}ms" if execution_time_ms is not None else ""
-            self.output.print(f"[诊断追踪] 场景: {scenario} | 可信度: {final_confidence} (声明: {declared_confidence}){time_str}")
+            self.output.print(
+                f"[诊断追踪] 场景: {scenario} | 可信度: {final_confidence} (声明: {declared_confidence}){time_str}"
+            )
             if steps:
                 self.output.print("执行步骤:")
                 for s in steps:
-                    self.output.print(f"  • {s.get('name', '')}: {s.get('description', '')} ({s.get('elapsed_ms', 0)}ms)")
+                    self.output.print(
+                        f"  • {s.get('name', '')}: {s.get('description', '')} ({s.get('elapsed_ms', 0)}ms)"
+                    )
             if sources:
                 self.output.print(f"数据来源: {', '.join(sources)}")
             if metrics:

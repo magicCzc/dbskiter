@@ -14,15 +14,16 @@
    请迁移到 dbskiter.db_security.sensitive_data_scanner。
    迁移路径见：docs/guides/migration-v3-to-v4.md
 """
+
 import warnings
+
 warnings.warn(
-    'sensitive_data_scanner_v2 is deprecated and will be removed in v4.0. '
-    'Use dbskiter.db_security.sensitive_data_scanner instead. '
-    'See docs/guides/migration-v3-to-v4.md for migration guide.',
+    "sensitive_data_scanner_v2 is deprecated and will be removed in v4.0. "
+    "Use dbskiter.db_security.sensitive_data_scanner instead. "
+    "See docs/guides/migration-v3-to-v4.md for migration guide.",
     DeprecationWarning,
     stacklevel=2,
 )
-
 
 
 import re
@@ -39,25 +40,28 @@ logger = logging.getLogger(__name__)
 
 class SensitivityLevel(Enum):
     """敏感度等级"""
+
     CRITICAL = "critical"  # 极高风险（密码、密钥）
-    HIGH = "high"          # 高风险（身份证号、信用卡）
-    MEDIUM = "medium"      # 中风险（邮箱、电话）
-    LOW = "low"            # 低风险（姓名、地址）
+    HIGH = "high"  # 高风险（身份证号、信用卡）
+    MEDIUM = "medium"  # 中风险（邮箱、电话）
+    LOW = "low"  # 低风险（姓名、地址）
 
 
 class DataCategory(Enum):
     """数据类别"""
-    CREDENTIALS = "credentials"      # 凭据
-    PII = "pii"                      # 个人身份信息
-    FINANCIAL = "financial"          # 金融信息
-    HEALTH = "health"                # 健康信息
-    CONTACT = "contact"              # 联系信息
-    BUSINESS = "business"            # 商业敏感
+
+    CREDENTIALS = "credentials"  # 凭据
+    PII = "pii"  # 个人身份信息
+    FINANCIAL = "financial"  # 金融信息
+    HEALTH = "health"  # 健康信息
+    CONTACT = "contact"  # 联系信息
+    BUSINESS = "business"  # 商业敏感
 
 
 @dataclass
 class SensitiveColumn:
     """敏感列信息"""
+
     table_name: str
     column_name: str
     data_type: str
@@ -72,7 +76,7 @@ class SensitiveColumn:
     entropy: float = 0.0
     recommendation: str = ""
     detected_at: datetime = field(default_factory=datetime.now)
-    
+
     def to_dict(self) -> Dict:
         return {
             "table_name": self.table_name,
@@ -87,31 +91,31 @@ class SensitiveColumn:
             "null_count": self.null_count,
             "unique_count": self.unique_count,
             "entropy": round(self.entropy, 2),
-            "recommendation": self.recommendation
+            "recommendation": self.recommendation,
         }
 
 
 class SensitiveDataScannerV2:
     """
     敏感数据扫描器 V2 - 基于内容分析的深度扫描
-    
+
     扫描能力：
     1. 字段名模式匹配（正则）
     2. 数据内容分析（采样）
     3. 数据熵分析（检测加密/随机数据）
     4. 统计特征分析（唯一值比例等）
-    
+
     使用示例：
         scanner = SensitiveDataScannerV2(connector)
-        
+
         # 扫描所有表
         result = scanner.scan_all_tables(sample_size=100)
-        
+
         # 查看高危发现
         for col in result["critical_findings"]:
             print(f"{col['table_name']}.{col['column_name']}: {col['sensitivity_level']}")
     """
-    
+
     # 字段名模式定义
     COLUMN_PATTERNS = {
         DataCategory.CREDENTIALS: {
@@ -123,7 +127,7 @@ class SensitiveDataScannerV2:
             ],
             SensitivityLevel.HIGH: [
                 (r"(?i)^(pin|security_code|cvv|cvc)$", "安全码"),
-            ]
+            ],
         },
         DataCategory.PII: {
             SensitivityLevel.CRITICAL: [
@@ -139,7 +143,7 @@ class SensitiveDataScannerV2:
                 (r"(?i)^(name|full_name|first_name|last_name)$", "姓名"),
                 (r"(?i)^(gender|sex)$", "性别"),
                 (r"(?i)^(nationality|citizenship)$", "国籍"),
-            ]
+            ],
         },
         DataCategory.FINANCIAL: {
             SensitivityLevel.CRITICAL: [
@@ -154,7 +158,7 @@ class SensitiveDataScannerV2:
             ],
             SensitivityLevel.MEDIUM: [
                 (r"(?i)^(balance|amount|payment_amount|transaction_amount)$", "金额"),
-            ]
+            ],
         },
         DataCategory.CONTACT: {
             SensitivityLevel.HIGH: [
@@ -163,7 +167,7 @@ class SensitiveDataScannerV2:
             ],
             SensitivityLevel.MEDIUM: [
                 (r"(?i)^(address|street|city|zip|postal_code|country)$", "地址"),
-            ]
+            ],
         },
         DataCategory.HEALTH: {
             SensitivityLevel.CRITICAL: [
@@ -172,15 +176,15 @@ class SensitiveDataScannerV2:
             ],
             SensitivityLevel.HIGH: [
                 (r"(?i)^(blood_type|allergy|medication|prescription|treatment)$", "健康信息"),
-            ]
+            ],
         },
         DataCategory.BUSINESS: {
             SensitivityLevel.HIGH: [
                 (r"(?i)^(trade_secret|proprietary|confidential|internal_only)$", "商业机密"),
             ]
-        }
+        },
     }
-    
+
     # 数据内容模式（用于验证）
     CONTENT_PATTERNS = {
         "email": re.compile(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"),
@@ -196,21 +200,21 @@ class SensitiveDataScannerV2:
     # 用于检测数据是否已加密，降低误报
     ENCRYPTION_INDICATORS = {
         # Django密码哈希格式
-        "django_password": r'^pbkdf2_sha256\$\d+\$[a-zA-Z0-9_]+\$[a-zA-Z0-9_+/=]+$',
+        "django_password": r"^pbkdf2_sha256\$\d+\$[a-zA-Z0-9_]+\$[a-zA-Z0-9_+/=]+$",
         # bcrypt格式 (OpenBSD bcrypt)
-        "bcrypt": r'^\$2[aby]?\$\d+\$[./A-Za-z0-9]{50,60}$',
+        "bcrypt": r"^\$2[aby]?\$\d+\$[./A-Za-z0-9]{50,60}$",
         # Argon2格式
-        "argon2": r'^\$argon2[id]\$v=\d+\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$',
+        "argon2": r"^\$argon2[id]\$v=\d+\$m=\d+,t=\d+,p=\d+\$[A-Za-z0-9+/]+\$[A-Za-z0-9+/]+$",
         # SHA1哈希
-        "sha1_hash": r'^[a-fA-F0-9]{40}$',
+        "sha1_hash": r"^[a-fA-F0-9]{40}$",
         # SHA256哈希
-        "sha256_hash": r'^[a-fA-F0-9]{64}$',
+        "sha256_hash": r"^[a-fA-F0-9]{64}$",
         # MD5哈希
-        "md5_hash": r'^[a-fA-F0-9]{32}$',
+        "md5_hash": r"^[a-fA-F0-9]{32}$",
         # Base64长字符串（可能是加密数据）
-        "base64_long": r'^[A-Za-z0-9+/]{100,}={0,2}$',
+        "base64_long": r"^[A-Za-z0-9+/]{100,}={0,2}$",
         # 十六进制长字符串
-        "hex_long": r'^[0-9a-fA-F]{64,}$',
+        "hex_long": r"^[0-9a-fA-F]{64,}$",
     }
 
     def __init__(self, connector):
@@ -219,10 +223,7 @@ class SensitiveDataScannerV2:
         self.findings: List[SensitiveColumn] = []
 
     def scan(
-        self,
-        tables: Optional[List[str]] = None,
-        sample_size: int = 100,
-        use_dynamic_sampling: bool = True
+        self, tables: Optional[List[str]] = None, sample_size: int = 100, use_dynamic_sampling: bool = True
     ) -> Dict[str, Any]:
         """
         扫描敏感数据（兼容接口）
@@ -273,10 +274,12 @@ class SensitiveDataScannerV2:
                 "by_category": by_category,
                 "sampling_info": sampling_info,
                 "dynamic_sampling_enabled": use_dynamic_sampling,
-                "critical_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.CRITICAL],
+                "critical_findings": [
+                    f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.CRITICAL
+                ],
                 "high_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.HIGH],
                 "all_findings": [f.to_dict() for f in all_findings],
-                "summary": self._generate_summary(all_findings)
+                "summary": self._generate_summary(all_findings),
             }
         else:
             # 扫描所有表
@@ -385,43 +388,42 @@ class SensitiveDataScannerV2:
                 "by_category": by_category,
                 "sampling_info": sampling_info,  # 添加采样信息
                 "dynamic_sampling_enabled": use_dynamic_sampling,
-                "critical_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.CRITICAL],
+                "critical_findings": [
+                    f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.CRITICAL
+                ],
                 "high_findings": [f.to_dict() for f in all_findings if f.sensitivity_level == SensitivityLevel.HIGH],
                 "all_findings": [f.to_dict() for f in all_findings],
-                "summary": self._generate_summary(all_findings)
+                "summary": self._generate_summary(all_findings),
             }
 
         except Exception as e:
             logger.error(f"扫描所有表失败: {e}")
-            return {
-                "status": "error",
-                "error": str(e)
-            }
-    
+            return {"status": "error", "error": str(e)}
+
     def scan_table(self, table_name: str, sample_size: int = 100) -> List[SensitiveColumn]:
         """
         扫描单个表
-        
+
         参数：
             table_name: 表名
             sample_size: 采样行数
-            
+
         返回：
             List[SensitiveColumn]: 敏感列列表
         """
         findings = []
-        
+
         try:
             # 获取表结构
             schema = self._get_table_schema(table_name)
-            
+
             for column in schema:
                 col_name = column["name"]
                 data_type = column["type"]
-                
+
                 # 1. 字段名分析
                 name_match = self._analyze_column_name(col_name)
-                
+
                 if name_match:
                     category, level, pattern_desc = name_match
 
@@ -446,13 +448,11 @@ class SensitiveDataScannerV2:
                         content_confidence=content_confidence,
                         entropy=entropy,
                         stats=stats,
-                        column_name=col_name
+                        column_name=col_name,
                     )
 
                     # 8. 生成建议（包含加密信息）
-                    recommendation = self._generate_recommendation(
-                        category, adjusted_level, col_name, entropy
-                    )
+                    recommendation = self._generate_recommendation(category, adjusted_level, col_name, entropy)
 
                     # 如果已加密，修改建议
                     if is_encrypted:
@@ -471,22 +471,23 @@ class SensitiveDataScannerV2:
                         null_count=stats.get("null_count", 0),
                         unique_count=stats.get("unique_count", 0),
                         entropy=entropy,
-                        recommendation=recommendation
+                        recommendation=recommendation,
                     )
 
                     findings.append(finding)
-            
+
             return findings
-            
+
         except Exception as e:
             logger.error(f"扫描表 {table_name} 失败: {e}")
             return []
-    
+
     def _get_table_schema(self, table_name: str) -> List[Dict]:
         """获取表结构"""
         try:
             # 使用 DatabaseConnector 的 get_schema 方法
             import pandas as pd
+
             schema_result = self.connector.get_schema(table_name)
 
             columns = []
@@ -497,15 +498,19 @@ class SensitiveDataScannerV2:
                 for raw_col in raw_cols:
                     # raw_col 可能是字符串（列名）或 dict（含 name/type 字段）
                     if isinstance(raw_col, dict):
-                        columns.append({
-                            "name": str(raw_col.get("name", "")),
-                            "type": str(raw_col.get("type", "UNKNOWN")),
-                        })
+                        columns.append(
+                            {
+                                "name": str(raw_col.get("name", "")),
+                                "type": str(raw_col.get("type", "UNKNOWN")),
+                            }
+                        )
                     else:
-                        columns.append({
-                            "name": str(raw_col),
-                            "type": "UNKNOWN",
-                        })
+                        columns.append(
+                            {
+                                "name": str(raw_col),
+                                "type": "UNKNOWN",
+                            }
+                        )
                 return columns
 
             # DataFrame 返回类型（真实数据库连接器）
@@ -517,17 +522,19 @@ class SensitiveDataScannerV2:
                     # 通用: name, type
                     col_name = row.get("Field") or row.get("name") or row.get("column_name", "")
                     col_type = row.get("Type") or row.get("type") or row.get("data_type", "UNKNOWN")
-                    columns.append({
-                        "name": str(col_name),
-                        "type": str(col_type),
-                    })
+                    columns.append(
+                        {
+                            "name": str(col_name),
+                            "type": str(col_type),
+                        }
+                    )
                 return columns
 
             return columns
         except Exception as e:
             logger.error(f"获取表结构失败: {e}")
             return []
-    
+
     def _analyze_column_name(self, column_name: str) -> Optional[Tuple[DataCategory, SensitivityLevel, str]]:
         """分析字段名是否敏感"""
         for category, levels in self.COLUMN_PATTERNS.items():
@@ -536,18 +543,18 @@ class SensitiveDataScannerV2:
                     if re.match(pattern, column_name):
                         return (category, level, desc)
         return None
-    
+
     def _get_column_samples(self, table_name: str, column_name: str, sample_size: int) -> Tuple[List[str], Dict]:
         """获取列采样数据"""
         samples = []
         stats = {"row_count": 0, "null_count": 0, "unique_count": 0}
-        
+
         try:
             # 构建安全的查询（使用参数化查询）
             # 注意：表名和列名不能参数化，需要验证
             if not self._is_safe_identifier(table_name) or not self._is_safe_identifier(column_name):
                 return samples, stats
-            
+
             # 获取总行数
             if "oracle" in self.dialect:
                 count_sql = f"SELECT COUNT(*) FROM {table_name.upper()}"
@@ -560,53 +567,61 @@ class SensitiveDataScannerV2:
             count_result = self.connector.execute(count_sql)
             total_rows = int(count_result.rows[0][0]) if count_result.rows else 0
             stats["row_count"] = total_rows
-            
+
             # 采样查询
             if self.dialect in ("mysql", "mysql+pymysql"):
-                sql = f"SELECT `{column_name}` FROM `{table_name}` WHERE `{column_name}` IS NOT NULL LIMIT {sample_size}"
+                sql = (
+                    f"SELECT `{column_name}` FROM `{table_name}` WHERE `{column_name}` IS NOT NULL LIMIT {sample_size}"
+                )
             elif "postgresql" in self.dialect:
-                sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
+                sql = (
+                    f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
+                )
             elif self.dialect in ("sqlite", "sqlite3"):
-                sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
+                sql = (
+                    f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
+                )
             elif "clickhouse" in self.dialect:
-                sql = f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
+                sql = (
+                    f'SELECT "{column_name}" FROM "{table_name}" WHERE "{column_name}" IS NOT NULL LIMIT {sample_size}'
+                )
             elif "oracle" in self.dialect:
                 # Oracle 使用 ROWNUM，表名和列名默认大写，不需要引号
-                sql = f'SELECT {column_name.upper()} FROM {table_name.upper()} WHERE {column_name.upper()} IS NOT NULL AND ROWNUM <= {sample_size}'
+                sql = f"SELECT {column_name.upper()} FROM {table_name.upper()} WHERE {column_name.upper()} IS NOT NULL AND ROWNUM <= {sample_size}"
             else:
                 sql = f"SELECT {column_name} FROM {table_name} WHERE {column_name} IS NOT NULL LIMIT {sample_size}"
-            
+
             result = self.connector.execute(sql)
-            
+
             for row in result.rows:
                 if row[0] is not None:
                     samples.append(str(row[0]))
                 else:
                     stats["null_count"] += 1
-            
+
             # 统计唯一值数量
             stats["unique_count"] = len(set(samples))
-            
+
         except Exception as e:
             logger.warning(f"获取采样数据失败: {e}")
-        
+
         return samples, stats
-    
+
     def _is_safe_identifier(self, identifier: str) -> bool:
         """检查标识符是否安全"""
         # Oracle 允许 $ 和 # 在标识符中，如 v$session, quest_sl_temp_explain1
-        return bool(re.match(r'^[a-zA-Z_][a-zA-Z0-9_$#]*$', identifier))
-    
+        return bool(re.match(r"^[a-zA-Z_][a-zA-Z0-9_$#]*$", identifier))
+
     def _validate_content(self, samples: List[str], category: DataCategory, column_name: str) -> float:
         """验证内容匹配度"""
         if not samples:
             return 0.0
-        
+
         match_count = 0
-        
+
         for sample in samples:
             sample_str = str(sample)
-            
+
             if category == DataCategory.CONTACT:
                 if "email" in column_name.lower():
                     if self.CONTENT_PATTERNS["email"].match(sample_str):
@@ -614,38 +629,38 @@ class SensitiveDataScannerV2:
                 elif "phone" in column_name.lower():
                     if self.CONTENT_PATTERNS["phone"].match(sample_str):
                         match_count += 1
-            
+
             elif category == DataCategory.FINANCIAL:
                 if "credit" in column_name.lower() or "card" in column_name.lower():
                     if self.CONTENT_PATTERNS["credit_card"].match(sample_str):
                         match_count += 1
-            
+
             elif category == DataCategory.CREDENTIALS:
                 if "api" in column_name.lower() or "key" in column_name.lower():
                     if self.CONTENT_PATTERNS["api_key"].match(sample_str):
                         match_count += 1
-            
+
             elif category == DataCategory.PII:
                 if "ssn" in column_name.lower():
                     if self.CONTENT_PATTERNS["ssn"].match(sample_str):
                         match_count += 1
-        
+
         return match_count / len(samples) if samples else 0.0
-    
+
     def _calculate_entropy(self, samples: List[str]) -> float:
         """计算数据熵（检测加密/随机数据）"""
         if not samples:
             return 0.0
-        
+
         # 合并所有样本
         text = "".join(str(s) for s in samples)
         if not text:
             return 0.0
-        
+
         # 计算字符频率
         freq = Counter(text)
         length = len(text)
-        
+
         # 计算香农熵
         entropy = 0.0
         for count in freq.values():
@@ -658,7 +673,7 @@ class SensitiveDataScannerV2:
     def _is_likely_encrypted(self, samples: List[str], column_name: str, table_name: str) -> Tuple[bool, str]:
         """
         检测数据是否可能已加密
-        
+
         基于数据特征而非硬编码系统规则进行检测
 
         返回:
@@ -667,19 +682,19 @@ class SensitiveDataScannerV2:
         # 如果没有样本，无法检测
         if not samples:
             return False, "无数据样本"
-        
+
         # 过滤掉空字符串和None
         valid_samples = [s for s in samples if s and str(s).strip()]
         if not valid_samples:
             return False, "无有效数据样本"
-        
+
         total_samples = len(valid_samples)
         encrypted_indicators = 0
         detected_formats = []
 
         for sample in valid_samples:
             sample_str = str(sample).strip()
-            
+
             # 检查各种加密格式
             for format_name, pattern in self.ENCRYPTION_INDICATORS.items():
                 if re.match(pattern, sample_str):
@@ -721,8 +736,9 @@ class SensitiveDataScannerV2:
         else:
             return level, "数据已加密存储"
 
-    def _calculate_confidence(self, name_match: bool, content_confidence: float,
-                             entropy: float, stats: Dict, column_name: str = "") -> float:
+    def _calculate_confidence(
+        self, name_match: bool, content_confidence: float, entropy: float, stats: Dict, column_name: str = ""
+    ) -> float:
         """计算综合置信度"""
         confidence = 0.0
 
@@ -732,14 +748,18 @@ class SensitiveDataScannerV2:
 
             # 高确定性字段名（完全匹配敏感关键词）
             high_confidence_keywords = [
-                "password", "passwd", "pwd", "secret", "token",
-                "api_key", "credit_card", "ssn", "social_security"
+                "password",
+                "passwd",
+                "pwd",
+                "secret",
+                "token",
+                "api_key",
+                "credit_card",
+                "ssn",
+                "social_security",
             ]
             # 中等确定性字段名（常见敏感字段）
-            medium_confidence_keywords = [
-                "name", "email", "phone", "address", "birth",
-                "gender", "salary", "income"
-            ]
+            medium_confidence_keywords = ["name", "email", "phone", "address", "birth", "gender", "salary", "income"]
 
             if any(kw == col_lower for kw in high_confidence_keywords):
                 confidence += 0.7
@@ -765,12 +785,13 @@ class SensitiveDataScannerV2:
                 confidence += 0.05
 
         return min(1.0, confidence)
-    
-    def _generate_recommendation(self, category: DataCategory, level: SensitivityLevel,
-                                 column_name: str, entropy: float) -> str:
+
+    def _generate_recommendation(
+        self, category: DataCategory, level: SensitivityLevel, column_name: str, entropy: float
+    ) -> str:
         """生成修复建议"""
         recommendations = []
-        
+
         if level == SensitivityLevel.CRITICAL:
             recommendations.append(f"立即加密 {column_name} 列")
             recommendations.append("实施严格的访问控制")
@@ -781,22 +802,19 @@ class SensitiveDataScannerV2:
             recommendations.append("限制查询权限")
         else:
             recommendations.append(f"考虑对 {column_name} 进行脱敏处理")
-        
+
         if entropy > 4.5:
             recommendations.append("数据熵较高，可能已加密")
-        
+
         return "; ".join(recommendations)
-    
+
     def _generate_summary(self, findings: List[SensitiveColumn]) -> str:
         """生成扫描摘要"""
         if not findings:
             return "未发现敏感数据"
-        
+
         critical = sum(1 for f in findings if f.sensitivity_level == SensitivityLevel.CRITICAL)
         high = sum(1 for f in findings if f.sensitivity_level == SensitivityLevel.HIGH)
         medium = sum(1 for f in findings if f.sensitivity_level == SensitivityLevel.MEDIUM)
-        
-        return (
-            f"发现 {len(findings)} 个敏感列 "
-            f"(严重: {critical}, 高危: {high}, 中危: {medium})"
-        )
+
+        return f"发现 {len(findings)} 个敏感列 " f"(严重: {critical}, 高危: {high}, 中危: {medium})"

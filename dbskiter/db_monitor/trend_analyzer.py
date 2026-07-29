@@ -31,15 +31,17 @@ logger = logging.getLogger(__name__)
 
 class TrendDirection(Enum):
     """趋势方向枚举"""
-    IMPROVING = "improving"      # 性能改善
-    DEGRADING = "degrading"      # 性能退化
-    STABLE = "stable"            # 性能稳定
-    VOLATILE = "volatile"        # 波动较大
+
+    IMPROVING = "improving"  # 性能改善
+    DEGRADING = "degrading"  # 性能退化
+    STABLE = "stable"  # 性能稳定
+    VOLATILE = "volatile"  # 波动较大
 
 
 @dataclass
 class TrendAnalysis:
     """趋势分析结果"""
+
     metric_type: MetricType
     current_value: float
     historical_avg: float
@@ -56,6 +58,7 @@ class TrendAnalysis:
 @dataclass
 class PerformanceComparison:
     """性能对比结果"""
+
     metric_type: MetricType
     current_value: float
     baseline_value: float
@@ -70,11 +73,7 @@ class HistoricalDataProvider(ABC):
     """历史数据提供者抽象基类"""
 
     @abstractmethod
-    def get_metric_history(
-        self,
-        metric_type: MetricType,
-        days: int = 7
-    ) -> List[MetricPoint]:
+    def get_metric_history(self, metric_type: MetricType, days: int = 7) -> List[MetricPoint]:
         """
         获取指标历史数据
 
@@ -88,11 +87,7 @@ class HistoricalDataProvider(ABC):
         pass
 
     @abstractmethod
-    def get_baseline(
-        self,
-        metric_type: MetricType,
-        baseline_date: Optional[datetime] = None
-    ) -> Optional[MetricPoint]:
+    def get_baseline(self, metric_type: MetricType, baseline_date: Optional[datetime] = None) -> Optional[MetricPoint]:
         """
         获取基线数据
 
@@ -118,30 +113,18 @@ class StorageBasedDataProvider(HistoricalDataProvider):
         """
         self.storage = storage
 
-    def get_metric_history(
-        self,
-        metric_type: MetricType,
-        days: int = 7
-    ) -> List[MetricPoint]:
+    def get_metric_history(self, metric_type: MetricType, days: int = 7) -> List[MetricPoint]:
         """从存储获取历史数据"""
         try:
             end_time = datetime.now()
             start_time = end_time - timedelta(days=days)
 
-            return self.storage.query_metrics(
-                metric_type=metric_type,
-                start_time=start_time,
-                end_time=end_time
-            )
+            return self.storage.query_metrics(metric_type=metric_type, start_time=start_time, end_time=end_time)
         except Exception as e:
             logger.error(f"获取历史数据失败: {e}")
             return []
 
-    def get_baseline(
-        self,
-        metric_type: MetricType,
-        baseline_date: Optional[datetime] = None
-    ) -> Optional[MetricPoint]:
+    def get_baseline(self, metric_type: MetricType, baseline_date: Optional[datetime] = None) -> Optional[MetricPoint]:
         """获取基线数据"""
         try:
             if baseline_date:
@@ -149,11 +132,7 @@ class StorageBasedDataProvider(HistoricalDataProvider):
                 start_time = baseline_date.replace(hour=0, minute=0, second=0)
                 end_time = baseline_date.replace(hour=23, minute=59, second=59)
 
-                points = self.storage.query_metrics(
-                    metric_type=metric_type,
-                    start_time=start_time,
-                    end_time=end_time
-                )
+                points = self.storage.query_metrics(metric_type=metric_type, start_time=start_time, end_time=end_time)
 
                 if points:
                     # 返回平均值
@@ -162,7 +141,7 @@ class StorageBasedDataProvider(HistoricalDataProvider):
                         timestamp=baseline_date,
                         metric_type=metric_type,
                         value=avg_value,
-                        unit=points[0].unit if points else ""
+                        unit=points[0].unit if points else "",
                     )
             else:
                 # 获取最早的记录
@@ -203,11 +182,7 @@ class TrendAnalyzer:
         """
         self.data_provider = data_provider
 
-    def analyze_trend(
-        self,
-        metric_type: MetricType,
-        days: int = 7
-    ) -> Optional[TrendAnalysis]:
+    def analyze_trend(self, metric_type: MetricType, days: int = 7) -> Optional[TrendAnalysis]:
         """
         分析指标趋势
 
@@ -247,9 +222,7 @@ class TrendAnalyzer:
         confidence = min(1.0, len(values) / 30.0)
 
         # 生成建议
-        recommendation = self._generate_recommendation(
-            metric_type, trend_direction, change_percent, confidence
-        )
+        recommendation = self._generate_recommendation(metric_type, trend_direction, change_percent, confidence)
 
         return TrendAnalysis(
             metric_type=metric_type,
@@ -262,14 +235,11 @@ class TrendAnalyzer:
             confidence=confidence,
             analysis_period_days=days,
             data_points=len(history),
-            recommendation=recommendation
+            recommendation=recommendation,
         )
 
     def compare_with_baseline(
-        self,
-        metric_type: MetricType,
-        current_value: float,
-        baseline_date: Optional[datetime] = None
+        self, metric_type: MetricType, current_value: float, baseline_date: Optional[datetime] = None
     ) -> Optional[PerformanceComparison]:
         """
         与基线对比
@@ -316,13 +286,11 @@ class TrendAnalyzer:
             change_percent=change_percent,
             is_significant=is_significant,
             severity=severity,
-            message=message
+            message=message,
         )
 
     def detect_performance_degradation(
-        self,
-        metrics: Dict[MetricType, float],
-        days: int = 7
+        self, metrics: Dict[MetricType, float], days: int = 7
     ) -> List[PerformanceComparison]:
         """
         检测性能退化
@@ -338,16 +306,18 @@ class TrendAnalyzer:
 
         # 正向指标（值增加是改善）
         positive_metrics = [
-            MetricType.QPS, MetricType.TPS,
-            MetricType.COM_SELECT, MetricType.COM_INSERT,
-            MetricType.COM_UPDATE, MetricType.COM_DELETE,
-            MetricType.BUFFER_HIT_RATIO, MetricType.CACHE_HIT_RATIO
+            MetricType.QPS,
+            MetricType.TPS,
+            MetricType.COM_SELECT,
+            MetricType.COM_INSERT,
+            MetricType.COM_UPDATE,
+            MetricType.COM_DELETE,
+            MetricType.BUFFER_HIT_RATIO,
+            MetricType.CACHE_HIT_RATIO,
         ]
 
         for metric_type, current_value in metrics.items():
-            comparison = self.compare_with_baseline(
-                metric_type, current_value
-            )
+            comparison = self.compare_with_baseline(metric_type, current_value)
 
             if comparison and comparison.severity in ["warning", "critical"]:
                 is_positive = metric_type in positive_metrics
@@ -369,9 +339,7 @@ class TrendAnalyzer:
         return degradations
 
     def batch_analyze_trends(
-        self,
-        metric_types: List[MetricType],
-        days: int = 7
+        self, metric_types: List[MetricType], days: int = 7
     ) -> Dict[MetricType, Optional[TrendAnalysis]]:
         """
         批量分析多个指标趋势
@@ -388,11 +356,7 @@ class TrendAnalyzer:
             results[metric_type] = self.analyze_trend(metric_type, days)
         return results
 
-    def _determine_trend_direction(
-        self,
-        values: List[float],
-        change_percent: float
-    ) -> TrendDirection:
+    def _determine_trend_direction(self, values: List[float], change_percent: float) -> TrendDirection:
         """判断趋势方向"""
         if len(values) < 2:
             return TrendDirection.STABLE
@@ -400,6 +364,7 @@ class TrendAnalyzer:
         # 计算标准差判断波动性
         if len(values) > 1:
             import statistics
+
             try:
                 std = statistics.stdev(values)
                 mean = statistics.mean(values)
@@ -418,20 +383,20 @@ class TrendAnalyzer:
         else:
             return TrendDirection.IMPROVING
 
-    def _determine_severity(
-        self,
-        change_percent: float,
-        metric_type: MetricType
-    ) -> str:
+    def _determine_severity(self, change_percent: float, metric_type: MetricType) -> str:
         """确定严重程度"""
         abs_change = abs(change_percent)
 
         # 判断是否为正向指标（值增加是改善）
         positive_metrics = [
-            MetricType.QPS, MetricType.TPS,
-            MetricType.COM_SELECT, MetricType.COM_INSERT,
-            MetricType.COM_UPDATE, MetricType.COM_DELETE,
-            MetricType.BUFFER_HIT_RATIO, MetricType.CACHE_HIT_RATIO
+            MetricType.QPS,
+            MetricType.TPS,
+            MetricType.COM_SELECT,
+            MetricType.COM_INSERT,
+            MetricType.COM_UPDATE,
+            MetricType.COM_DELETE,
+            MetricType.BUFFER_HIT_RATIO,
+            MetricType.CACHE_HIT_RATIO,
         ]
 
         is_positive = metric_type in positive_metrics
@@ -458,11 +423,7 @@ class TrendAnalyzer:
                 return "normal"
 
     def _generate_recommendation(
-        self,
-        metric_type: MetricType,
-        trend_direction: TrendDirection,
-        change_percent: float,
-        confidence: float
+        self, metric_type: MetricType, trend_direction: TrendDirection, change_percent: float, confidence: float
     ) -> str:
         """生成建议"""
         if confidence < 0.3:
@@ -483,12 +444,7 @@ class TrendAnalyzer:
         return f"{metric_type.value} 表现稳定"
 
     def _generate_comparison_message(
-        self,
-        metric_type: MetricType,
-        current_value: float,
-        baseline_value: float,
-        change_percent: float,
-        severity: str
+        self, metric_type: MetricType, current_value: float, baseline_value: float, change_percent: float, severity: str
     ) -> str:
         """生成对比消息"""
         direction = "上升" if change_percent > 0 else "下降"
@@ -504,10 +460,7 @@ class TrendAnalyzer:
                 f"当前 {current_value:.2f}，基线 {baseline_value:.2f}，建议关注"
             )
         else:
-            return (
-                f"{metric_type.value} 较基线{direction} {abs(change_percent):.1f}%，"
-                f"在正常范围内"
-            )
+            return f"{metric_type.value} 较基线{direction} {abs(change_percent):.1f}%，" f"在正常范围内"
 
 
 # 便捷函数，用于与db-diagnose集成

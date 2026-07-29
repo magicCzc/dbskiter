@@ -91,32 +91,30 @@ class LockAnalyzerSkill:
             Dict: 标准响应格式，包含锁信息列表，以及 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         try:
             with timer.step("select_engine", "选择数据库引擎适配"):
                 locks = []
 
-                if 'mysql' in self.dialect:
+                if "mysql" in self.dialect:
                     locks = self._get_mysql_locks()
-                elif 'postgresql' in self.dialect:
+                elif "postgresql" in self.dialect:
                     locks = self._get_postgresql_locks()
-                elif 'oracle' in self.dialect:
+                elif "oracle" in self.dialect:
                     locks = self._get_oracle_locks()
-                elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                elif "mssql" in self.dialect or "sqlserver" in self.dialect:
                     locks = self._get_mssql_locks()
-                elif 'clickhouse' in self.dialect:
+                elif "clickhouse" in self.dialect:
                     locks = self._get_clickhouse_locks()
-                elif 'sqlite' in self.dialect:
+                elif "sqlite" in self.dialect:
                     locks = self._get_sqlite_locks()
                 else:
                     locks = self._get_generic_locks()
 
             with timer.step("build_result", "构建锁分析结果"):
-                data = {
-                    "locks": [lock.to_dict() for lock in locks],
-                    "count": len(locks)
-                }
+                data = {"locks": [lock.to_dict() for lock in locks], "count": len(locks)}
                 # 如果锁列表为空，添加权限提示（可能因权限不足无法获取）
                 if len(locks) == 0:
                     data["note"] = (
@@ -125,20 +123,14 @@ class LockAnalyzerSkill:
                         "2) 数据库用户缺少 PROCESS 权限，无法访问 information_schema.innodb_locks 等系统视图。"
                         "如需完整锁分析，请使用具有 PROCESS 权限的数据库用户。"
                     )
-                response = create_success_response(
-                    data=data,
-                    message=f"成功获取 {len(locks)} 个锁信息"
-                )
+                response = create_success_response(data=data, message=f"成功获取 {len(locks)} 个锁信息")
 
             response["_execution_time"] = timer.to_summary()
             return response
 
         except Exception as e:
             logger.error(f"获取锁信息失败: {e}")
-            return create_error_response(
-                message=f"获取锁信息失败: {str(e)}",
-                error_code=ErrorCode.LOCK_ANALYSIS_FAILED
-            )
+            return create_error_response(message=f"获取锁信息失败: {str(e)}", error_code=ErrorCode.LOCK_ANALYSIS_FAILED)
 
     def _get_mysql_locks(self) -> List[LockInfo]:
         """获取MySQL锁信息"""
@@ -176,7 +168,7 @@ class LockAnalyzerSkill:
                 """)
             except Exception as e:
                 # 如果失败，尝试 MySQL 8.0 格式
-                err_msg = str(e).split('\n')[0][:120]
+                err_msg = str(e).split("\n")[0][:120]
                 logger.warning(f"MySQL 5.7 格式查询失败 [{type(e).__name__}]，尝试 8.0 格式: {err_msg}")
                 result = self.connector.execute("""
                     SELECT
@@ -220,12 +212,12 @@ class LockAnalyzerSkill:
                     connection_id=row[1],
                     user=None,
                     host=None,
-                    started_at=row[5]
+                    started_at=row[5],
                 )
                 locks.append(lock_info)
 
         except Exception as e:
-            err_msg = str(e).split('\n')[0][:120]
+            err_msg = str(e).split("\n")[0][:120]
             logger.warning(f"获取InnoDB锁信息失败 [{type(e).__name__}]: {err_msg}")
 
         # 2. 获取元数据锁（MDL）
@@ -261,14 +253,14 @@ class LockAnalyzerSkill:
                     table_name=row[1],
                     index_name=None,
                     lock_data=None,
-                    lock_status="WAITING" if row[4] == 'PENDING' else "GRANTED",
+                    lock_status="WAITING" if row[4] == "PENDING" else "GRANTED",
                     wait_time=None,
                     query_sql=row[8],
                     query_time=row[9],
                     connection_id=row[5],
                     user=row[6],
                     host=row[7],
-                    started_at=None
+                    started_at=None,
                 )
                 locks.append(lock_info)
 
@@ -295,20 +287,20 @@ class LockAnalyzerSkill:
             process_sql_map = {}
             for row in result.rows if result else []:
                 process_sql_map[row[0]] = {
-                    'sql': row[7],
-                    'time': row[5],
-                    'user': row[1],
-                    'host': row[2],
-                    'state': row[6]
+                    "sql": row[7],
+                    "time": row[5],
+                    "user": row[1],
+                    "host": row[2],
+                    "state": row[6],
                 }
 
             for lock in locks:
                 if lock.connection_id and lock.connection_id in process_sql_map:
                     info = process_sql_map[lock.connection_id]
-                    lock.query_sql = info['sql']
-                    lock.query_time = info['time']
-                    lock.user = info['user']
-                    lock.host = info['host']
+                    lock.query_sql = info["sql"]
+                    lock.query_time = info["time"]
+                    lock.user = info["user"]
+                    lock.host = info["host"]
 
         except Exception as e:
             logger.warning(f"获取进程信息失败: {e}")
@@ -365,7 +357,7 @@ class LockAnalyzerSkill:
                     connection_id=row[4],
                     user=row[5],
                     host=str(row[6]) if row[6] else None,
-                    started_at=row[8]
+                    started_at=row[8],
                 )
                 locks.append(lock_info)
 
@@ -461,14 +453,16 @@ class LockAnalyzerSkill:
                     connection_id=sid,
                     user=username,
                     host=machine,
-                    started_at=logon_time
+                    started_at=logon_time,
                 )
                 locks.append(lock_info)
 
         except Exception as e:
             error_msg = str(e)
             if "ORA-00942" in error_msg or "table or view does not exist" in error_msg:
-                logger.error(f"获取Oracle锁信息失败: 权限不足，需要SELECT ANY DICTIONARY权限或授予对v$lock、v$session、dba_objects、v$sql的查询权限")
+                logger.error(
+                    f"获取Oracle锁信息失败: 权限不足，需要SELECT ANY DICTIONARY权限或授予对v$lock、v$session、dba_objects、v$sql的查询权限"
+                )
             elif "ORA-01031" in error_msg or "insufficient privileges" in error_msg:
                 logger.error(f"获取Oracle锁信息失败: 权限不足，请联系DBA授予必要的系统视图查询权限")
             else:
@@ -538,7 +532,7 @@ class LockAnalyzerSkill:
                 database_name = row[18]
                 object_name = row[19]
 
-                lock_status = "WAITING" if request_status in ('WAIT', 'CONVERT') else "GRANTED"
+                lock_status = "WAITING" if request_status in ("WAIT", "CONVERT") else "GRANTED"
 
                 lock_info = LockInfo(
                     lock_id=f"MSSQL-{session_id}-{resource_type}-{row[4]}",
@@ -557,7 +551,7 @@ class LockAnalyzerSkill:
                     connection_id=session_id,
                     user=login_name,
                     host=host_name,
-                    started_at=None
+                    started_at=None,
                 )
                 locks.append(lock_info)
 
@@ -630,7 +624,7 @@ class LockAnalyzerSkill:
                     connection_id=None,
                     user=user,
                     host=None,
-                    started_at=None
+                    started_at=None,
                 )
                 locks.append(lock_info)
 
@@ -679,7 +673,7 @@ class LockAnalyzerSkill:
                     connection_id=None,
                     user=None,
                     host=None,
-                    started_at=create_time
+                    started_at=create_time,
                 )
                 locks.append(lock_info)
 
@@ -713,9 +707,9 @@ class LockAnalyzerSkill:
                     status = row[1]
 
                     lock_mode = LockMode.SHARED
-                    if status == 'exclusive':
+                    if status == "exclusive":
                         lock_mode = LockMode.EXCLUSIVE
-                    elif status == 'pending':
+                    elif status == "pending":
                         lock_mode = LockMode.INTENTION_EXCLUSIVE
 
                     lock_info = LockInfo(
@@ -728,14 +722,14 @@ class LockAnalyzerSkill:
                         table_name=db_name,
                         index_name=None,
                         lock_data=f"status={status}",
-                        lock_status="GRANTED" if status != 'pending' else "WAITING",
+                        lock_status="GRANTED" if status != "pending" else "WAITING",
                         wait_time=None,
                         query_sql=None,
                         query_time=None,
                         connection_id=None,
                         user=None,
                         host=None,
-                        started_at=None
+                        started_at=None,
                     )
                     locks.append(lock_info)
 
@@ -768,7 +762,7 @@ class LockAnalyzerSkill:
                             connection_id=None,
                             user=None,
                             host=None,
-                            started_at=None
+                            started_at=None,
                         )
                         locks.append(lock_info)
 
@@ -789,9 +783,9 @@ class LockAnalyzerSkill:
         try:
             deadlocks = []
 
-            if 'mysql' in self.dialect:
+            if "mysql" in self.dialect:
                 deadlocks = self._detect_mysql_deadlocks()
-            elif 'oracle' in self.dialect:
+            elif "oracle" in self.dialect:
                 deadlocks = self._detect_oracle_deadlocks()
             else:
                 # 通用死锁检测：基于锁等待图分析
@@ -804,19 +798,15 @@ class LockAnalyzerSkill:
                         deadlocks.append(deadlock_info)
 
             return create_success_response(
-                data={
-                    "deadlocks": [dl.to_dict() for dl in deadlocks],
-                    "count": len(deadlocks)
-                },
-                message=f"检测到 {len(deadlocks)} 个死锁"
+                data={"deadlocks": [dl.to_dict() for dl in deadlocks], "count": len(deadlocks)},
+                message=f"检测到 {len(deadlocks)} 个死锁",
             )
 
         except Exception as e:
-            err_msg = str(e).split('\n')[0][:120]
+            err_msg = str(e).split("\n")[0][:120]
             logger.warning(f"检测死锁失败 [{type(e).__name__}]: {err_msg}")
             return create_error_response(
-                message=f"检测死锁失败: {str(e)}",
-                error_code=ErrorCode.DEADLOCK_DETECTION_FAILED
+                message=f"检测死锁失败: {str(e)}", error_code=ErrorCode.DEADLOCK_DETECTION_FAILED
             )
 
     def _detect_mysql_deadlocks(self) -> List[DeadlockInfo]:
@@ -835,7 +825,7 @@ class LockAnalyzerSkill:
                 status_text = result.rows[0][2]
                 deadlocks = self._parse_mysql_deadlocks(status_text)
         except Exception as e:
-            err_msg = str(e).split('\n')[0][:120]
+            err_msg = str(e).split("\n")[0][:120]
             logger.warning(f"检测MySQL死锁失败 [{type(e).__name__}]: {err_msg}")
         return deadlocks
 
@@ -891,18 +881,20 @@ class LockAnalyzerSkill:
                 blocking_sid = row[8]
                 sql_text = row[10] or row[11]
 
-                wait_chains.append({
-                    'sid': sid,
-                    'serial': serial_num,
-                    'username': username,
-                    'machine': machine,
-                    'program': program,
-                    'sql_id': sql_id,
-                    'event': event,
-                    'seconds_in_wait': seconds_in_wait,
-                    'blocking_sid': blocking_sid,
-                    'sql_text': sql_text
-                })
+                wait_chains.append(
+                    {
+                        "sid": sid,
+                        "serial": serial_num,
+                        "username": username,
+                        "machine": machine,
+                        "program": program,
+                        "sql_id": sql_id,
+                        "event": event,
+                        "seconds_in_wait": seconds_in_wait,
+                        "blocking_sid": blocking_sid,
+                        "sql_text": sql_text,
+                    }
+                )
 
             # 检测循环等待（死锁）
             deadlock_cycles = self._find_oracle_deadlock_cycles(wait_chains)
@@ -913,16 +905,16 @@ class LockAnalyzerSkill:
                     detected_at=datetime.now(),
                     transactions=[
                         {
-                            'sid': tx['sid'],
-                            'serial': tx['serial'],
-                            'username': tx['username'],
-                            'sql': tx['sql_text'][:200] if tx['sql_text'] else None,
-                            'wait_seconds': tx['seconds_in_wait']
+                            "sid": tx["sid"],
+                            "serial": tx["serial"],
+                            "username": tx["username"],
+                            "sql": tx["sql_text"][:200] if tx["sql_text"] else None,
+                            "wait_seconds": tx["seconds_in_wait"],
                         }
                         for tx in cycle
                     ],
-                    victim_transaction=str(cycle[0]['sid']) if cycle else "",
-                    resolution="建议：1) 终止其中一个会话 2) 检查应用程序事务逻辑 3) 确保按相同顺序访问资源"
+                    victim_transaction=str(cycle[0]["sid"]) if cycle else "",
+                    resolution="建议：1) 终止其中一个会话 2) 检查应用程序事务逻辑 3) 确保按相同顺序访问资源",
                 )
                 deadlocks.append(deadlock)
 
@@ -946,8 +938,8 @@ class LockAnalyzerSkill:
         sid_to_info = {}
 
         for chain in wait_chains:
-            sid = chain['sid']
-            blocking_sid = chain.get('blocking_sid')
+            sid = chain["sid"]
+            blocking_sid = chain.get("blocking_sid")
 
             sid_to_info[sid] = chain
 
@@ -999,7 +991,7 @@ class LockAnalyzerSkill:
         """解析MySQL死锁信息"""
         deadlocks = []
 
-        deadlock_pattern = r'LATEST DETECTED DEADLOCK\s*-+\s*(.*?)\s*-+'
+        deadlock_pattern = r"LATEST DETECTED DEADLOCK\s*-+\s*(.*?)\s*-+"
         matches = re.findall(deadlock_pattern, status_text, re.DOTALL)
 
         for i, match in enumerate(matches):
@@ -1008,19 +1000,17 @@ class LockAnalyzerSkill:
                 detected_at=datetime.now(),
                 transactions=[],
                 victim_transaction="",
-                resolution="建议：1) 检查事务逻辑 2) 按相同顺序访问资源 3) 减少事务持有锁的时间"
+                resolution="建议：1) 检查事务逻辑 2) 按相同顺序访问资源 3) 减少事务持有锁的时间",
             )
 
-            tx_pattern = r'Transaction \d+.*?ROLLING BACK BACK \d+'
+            tx_pattern = r"Transaction \d+.*?ROLLING BACK BACK \d+"
             tx_matches = re.findall(tx_pattern, match, re.DOTALL)
 
             for tx_match in tx_matches:
-                deadlock.transactions.append({
-                    "info": tx_match[:200]
-                })
+                deadlock.transactions.append({"info": tx_match[:200]})
 
-            if 'WE ROLL BACK TRANSACTION' in match:
-                victim_match = re.search(r'WE ROLL BACK TRANSACTION (\d+)', match)
+            if "WE ROLL BACK TRANSACTION" in match:
+                victim_match = re.search(r"WE ROLL BACK TRANSACTION (\d+)", match)
                 if victim_match:
                     deadlock.victim_transaction = victim_match.group(1)
 
@@ -1057,7 +1047,7 @@ class LockAnalyzerSkill:
                 connection_id=lock_dict.get("connection_id"),
                 user=lock_dict.get("user"),
                 host=lock_dict.get("host"),
-                started_at=lock_dict.get("started_at")
+                started_at=lock_dict.get("started_at"),
             )
             locks.append(lock_info)
         return locks
@@ -1079,18 +1069,14 @@ class LockAnalyzerSkill:
             chains = self._chain_builder.build_wait_chains(locks)
 
             return create_success_response(
-                data={
-                    "chains": [chain.to_dict() for chain in chains],
-                    "count": len(chains)
-                },
-                message=f"发现 {len(chains)} 条锁等待链"
+                data={"chains": [chain.to_dict() for chain in chains], "count": len(chains)},
+                message=f"发现 {len(chains)} 条锁等待链",
             )
 
         except Exception as e:
             logger.error(f"追踪锁等待链失败: {e}")
             return create_error_response(
-                message=f"追踪锁等待链失败: {str(e)}",
-                error_code=ErrorCode.CHAIN_ANALYSIS_FAILED
+                message=f"追踪锁等待链失败: {str(e)}", error_code=ErrorCode.CHAIN_ANALYSIS_FAILED
             )
 
     def trace_lock_chains(self) -> Dict[str, Any]:
@@ -1118,16 +1104,12 @@ class LockAnalyzerSkill:
             locks = self._deserialize_locks(locks_data)
             stats = self._stats_calculator.calculate(locks)
 
-            return create_success_response(
-                data=stats.to_dict(),
-                message="锁统计信息获取成功"
-            )
+            return create_success_response(data=stats.to_dict(), message="锁统计信息获取成功")
 
         except Exception as e:
             logger.error(f"获取锁统计信息失败: {e}")
             return create_error_response(
-                message=f"获取锁统计信息失败: {str(e)}",
-                error_code=ErrorCode.LOCK_ANALYSIS_FAILED
+                message=f"获取锁统计信息失败: {str(e)}", error_code=ErrorCode.LOCK_ANALYSIS_FAILED
             )
 
     def generate_lock_report(self) -> Dict[str, Any]:
@@ -1147,7 +1129,7 @@ class LockAnalyzerSkill:
                 "database_type": self.dialect,
                 "locks_available": locks_result["success"],
                 "deadlocks_available": deadlocks_result["success"],
-                "statistics_available": stats_result["success"]
+                "statistics_available": stats_result["success"],
             }
 
             if locks_result["success"]:
@@ -1159,17 +1141,11 @@ class LockAnalyzerSkill:
             if stats_result["success"]:
                 report["statistics"] = stats_result["data"]
 
-            return create_success_response(
-                data=report,
-                message="锁分析报告生成成功"
-            )
+            return create_success_response(data=report, message="锁分析报告生成成功")
 
         except Exception as e:
             logger.error(f"生成锁报告失败: {e}")
-            return create_error_response(
-                message=f"生成锁报告失败: {str(e)}",
-                error_code=ErrorCode.LOCK_ANALYSIS_FAILED
-            )
+            return create_error_response(message=f"生成锁报告失败: {str(e)}", error_code=ErrorCode.LOCK_ANALYSIS_FAILED)
 
     def kill_blocking_transaction(self, transaction_id: str) -> Dict[str, Any]:
         """
@@ -1182,32 +1158,33 @@ class LockAnalyzerSkill:
             Dict: 标准响应格式
         """
         try:
-            if 'mysql' in self.dialect:
-                result = self.connector.execute("""
+            if "mysql" in self.dialect:
+                result = self.connector.execute(
+                    """
                     SELECT trx_mysql_thread_id
                     FROM information_schema.innodb_trx
                     WHERE trx_id = %s
-                """, (transaction_id,))
+                """,
+                    (transaction_id,),
+                )
 
                 if result.rows:
                     connection_id = int(result.rows[0][0])
                     self.connector.execute("KILL %s", (connection_id,))
                     logger.info(f"已终止事务 {transaction_id} (connection_id={connection_id})")
 
-                    return create_success_response(
-                        message=f"事务 {transaction_id} 已终止"
-                    )
+                    return create_success_response(message=f"事务 {transaction_id} 已终止")
                 else:
-                    return create_error_response(
-                        message=f"未找到事务 {transaction_id}",
-                        error_code=ErrorCode.NOT_FOUND
-                    )
-            elif 'oracle' in self.dialect:
-                result = self.connector.execute("""
+                    return create_error_response(message=f"未找到事务 {transaction_id}", error_code=ErrorCode.NOT_FOUND)
+            elif "oracle" in self.dialect:
+                result = self.connector.execute(
+                    """
                     SELECT sid, serial#
                     FROM v$session
                     WHERE audsid = %s OR sid = %s
-                """, (transaction_id, transaction_id))
+                """,
+                    (transaction_id, transaction_id),
+                )
 
                 if result.rows:
                     sid = int(result.rows[0][0])
@@ -1217,31 +1194,23 @@ class LockAnalyzerSkill:
                     """ % (sid, serial))
                     logger.info(f"已终止Oracle会话 {sid},{serial}")
 
-                    return create_success_response(
-                        message=f"Oracle会话 {sid},{serial} 已终止"
-                    )
+                    return create_success_response(message=f"Oracle会话 {sid},{serial} 已终止")
                 else:
                     return create_error_response(
-                        message=f"未找到Oracle会话 {transaction_id}",
-                        error_code=ErrorCode.NOT_FOUND
+                        message=f"未找到Oracle会话 {transaction_id}", error_code=ErrorCode.NOT_FOUND
                     )
 
             return create_error_response(
-                message=f"数据库类型 {self.dialect} 不支持终止事务",
-                error_code=ErrorCode.UNSUPPORTED_DATABASE
+                message=f"数据库类型 {self.dialect} 不支持终止事务", error_code=ErrorCode.UNSUPPORTED_DATABASE
             )
 
         except ValueError:
             logger.error("无效的connection_id格式")
-            return create_error_response(
-                message="无效的事务ID格式",
-                error_code=ErrorCode.INVALID_TRANSACTION_ID
-            )
+            return create_error_response(message="无效的事务ID格式", error_code=ErrorCode.INVALID_TRANSACTION_ID)
         except Exception as e:
             logger.error(f"终止事务失败: {e}")
             return create_error_response(
-                message=f"终止事务失败: {str(e)}",
-                error_code=ErrorCode.TRANSACTION_KILL_FAILED
+                message=f"终止事务失败: {str(e)}", error_code=ErrorCode.TRANSACTION_KILL_FAILED
             )
 
     def close(self):
@@ -1251,11 +1220,7 @@ class LockAnalyzerSkill:
 
     # ==================== AI上下文构建 ====================
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "lock_analysis"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "lock_analysis") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -1269,8 +1234,8 @@ class LockAnalyzerSkill:
         from dbskiter.shared.ai_context import AIContextBuilder
 
         builder = AIContextBuilder(
-            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
-            database_name=getattr(self.connector, 'database', ''),
+            dialect=self.connector.dialect if hasattr(self.connector, "dialect") else "unknown",
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -1293,11 +1258,7 @@ class LockAnalyzerSkill:
             "inspection_trace": inspection_trace,
         }
 
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建锁分析透明度追踪信息
 
@@ -1308,20 +1269,18 @@ class LockAnalyzerSkill:
         返回:
             Dict[str, Any]: 追踪信息
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         if scenario == "lock_analysis":
             trace["metrics_checked"] = [
                 {"name": "current_locks", "description": "当前锁状态", "source": "performance_schema.metadata_locks"},
                 {"name": "lock_waits", "description": "锁等待", "source": "performance_schema.data_lock_waits"},
                 {"name": "blocking_transactions", "description": "阻塞事务", "source": "information_schema.innodb_trx"},
-                {"name": "lock_duration", "description": "锁持有时间", "source": "performance_schema.events_waits_current"},
+                {
+                    "name": "lock_duration",
+                    "description": "锁持有时间",
+                    "source": "performance_schema.events_waits_current",
+                },
             ]
             trace["data_sources"] = ["performance_schema", "information_schema"]
 
@@ -1388,7 +1347,11 @@ class LockAnalyzerSkill:
         # 死锁标记
         deadlocks = data.get("deadlocks", [])
         if isinstance(deadlocks, list) and len(deadlocks) > 0:
-            flags["active_deadlocks"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(deadlocks)} 个死锁"}
+            flags["active_deadlocks"] = {
+                "flagged": True,
+                "level": "critical",
+                "reason": f"发现 {len(deadlocks)} 个死锁",
+            }
 
         # 锁等待链标记
         chains = data.get("chains", [])
@@ -1413,9 +1376,17 @@ class LockAnalyzerSkill:
         if isinstance(statistics, dict):
             max_wait_time = statistics.get("max_wait_time", 0)
             if max_wait_time > 300:  # 5分钟
-                flags["long_wait"] = {"flagged": True, "level": "critical", "reason": f"最大等待时间过长: {max_wait_time}秒"}
+                flags["long_wait"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"最大等待时间过长: {max_wait_time}秒",
+                }
             elif max_wait_time > 60:  # 1分钟
-                flags["moderate_wait"] = {"flagged": True, "level": "high", "reason": f"最大等待时间较长: {max_wait_time}秒"}
+                flags["moderate_wait"] = {
+                    "flagged": True,
+                    "level": "high",
+                    "reason": f"最大等待时间较长: {max_wait_time}秒",
+                }
 
         return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
 
@@ -1431,7 +1402,7 @@ class LockAnalyzerSkill:
     def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """构建AI提示"""
         hints = {"focus_areas": [], "related_commands": []}
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         # 获取统计数据
         statistics = data.get("statistics", {})
@@ -1531,7 +1502,7 @@ class LockAnalyzerSkill:
                             connection_id=row[4],
                             user=row[5],
                             host=str(row[6]) if row[6] else None,
-                            started_at=row[8]
+                            started_at=row[8],
                         )
                         locks.append(lock_info)
                     logger.info(f"通用锁分析: 通过 pg_locks 获取到 {len(locks)} 个锁")
@@ -1582,7 +1553,7 @@ class LockAnalyzerSkill:
                             connection_id=row[1],
                             user=None,
                             host=None,
-                            started_at=row[5]
+                            started_at=row[5],
                         )
                         locks.append(lock_info)
                     logger.info(f"通用锁分析: 通过 innodb_trx 获取到 {len(locks)} 个锁")
@@ -1635,7 +1606,7 @@ class LockAnalyzerSkill:
                             connection_id=row[1],
                             user=None,
                             host=None,
-                            started_at=row[5]
+                            started_at=row[5],
                         )
                         locks.append(lock_info)
                     logger.info(f"通用锁分析: 通过 data_locks 获取到 {len(locks)} 个锁")
@@ -1670,7 +1641,7 @@ class LockAnalyzerSkill:
                         request_status = row[3]
                         wait_time = row[6]
 
-                        lock_status = "WAITING" if request_status in ('WAIT', 'CONVERT') else "GRANTED"
+                        lock_status = "WAITING" if request_status in ("WAIT", "CONVERT") else "GRANTED"
 
                         lock_info = LockInfo(
                             lock_id=f"MSSQL-{session_id}-{resource_type}",
@@ -1689,7 +1660,7 @@ class LockAnalyzerSkill:
                             connection_id=session_id,
                             user=row[5],
                             host=row[4],
-                            started_at=None
+                            started_at=None,
                         )
                         locks.append(lock_info)
                     logger.info(f"通用锁分析: 通过 dm_tran_locks 获取到 {len(locks)} 个锁")
@@ -1737,7 +1708,7 @@ class LockAnalyzerSkill:
                             connection_id=None,
                             user=row[1],
                             host=None,
-                            started_at=None
+                            started_at=None,
                         )
                         locks.append(lock_info)
                     logger.info(f"通用锁分析: 通过 system.processes 获取到 {len(locks)} 个锁")
@@ -1745,10 +1716,6 @@ class LockAnalyzerSkill:
                 logger.debug(f"通用锁分析: system.processes 不可用 [{type(e).__name__}]")
 
         if not locks:
-            logger.info(
-                f"通用锁分析: 数据库 {self.dialect} 不支持任何已知的锁信息视图"
-            )
+            logger.info(f"通用锁分析: 数据库 {self.dialect} 不支持任何已知的锁信息视图")
 
         return locks
-
-

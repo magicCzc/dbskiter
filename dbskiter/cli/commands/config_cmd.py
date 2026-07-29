@@ -36,41 +36,26 @@ class ConfigCommand(BaseCommand):
         describe_parser = subparsers.add_parser(
             "describe",
             help="展示当前配置的完整溯源信息",
-            description="显示每个配置字段的来源（CLI参数/配置文件/.env/环境变量/默认值）"
+            description="显示每个配置字段的来源（CLI参数/配置文件/.env/环境变量/默认值）",
         )
-        describe_parser.add_argument(
-            "--show-password", action="store_true",
-            help="显示密码（默认隐藏）"
-        )
+        describe_parser.add_argument("--show-password", action="store_true", help="显示密码（默认隐藏）")
 
         # validate 子命令
         validate_parser = subparsers.add_parser(
-            "validate",
-            help="验证当前配置是否有效",
-            description="检查配置是否能成功连接到数据库"
+            "validate", help="验证当前配置是否有效", description="检查配置是否能成功连接到数据库"
         )
 
         # list 子命令
         list_parser = subparsers.add_parser(
-            "list",
-            help="列出所有可用的数据库别名",
-            description="显示配置文件和 .env 中定义的数据库别名"
+            "list", help="列出所有可用的数据库别名", description="显示配置文件和 .env 中定义的数据库别名"
         )
 
         # show-alias 子命令
         show_parser = subparsers.add_parser(
-            "show-alias",
-            help="展示指定别名的详细配置",
-            description="显示某个数据库别名的完整配置信息"
+            "show-alias", help="展示指定别名的详细配置", description="显示某个数据库别名的完整配置信息"
         )
-        show_parser.add_argument(
-            "alias",
-            help="数据库别名"
-        )
-        show_parser.add_argument(
-            "--show-password", action="store_true",
-            help="显示密码（默认隐藏）"
-        )
+        show_parser.add_argument("alias", help="数据库别名")
+        show_parser.add_argument("--show-password", action="store_true", help="显示密码（默认隐藏）")
 
     def execute(self) -> int:
         """执行配置命令"""
@@ -119,9 +104,7 @@ class ConfigCommand(BaseCommand):
         for field_key, field_name, value in fields:
             source = config.source_map.get(field_key, "unknown")
             source_display = self._format_source(source)
-            self.output.rich_print(
-                f"  {field_name:12s}: {value:20s}  ← {source_display}"
-            )
+            self.output.rich_print(f"  {field_name:12s}: {value:20s}  ← {source_display}")
 
         self.output.print("─" * 60)
 
@@ -200,6 +183,7 @@ class ConfigCommand(BaseCommand):
         """列出所有可用的数据库别名"""
         # 从 .env 获取别名
         from ..config import MultiDBConfig
+
         multi_config = MultiDBConfig()
         env_aliases = multi_config.list_aliases()
 
@@ -207,6 +191,7 @@ class ConfigCommand(BaseCommand):
         yaml_aliases = []
         try:
             from ..config_file import ConfigFileManager
+
             manager = ConfigFileManager()
             yaml_aliases = manager.list_databases()
         except Exception:
@@ -248,6 +233,7 @@ class ConfigCommand(BaseCommand):
 
         # 尝试从 .env 获取
         from ..config import MultiDBConfig
+
         multi_config = MultiDBConfig()
         env_config = multi_config.get_config_by_alias(alias_lower)
 
@@ -255,6 +241,7 @@ class ConfigCommand(BaseCommand):
         yaml_config = None
         try:
             from ..config_file import ConfigFileManager
+
             manager = ConfigFileManager()
             yaml_config = manager.get_database_config(alias_lower)
         except Exception:

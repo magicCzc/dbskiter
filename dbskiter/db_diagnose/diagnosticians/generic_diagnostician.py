@@ -95,51 +95,37 @@ class GenericDiagnostician(BaseDiagnostician):
         }
 
         # 测试 INFORMATION_SCHEMA
-        rows = self._execute_query(
-            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES LIMIT 1"
-        )
+        rows = self._execute_query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES LIMIT 1")
         if rows:
             capabilities["information_schema"] = True
 
         # 测试 PostgreSQL 风格
-        rows = self._execute_query(
-            "SELECT 1 FROM pg_stat_activity LIMIT 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM pg_stat_activity LIMIT 0")
         if rows is not None:
             capabilities["pg_stat_activity"] = True
 
         # 测试 pg_stat_statements
-        rows = self._execute_query(
-            "SELECT 1 FROM pg_stat_statements LIMIT 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM pg_stat_statements LIMIT 0")
         if rows is not None:
             capabilities["pg_stat_statements"] = True
 
         # 测试 pg_stat_database
-        rows = self._execute_query(
-            "SELECT 1 FROM pg_stat_database LIMIT 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM pg_stat_database LIMIT 0")
         if rows is not None:
             capabilities["pg_stat_database"] = True
 
         # 测试 MySQL 风格 performance_schema
-        rows = self._execute_query(
-            "SELECT 1 FROM performance_schema.threads LIMIT 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM performance_schema.threads LIMIT 0")
         if rows is not None:
             capabilities["performance_schema"] = True
 
         # 测试 Oracle 风格
-        rows = self._execute_query(
-            "SELECT 1 FROM v$session WHERE ROWNUM = 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM v$session WHERE ROWNUM = 0")
         if rows is not None:
             capabilities["v$session"] = True
 
         # 测试 SQL Server 风格
-        rows = self._execute_query(
-            "SELECT 1 FROM sys.dm_exec_sessions WHERE 1=0"
-        )
+        rows = self._execute_query("SELECT 1 FROM sys.dm_exec_sessions WHERE 1=0")
         if rows is not None:
             capabilities["sys.dm_exec_sessions"] = True
 
@@ -176,11 +162,7 @@ class GenericDiagnostician(BaseDiagnostician):
 
     # ==================== 慢查询分析 ====================
 
-    def analyze_slow_queries(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0
-    ) -> Dict[str, Any]:
+    def analyze_slow_queries(self, limit: int = 20, min_time: float = 1.0) -> Dict[str, Any]:
         """
         分析慢查询（通用实现）
 
@@ -212,19 +194,21 @@ class GenericDiagnostician(BaseDiagnostician):
                     "WHERE mean_exec_time >= %s * 1000 "
                     "ORDER BY mean_exec_time DESC "
                     "LIMIT %s",
-                    (min_time, limit)
+                    (min_time, limit),
                 )
                 if result:
                     source = "pg_stat_statements"
                     for row in result:
-                        queries.append({
-                            "query_id": str(row[0]) if row[0] else None,
-                            "query": row[1][:500] if row[1] else None,
-                            "calls": row[2],
-                            "avg_time_ms": float(row[3]) if row[3] else 0,
-                            "max_time_ms": float(row[4]) if row[4] else 0,
-                            "source": source
-                        })
+                        queries.append(
+                            {
+                                "query_id": str(row[0]) if row[0] else None,
+                                "query": row[1][:500] if row[1] else None,
+                                "calls": row[2],
+                                "avg_time_ms": float(row[3]) if row[3] else 0,
+                                "max_time_ms": float(row[4]) if row[4] else 0,
+                                "source": source,
+                            }
+                        )
 
             # 2. PostgreSQL pg_stat_activity（活跃查询）
             if not queries and caps["pg_stat_activity"]:
@@ -237,18 +221,20 @@ class GenericDiagnostician(BaseDiagnostician):
                     "AND EXTRACT(EPOCH FROM (now() - query_start)) >= %s "
                     "ORDER BY query_start "
                     "LIMIT %s",
-                    (min_time, limit)
+                    (min_time, limit),
                 )
                 if result:
                     source = "pg_stat_activity"
                     for row in result:
-                        queries.append({
-                            "query_id": str(row[0]),
-                            "query": row[1],
-                            "state": row[2],
-                            "exec_time_sec": float(row[3]) if row[3] else 0,
-                            "source": source
-                        })
+                        queries.append(
+                            {
+                                "query_id": str(row[0]),
+                                "query": row[1],
+                                "state": row[2],
+                                "exec_time_sec": float(row[3]) if row[3] else 0,
+                                "source": source,
+                            }
+                        )
 
             # 3. MySQL PROCESSLIST
             if not queries and caps["information_schema"]:
@@ -259,18 +245,20 @@ class GenericDiagnostician(BaseDiagnostician):
                     "AND TIME >= %s "
                     "ORDER BY TIME DESC "
                     "LIMIT %s",
-                    (min_time, limit)
+                    (min_time, limit),
                 )
                 if result:
                     source = "information_schema.processlist"
                     for row in result:
-                        queries.append({
-                            "query_id": str(row[0]),
-                            "query": row[1][:500] if row[1] else None,
-                            "command": row[2],
-                            "exec_time_sec": row[3],
-                            "source": source
-                        })
+                        queries.append(
+                            {
+                                "query_id": str(row[0]),
+                                "query": row[1][:500] if row[1] else None,
+                                "command": row[2],
+                                "exec_time_sec": row[3],
+                                "source": source,
+                            }
+                        )
 
             # 4. SQL Server dm_exec_requests
             if not queries and caps["sys.dm_exec_sessions"]:
@@ -283,34 +271,31 @@ class GenericDiagnostician(BaseDiagnostician):
                     "AND DATEDIFF(second, start_time, GETDATE()) >= %s "
                     "ORDER BY start_time "
                     "LIMIT %s",
-                    (min_time, limit)
+                    (min_time, limit),
                 )
                 if result:
                     source = "sys.dm_exec_requests"
                     for row in result:
-                        queries.append({
-                            "query_id": str(row[0]),
-                            "query": row[1][:500] if row[1] else None,
-                            "status": row[2],
-                            "exec_time_sec": row[3],
-                            "source": source
-                        })
+                        queries.append(
+                            {
+                                "query_id": str(row[0]),
+                                "query": row[1][:500] if row[1] else None,
+                                "status": row[2],
+                                "exec_time_sec": row[3],
+                                "source": source,
+                            }
+                        )
 
             if queries:
                 return self._create_result(
                     success=True,
-                    message=(
-                        f"从 {source} 获取到 {len(queries)} 个慢查询/活跃查询"
-                    ),
+                    message=(f"从 {source} 获取到 {len(queries)} 个慢查询/活跃查询"),
                     data={
                         "total_queries": len(queries),
                         "source": source,
                         "queries": queries,
-                        "note": (
-                            "该数据库类型使用通用诊断器，"
-                            "慢查询分析可能不如专用诊断器完整"
-                        )
-                    }
+                        "note": ("该数据库类型使用通用诊断器，" "慢查询分析可能不如专用诊断器完整"),
+                    },
                 )
 
             # 没有任何数据源可用
@@ -325,25 +310,19 @@ class GenericDiagnostician(BaseDiagnostician):
                         "未检测到 pg_stat_statements、pg_stat_activity、"
                         "INFORMATION_SCHEMA.PROCESSLIST 或 sys.dm_exec_requests 等视图。"
                         "如需慢查询分析，请确保数据库启用了相关性能监控扩展或视图。"
-                    )
-                }
+                    ),
+                },
             )
 
         except Exception as e:
             logger.error(f"通用慢查询分析失败: {e}")
             return self._create_result(
-                success=False,
-                message="通用慢查询分析失败",
-                error=str(e),
-                data={"total_queries": 0, "queries": []}
+                success=False, message="通用慢查询分析失败", error=str(e), data={"total_queries": 0, "queries": []}
             )
 
     # ==================== 性能指标分析 ====================
 
-    def analyze_performance_metrics(
-        self,
-        duration_minutes: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_performance_metrics(self, duration_minutes: int = 10) -> Dict[str, Any]:
         """
         分析性能指标（通用实现）
 
@@ -366,14 +345,9 @@ class GenericDiagnostician(BaseDiagnostician):
 
             # 2. 连接状态分布（PostgreSQL 风格）
             if caps["pg_stat_activity"]:
-                result = self._execute_query(
-                    "SELECT state, COUNT(*) FROM pg_stat_activity "
-                    "GROUP BY state"
-                )
+                result = self._execute_query("SELECT state, COUNT(*) FROM pg_stat_activity " "GROUP BY state")
                 if result:
-                    metrics["connection_states"] = {
-                        row[0]: row[1] for row in result
-                    }
+                    metrics["connection_states"] = {row[0]: row[1] for row in result}
 
             # 3. 数据库事务统计（PostgreSQL 风格）
             if caps["pg_stat_database"]:
@@ -391,9 +365,7 @@ class GenericDiagnostician(BaseDiagnostician):
                     metrics["blocks_hit"] = row[3]
                     metrics["deadlocks"] = row[4]
                     if row[2] + row[3] > 0:
-                        metrics["cache_hit_ratio"] = round(
-                            row[3] / (row[2] + row[3]) * 100, 2
-                        )
+                        metrics["cache_hit_ratio"] = round(row[3] / (row[2] + row[3]) * 100, 2)
 
             # 4. 数据库大小
             db_size_mb = self._get_database_size_mb(caps)
@@ -403,8 +375,7 @@ class GenericDiagnostician(BaseDiagnostician):
             # 5. 表数量
             if caps["information_schema"]:
                 result = self._execute_query(
-                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES "
-                    "WHERE TABLE_TYPE = 'BASE TABLE'"
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES " "WHERE TABLE_TYPE = 'BASE TABLE'"
                 )
                 if result and result[0][0] is not None:
                     metrics["table_count"] = int(result[0][0])
@@ -432,26 +403,16 @@ class GenericDiagnostician(BaseDiagnostician):
                             "user": row[1],
                             "state": row[2],
                             "duration_sec": float(row[3]) if row[3] else 0,
-                            "query": row[4]
+                            "query": row[4],
                         }
                         for row in result
                     ]
 
-            return self._create_result(
-                success=True,
-                message="通用性能指标分析完成",
-                data=metrics,
-                error=None
-            )
+            return self._create_result(success=True, message="通用性能指标分析完成", data=metrics, error=None)
 
         except Exception as e:
             logger.error(f"通用性能指标分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="通用性能指标分析失败",
-                error=str(e),
-                data=metrics
-            )
+            return self._create_result(success=False, message="通用性能指标分析失败", error=str(e), data=metrics)
 
     # ==================== 数据库统计 ====================
 
@@ -512,8 +473,7 @@ class GenericDiagnostician(BaseDiagnostician):
             # 5. 表数量
             if caps["information_schema"]:
                 result = self._execute_query(
-                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES "
-                    "WHERE TABLE_TYPE = 'BASE TABLE'"
+                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES " "WHERE TABLE_TYPE = 'BASE TABLE'"
                 )
                 if result and result[0][0] is not None:
                     stats["table_count"] = int(result[0][0])
@@ -535,20 +495,11 @@ class GenericDiagnostician(BaseDiagnostician):
                     stats["current_user"] = str(rows[0][0])
                     break
 
-            return self._create_result(
-                success=True,
-                message=f"{self.dialect} 数据库统计信息获取完成",
-                data=stats
-            )
+            return self._create_result(success=True, message=f"{self.dialect} 数据库统计信息获取完成", data=stats)
 
         except Exception as e:
             logger.error(f"获取数据库统计信息失败: {e}")
-            return self._create_result(
-                success=False,
-                message="获取数据库统计信息失败",
-                error=str(e),
-                data=stats
-            )
+            return self._create_result(success=False, message="获取数据库统计信息失败", error=str(e), data=stats)
 
     # ==================== 内部辅助方法 ====================
 
@@ -564,36 +515,28 @@ class GenericDiagnostician(BaseDiagnostician):
         """
         # PostgreSQL 风格
         if caps["pg_stat_activity"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM pg_stat_activity "
-                "WHERE state = 'active'"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM pg_stat_activity " "WHERE state = 'active'")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         # performance_schema
         if caps["performance_schema"]:
             rows = self._execute_query(
-                "SELECT COUNT(*) FROM performance_schema.threads "
-                "WHERE NAME LIKE '%/connection%'"
+                "SELECT COUNT(*) FROM performance_schema.threads " "WHERE NAME LIKE '%/connection%'"
             )
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         # Oracle 风格
         if caps["v$session"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM v$session "
-                "WHERE STATUS = 'ACTIVE' AND TYPE = 'USER'"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM v$session " "WHERE STATUS = 'ACTIVE' AND TYPE = 'USER'")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         # SQL Server 风格
         if caps["sys.dm_exec_sessions"]:
             rows = self._execute_query(
-                "SELECT COUNT(*) FROM sys.dm_exec_sessions "
-                "WHERE status = 'running' AND is_user_process = 1"
+                "SELECT COUNT(*) FROM sys.dm_exec_sessions " "WHERE status = 'running' AND is_user_process = 1"
             )
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
@@ -601,10 +544,8 @@ class GenericDiagnostician(BaseDiagnostician):
         # INFORMATION_SCHEMA 通用查询
         if caps["information_schema"]:
             queries = [
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST "
-                "WHERE COMMAND != 'Sleep'",
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SESSION_STATUS "
-                "WHERE VARIABLE_NAME = 'THREADS_CONNECTED'",
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST " "WHERE COMMAND != 'Sleep'",
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SESSION_STATUS " "WHERE VARIABLE_NAME = 'THREADS_CONNECTED'",
             ]
             for sql in queries:
                 rows = self._execute_query(sql)
@@ -625,6 +566,7 @@ class GenericDiagnostician(BaseDiagnostician):
             Dict: 连接统计（所有指标归零）
         """
         from dbskiter.shared.error_handler import create_success_response
+
         return create_success_response(
             {
                 "total": 0,
@@ -638,9 +580,7 @@ class GenericDiagnostician(BaseDiagnostician):
             "实时连接信息（通用降级）",
         )
 
-    def get_top_sql(
-        self, limit: int = 10, threshold: int = 0
-    ) -> Dict[str, Any]:
+    def get_top_sql(self, limit: int = 10, threshold: int = 0) -> Dict[str, Any]:
         """
         获取TOP SQL（通用降级实现）
 
@@ -654,6 +594,7 @@ class GenericDiagnostician(BaseDiagnostician):
             Dict: TOP SQL 列表（空列表）
         """
         from dbskiter.shared.error_handler import create_success_response
+
         return create_success_response(
             {
                 "top_sqls": [],
@@ -673,6 +614,7 @@ class GenericDiagnostician(BaseDiagnostician):
             Dict: 锁等待统计（空结果）
         """
         from dbskiter.shared.error_handler import create_success_response
+
         return create_success_response(
             {
                 "total_locks": 0,
@@ -697,10 +639,7 @@ class GenericDiagnostician(BaseDiagnostician):
         """
         # PostgreSQL 风格
         if caps["pg_stat_activity"]:
-            rows = self._execute_query(
-                "SELECT pg_database_size(current_database()) "
-                "/ 1024.0 / 1024.0"
-            )
+            rows = self._execute_query("SELECT pg_database_size(current_database()) " "/ 1024.0 / 1024.0")
             if rows and rows[0][0] is not None:
                 return float(rows[0][0])
 
@@ -719,10 +658,8 @@ class GenericDiagnostician(BaseDiagnostician):
             try:
                 rows = self._execute_query("PRAGMA page_count")
                 rows2 = self._execute_query("PRAGMA page_size")
-                if (rows and rows[0][0] is not None
-                        and rows2 and rows2[0][0] is not None):
-                    return (float(rows[0][0]) * float(rows2[0][0])
-                            / 1024.0 / 1024.0)
+                if rows and rows[0][0] is not None and rows2 and rows2[0][0] is not None:
+                    return float(rows[0][0]) * float(rows2[0][0]) / 1024.0 / 1024.0
             except Exception:
                 pass
 
@@ -739,16 +676,12 @@ class GenericDiagnostician(BaseDiagnostician):
             Optional[int]: 索引数量，不支持返回 None
         """
         if caps["information_schema"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         if caps["pg_stat_activity"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM pg_class WHERE relkind = 'i'"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM pg_class WHERE relkind = 'i'")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 

@@ -98,9 +98,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
 
         # 测试 INFORMATION_SCHEMA
         try:
-            result = self.connector.execute(
-                "SELECT 1 FROM INFORMATION_SCHEMA.TABLES LIMIT 1"
-            )
+            result = self.connector.execute("SELECT 1 FROM INFORMATION_SCHEMA.TABLES LIMIT 1")
             if result and result.rows:
                 capabilities["information_schema"] = True
                 logger.info("数据库支持 INFORMATION_SCHEMA")
@@ -109,9 +107,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
 
         # 测试 PostgreSQL 风格
         try:
-            result = self.connector.execute(
-                "SELECT 1 FROM pg_stat_activity LIMIT 0"
-            )
+            result = self.connector.execute("SELECT 1 FROM pg_stat_activity LIMIT 0")
             capabilities["pg_stat_activity"] = True
             logger.info("数据库支持 pg_stat_activity")
         except Exception:
@@ -119,9 +115,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
 
         # 测试 MySQL 风格 performance_schema
         try:
-            result = self.connector.execute(
-                "SELECT 1 FROM performance_schema.threads LIMIT 0"
-            )
+            result = self.connector.execute("SELECT 1 FROM performance_schema.threads LIMIT 0")
             capabilities["performance_schema"] = True
             logger.info("数据库支持 performance_schema")
         except Exception:
@@ -137,9 +131,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
 
         # 测试 SQL Server 风格
         try:
-            result = self.connector.execute(
-                "SELECT 1 FROM sys.dm_exec_sessions WHERE 1=0"
-            )
+            result = self.connector.execute("SELECT 1 FROM sys.dm_exec_sessions WHERE 1=0")
             capabilities["sys.dm_exec_sessions"] = True
             logger.info("数据库支持 sys.dm_exec_sessions")
         except Exception:
@@ -172,9 +164,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
         # 优先使用 pg_stat_activity（PostgreSQL 及兼容数据库）
         if caps["pg_stat_activity"]:
             try:
-                result = self.connector.execute(
-                    "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'"
-                )
+                result = self.connector.execute("SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'")
                 if result and result.rows:
                     return float(result.rows[0][0])
             except Exception as e:
@@ -253,9 +243,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
         # 尝试 pg_class（PostgreSQL）
         if caps["pg_stat_activity"]:
             try:
-                result = self.connector.execute(
-                    "SELECT COUNT(*) FROM pg_class WHERE relkind = 'r'"
-                )
+                result = self.connector.execute("SELECT COUNT(*) FROM pg_class WHERE relkind = 'r'")
                 if result and result.rows:
                     return float(result.rows[0][0])
             except Exception as e:
@@ -275,9 +263,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
 
         if caps["information_schema"]:
             try:
-                result = self.connector.execute(
-                    "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS"
-                )
+                result = self.connector.execute("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS")
                 if result and result.rows:
                     return float(result.rows[0][0])
             except Exception as e:
@@ -286,9 +272,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
         # 尝试 pg_class（PostgreSQL）
         if caps["pg_stat_activity"]:
             try:
-                result = self.connector.execute(
-                    "SELECT COUNT(*) FROM pg_class WHERE relkind = 'i'"
-                )
+                result = self.connector.execute("SELECT COUNT(*) FROM pg_class WHERE relkind = 'i'")
                 if result and result.rows:
                     return float(result.rows[0][0])
             except Exception as e:
@@ -309,9 +293,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
         # PostgreSQL
         if caps["pg_stat_activity"]:
             try:
-                result = self.connector.execute(
-                    "SELECT pg_database_size(current_database()) / 1024.0 / 1024.0"
-                )
+                result = self.connector.execute("SELECT pg_database_size(current_database()) / 1024.0 / 1024.0")
                 if result and result.rows:
                     return float(result.rows[0][0])
             except Exception as e:
@@ -380,6 +362,7 @@ class GenericMetricsCollector(BaseMetricsCollector):
         logger.info(f"开始通用采集，数据库能力: {caps}")
         try:
             from dbskiter.shared.sql_utils import build_capabilities_display
+
             logger.info(build_capabilities_display(caps))
         except ImportError:
             pass
@@ -387,50 +370,58 @@ class GenericMetricsCollector(BaseMetricsCollector):
         # 采集连接数
         connections = self._get_connection_count()
         if connections is not None:
-            metrics.append(MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.CONNECTIONS_ACTIVE,
-                value=connections,
-                unit="count",
-                source="generic",
-                tags={"method": "auto_detect"}
-            ))
+            metrics.append(
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.CONNECTIONS_ACTIVE,
+                    value=connections,
+                    unit="count",
+                    source="generic",
+                    tags={"method": "auto_detect"},
+                )
+            )
 
         # 采集表数量
         table_count = self._get_table_count()
         if table_count is not None:
-            metrics.append(MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.CONNECTIONS_TOTAL,  # 复用作为对象数量指标
-                value=table_count,
-                unit="count",
-                source="generic",
-                tags={"method": "information_schema", "object_type": "table"}
-            ))
+            metrics.append(
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.CONNECTIONS_TOTAL,  # 复用作为对象数量指标
+                    value=table_count,
+                    unit="count",
+                    source="generic",
+                    tags={"method": "information_schema", "object_type": "table"},
+                )
+            )
 
         # 采集索引数量
         index_count = self._get_index_count()
         if index_count is not None:
-            metrics.append(MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.CONNECTIONS_TOTAL,
-                value=index_count,
-                unit="count",
-                source="generic",
-                tags={"method": "information_schema", "object_type": "index"}
-            ))
+            metrics.append(
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.CONNECTIONS_TOTAL,
+                    value=index_count,
+                    unit="count",
+                    source="generic",
+                    tags={"method": "information_schema", "object_type": "index"},
+                )
+            )
 
         # 采集数据库大小
         db_size = self._get_database_size()
         if db_size is not None:
-            metrics.append(MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.DISK_USAGE,
-                value=db_size,
-                unit="MB",
-                source="generic",
-                tags={"method": "auto_detect"}
-            ))
+            metrics.append(
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.DISK_USAGE,
+                    value=db_size,
+                    unit="MB",
+                    source="generic",
+                    tags={"method": "auto_detect"},
+                )
+            )
 
         logger.info(f"通用采集完成，成功采集 {len(metrics)} 个指标")
         return metrics
@@ -451,22 +442,14 @@ class GenericMetricsCollector(BaseMetricsCollector):
             value = self._get_connection_count()
             if value is not None:
                 return MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=metric_type,
-                    value=value,
-                    unit="count",
-                    source="generic"
+                    timestamp=timestamp, metric_type=metric_type, value=value, unit="count", source="generic"
                 )
 
         elif metric_type == MetricType.DISK_USAGE:
             value = self._get_database_size()
             if value is not None:
                 return MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=metric_type,
-                    value=value,
-                    unit="MB",
-                    source="generic"
+                    timestamp=timestamp, metric_type=metric_type, value=value, unit="MB", source="generic"
                 )
 
         logger.warning(f"通用采集器不支持指标类型: {metric_type.value}")

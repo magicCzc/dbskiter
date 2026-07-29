@@ -43,16 +43,16 @@ from .sqlite_analyzer import SQLiteDDLAnalyzer
 from .generic_analyzer import GenericDDLAnalyzer
 
 __all__ = [
-    'BaseDDLAnalyzer',
-    'MySQLDDLAnalyzer',
-    'OracleDDLAnalyzer',
-    'PostgreSQLDDLAnalyzer',
-    'MSSQLDDLAnalyzer',
-    'ClickHouseDDLAnalyzer',
-    'SQLiteDDLAnalyzer',
-    'GenericDDLAnalyzer',
-    'get_ddl_analyzer',
-    'DDLImpact',
+    "BaseDDLAnalyzer",
+    "MySQLDDLAnalyzer",
+    "OracleDDLAnalyzer",
+    "PostgreSQLDDLAnalyzer",
+    "MSSQLDDLAnalyzer",
+    "ClickHouseDDLAnalyzer",
+    "SQLiteDDLAnalyzer",
+    "GenericDDLAnalyzer",
+    "get_ddl_analyzer",
+    "DDLImpact",
 ]
 
 
@@ -73,23 +73,20 @@ def get_ddl_analyzer(dialect: str, connector):
     """
     dialect = dialect.lower()
 
-    if 'mysql' in dialect:
+    if "mysql" in dialect:
         return MySQLDDLAnalyzer(connector)
-    elif 'oracle' in dialect:
+    elif "oracle" in dialect:
         return OracleDDLAnalyzer(connector)
-    elif 'postgresql' in dialect:
+    elif "postgresql" in dialect:
         return PostgreSQLDDLAnalyzer(connector)
-    elif 'mssql' in dialect or 'sqlserver' in dialect:
+    elif "mssql" in dialect or "sqlserver" in dialect:
         return MSSQLDDLAnalyzer(connector)
-    elif 'clickhouse' in dialect:
+    elif "clickhouse" in dialect:
         return ClickHouseDDLAnalyzer(connector)
-    elif 'sqlite' in dialect:
+    elif "sqlite" in dialect:
         return SQLiteDDLAnalyzer(connector)
     else:
         # 未知方言回退到通用分析器
         logger = logging.getLogger(__name__)
-        logger.info(
-            f"方言 '{dialect}' 未找到专用 DDL 分析器，"
-            f"回退到 GenericDDLAnalyzer"
-        )
+        logger.info(f"方言 '{dialect}' 未找到专用 DDL 分析器，" f"回退到 GenericDDLAnalyzer")
         return GenericDDLAnalyzer(connector)

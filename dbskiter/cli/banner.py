@@ -27,7 +27,6 @@ from rich.align import Align
 
 from .style import ThemeColor
 
-
 # ──────────────────────────────────────────────
 # ASCII 艺术字（使用 FIGlet 风格的字符画）
 # 为避免依赖 pyfiglet，直接内联简化版
@@ -43,13 +42,13 @@ LOGO_LINES = [
 def build_banner_text(version: str) -> Text:
     """
     构建横幅文本对象
-    
+
     参数:
         version: 版本号字符串
-        
+
     返回:
         Text: 带样式的 Rich Text 对象
-    
+
     使用示例:
         >>> text = build_banner_text("3.0.0")
         >>> print(text.plain)
@@ -58,10 +57,7 @@ def build_banner_text(version: str) -> Text:
     logo_text = Text("\n".join(LOGO_LINES), style=f"bold {ThemeColor.PRIMARY}")
 
     # 副标题： muted 灰色
-    subtitle = Text(
-        f"\n  数据库 AIOps 运维助手  v{version}",
-        style=f"{ThemeColor.MUTED}"
-    )
+    subtitle = Text(f"\n  数据库 AIOps 运维助手  v{version}", style=f"{ThemeColor.MUTED}")
 
     # 能力标签：彩色高亮（使用 Text.from_markup 解析 Rich 标签）
     capabilities = Text.from_markup(
@@ -78,12 +74,12 @@ def build_banner_text(version: str) -> Text:
 def print_banner(console: Console, version: str, center: bool = True) -> None:
     """
     打印启动横幅
-    
+
     参数:
         console: Rich Console 实例
         version: 版本号
         center: 是否居中对齐
-    
+
     使用示例:
         >>> from rich.console import Console
         >>> print_banner(Console(), "3.0.0")
@@ -104,11 +100,11 @@ def print_banner(console: Console, version: str, center: bool = True) -> None:
 def print_minimal_banner(console: Console, version: str) -> None:
     """
     打印极简横幅（用于版本号输出等紧凑场景）
-    
+
     参数:
         console: Rich Console 实例
         version: 版本号
-    
+
     使用示例:
         >>> print_minimal_banner(Console(), "3.0.0")
         # 输出: DBSKiter v3.0.0 — 数据库 AIOps 运维助手

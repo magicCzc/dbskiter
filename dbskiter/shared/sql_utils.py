@@ -21,6 +21,7 @@ from enum import Enum
 
 class SQLType(str, Enum):
     """SQL 操作类型枚举"""
+
     SELECT = "SELECT"
     INSERT = "INSERT"
     UPDATE = "UPDATE"
@@ -33,6 +34,7 @@ class SQLType(str, Enum):
 
 
 # ==================== SQL 类型检测 ====================
+
 
 class SQLTypeDetector:
     """
@@ -49,14 +51,14 @@ class SQLTypeDetector:
 
     # SQL 类型正则模式
     PATTERNS: Dict[SQLType, Pattern] = {
-        SQLType.SELECT: re.compile(r'^\s*SELECT\s+', re.IGNORECASE),
-        SQLType.INSERT: re.compile(r'^\s*INSERT\s+INTO\s+', re.IGNORECASE),
-        SQLType.UPDATE: re.compile(r'^\s*UPDATE\s+', re.IGNORECASE),
-        SQLType.DELETE: re.compile(r'^\s*DELETE\s+FROM\s+', re.IGNORECASE),
-        SQLType.CREATE: re.compile(r'^\s*CREATE\s+(TABLE|INDEX|VIEW)', re.IGNORECASE),
-        SQLType.ALTER: re.compile(r'^\s*ALTER\s+(TABLE|INDEX)\s+', re.IGNORECASE),
-        SQLType.DROP: re.compile(r'^\s*DROP\s+(TABLE|INDEX|VIEW)', re.IGNORECASE),
-        SQLType.TRUNCATE: re.compile(r'^\s*TRUNCATE\s+TABLE\s+', re.IGNORECASE),
+        SQLType.SELECT: re.compile(r"^\s*SELECT\s+", re.IGNORECASE),
+        SQLType.INSERT: re.compile(r"^\s*INSERT\s+INTO\s+", re.IGNORECASE),
+        SQLType.UPDATE: re.compile(r"^\s*UPDATE\s+", re.IGNORECASE),
+        SQLType.DELETE: re.compile(r"^\s*DELETE\s+FROM\s+", re.IGNORECASE),
+        SQLType.CREATE: re.compile(r"^\s*CREATE\s+(TABLE|INDEX|VIEW)", re.IGNORECASE),
+        SQLType.ALTER: re.compile(r"^\s*ALTER\s+(TABLE|INDEX)\s+", re.IGNORECASE),
+        SQLType.DROP: re.compile(r"^\s*DROP\s+(TABLE|INDEX|VIEW)", re.IGNORECASE),
+        SQLType.TRUNCATE: re.compile(r"^\s*TRUNCATE\s+TABLE\s+", re.IGNORECASE),
     }
 
     @staticmethod
@@ -119,6 +121,7 @@ class SQLTypeDetector:
 
 # ==================== 表名提取 ====================
 
+
 def extract_tables(sql: str) -> List[str]:
     """
     从 SQL 中提取表名
@@ -150,25 +153,26 @@ def extract_tables(sql: str) -> List[str]:
     tables: set = set()
     # 按长度降序匹配, 避免 FROM 匹配到 INTO 的情况
     # FROM 子句
-    from_pattern = re.compile(r'\bFROM\s+(\w+)', re.IGNORECASE)
+    from_pattern = re.compile(r"\bFROM\s+(\w+)", re.IGNORECASE)
     for match in from_pattern.finditer(sql):
         tables.add(match.group(1).lower())
     # JOIN 子句
-    join_pattern = re.compile(r'\bJOIN\s+(\w+)', re.IGNORECASE)
+    join_pattern = re.compile(r"\bJOIN\s+(\w+)", re.IGNORECASE)
     for match in join_pattern.finditer(sql):
         tables.add(match.group(1).lower())
     # UPDATE 子句
-    update_pattern = re.compile(r'\bUPDATE\s+(\w+)', re.IGNORECASE)
+    update_pattern = re.compile(r"\bUPDATE\s+(\w+)", re.IGNORECASE)
     for match in update_pattern.finditer(sql):
         tables.add(match.group(1).lower())
     # INTO 子句
-    into_pattern = re.compile(r'\bINTO\s+(\w+)', re.IGNORECASE)
+    into_pattern = re.compile(r"\bINTO\s+(\w+)", re.IGNORECASE)
     for match in into_pattern.finditer(sql):
         tables.add(match.group(1).lower())
     return sorted(list(tables))
 
 
 # ==================== 列名提取 ====================
+
 
 def extract_columns(sql: str) -> List[str]:
     """
@@ -188,22 +192,21 @@ def extract_columns(sql: str) -> List[str]:
         return []
     columns: set = set()
     # SELECT 后的列名
-    select_match = re.search(
-        r'SELECT\s+(.*?)\s+FROM', sql, re.IGNORECASE | re.DOTALL
-    )
+    select_match = re.search(r"SELECT\s+(.*?)\s+FROM", sql, re.IGNORECASE | re.DOTALL)
     if select_match:
         col_part = select_match.group(1).strip()
         # 去除 DISTINCT、函数调用等
-        col_part = re.sub(r'\bDISTINCT\b', '', col_part, flags=re.IGNORECASE)
-        for col in col_part.split(','):
+        col_part = re.sub(r"\bDISTINCT\b", "", col_part, flags=re.IGNORECASE)
+        for col in col_part.split(","):
             col = col.strip()
             # 跳过函数调用和表达式
-            if col and col != '*' and '(' not in col and ' ' not in col:
+            if col and col != "*" and "(" not in col and " " not in col:
                 columns.add(col.lower())
     return sorted(list(columns))
 
 
 # ==================== Generic 驱动能力探测显示 ====================
+
 
 def build_capabilities_display(caps: Dict[str, bool]) -> str:
     """

@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TableMetadata:
     """表元数据"""
+
     name: str
     size_mb: Optional[float] = None
     row_count: Optional[int] = None
@@ -44,6 +45,7 @@ class TableMetadata:
 @dataclass
 class IndexMetadata:
     """索引元数据"""
+
     name: str
     table_name: str
     columns: List[str] = field(default_factory=list)
@@ -78,7 +80,7 @@ class BaseMetadataProvider(ABC):
         """验证标识符是否安全"""
         if not name or len(name) > 64:
             return False
-        pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+        pattern = r"^[a-zA-Z_][a-zA-Z0-9_]*$"
         return bool(re.match(pattern, name))
 
 
@@ -92,12 +94,15 @@ class MySQLMetadataProvider(BaseMetadataProvider):
             return None
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT ROUND((data_length + index_length) / 1024 / 1024, 2)
                 FROM information_schema.tables
                 WHERE table_schema = DATABASE()
                 AND table_name = :table_name
-            """, {"table_name": table_name})
+            """,
+                {"table_name": table_name},
+            )
 
             if result.rows and result.rows[0][0]:
                 return float(result.rows[0][0])
@@ -130,12 +135,15 @@ class MySQLMetadataProvider(BaseMetadataProvider):
                 count = int(result.rows[0][0])
                 if count >= 1000000:
                     # 大表使用估算值
-                    result = self.connector.execute("""
+                    result = self.connector.execute(
+                        """
                         SELECT table_rows
                         FROM information_schema.tables
                         WHERE table_schema = DATABASE()
                         AND table_name = :table_name
-                    """, {"table_name": table_name})
+                    """,
+                        {"table_name": table_name},
+                    )
                     if result.rows and result.rows[0][0]:
                         return int(result.rows[0][0])
                 return count
@@ -157,7 +165,8 @@ class MySQLMetadataProvider(BaseMetadataProvider):
             return []
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     index_name,
                     column_name,
@@ -167,7 +176,9 @@ class MySQLMetadataProvider(BaseMetadataProvider):
                 WHERE table_schema = DATABASE()
                 AND table_name = :table_name
                 ORDER BY index_name, seq_in_index
-            """, {"table_name": table_name})
+            """,
+                {"table_name": table_name},
+            )
 
             indexes = {}
             for row in result.rows:
@@ -177,7 +188,7 @@ class MySQLMetadataProvider(BaseMetadataProvider):
                         "columns": [],
                         "cardinality": row[2],
                         "is_unique": row[3] == 0,
-                        "is_primary": idx_name == "PRIMARY"
+                        "is_primary": idx_name == "PRIMARY",
                     }
                 indexes[idx_name]["columns"].append(row[1])
 
@@ -188,7 +199,7 @@ class MySQLMetadataProvider(BaseMetadataProvider):
                     columns=info["columns"],
                     is_unique=info["is_unique"],
                     is_primary=info["is_primary"],
-                    cardinality=info["cardinality"]
+                    cardinality=info["cardinality"],
                 )
                 for name, info in indexes.items()
             ]
@@ -209,7 +220,8 @@ class MySQLMetadataProvider(BaseMetadataProvider):
             return None
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     table_name,
                     ROUND((data_length + index_length) / 1024 / 1024, 2) as size_mb,
@@ -223,7 +235,9 @@ class MySQLMetadataProvider(BaseMetadataProvider):
                 FROM information_schema.tables
                 WHERE table_schema = DATABASE()
                 AND table_name = :table_name
-            """, {"table_name": table_name})
+            """,
+                {"table_name": table_name},
+            )
 
             if result.rows:
                 row = result.rows[0]
@@ -236,7 +250,7 @@ class MySQLMetadataProvider(BaseMetadataProvider):
                     engine=row[5],
                     charset=row[6],
                     create_time=str(row[7]) if row[7] else None,
-                    update_time=str(row[8]) if row[8] else None
+                    update_time=str(row[8]) if row[8] else None,
                 )
             return None
         except ConnectionError:
@@ -261,21 +275,27 @@ class OracleMetadataProvider(BaseMetadataProvider):
 
         try:
             # 首先尝试user_segments
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT ROUND(SUM(bytes) / 1024 / 1024, 2)
                 FROM user_segments
                 WHERE segment_name = UPPER(:1)
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows and result.rows[0][0]:
                 return float(result.rows[0][0])
 
             # 尝试dba_segments
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT ROUND(SUM(bytes) / 1024 / 1024, 2)
                 FROM dba_segments
                 WHERE segment_name = UPPER(:1)
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows and result.rows[0][0]:
                 return float(result.rows[0][0])
@@ -298,11 +318,14 @@ class OracleMetadataProvider(BaseMetadataProvider):
 
         try:
             # 首先尝试统计信息
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT num_rows
                 FROM user_tables
                 WHERE table_name = UPPER(:1)
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows and result.rows[0][0]:
                 return int(result.rows[0][0])
@@ -337,7 +360,8 @@ class OracleMetadataProvider(BaseMetadataProvider):
             return []
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     index_name,
                     column_name,
@@ -346,7 +370,9 @@ class OracleMetadataProvider(BaseMetadataProvider):
                 JOIN user_indexes ui ON uic.index_name = ui.index_name
                 WHERE uic.table_name = UPPER(:1)
                 ORDER BY uic.index_name, uic.column_position
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             indexes = {}
             for row in result.rows:
@@ -355,7 +381,7 @@ class OracleMetadataProvider(BaseMetadataProvider):
                     indexes[idx_name] = {
                         "columns": [],
                         "is_unique": row[2] == "UNIQUE",
-                        "is_primary": idx_name.endswith("_PK")
+                        "is_primary": idx_name.endswith("_PK"),
                     }
                 indexes[idx_name]["columns"].append(row[1])
 
@@ -365,7 +391,7 @@ class OracleMetadataProvider(BaseMetadataProvider):
                     table_name=table_name,
                     columns=info["columns"],
                     is_unique=info["is_unique"],
-                    is_primary=info["is_primary"]
+                    is_primary=info["is_primary"],
                 )
                 for name, info in indexes.items()
             ]
@@ -390,13 +416,16 @@ class PostgreSQLMetadataProvider(BaseMetadataProvider):
             return None
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT ROUND((pg_total_relation_size(c.oid) / 1024.0 / 1024.0)::numeric, 2)
                 FROM pg_class c
                 JOIN pg_namespace n ON n.oid = c.relnamespace
                 WHERE c.relname = :table_name
                 AND n.nspname = 'public'
-            """, {"table_name": table_name})
+            """,
+                {"table_name": table_name},
+            )
 
             if result.rows and result.rows[0][0]:
                 return float(result.rows[0][0])
@@ -419,11 +448,14 @@ class PostgreSQLMetadataProvider(BaseMetadataProvider):
 
         try:
             # 首先尝试统计信息
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT n_live_tup
                 FROM pg_stat_user_tables
                 WHERE relname = :table_name
-            """, {"table_name": table_name})
+            """,
+                {"table_name": table_name},
+            )
 
             if result.rows and result.rows[0][0]:
                 return int(result.rows[0][0])
@@ -458,13 +490,16 @@ class PostgreSQLMetadataProvider(BaseMetadataProvider):
             return []
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     indexname,
                     indexdef
                 FROM pg_indexes
                 WHERE tablename = :table_name
-            """, {"table_name": table_name})
+            """,
+                {"table_name": table_name},
+            )
 
             indexes = []
             for row in result.rows:
@@ -475,12 +510,9 @@ class PostgreSQLMetadataProvider(BaseMetadataProvider):
                 is_unique = "UNIQUE" in idx_def.upper()
                 is_primary = idx_name.endswith("_pkey")
 
-                indexes.append(IndexMetadata(
-                    name=idx_name,
-                    table_name=table_name,
-                    is_unique=is_unique,
-                    is_primary=is_primary
-                ))
+                indexes.append(
+                    IndexMetadata(name=idx_name, table_name=table_name, is_unique=is_unique, is_primary=is_primary)
+                )
 
             return indexes
         except ConnectionError:
@@ -504,7 +536,8 @@ class MSSQLMetadataProvider(BaseMetadataProvider):
             return None
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     ROUND(SUM(a.total_pages) * 8.0 / 1024, 2) AS size_mb
                 FROM sys.tables t
@@ -513,7 +546,9 @@ class MSSQLMetadataProvider(BaseMetadataProvider):
                 INNER JOIN sys.allocation_units a ON p.partition_id = a.container_id
                 WHERE t.name = ?
                 GROUP BY t.name
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows and result.rows[0][0]:
                 return float(result.rows[0][0])
@@ -536,14 +571,17 @@ class MSSQLMetadataProvider(BaseMetadataProvider):
 
         try:
             # 使用sys.dm_db_partition_stats获取行数
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT SUM(p.rows)
                 FROM sys.tables t
                 INNER JOIN sys.indexes i ON t.object_id = i.object_id
                 INNER JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
                 WHERE t.name = ?
                 AND i.index_id IN (0, 1)
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             if result.rows and result.rows[0][0]:
                 return int(result.rows[0][0])
@@ -565,7 +603,8 @@ class MSSQLMetadataProvider(BaseMetadataProvider):
             return []
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     i.name AS index_name,
                     c.name AS column_name,
@@ -578,7 +617,9 @@ class MSSQLMetadataProvider(BaseMetadataProvider):
                 INNER JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
                 WHERE t.name = ?
                 ORDER BY i.name, ic.key_ordinal
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             indexes = {}
             for row in result.rows:
@@ -588,11 +629,7 @@ class MSSQLMetadataProvider(BaseMetadataProvider):
                 is_primary = row[3]
 
                 if idx_name not in indexes:
-                    indexes[idx_name] = {
-                        "columns": [],
-                        "is_unique": is_unique,
-                        "is_primary": is_primary
-                    }
+                    indexes[idx_name] = {"columns": [], "is_unique": is_unique, "is_primary": is_primary}
                 indexes[idx_name]["columns"].append(column_name)
 
             return [
@@ -601,7 +638,7 @@ class MSSQLMetadataProvider(BaseMetadataProvider):
                     table_name=table_name,
                     columns=info["columns"],
                     is_unique=info["is_unique"],
-                    is_primary=info["is_primary"]
+                    is_primary=info["is_primary"],
                 )
                 for name, info in indexes.items()
             ]
@@ -676,11 +713,7 @@ class ClickHouseMetadataProvider(BaseMetadataProvider):
 
             indexes = []
             for row in result.rows:
-                indexes.append(IndexMetadata(
-                    name=row[0],
-                    table_name=table_name,
-                    index_type=row[1]
-                ))
+                indexes.append(IndexMetadata(name=row[0], table_name=table_name, index_type=row[1]))
 
             return indexes
         except Exception as e:
@@ -748,11 +781,7 @@ class SQLiteMetadataProvider(BaseMetadataProvider):
                 sql = row[1] or ""
                 is_unique = "UNIQUE" in sql.upper()
 
-                indexes.append(IndexMetadata(
-                    name=idx_name,
-                    table_name=table_name,
-                    is_unique=is_unique
-                ))
+                indexes.append(IndexMetadata(name=idx_name, table_name=table_name, is_unique=is_unique))
 
             return indexes
         except Exception as e:
@@ -781,13 +810,14 @@ class GenericMetadataProvider(BaseMetadataProvider):
 
         queries = [
             # PostgreSQL 风格
-            ("SELECT pg_total_relation_size(quote_ident($1)) / 1024.0 / 1024.0",
-             (table_name,)),
+            ("SELECT pg_total_relation_size(quote_ident($1)) / 1024.0 / 1024.0", (table_name,)),
             # MySQL 风格
-            ("SELECT (data_length + index_length) / 1024.0 / 1024.0 "
-             "FROM information_schema.tables "
-             "WHERE table_schema = DATABASE() AND table_name = ?",
-             (table_name,)),
+            (
+                "SELECT (data_length + index_length) / 1024.0 / 1024.0 "
+                "FROM information_schema.tables "
+                "WHERE table_schema = DATABASE() AND table_name = ?",
+                (table_name,),
+            ),
             # 通用回退
             (f"SELECT COUNT(*) * 0.001 FROM {table_name}", ()),
         ]
@@ -809,9 +839,7 @@ class GenericMetadataProvider(BaseMetadataProvider):
             return None
 
         try:
-            result = self.connector.execute(
-                f"SELECT COUNT(*) FROM {table_name}"
-            )
+            result = self.connector.execute(f"SELECT COUNT(*) FROM {table_name}")
             if result.rows and result.rows[0][0] is not None:
                 return int(result.rows[0][0])
         except Exception:
@@ -820,9 +848,7 @@ class GenericMetadataProvider(BaseMetadataProvider):
         # 尝试 INFORMATION_SCHEMA
         try:
             result = self.connector.execute(
-                "SELECT table_rows FROM information_schema.tables "
-                "WHERE table_name = ?",
-                (table_name,)
+                "SELECT table_rows FROM information_schema.tables " "WHERE table_name = ?", (table_name,)
             )
             if result.rows and result.rows[0][0] is not None:
                 return int(result.rows[0][0])
@@ -839,19 +865,10 @@ class GenericMetadataProvider(BaseMetadataProvider):
 
         try:
             result = self.connector.execute(
-                "SELECT index_name FROM information_schema.statistics "
-                "WHERE table_name = ?",
-                (table_name,)
+                "SELECT index_name FROM information_schema.statistics " "WHERE table_name = ?", (table_name,)
             )
             if result.rows:
-                return [
-                    IndexMetadata(
-                        name=row[0],
-                        table_name=table_name,
-                        is_unique=False
-                    )
-                    for row in result.rows
-                ]
+                return [IndexMetadata(name=row[0], table_name=table_name, is_unique=False) for row in result.rows]
         except Exception:
             pass
 
@@ -885,23 +902,20 @@ class DBMetadataService:
 
     def _create_provider(self) -> BaseMetadataProvider:
         """创建对应数据库的元数据提供者"""
-        if 'mysql' in self.dialect:
+        if "mysql" in self.dialect:
             return MySQLMetadataProvider(self.connector)
-        elif 'oracle' in self.dialect:
+        elif "oracle" in self.dialect:
             return OracleMetadataProvider(self.connector)
-        elif 'postgresql' in self.dialect:
+        elif "postgresql" in self.dialect:
             return PostgreSQLMetadataProvider(self.connector)
-        elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+        elif "mssql" in self.dialect or "sqlserver" in self.dialect:
             return MSSQLMetadataProvider(self.connector)
-        elif 'clickhouse' in self.dialect:
+        elif "clickhouse" in self.dialect:
             return ClickHouseMetadataProvider(self.connector)
-        elif 'sqlite' in self.dialect:
+        elif "sqlite" in self.dialect:
             return SQLiteMetadataProvider(self.connector)
         else:
-            logger.info(
-                f"方言 '{self.dialect}' 未找到专用元数据提供者，"
-                f"回退到 GenericMetadataProvider"
-            )
+            logger.info(f"方言 '{self.dialect}' 未找到专用元数据提供者，" f"回退到 GenericMetadataProvider")
             return GenericMetadataProvider(self.connector)
 
     def get_table_size(self, table_name: str) -> Optional[float]:
@@ -918,7 +932,7 @@ class DBMetadataService:
 
     def get_table_metadata(self, table_name: str) -> Optional[TableMetadata]:
         """获取完整的表元数据"""
-        if hasattr(self._provider, 'get_table_metadata'):
+        if hasattr(self._provider, "get_table_metadata"):
             return self._provider.get_table_metadata(table_name)
 
         # 兼容处理
@@ -926,9 +940,5 @@ class DBMetadataService:
         rows = self.get_table_row_count(table_name)
 
         if size is not None or rows is not None:
-            return TableMetadata(
-                name=table_name,
-                size_mb=size,
-                row_count=rows
-            )
+            return TableMetadata(name=table_name, size_mb=size, row_count=rows)
         return None

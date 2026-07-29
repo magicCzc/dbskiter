@@ -30,7 +30,7 @@ def _try_unified(config) -> Optional[UnifiedConnector]:
         username=config.username,
         password=config.password,
         database=config.database,
-        **config.extra
+        **config.extra,
     )
 
 
@@ -68,7 +68,7 @@ def _try_oracle_group(db_name: str, configs: Dict[str, Any]) -> Optional[Unified
     """4. Z 系列资产组使用 ORACLE 配置"""
     if not OracleHostMapping.is_oracle_group(db_name):
         return None
-    oracle_config = configs.get('ORACLE')
+    oracle_config = configs.get("ORACLE")
     if oracle_config:
         logger.info(f"使用 ORACLE 配置创建连接器: {db_name}")
         return _try_unified(oracle_config)

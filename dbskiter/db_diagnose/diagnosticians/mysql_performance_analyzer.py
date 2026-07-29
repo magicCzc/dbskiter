@@ -24,7 +24,7 @@ from ..core.performance_model import (
     PerformanceMetric,
     SlowQueryInfo,
     MetricCategory,
-    get_threshold
+    get_threshold,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,14 +63,13 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
             result = self._execute_with_timeout("SELECT VERSION()", timeout=5)
             if result:
                 version_str = str(result[0][0])
-                parts = version_str.split('.')
+                parts = version_str.split(".")
                 self._version = float(f"{parts[0]}.{parts[1]}")
                 logger.info(f"MySQL版本: {self._version}")
 
             # 检测performance_schema
             result = self._execute_with_timeout(
-                "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'performance_schema'",
-                timeout=5
+                "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'performance_schema'", timeout=5
             )
             self._has_performance_schema = result and result[0][0] > 0
             logger.info(f"performance_schema可用: {self._has_performance_schema}")
@@ -78,19 +77,21 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
             # 检测sys schema (MySQL 5.7+)
             if self._version and self._version >= 5.7:
                 result = self._execute_with_timeout(
-                    "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'sys'",
-                    timeout=5
+                    "SELECT COUNT(*) FROM information_schema.schemata WHERE schema_name = 'sys'", timeout=5
                 )
                 self._has_sys_schema = result and result[0][0] > 0
                 logger.info(f"sys schema可用: {self._has_sys_schema}")
 
             # 检测InnoDB相关表是否存在
             try:
-                result = self._execute_with_timeout("""
+                result = self._execute_with_timeout(
+                    """
                     SELECT COUNT(*) FROM information_schema.TABLES
                     WHERE TABLE_SCHEMA = 'information_schema'
                     AND TABLE_NAME IN ('innodb_lock_waits', 'innodb_trx')
-                """, timeout=5)
+                """,
+                    timeout=5,
+                )
                 self._has_innodb_tables = result and result[0][0] >= 2
                 logger.info(f"InnoDB表可用: {self._has_innodb_tables}")
             except Exception:
@@ -149,15 +150,17 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
             ratio = (active / total) * 100 if total > 0 else 0
 
             threshold = get_threshold("cpu_time_ratio")
-            metrics.append(PerformanceMetric(
-                name="active_session_ratio",
-                value=ratio,
-                unit="%",
-                category=MetricCategory.CPU,
-                threshold_warning=threshold.get("warning"),
-                threshold_critical=threshold.get("critical"),
-                source="processlist"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="active_session_ratio",
+                    value=ratio,
+                    unit="%",
+                    category=MetricCategory.CPU,
+                    threshold_warning=threshold.get("warning"),
+                    threshold_critical=threshold.get("critical"),
+                    source="processlist",
+                )
+            )
 
         except Exception as e:
             logger.warning(f"CPU指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -186,23 +189,25 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 # 转换为字典
                 status_dict = {row[0]: row[1] for row in result} if result else {}
 
-                buffer_reads = int(status_dict.get('Innodb_buffer_pool_reads', 0) or 0)
-                buffer_requests = int(status_dict.get('Innodb_buffer_pool_read_requests', 0) or 0)
+                buffer_reads = int(status_dict.get("Innodb_buffer_pool_reads", 0) or 0)
+                buffer_requests = int(status_dict.get("Innodb_buffer_pool_read_requests", 0) or 0)
 
                 if buffer_requests > 0:
                     hit_ratio = (1 - buffer_reads / buffer_requests) * 100
 
                     threshold = get_threshold("buffer_hit_ratio")
-                    metrics.append(PerformanceMetric(
-                        name="buffer_pool_hit_ratio",
-                        value=hit_ratio,
-                        unit="%",
-                        category=MetricCategory.IO,
-                        threshold_warning=threshold.get("warning"),
-                        threshold_critical=threshold.get("critical"),
-                        higher_is_better=True,  # 命中率越高越好
-                        source="innodb_status"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="buffer_pool_hit_ratio",
+                            value=hit_ratio,
+                            unit="%",
+                            category=MetricCategory.IO,
+                            threshold_warning=threshold.get("warning"),
+                            threshold_critical=threshold.get("critical"),
+                            higher_is_better=True,  # 命中率越高越好
+                            source="innodb_status",
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"IO指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -228,22 +233,24 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
 
                 # 转换为字典
                 status_dict = {row[0]: row[1] for row in result} if result else {}
-                data_pages = int(status_dict.get('Innodb_buffer_pool_pages_data', 0) or 0)
-                total_pages = int(status_dict.get('Innodb_buffer_pool_pages_total', 0) or 0)
+                data_pages = int(status_dict.get("Innodb_buffer_pool_pages_data", 0) or 0)
+                total_pages = int(status_dict.get("Innodb_buffer_pool_pages_total", 0) or 0)
 
                 if total_pages > 0:
                     usage_ratio = (data_pages / total_pages) * 100
 
                     threshold = get_threshold("memory_usage")
-                    metrics.append(PerformanceMetric(
-                        name="buffer_pool_usage",
-                        value=usage_ratio,
-                        unit="%",
-                        category=MetricCategory.MEMORY,
-                        threshold_warning=threshold.get("warning"),
-                        threshold_critical=threshold.get("critical"),
-                        source="innodb_status"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="buffer_pool_usage",
+                            value=usage_ratio,
+                            unit="%",
+                            category=MetricCategory.MEMORY,
+                            threshold_warning=threshold.get("warning"),
+                            threshold_critical=threshold.get("critical"),
+                            source="innodb_status",
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"内存指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -279,15 +286,17 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 usage_ratio = (connected / max_conn) * 100
 
                 threshold = get_threshold("connection_usage")
-                metrics.append(PerformanceMetric(
-                    name="connection_usage",
-                    value=usage_ratio,
-                    unit="%",
-                    category=MetricCategory.CONCURRENCY,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="connection_status"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="connection_usage",
+                        value=usage_ratio,
+                        unit="%",
+                        category=MetricCategory.CONCURRENCY,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="connection_status",
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"并发指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -327,15 +336,17 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
                 wait_ratio = (lock_waits / total_trx) * 100 if total_trx > 0 else 0
 
                 threshold = get_threshold("lock_wait_ratio")
-                metrics.append(PerformanceMetric(
-                    name="lock_wait_ratio",
-                    value=wait_ratio,
-                    unit="%",
-                    category=MetricCategory.LOCK,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="lock_status"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="lock_wait_ratio",
+                        value=wait_ratio,
+                        unit="%",
+                        category=MetricCategory.LOCK,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="lock_status",
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"锁指标采集失败: {str(e).split(chr(10))[0][:120]}")
@@ -418,15 +429,15 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
 
         # 查找所有数据库引用模式
         # 模式1: `db`.`table`
-        pattern1 = r'`(\w+)`\s*\.\s*`(\w+)`'
+        pattern1 = r"`(\w+)`\s*\.\s*`(\w+)`"
         matches1 = re.findall(pattern1, sql_text)
 
         # 模式2: db.table (不带反引号)
-        pattern2 = r'(?<![`\w])(\w+)\s*\.\s*`?(\w+)`?(?![\w`])'
+        pattern2 = r"(?<![`\w])(\w+)\s*\.\s*`?(\w+)`?(?![\w`])"
         matches2 = re.findall(pattern2, sql_text)
 
         # 模式3: `db` table (数据库名带反引号，表名不带，用空格分隔，可能是别名)
-        pattern3 = r'`(\w+)`\s+`?(\w+)`?(?:\s+(?:AS\s+)?`?\w+`?)?(?:\s*,|\s+FROM|\s+JOIN|\s+INTO|\s+UPDATE|\s+DELETE|\s+WHERE|\s+GROUP|\s+ORDER|\s+LIMIT|\s*;)'
+        pattern3 = r"`(\w+)`\s+`?(\w+)`?(?:\s+(?:AS\s+)?`?\w+`?)?(?:\s*,|\s+FROM|\s+JOIN|\s+INTO|\s+UPDATE|\s+DELETE|\s+WHERE|\s+GROUP|\s+ORDER|\s+LIMIT|\s*;)"
         matches3 = re.findall(pattern3, sql_text, re.IGNORECASE)
 
         all_matches = matches1 + matches2 + matches3
@@ -443,8 +454,7 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
 
         return True
 
-    def collect_slow_queries(self, limit: int = 20,
-                            min_time_ms: float = 1000) -> List[SlowQueryInfo]:
+    def collect_slow_queries(self, limit: int = 20, min_time_ms: float = 1000) -> List[SlowQueryInfo]:
         """
         采集MySQL慢查询
 
@@ -495,23 +505,25 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
 
                 if result:
                     for row in result:
-                        sql_text = row[0] if row[0] else ''
+                        sql_text = row[0] if row[0] else ""
 
                         # 严格数据库隔离：排除访问其他数据库的查询
                         if database and not self._is_query_in_database(sql_text, database):
                             logger.debug(f"跳过访问其他数据库的查询: {sql_text[:50]}...")
                             continue
 
-                        queries.append(SlowQueryInfo(
-                            sql_text=sql_text,
-                            sql_id=row[1],
-                            execution_count=row[2],
-                            total_time_ms=row[3],
-                            avg_time_ms=row[4],
-                            max_time_ms=row[5],
-                            rows_examined=row[6],
-                            rows_sent=row[7]
-                        ))
+                        queries.append(
+                            SlowQueryInfo(
+                                sql_text=sql_text,
+                                sql_id=row[1],
+                                execution_count=row[2],
+                                total_time_ms=row[3],
+                                avg_time_ms=row[4],
+                                max_time_ms=row[5],
+                                rows_examined=row[6],
+                                rows_sent=row[7],
+                            )
+                        )
 
             # 降级到processlist
             if not queries:
@@ -542,15 +554,17 @@ class MySQLPerformanceAnalyzer(PerformanceAnalyzer):
 
                 if result:
                     for row in result:
-                        queries.append(SlowQueryInfo(
-                            sql_text=row[7] or f"{row[4]} from {row[2]}",
-                            sql_id=str(row[0]),
-                            execution_count=1,
-                            total_time_ms=row[5] * 1000,
-                            avg_time_ms=row[5] * 1000,
-                            max_time_ms=row[5] * 1000,
-                            database=row[3]
-                        ))
+                        queries.append(
+                            SlowQueryInfo(
+                                sql_text=row[7] or f"{row[4]} from {row[2]}",
+                                sql_id=str(row[0]),
+                                execution_count=1,
+                                total_time_ms=row[5] * 1000,
+                                avg_time_ms=row[5] * 1000,
+                                max_time_ms=row[5] * 1000,
+                                database=row[3],
+                            )
+                        )
 
         except Exception as e:
             logger.error(f"慢查询采集失败: {e}")

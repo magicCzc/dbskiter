@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Set, Tuple
 
@@ -31,11 +32,7 @@ class SlowQueriesMixin:
     """slow_queries for DiagnoseSkill"""
 
     def analyze_slow_queries(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0,
-        log_file: Optional[str] = None,
-        since: Optional[str] = None
+        self, limit: int = 20, min_time: float = 1.0, log_file: Optional[str] = None, since: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         分析慢查询（多数据库支持，增强版，已接入多步骤计时）
@@ -58,6 +55,7 @@ class SlowQueriesMixin:
                 - _execution_time: 步骤耗时（自动注入）
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         try:
@@ -65,51 +63,32 @@ class SlowQueriesMixin:
                 # 日志文件模式
                 with timer.step("load_log_file", "加载慢查询日志文件"):
                     from .core.slow_query_analyzer import SlowQueryAnalyzer
+
                     analyzer = SlowQueryAnalyzer(self.connector)
 
                 with timer.step("parse_log", "解析日志内容"):
-                    report = analyzer.analyze_log_file(
-                        file_path=log_file,
-                        since=since,
-                        min_time=min_time
-                    )
+                    report = analyzer.analyze_log_file(file_path=log_file, since=since, min_time=min_time)
 
-                result = create_success_response(
-                    report.to_dict(),
-                    f"日志分析完成: {log_file}"
-                )
+                result = create_success_response(report.to_dict(), f"日志分析完成: {log_file}")
             else:
                 # 实时模式
                 with timer.step("db_query", "从数据库采集慢查询"):
-                    result = self._diagnostician.analyze_slow_queries(
-                        limit=limit,
-                        min_time=min_time
-                    )
+                    result = self._diagnostician.analyze_slow_queries(limit=limit, min_time=min_time)
 
                 with timer.step("process_data", "处理并封装结果"):
                     if not isinstance(result, dict):
                         result = {"data": result}
                     if "success" not in result:
-                        result = create_success_response(
-                            result.get("data", result),
-                            "慢查询分析完成"
-                        )
+                        result = create_success_response(result.get("data", result), "慢查询分析完成")
 
             # 注入多步骤耗时
             result["_execution_time"] = timer.to_summary()
             return result
         except Exception as e:
             logger.error(f"慢查询分析失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.SLOW_QUERY_FAILED
-            )
+            return create_error_response(str(e), ErrorCode.SLOW_QUERY_FAILED)
 
-
-    def analyze_performance_metrics(
-        self,
-        duration_minutes: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_performance_metrics(self, duration_minutes: int = 10) -> Dict[str, Any]:
         """
         分析性能指标（多数据库支持）
 
@@ -121,17 +100,11 @@ class SlowQueriesMixin:
         """
         try:
             # diagnostician已经返回标准格式，直接使用
-            result = self._diagnostician.analyze_performance_metrics(
-                duration_minutes=duration_minutes
-            )
+            result = self._diagnostician.analyze_performance_metrics(duration_minutes=duration_minutes)
             return result
         except Exception as e:
             logger.error(f"性能指标分析失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.PERF_ANALYSIS_FAILED
-            )
-
+            return create_error_response(str(e), ErrorCode.PERF_ANALYSIS_FAILED)
 
     def get_database_stats(self) -> Dict[str, Any]:
         """
@@ -146,29 +119,20 @@ class SlowQueriesMixin:
             return result
         except Exception as e:
             logger.error(f"获取数据库统计信息失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.METRICS_ERROR
-            )
+            return create_error_response(str(e), ErrorCode.METRICS_ERROR)
 
     # ==================== 向后兼容方法 ====================
 
-
-    def analyze_aas(
-        self,
-        duration_minutes: int = 10,
-        interval_seconds: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_aas(self, duration_minutes: int = 10, interval_seconds: int = 10) -> Dict[str, Any]:
         """AAS分析（MySQL专用，向后兼容）"""
-        if 'mysql' not in self.dialect:
+        if "mysql" not in self.dialect:
             return create_error_response(
                 f"AAS分析仅支持MySQL数据库，当前方言: {self.dialect}",
                 ErrorCode.UNSUPPORTED_SQL,
-                {"suggestion": "请使用 analyze_performance_metrics() 方法获取性能指标"}
+                {"suggestion": "请使用 analyze_performance_metrics() 方法获取性能指标"},
             )
 
         return self.analyze_performance_metrics(duration_minutes=duration_minutes)
-
 
     def _convert_diagnostician_result(self, result: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -197,5 +161,3 @@ class SlowQueriesMixin:
             return create_error_response(error or message, ErrorCode.UNKNOWN_ERROR, data)
 
     # ==================== 表和Schema诊断 ====================
-
-

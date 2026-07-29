@@ -57,49 +57,37 @@ class HealthScoreCalculator:
     # 权重总和为1.0，用于分配扣分额度
     CATEGORY_CONFIG = {
         InspectionType.CONFIGURATION: {
-            'weight': 0.20,
-            'label': '配置规范',
-            'max_deduction_ratio': 0.90  # 该分类最高扣分类权重的90%
+            "weight": 0.20,
+            "label": "配置规范",
+            "max_deduction_ratio": 0.90,  # 该分类最高扣分类权重的90%
         },
-        InspectionType.PERFORMANCE: {
-            'weight': 0.30,
-            'label': '性能指标',
-            'max_deduction_ratio': 0.90
-        },
+        InspectionType.PERFORMANCE: {"weight": 0.30, "label": "性能指标", "max_deduction_ratio": 0.90},
         InspectionType.SECURITY: {
-            'weight': 0.25,
-            'label': '安全配置',
-            'max_deduction_ratio': 0.95  # 安全类问题更严重，允许扣更多
+            "weight": 0.25,
+            "label": "安全配置",
+            "max_deduction_ratio": 0.95,  # 安全类问题更严重，允许扣更多
         },
-        InspectionType.STORAGE: {
-            'weight': 0.15,
-            'label': '存储空间',
-            'max_deduction_ratio': 0.90
-        },
-        InspectionType.CAPACITY: {
-            'weight': 0.10,
-            'label': '容量规划',
-            'max_deduction_ratio': 0.90
-        },
+        InspectionType.STORAGE: {"weight": 0.15, "label": "存储空间", "max_deduction_ratio": 0.90},
+        InspectionType.CAPACITY: {"weight": 0.10, "label": "容量规划", "max_deduction_ratio": 0.90},
     }
 
     # 风险等级基准扣分值
     # 参考行业实践：严重问题扣分适中，避免单项过度影响
     BASE_DEDUCTION = {
-        RiskLevel.CRITICAL: 12,   # 严重问题扣12分
-        RiskLevel.HIGH: 6,        # 高危问题扣6分
-        RiskLevel.MEDIUM: 2,      # 中等问题扣2分
-        RiskLevel.LOW: 0.5,       # 低危问题扣0.5分
-        RiskLevel.INFO: 0         # 信息项不扣分
+        RiskLevel.CRITICAL: 12,  # 严重问题扣12分
+        RiskLevel.HIGH: 6,  # 高危问题扣6分
+        RiskLevel.MEDIUM: 2,  # 中等问题扣2分
+        RiskLevel.LOW: 0.5,  # 低危问题扣0.5分
+        RiskLevel.INFO: 0,  # 信息项不扣分
     }
 
     # 状态调整系数
     # 警告状态按一定比例扣分，而非直接打对折
     STATUS_FACTOR = {
-        'pass': 0.0,      # 通过不扣分
-        'warning': 0.7,   # 警告扣70%（比原来的50%更合理）
-        'fail': 1.0,      # 失败扣100%
-        'skip': 0.0       # 跳过不计算
+        "pass": 0.0,  # 通过不扣分
+        "warning": 0.7,  # 警告扣70%（比原来的50%更合理）
+        "fail": 1.0,  # 失败扣100%
+        "skip": 0.0,  # 跳过不计算
     }
 
     # 总扣分上限（保留最低10分）
@@ -108,8 +96,7 @@ class HealthScoreCalculator:
     # 最低保留分数
     MIN_SCORE = 10
 
-    def __init__(self, category_config: Optional[Dict] = None,
-                 base_deduction: Optional[Dict] = None):
+    def __init__(self, category_config: Optional[Dict] = None, base_deduction: Optional[Dict] = None):
         """
         初始化评分计算器
 
@@ -141,7 +128,7 @@ class HealthScoreCalculator:
             return 100.0
 
         # 过滤掉跳过的项
-        valid_items = [item for item in items if item.status != 'skip']
+        valid_items = [item for item in items if item.status != "skip"]
 
         if not valid_items:
             return 100.0
@@ -191,8 +178,7 @@ class HealthScoreCalculator:
 
         return groups
 
-    def _calculate_category_deduction(self, category: InspectionType,
-                                       items: List[InspectionItem]) -> float:
+    def _calculate_category_deduction(self, category: InspectionType, items: List[InspectionItem]) -> float:
         """
         计算单个分类的扣分
 
@@ -204,18 +190,15 @@ class HealthScoreCalculator:
             float: 分类扣分值
         """
         # 获取分类配置
-        config = self.category_config.get(category, {
-            'weight': 0.20,
-            'max_deduction_ratio': 0.90
-        })
+        config = self.category_config.get(category, {"weight": 0.20, "max_deduction_ratio": 0.90})
 
-        category_weight = config['weight']
-        max_ratio = config['max_deduction_ratio']
+        category_weight = config["weight"]
+        max_ratio = config["max_deduction_ratio"]
 
         # 计算该分类的原始扣分
         raw_deduction = 0.0
         for item in items:
-            if item.status == 'pass':
+            if item.status == "pass":
                 continue
 
             # 处理风险等级
@@ -243,8 +226,7 @@ class HealthScoreCalculator:
 
         return actual_deduction
 
-    def calculate_category_score(self, items: List[InspectionItem],
-                                  inspection_type: InspectionType) -> float:
+    def calculate_category_score(self, items: List[InspectionItem], inspection_type: InspectionType) -> float:
         """
         计算特定类别的健康评分
 
@@ -255,10 +237,7 @@ class HealthScoreCalculator:
         返回:
             float: 类别健康评分
         """
-        category_items = [
-            item for item in items
-            if item.inspection_type == inspection_type
-        ]
+        category_items = [item for item in items if item.inspection_type == inspection_type]
 
         if not category_items:
             return 100.0
@@ -302,13 +281,8 @@ class HealthScoreCalculator:
             str: 等级中文标签
         """
         grade = self.get_score_grade(score)
-        labels = {
-            'healthy': '健康',
-            'subhealthy': '亚健康',
-            'risk': '风险',
-            'danger': '高危'
-        }
-        return labels.get(grade, '未知')
+        labels = {"healthy": "健康", "subhealthy": "亚健康", "risk": "风险", "danger": "高危"}
+        return labels.get(grade, "未知")
 
     def get_score_details(self, items: List[InspectionItem]) -> Dict[str, Any]:
         """
@@ -322,42 +296,39 @@ class HealthScoreCalculator:
         """
         if not items:
             return {
-                'total_score': 100.0,
-                'total_deduction': 0.0,
-                'category_details': {},
-                'grade': 'healthy',
-                'grade_label': '健康'
+                "total_score": 100.0,
+                "total_deduction": 0.0,
+                "category_details": {},
+                "grade": "healthy",
+                "grade_label": "健康",
             }
 
-        valid_items = [item for item in items if item.status != 'skip']
+        valid_items = [item for item in items if item.status != "skip"]
         category_items = self._group_by_category(valid_items)
 
         category_details = {}
         for category, cat_items in category_items.items():
-            config = self.category_config.get(category, {
-                'weight': 0.20,
-                'label': '未分类'
-            })
+            config = self.category_config.get(category, {"weight": 0.20, "label": "未分类"})
 
             deduction = self._calculate_category_deduction(category, cat_items)
             category_details[category.value] = {
-                'label': config['label'],
-                'weight': config['weight'],
-                'deduction': round(deduction, 2),
-                'item_count': len(cat_items),
-                'score': round(max(self.MIN_SCORE, 100 - deduction), 1)
+                "label": config["label"],
+                "weight": config["weight"],
+                "deduction": round(deduction, 2),
+                "item_count": len(cat_items),
+                "score": round(max(self.MIN_SCORE, 100 - deduction), 1),
             }
 
-        total_deduction = sum(d['deduction'] for d in category_details.values())
+        total_deduction = sum(d["deduction"] for d in category_details.values())
         final_deduction = min(total_deduction, self.MAX_TOTAL_DEDUCTION)
         final_score = max(self.MIN_SCORE, 100 - final_deduction)
 
         return {
-            'total_score': round(final_score, 1),
-            'total_deduction': round(final_deduction, 2),
-            'category_details': category_details,
-            'grade': self.get_score_grade(final_score),
-            'grade_label': self.get_score_grade_label(final_score)
+            "total_score": round(final_score, 1),
+            "total_deduction": round(final_deduction, 2),
+            "category_details": category_details,
+            "grade": self.get_score_grade(final_score),
+            "grade_label": self.get_score_grade_label(final_score),
         }
 
 
@@ -385,6 +356,7 @@ class ReportFormatter:
         """
         # 使用增强型报告生成器
         from .report_generator import EnhancedReportGenerator
+
         return EnhancedReportGenerator.generate_html_report(report)
 
     @staticmethod
@@ -400,6 +372,7 @@ class ReportFormatter:
         """
         # 使用增强型报告生成器
         from .report_generator import EnhancedReportGenerator
+
         return EnhancedReportGenerator.generate_markdown_report(report)
 
     @staticmethod
@@ -431,11 +404,7 @@ class BaselineManager:
         self._baselines: Dict[str, PerformanceBaseline] = {}
         self._current_baseline_id: Optional[str] = None
 
-    def create_baseline(
-        self,
-        report: InspectionReport,
-        name: Optional[str] = None
-    ) -> PerformanceBaseline:
+    def create_baseline(self, report: InspectionReport, name: Optional[str] = None) -> PerformanceBaseline:
         """
         从巡检报告创建性能基线
 
@@ -463,10 +432,7 @@ class BaselineManager:
                         metrics[item.name] = item.actual_value
 
         baseline = PerformanceBaseline(
-            baseline_id=baseline_id,
-            instance_name=report.instance_name,
-            created_at=datetime.now(),
-            metrics=metrics
+            baseline_id=baseline_id, instance_name=report.instance_name, created_at=datetime.now(), metrics=metrics
         )
 
         self._baselines[baseline_id] = baseline
@@ -514,11 +480,7 @@ class BaselineManager:
             return True
         return False
 
-    def compare_with_baseline(
-        self,
-        report: InspectionReport,
-        baseline_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def compare_with_baseline(self, report: InspectionReport, baseline_id: Optional[str] = None) -> Dict[str, Any]:
         """
         对比当前报告与基线
 
@@ -536,10 +498,7 @@ class BaselineManager:
             baseline = self.get_current_baseline()
 
         if not baseline:
-            return {
-                "error": "基线不存在",
-                "available_baselines": list(self._baselines.keys())
-            }
+            return {"error": "基线不存在", "available_baselines": list(self._baselines.keys())}
 
         comparison = {
             "baseline_id": baseline.baseline_id,
@@ -549,7 +508,7 @@ class BaselineManager:
             "improved_items": [],
             "degraded_items": [],
             "unchanged_items": [],
-            "new_items": []
+            "new_items": [],
         }
 
         # 对比各项指标
@@ -569,34 +528,37 @@ class BaselineManager:
                     change_pct = ((current_value - baseline_value) / baseline_value * 100) if baseline_value != 0 else 0
 
                     if change_pct < -10:  # 改善超过10%
-                        comparison["improved_items"].append({
-                            "name": name,
-                            "baseline": baseline_value,
-                            "current": current_value,
-                            "change_pct": round(change_pct, 2)
-                        })
+                        comparison["improved_items"].append(
+                            {
+                                "name": name,
+                                "baseline": baseline_value,
+                                "current": current_value,
+                                "change_pct": round(change_pct, 2),
+                            }
+                        )
                     elif change_pct > 10:  # 恶化超过10%
-                        comparison["degraded_items"].append({
-                            "name": name,
-                            "baseline": baseline_value,
-                            "current": current_value,
-                            "change_pct": round(change_pct, 2)
-                        })
+                        comparison["degraded_items"].append(
+                            {
+                                "name": name,
+                                "baseline": baseline_value,
+                                "current": current_value,
+                                "change_pct": round(change_pct, 2),
+                            }
+                        )
                     else:
-                        comparison["unchanged_items"].append({
-                            "name": name,
-                            "baseline": baseline_value,
-                            "current": current_value,
-                            "change_pct": round(change_pct, 2)
-                        })
+                        comparison["unchanged_items"].append(
+                            {
+                                "name": name,
+                                "baseline": baseline_value,
+                                "current": current_value,
+                                "change_pct": round(change_pct, 2),
+                            }
+                        )
 
         # 找出新增项
         for name in current_metrics:
             if name not in baseline.metrics:
-                comparison["new_items"].append({
-                    "name": name,
-                    "current": current_metrics[name]
-                })
+                comparison["new_items"].append({"name": name, "current": current_metrics[name]})
 
         return comparison
 
@@ -612,7 +574,7 @@ class BaselineManager:
                 "baseline_id": b.baseline_id,
                 "instance_name": b.instance_name,
                 "created_at": b.created_at.isoformat(),
-                "is_current": b.baseline_id == self._current_baseline_id
+                "is_current": b.baseline_id == self._current_baseline_id,
             }
             for b in self._baselines.values()
         ]
@@ -640,10 +602,7 @@ class InspectionAggregator:
             Dict: 聚合结果
         """
         if not reports:
-            return {
-                "total_reports": 0,
-                "message": "没有巡检报告"
-            }
+            return {"total_reports": 0, "message": "没有巡检报告"}
 
         aggregation = {
             "total_reports": len(reports),
@@ -651,7 +610,7 @@ class InspectionAggregator:
             "database_types": list(set(r.database_type for r in reports)),
             "time_range": {
                 "start": min(r.inspection_time for r in reports).isoformat(),
-                "end": max(r.inspection_time for r in reports).isoformat()
+                "end": max(r.inspection_time for r in reports).isoformat(),
             },
             "average_health_score": sum(r.health_score for r in reports) / len(reports),
             "total_items": sum(r.total_items for r in reports),
@@ -662,9 +621,9 @@ class InspectionAggregator:
                 "critical": sum(r.critical_count for r in reports),
                 "high": sum(r.high_count for r in reports),
                 "medium": sum(r.medium_count for r in reports),
-                "low": sum(r.low_count for r in reports)
+                "low": sum(r.low_count for r in reports),
             },
-            "failed_items_summary": InspectionAggregator._summarize_failed_items(reports)
+            "failed_items_summary": InspectionAggregator._summarize_failed_items(reports),
         }
 
         return aggregation
@@ -676,7 +635,7 @@ class InspectionAggregator:
 
         for report in reports:
             for item in report.items:
-                if item.status in ['warning', 'fail']:
+                if item.status in ["warning", "fail"]:
                     key = f"{item.name}:{item.inspection_type.value}"
 
                     if key not in failed_items:
@@ -685,7 +644,7 @@ class InspectionAggregator:
                             "type": item.inspection_type.value,
                             "risk_level": item.risk_level.value,
                             "count": 0,
-                            "instances": set()
+                            "instances": set(),
                         }
 
                     failed_items[key]["count"] += 1
@@ -694,13 +653,15 @@ class InspectionAggregator:
         # 转换为列表并排序
         result = []
         for item in failed_items.values():
-            result.append({
-                "name": item["name"],
-                "type": item["type"],
-                "risk_level": item["risk_level"],
-                "count": item["count"],
-                "instances": list(item["instances"])
-            })
+            result.append(
+                {
+                    "name": item["name"],
+                    "type": item["type"],
+                    "risk_level": item["risk_level"],
+                    "count": item["count"],
+                    "instances": list(item["instances"]),
+                }
+            )
 
         # 按出现次数降序排序
         result.sort(key=lambda x: x["count"], reverse=True)
@@ -709,9 +670,7 @@ class InspectionAggregator:
 
     @staticmethod
     def get_top_issues(
-        report: InspectionReport,
-        risk_level: Optional[RiskLevel] = None,
-        limit: int = 10
+        report: InspectionReport, risk_level: Optional[RiskLevel] = None, limit: int = 10
     ) -> List[InspectionItem]:
         """
         获取Top问题
@@ -735,15 +694,12 @@ class InspectionAggregator:
             RiskLevel.HIGH: 1,
             RiskLevel.MEDIUM: 2,
             RiskLevel.LOW: 3,
-            RiskLevel.INFO: 4
+            RiskLevel.INFO: 4,
         }
 
-        status_order = {'fail': 0, 'warning': 1, 'pass': 2}
+        status_order = {"fail": 0, "warning": 1, "pass": 2}
 
-        items.sort(key=lambda x: (
-            risk_order.get(x.risk_level, 5),
-            status_order.get(x.status, 3)
-        ))
+        items.sort(key=lambda x: (risk_order.get(x.risk_level, 5), status_order.get(x.status, 3)))
 
         return items[:limit]
 
@@ -770,10 +726,7 @@ class TrendAnalyzer:
             Dict: 趋势分析结果
         """
         if len(reports) < 2:
-            return {
-                "trend": "insufficient_data",
-                "message": "数据不足，需要至少2次巡检记录"
-            }
+            return {"trend": "insufficient_data", "message": "数据不足，需要至少2次巡检记录"}
 
         # 按时间排序
         sorted_reports = sorted(reports, key=lambda r: r.inspection_time)
@@ -810,14 +763,11 @@ class TrendAnalyzer:
             "max_score": max(scores),
             "average_score": round(sum(scores) / len(scores), 2),
             "inspection_count": len(reports),
-            "time_span_days": (times[-1] - times[0]).days if len(times) > 1 else 0
+            "time_span_days": (times[-1] - times[0]).days if len(times) > 1 else 0,
         }
 
     @staticmethod
-    def detect_anomalies(
-        reports: List[InspectionReport],
-        threshold: float = 10.0
-    ) -> List[Dict[str, Any]]:
+    def detect_anomalies(reports: List[InspectionReport], threshold: float = 10.0) -> List[Dict[str, Any]]:
         """
         检测异常变化
 
@@ -841,13 +791,15 @@ class TrendAnalyzer:
             score_change = curr_report.health_score - prev_report.health_score
 
             if abs(score_change) > threshold:
-                anomalies.append({
-                    "timestamp": curr_report.inspection_time.isoformat(),
-                    "report_id": curr_report.report_id,
-                    "score_change": round(score_change, 2),
-                    "previous_score": prev_report.health_score,
-                    "current_score": curr_report.health_score,
-                    "type": "improvement" if score_change > 0 else "degradation"
-                })
+                anomalies.append(
+                    {
+                        "timestamp": curr_report.inspection_time.isoformat(),
+                        "report_id": curr_report.report_id,
+                        "score_change": round(score_change, 2),
+                        "previous_score": prev_report.health_score,
+                        "current_score": curr_report.health_score,
+                        "type": "improvement" if score_change > 0 else "degradation",
+                    }
+                )
 
         return anomalies

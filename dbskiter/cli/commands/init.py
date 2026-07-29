@@ -96,47 +96,17 @@ class InitCommand(BaseCommand):
         支持子命令：add, list
         支持全局参数：--quick, --demo, --format, --output, --force
         """
-        subparsers = parser.add_subparsers(
-            dest="init_action",
-            help="init 子命令",
-            metavar="ACTION"
-        )
+        subparsers = parser.add_subparsers(dest="init_action", help="init 子命令", metavar="ACTION")
 
         # ====== add 子命令：添加新数据库 ======
-        add_parser = subparsers.add_parser(
-            "add",
-            help="添加新数据库别名到现有配置"
-        )
-        add_parser.add_argument(
-            "--format",
-            choices=["env", "yaml"],
-            default="env",
-            help="配置格式（默认 env）"
-        )
-        add_parser.add_argument(
-            "--output",
-            "-o",
-            default=".env",
-            help="输出文件路径（默认 .env）"
-        )
+        add_parser = subparsers.add_parser("add", help="添加新数据库别名到现有配置")
+        add_parser.add_argument("--format", choices=["env", "yaml"], default="env", help="配置格式（默认 env）")
+        add_parser.add_argument("--output", "-o", default=".env", help="输出文件路径（默认 .env）")
 
         # ====== list 子命令：列出已配置数据库 ======
-        list_parser = subparsers.add_parser(
-            "list",
-            help="列出已配置的数据库别名"
-        )
-        list_parser.add_argument(
-            "--format",
-            choices=["env", "yaml"],
-            default="env",
-            help="配置格式（默认 env）"
-        )
-        list_parser.add_argument(
-            "--output",
-            "-o",
-            default=".env",
-            help="配置文件路径（默认 .env）"
-        )
+        list_parser = subparsers.add_parser("list", help="列出已配置的数据库别名")
+        list_parser.add_argument("--format", choices=["env", "yaml"], default="env", help="配置格式（默认 env）")
+        list_parser.add_argument("--output", "-o", default=".env", help="配置文件路径（默认 .env）")
 
         # ====== 全局参数 ======
         parser.epilog = """
@@ -148,33 +118,11 @@ class InitCommand(BaseCommand):
   dbskiter init add                       # 添加新数据库别名
   dbskiter init list                      # 列出已配置的数据库
         """
-        parser.add_argument(
-            "--quick",
-            action="store_true",
-            help="快速模式：只生成配置模板，不交互"
-        )
-        parser.add_argument(
-            "--demo",
-            action="store_true",
-            help="演示模式：生成带 mock 数据的配置"
-        )
-        parser.add_argument(
-            "--format",
-            choices=["env", "yaml"],
-            default="env",
-            help="配置格式（默认 env，支持 yaml）"
-        )
-        parser.add_argument(
-            "--output",
-            "-o",
-            default=".env",
-            help="输出文件路径（默认 .env）"
-        )
-        parser.add_argument(
-            "--force",
-            action="store_true",
-            help="强制覆盖已存在的配置文件"
-        )
+        parser.add_argument("--quick", action="store_true", help="快速模式：只生成配置模板，不交互")
+        parser.add_argument("--demo", action="store_true", help="演示模式：生成带 mock 数据的配置")
+        parser.add_argument("--format", choices=["env", "yaml"], default="env", help="配置格式（默认 env，支持 yaml）")
+        parser.add_argument("--output", "-o", default=".env", help="输出文件路径（默认 .env）")
+        parser.add_argument("--force", action="store_true", help="强制覆盖已存在的配置文件")
 
     def execute(self) -> int:
         """
@@ -234,7 +182,7 @@ class InitCommand(BaseCommand):
             output.error("别名不能为空，已取消")
             return 1
         # 清理别名（只允许字母数字下划线）
-        alias = re.sub(r'[^a-zA-Z0-9_]', '_', alias)
+        alias = re.sub(r"[^a-zA-Z0-9_]", "_", alias)
         prefix = f"DB_{alias.upper()}"
 
         # 选择数据库类型
@@ -367,7 +315,7 @@ class InitCommand(BaseCommand):
                         "port": 0,
                         "user": "demo",
                         "password": "demo",
-                        "db": "demo"
+                        "db": "demo",
                     }
                 ]
             }
@@ -381,7 +329,7 @@ class InitCommand(BaseCommand):
         output.print("")
         output.info("使用方法：")
         output.print("  dbskiter --demo monitor health")
-        output.print("  dbskiter --demo sql execute \"SELECT * FROM users LIMIT 10\"")
+        output.print('  dbskiter --demo sql execute "SELECT * FROM users LIMIT 10"')
         output.print("  dbskiter --demo diagnose top")
         return 0
 
@@ -454,7 +402,7 @@ class InitCommand(BaseCommand):
                 output.print("第一个数据库将作为默认配置（无前缀）")
                 alias_input = input("  数据库别名（直接回车使用 'default'）：").strip()
                 if alias_input:
-                    alias = re.sub(r'[^a-zA-Z0-9_]', '_', alias_input)
+                    alias = re.sub(r"[^a-zA-Z0-9_]", "_", alias_input)
                     prefix = f"DB_{alias.upper()}"
                 else:
                     alias = "default"
@@ -463,7 +411,7 @@ class InitCommand(BaseCommand):
                 alias = input("  数据库别名（如 jump, prod, test）：").strip()
                 if not alias:
                     alias = f"db_{len(all_configs) + 1}"
-                alias = re.sub(r'[^a-zA-Z0-9_]', '_', alias)
+                alias = re.sub(r"[^a-zA-Z0-9_]", "_", alias)
                 prefix = f"DB_{alias.upper()}"
 
             # 步骤3：收集连接信息
@@ -474,12 +422,14 @@ class InitCommand(BaseCommand):
                     return 1
                 break
 
-            all_configs.append({
-                "alias": alias,
-                "prefix": prefix,
-                "config": config,
-                "db_type": db_type,
-            })
+            all_configs.append(
+                {
+                    "alias": alias,
+                    "prefix": prefix,
+                    "config": config,
+                    "db_type": db_type,
+                }
+            )
             first_db = False
 
         if not all_configs:
@@ -552,7 +502,7 @@ class InitCommand(BaseCommand):
             output.print(f"  {i}. {db_type.upper():12s} (默认端口: {template['port']})")
         output.print("")
         raw_choice = input("请输入序号 (1-6): ").strip()
-        choice = re.sub(r'[^0-9]', '', raw_choice)
+        choice = re.sub(r"[^0-9]", "", raw_choice)
         try:
             idx = int(choice) - 1
             if 0 <= idx < len(types):
@@ -561,9 +511,7 @@ class InitCommand(BaseCommand):
             pass
         return None
 
-    def _collect_connection_info(
-        self, db_type: str, template: Dict[str, Any]
-    ) -> Optional[Dict[str, Any]]:
+    def _collect_connection_info(self, db_type: str, template: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """收集连接信息"""
         output = self.output
         config: Dict[str, Any] = {"dialect": template["dialect"]}
@@ -616,9 +564,11 @@ class InitCommand(BaseCommand):
         ]
         if "jdbc_driver" in config:
             lines.append(f"{prefix}_JDBC_DRIVER={config['jdbc_driver']}")
-        lines.extend([
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+            ]
+        )
         return "\n".join(lines)
 
     def _generate_yaml_content(self, name: str, config: Dict[str, Any]) -> Dict[str, Any]:
@@ -643,7 +593,7 @@ class InitCommand(BaseCommand):
             "settings": {
                 "default_database": all_configs[0]["alias"] if all_configs else None,
                 "default_output_format": "table",
-            }
+            },
         }
 
     def _create_yaml_template(self) -> Dict[str, Any]:
@@ -657,19 +607,20 @@ class InitCommand(BaseCommand):
                     "port": 3306,
                     "user": "root",
                     "password": "${DB_PASSWORD}",
-                    "db": "your_database"
+                    "db": "your_database",
                 }
             ],
             "settings": {
                 "default_database": "default",
                 "default_output_format": "table",
-            }
+            },
         }
 
     def _write_yaml(self, path: Path, data: Dict[str, Any]) -> None:
         """写入 YAML 文件"""
         try:
             import yaml
+
             path.parent.mkdir(parents=True, exist_ok=True)
             yaml_content = yaml.dump(
                 data,
@@ -688,6 +639,7 @@ class InitCommand(BaseCommand):
             return {"databases": []}
         try:
             import yaml
+
             content = path.read_text(encoding="utf-8")
             data = yaml.safe_load(content) or {"databases": []}
             if "databases" not in data:
@@ -708,12 +660,12 @@ class InitCommand(BaseCommand):
         aliases = set()
         for line in content.splitlines():
             # 匹配带别名的配置 DB_XXX_HOST
-            match = re.match(r'^DB_([A-Z0-9_]+)_HOST=', line)
+            match = re.match(r"^DB_([A-Z0-9_]+)_HOST=", line)
             if match:
                 alias = match.group(1).lower()
                 aliases.add(alias)
             # 匹配默认配置 DB_HOST（无前缀别名）
-            elif re.match(r'^DB_HOST=', line):
+            elif re.match(r"^DB_HOST=", line):
                 aliases.add("default")
         return sorted(aliases)
 
@@ -721,7 +673,7 @@ class InitCommand(BaseCommand):
         """从 .env 内容中提取指定 key 的值"""
         for line in content.splitlines():
             if line.startswith(f"{key}="):
-                return line[len(f"{key}="):].strip()
+                return line[len(f"{key}=") :].strip()
         return None
 
     def _remove_alias_from_env(self, content: str, prefix: str) -> str:
@@ -805,6 +757,7 @@ DBSKITER_DEMO_MODE=true
         try:
             # 尝试导入连接器并测试连接
             from dbskiter.shared.unified_connector import UnifiedConnector
+
             connector = UnifiedConnector(
                 dialect=cfg["dialect"],
                 host=cfg["host"],

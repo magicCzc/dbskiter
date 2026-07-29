@@ -103,19 +103,15 @@ class BaseInspector(ABC):
         """
         try:
             return {
-                'instance_name': f"{self.dialect}-{self.connector.host}",
-                'database_type': self.dialect,
-                'host': self.connector.host,
-                'port': self.connector.port,
-                'version': 'unknown'
+                "instance_name": f"{self.dialect}-{self.connector.host}",
+                "database_type": self.dialect,
+                "host": self.connector.host,
+                "port": self.connector.port,
+                "version": "unknown",
             }
         except AttributeError as e:
             logger.warning(f"连接器缺少必要属性: {e}")
-            return {
-                'instance_name': f"{self.dialect}-unknown",
-                'database_type': self.dialect,
-                'version': 'unknown'
-            }
+            return {"instance_name": f"{self.dialect}-unknown", "database_type": self.dialect, "version": "unknown"}
 
     def _execute_query(self, sql: str, params: tuple = None) -> Optional[List]:
         """
@@ -146,10 +142,17 @@ class BaseInspector(ABC):
             logger.warning(f"查询执行异常 [{type(e).__name__}]: {e}")
             return None
 
-    def _create_item(self, name: str, insp_type: InspectionType,
-                     risk_level: RiskLevel, status: str,
-                     description: str, actual_value: str = None,
-                     reference: str = None, suggestion: str = None) -> InspectionItem:
+    def _create_item(
+        self,
+        name: str,
+        insp_type: InspectionType,
+        risk_level: RiskLevel,
+        status: str,
+        description: str,
+        actual_value: str = None,
+        reference: str = None,
+        suggestion: str = None,
+    ) -> InspectionItem:
         """
         创建检查项
 
@@ -174,5 +177,5 @@ class BaseInspector(ABC):
             description=description,
             actual_value=actual_value,
             reference=reference,
-            suggestion=suggestion
+            suggestion=suggestion,
         )

@@ -32,24 +32,27 @@ logger = logging.getLogger(__name__)
 
 class ThreatLevel(Enum):
     """威胁等级"""
-    CRITICAL = "critical"      # 紧急威胁
-    HIGH = "high"              # 高危
-    MEDIUM = "medium"          # 中危
-    LOW = "low"                # 低危
-    INFO = "info"              # 信息
+
+    CRITICAL = "critical"  # 紧急威胁
+    HIGH = "high"  # 高危
+    MEDIUM = "medium"  # 中危
+    LOW = "low"  # 低危
+    INFO = "info"  # 信息
 
 
 class BehaviorPattern(Enum):
     """行为模式类型"""
-    NORMAL = "normal"          # 正常
+
+    NORMAL = "normal"  # 正常
     SUSPICIOUS = "suspicious"  # 可疑
-    ANOMALOUS = "anomalous"    # 异常
-    MALICIOUS = "malicious"    # 恶意
+    ANOMALOUS = "anomalous"  # 异常
+    MALICIOUS = "malicious"  # 恶意
 
 
 @dataclass
 class UserBehavior:
     """用户行为画像"""
+
     user_id: str
     user_name: str
     host: str
@@ -66,6 +69,7 @@ class UserBehavior:
 @dataclass
 class AnomalyEvent:
     """异常事件"""
+
     event_id: str
     timestamp: datetime
     user_id: str
@@ -79,6 +83,7 @@ class AnomalyEvent:
 @dataclass
 class DataFlowPath:
     """数据流向路径"""
+
     source_table: str
     source_column: str
     destination: str
@@ -91,6 +96,7 @@ class DataFlowPath:
 @dataclass
 class ComplianceRule:
     """合规规则"""
+
     rule_id: str
     standard: str  # GDPR, PCI-DSS, 等保
     category: str
@@ -103,6 +109,7 @@ class ComplianceRule:
 @dataclass
 class ComplianceResult:
     """合规检查结果"""
+
     standard: str
     total_rules: int
     passed_rules: int
@@ -129,7 +136,7 @@ class BehaviorAnalyzer:
 
     # 异常阈值配置
     OFF_HOURS_START = 22  # 晚上10点
-    OFF_HOURS_END = 6     # 早上6点
+    OFF_HOURS_END = 6  # 早上6点
     MAX_FAILED_LOGINS = 5
     MAX_PRIVILEGE_ATTEMPTS = 3
     ANOMALY_QUERY_THRESHOLD = 10
@@ -139,11 +146,7 @@ class BehaviorAnalyzer:
         self.user_profiles: Dict[str, UserBehavior] = {}
         self.baseline_established = False
 
-    def analyze_user_behavior(
-        self,
-        user_id: str,
-        audit_logs: List[Dict[str, Any]]
-    ) -> UserBehavior:
+    def analyze_user_behavior(self, user_id: str, audit_logs: List[Dict[str, Any]]) -> UserBehavior:
         """
         分析用户行为并建立画像
 
@@ -154,11 +157,7 @@ class BehaviorAnalyzer:
         返回:
             UserBehavior: 用户行为画像
         """
-        profile = UserBehavior(
-            user_id=user_id,
-            user_name="",
-            host=""
-        )
+        profile = UserBehavior(user_id=user_id, user_name="", host="")
 
         for log in audit_logs:
             # 记录登录时间
@@ -196,10 +195,7 @@ class BehaviorAnalyzer:
         self.user_profiles[user_id] = profile
         return profile
 
-    def detect_anomalies(
-        self,
-        current_logs: List[Dict[str, Any]]
-    ) -> List[AnomalyEvent]:
+    def detect_anomalies(self, current_logs: List[Dict[str, Any]]) -> List[AnomalyEvent]:
         """
         检测异常行为
 
@@ -222,45 +218,51 @@ class BehaviorAnalyzer:
             # 检查已知攻击模式
             attack_pattern = self._check_attack_patterns(query)
             if attack_pattern:
-                anomalies.append(AnomalyEvent(
-                    event_id=self._generate_event_id(),
-                    timestamp=timestamp,
-                    user_id=user_id,
-                    event_type="attack_pattern",
-                    description=f"检测到攻击模式: {attack_pattern['type']}",
-                    severity=ThreatLevel.CRITICAL,
-                    evidence={"query": query, "pattern": attack_pattern},
-                    recommendation="立即阻断该用户访问并审查日志"
-                ))
+                anomalies.append(
+                    AnomalyEvent(
+                        event_id=self._generate_event_id(),
+                        timestamp=timestamp,
+                        user_id=user_id,
+                        event_type="attack_pattern",
+                        description=f"检测到攻击模式: {attack_pattern['type']}",
+                        severity=ThreatLevel.CRITICAL,
+                        evidence={"query": query, "pattern": attack_pattern},
+                        recommendation="立即阻断该用户访问并审查日志",
+                    )
+                )
 
             # 检查偏离基线行为
             if user_id in self.user_profiles:
                 baseline = self.user_profiles[user_id]
                 deviation = self._check_baseline_deviation(baseline, log)
                 if deviation:
-                    anomalies.append(AnomalyEvent(
-                        event_id=self._generate_event_id(),
-                        timestamp=timestamp,
-                        user_id=user_id,
-                        event_type="baseline_deviation",
-                        description=f"行为偏离基线: {deviation['description']}",
-                        severity=deviation['severity'],
-                        evidence={"log": log, "baseline": baseline},
-                        recommendation="审查该用户的访问行为"
-                    ))
+                    anomalies.append(
+                        AnomalyEvent(
+                            event_id=self._generate_event_id(),
+                            timestamp=timestamp,
+                            user_id=user_id,
+                            event_type="baseline_deviation",
+                            description=f"行为偏离基线: {deviation['description']}",
+                            severity=deviation["severity"],
+                            evidence={"log": log, "baseline": baseline},
+                            recommendation="审查该用户的访问行为",
+                        )
+                    )
 
             # 检查暴力破解
             if self._is_brute_force_attempt(user_id, timestamp):
-                anomalies.append(AnomalyEvent(
-                    event_id=self._generate_event_id(),
-                    timestamp=timestamp,
-                    user_id=user_id,
-                    event_type="brute_force",
-                    description="检测到暴力破解尝试",
-                    severity=ThreatLevel.HIGH,
-                    evidence={"user_id": user_id, "timestamp": timestamp},
-                    recommendation="暂时锁定该账户并通知管理员"
-                ))
+                anomalies.append(
+                    AnomalyEvent(
+                        event_id=self._generate_event_id(),
+                        timestamp=timestamp,
+                        user_id=user_id,
+                        event_type="brute_force",
+                        description="检测到暴力破解尝试",
+                        severity=ThreatLevel.HIGH,
+                        evidence={"user_id": user_id, "timestamp": timestamp},
+                        recommendation="暂时锁定该账户并通知管理员",
+                    )
+                )
 
         return anomalies
 
@@ -297,12 +299,7 @@ class BehaviorAnalyzer:
         tables = set()
 
         # 简单的正则提取
-        patterns = [
-            r'FROM\s+(\w+)',
-            r'INTO\s+(\w+)',
-            r'UPDATE\s+(\w+)',
-            r'TABLE\s+(\w+)'
-        ]
+        patterns = [r"FROM\s+(\w+)", r"INTO\s+(\w+)", r"UPDATE\s+(\w+)", r"TABLE\s+(\w+)"]
 
         for pattern in patterns:
             matches = re.findall(pattern, query, re.IGNORECASE)
@@ -313,10 +310,10 @@ class BehaviorAnalyzer:
     def _is_privilege_escalation(self, query: str) -> bool:
         """检查是否为权限提升尝试"""
         escalation_patterns = [
-            r'GRANT\s+ALL',
-            r'GRANT\s+.*\s+ON\s+\*\.\*',
-            r'SET\s+PASSWORD\s+FOR',
-            r'ALTER\s+USER.*WITH\s+GRANT'
+            r"GRANT\s+ALL",
+            r"GRANT\s+.*\s+ON\s+\*\.\*",
+            r"SET\s+PASSWORD\s+FOR",
+            r"ALTER\s+USER.*WITH\s+GRANT",
         ]
 
         query_upper = query.upper()
@@ -359,16 +356,10 @@ class BehaviorAnalyzer:
             "sql_injection": [
                 r"(\%27)|(\')|(\-\-)|(\%23)|(#)",
                 r"((\%3D)|(=))[^\n]*((\%27)|(\')|(\-\-)|(\%3B)|(;))",
-                r"\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))"
+                r"\w*((\%27)|(\'))((\%6F)|o|(\%4F))((\%72)|r|(\%52))",
             ],
-            "data_exfiltration": [
-                r"SELECT\s+.*\s+INTO\s+OUTFILE",
-                r"SELECT\s+.*\s+INTO\s+DUMPFILE",
-                r"LOAD_FILE\s*\("
-            ],
-            "privilege_escalation": [
-                r"GRANT\s+.*\s+TO\s+.*WITH\s+GRANT\s+OPTION"
-            ]
+            "data_exfiltration": [r"SELECT\s+.*\s+INTO\s+OUTFILE", r"SELECT\s+.*\s+INTO\s+DUMPFILE", r"LOAD_FILE\s*\("],
+            "privilege_escalation": [r"GRANT\s+.*\s+TO\s+.*WITH\s+GRANT\s+OPTION"],
         }
 
         query_lower = query.lower()
@@ -380,9 +371,7 @@ class BehaviorAnalyzer:
         return None
 
     def _check_baseline_deviation(
-        self,
-        baseline: UserBehavior,
-        current_log: Dict[str, Any]
+        self, baseline: UserBehavior, current_log: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """检查是否偏离基线"""
         query = current_log.get("query", "")
@@ -401,10 +390,7 @@ class BehaviorAnalyzer:
             deviations.append(f"访问新表: {', '.join(new_tables)}")
 
         if deviations:
-            return {
-                "description": "; ".join(deviations),
-                "severity": ThreatLevel.MEDIUM
-            }
+            return {"description": "; ".join(deviations), "severity": ThreatLevel.MEDIUM}
 
         return None
 
@@ -415,9 +401,7 @@ class BehaviorAnalyzer:
 
     def _generate_event_id(self) -> str:
         """生成事件ID"""
-        return hashlib.md5(
-            f"{datetime.now().isoformat()}".encode()
-        ).hexdigest()[:12]
+        return hashlib.md5(f"{datetime.now().isoformat()}".encode()).hexdigest()[:12]
 
 
 class DataFlowAnalyzer:
@@ -440,9 +424,7 @@ class DataFlowAnalyzer:
         self.flow_paths: List[DataFlowPath] = []
 
     def analyze_data_flow(
-        self,
-        sensitive_columns: List[Tuple[str, str]],  # [(table, column), ...]
-        audit_logs: List[Dict[str, Any]]
+        self, sensitive_columns: List[Tuple[str, str]], audit_logs: List[Dict[str, Any]]  # [(table, column), ...]
     ) -> List[DataFlowPath]:
         """
         分析敏感数据流向
@@ -454,11 +436,7 @@ class DataFlowAnalyzer:
         返回:
             List[DataFlowPath]: 数据流向路径列表
         """
-        flow_map = defaultdict(lambda: {
-            "access_count": 0,
-            "destinations": set(),
-            "last_access": None
-        })
+        flow_map = defaultdict(lambda: {"access_count": 0, "destinations": set(), "last_access": None})
 
         for log in audit_logs:
             query = log.get("query", "")
@@ -481,23 +459,22 @@ class DataFlowAnalyzer:
         paths = []
         for (table, column), data in flow_map.items():
             for destination in data["destinations"]:
-                paths.append(DataFlowPath(
-                    source_table=table,
-                    source_column=column,
-                    destination=destination,
-                    flow_type="query",
-                    access_count=data["access_count"],
-                    last_access=data["last_access"],
-                    risk_level=self._assess_flow_risk(data["access_count"], destination)
-                ))
+                paths.append(
+                    DataFlowPath(
+                        source_table=table,
+                        source_column=column,
+                        destination=destination,
+                        flow_type="query",
+                        access_count=data["access_count"],
+                        last_access=data["last_access"],
+                        risk_level=self._assess_flow_risk(data["access_count"], destination),
+                    )
+                )
 
         self.flow_paths = paths
         return paths
 
-    def identify_data_leak_risks(
-        self,
-        flow_paths: List[DataFlowPath]
-    ) -> List[Dict[str, Any]]:
+    def identify_data_leak_risks(self, flow_paths: List[DataFlowPath]) -> List[Dict[str, Any]]:
         """
         识别数据泄露风险
 
@@ -511,13 +488,15 @@ class DataFlowAnalyzer:
 
         for path in flow_paths:
             if path.risk_level in [ThreatLevel.HIGH, ThreatLevel.CRITICAL]:
-                risks.append({
-                    "source": f"{path.source_table}.{path.source_column}",
-                    "destination": path.destination,
-                    "access_count": path.access_count,
-                    "risk_level": path.risk_level.value,
-                    "recommendation": self._generate_flow_recommendation(path)
-                })
+                risks.append(
+                    {
+                        "source": f"{path.source_table}.{path.source_column}",
+                        "destination": path.destination,
+                        "access_count": path.access_count,
+                        "risk_level": path.risk_level.value,
+                        "recommendation": self._generate_flow_recommendation(path),
+                    }
+                )
 
         return risks
 
@@ -533,9 +512,9 @@ class DataFlowAnalyzer:
 
         # 检查是否访问列（简化检查）
         patterns = [
-            rf'\b{column_upper}\b',
-            rf'SELECT\s+\*\s+FROM\s+{table_upper}',
-            rf'SELECT\s+.*\b{column_upper}\b.*\s+FROM\s+{table_upper}'
+            rf"\b{column_upper}\b",
+            rf"SELECT\s+\*\s+FROM\s+{table_upper}",
+            rf"SELECT\s+.*\b{column_upper}\b.*\s+FROM\s+{table_upper}",
         ]
 
         return any(re.search(pattern, query_upper) for pattern in patterns)
@@ -544,8 +523,7 @@ class DataFlowAnalyzer:
         """评估流向风险"""
         # 外部IP风险更高
         is_external = not any(
-            destination.startswith(prefix)
-            for prefix in ["localhost", "127.0.0.1", "10.", "192.168.", "172."]
+            destination.startswith(prefix) for prefix in ["localhost", "127.0.0.1", "10.", "192.168.", "172."]
         )
 
         if access_count > 1000 and is_external:
@@ -592,7 +570,7 @@ class ComplianceChecker:
                 description="不应存储不必要的个人数据",
                 check_query="SELECT COUNT(*) FROM information_schema.columns WHERE column_name LIKE '%password%' OR column_name LIKE '%ssn%'",
                 remediation="审查并删除不必要的敏感字段",
-                severity=ThreatLevel.HIGH
+                severity=ThreatLevel.HIGH,
             ),
             ComplianceRule(
                 rule_id="GDPR-002",
@@ -601,7 +579,7 @@ class ComplianceChecker:
                 description="敏感数据应加密存储",
                 check_query="SHOW VARIABLES LIKE 'have_ssl'",
                 remediation="启用SSL/TLS加密连接",
-                severity=ThreatLevel.CRITICAL
+                severity=ThreatLevel.CRITICAL,
             ),
             ComplianceRule(
                 rule_id="GDPR-003",
@@ -610,8 +588,8 @@ class ComplianceChecker:
                 description="应实施最小权限原则",
                 check_query="SELECT user, host FROM mysql.user WHERE super_priv='Y'",
                 remediation="限制SUPER权限用户数量",
-                severity=ThreatLevel.HIGH
-            )
+                severity=ThreatLevel.HIGH,
+            ),
         ],
         "PCI-DSS": [
             ComplianceRule(
@@ -621,7 +599,7 @@ class ComplianceChecker:
                 description="持卡人数据必须加密",
                 check_query="SELECT COUNT(*) FROM information_schema.tables WHERE table_name LIKE '%card%'",
                 remediation="确保支付卡数据加密存储",
-                severity=ThreatLevel.CRITICAL
+                severity=ThreatLevel.CRITICAL,
             ),
             ComplianceRule(
                 rule_id="PCI-002",
@@ -630,8 +608,8 @@ class ComplianceChecker:
                 description="默认拒绝所有访问",
                 check_query="SELECT COUNT(*) FROM mysql.user",
                 remediation="移除不必要的用户账户",
-                severity=ThreatLevel.HIGH
-            )
+                severity=ThreatLevel.HIGH,
+            ),
         ],
         "等保": [
             ComplianceRule(
@@ -641,7 +619,7 @@ class ComplianceChecker:
                 description="应启用强密码策略",
                 check_query="SHOW VARIABLES LIKE 'validate_password%'",
                 remediation="配置密码复杂度策略",
-                severity=ThreatLevel.HIGH
+                severity=ThreatLevel.HIGH,
             ),
             ComplianceRule(
                 rule_id="DB-002",
@@ -650,7 +628,7 @@ class ComplianceChecker:
                 description="应启用审计功能",
                 check_query="SHOW VARIABLES LIKE 'general_log'",
                 remediation="启用通用查询日志或审计插件",
-                severity=ThreatLevel.HIGH
+                severity=ThreatLevel.HIGH,
             ),
             ComplianceRule(
                 rule_id="DB-003",
@@ -659,20 +637,16 @@ class ComplianceChecker:
                 description="审计记录应留存6个月以上",
                 check_query="SHOW VARIABLES LIKE 'expire_logs_days'",
                 remediation="设置日志过期时间不少于180天",
-                severity=ThreatLevel.MEDIUM
-            )
-        ]
+                severity=ThreatLevel.MEDIUM,
+            ),
+        ],
     }
 
     def __init__(self):
         """初始化合规检查器"""
         pass
 
-    def check_compliance(
-        self,
-        standard: str,
-        connector: Any
-    ) -> ComplianceResult:
+    def check_compliance(self, standard: str, connector: Any) -> ComplianceResult:
         """
         执行合规检查
 
@@ -692,7 +666,7 @@ class ComplianceChecker:
                 failed_rules=0,
                 violations=[],
                 compliance_score=0.0,
-                report_time=datetime.now()
+                report_time=datetime.now(),
             )
 
         violations = []
@@ -707,13 +681,15 @@ class ComplianceChecker:
                 passed += 1
             else:
                 failed += 1
-                violations.append({
-                    "rule_id": rule.rule_id,
-                    "category": rule.category,
-                    "description": rule.description,
-                    "severity": rule.severity.value,
-                    "remediation": rule.remediation
-                })
+                violations.append(
+                    {
+                        "rule_id": rule.rule_id,
+                        "category": rule.category,
+                        "description": rule.description,
+                        "severity": rule.severity.value,
+                        "remediation": rule.remediation,
+                    }
+                )
 
         total = len(rules)
         score = (passed / total * 100) if total > 0 else 0
@@ -725,13 +701,14 @@ class ComplianceChecker:
             failed_rules=failed,
             violations=violations,
             compliance_score=score,
-            report_time=datetime.now()
+            report_time=datetime.now(),
         )
 
     def _simulate_check(self, rule: ComplianceRule) -> bool:
         """模拟合规检查（实际应该查询数据库）"""
         # 这里简化处理，实际应该执行rule.check_query
         import random
+
         return random.random() > 0.3  # 70%通过率
 
     def get_supported_standards(self) -> List[str]:
@@ -764,25 +741,16 @@ class AdvancedSecurityAnalyzer:
         self.data_flow_analyzer = DataFlowAnalyzer()
         self.compliance_checker = ComplianceChecker()
 
-    def analyze_user_behavior(
-        self,
-        user_id: str,
-        audit_logs: List[Dict[str, Any]]
-    ) -> UserBehavior:
+    def analyze_user_behavior(self, user_id: str, audit_logs: List[Dict[str, Any]]) -> UserBehavior:
         """分析用户行为"""
         return self.behavior_analyzer.analyze_user_behavior(user_id, audit_logs)
 
-    def detect_anomalies(
-        self,
-        audit_logs: List[Dict[str, Any]]
-    ) -> List[AnomalyEvent]:
+    def detect_anomalies(self, audit_logs: List[Dict[str, Any]]) -> List[AnomalyEvent]:
         """检测异常行为"""
         return self.behavior_analyzer.detect_anomalies(audit_logs)
 
     def analyze_sensitive_data_flow(
-        self,
-        sensitive_columns: List[Tuple[str, str]],
-        audit_logs: List[Dict[str, Any]]
+        self, sensitive_columns: List[Tuple[str, str]], audit_logs: List[Dict[str, Any]]
     ) -> List[DataFlowPath]:
         """分析敏感数据流向"""
         return self.data_flow_analyzer.analyze_data_flow(sensitive_columns, audit_logs)
@@ -792,10 +760,7 @@ class AdvancedSecurityAnalyzer:
         return self.compliance_checker.check_compliance(standard, self.connector)
 
     def generate_comprehensive_report(
-        self,
-        audit_logs: List[Dict[str, Any]],
-        sensitive_columns: List[Tuple[str, str]],
-        standards: List[str]
+        self, audit_logs: List[Dict[str, Any]], sensitive_columns: List[Tuple[str, str]], standards: List[str]
     ) -> Dict[str, Any]:
         """
         生成综合安全报告
@@ -814,7 +779,7 @@ class AdvancedSecurityAnalyzer:
             "behavior_analysis": {},
             "anomaly_detection": {},
             "data_flow_analysis": {},
-            "compliance_checks": {}
+            "compliance_checks": {},
         }
 
         # 异常检测
@@ -823,13 +788,16 @@ class AdvancedSecurityAnalyzer:
             "total_anomalies": len(anomalies),
             "critical": len([a for a in anomalies if a.severity == ThreatLevel.CRITICAL]),
             "high": len([a for a in anomalies if a.severity == ThreatLevel.HIGH]),
-            "anomalies": [{
-                "event_id": a.event_id,
-                "type": a.event_type,
-                "user": a.user_id,
-                "severity": a.severity.value,
-                "description": a.description
-            } for a in anomalies]
+            "anomalies": [
+                {
+                    "event_id": a.event_id,
+                    "type": a.event_type,
+                    "user": a.user_id,
+                    "severity": a.severity.value,
+                    "description": a.description,
+                }
+                for a in anomalies
+            ],
         }
 
         # 数据流向分析
@@ -838,7 +806,7 @@ class AdvancedSecurityAnalyzer:
         report["data_flow_analysis"] = {
             "total_flows": len(data_flows),
             "high_risk_flows": len(high_risk_flows),
-            "risks": high_risk_flows
+            "risks": high_risk_flows,
         }
 
         # 合规检查
@@ -848,29 +816,22 @@ class AdvancedSecurityAnalyzer:
                 "score": result.compliance_score,
                 "passed": result.passed_rules,
                 "failed": result.failed_rules,
-                "violations": result.violations
+                "violations": result.violations,
             }
 
         # 汇总
-        total_violations = sum(
-            len(r.get("violations", []))
-            for r in report["compliance_checks"].values()
-        )
+        total_violations = sum(len(r.get("violations", [])) for r in report["compliance_checks"].values())
         report["summary"] = {
             "total_anomalies": len(anomalies),
             "critical_anomalies": len([a for a in anomalies if a.severity == ThreatLevel.CRITICAL]),
             "data_leak_risks": len(high_risk_flows),
             "compliance_violations": total_violations,
-            "overall_risk_level": self._calculate_overall_risk(anomalies, high_risk_flows)
+            "overall_risk_level": self._calculate_overall_risk(anomalies, high_risk_flows),
         }
 
         return report
 
-    def _calculate_overall_risk(
-        self,
-        anomalies: List[AnomalyEvent],
-        risks: List[Dict]
-    ) -> str:
+    def _calculate_overall_risk(self, anomalies: List[AnomalyEvent], risks: List[Dict]) -> str:
         """计算总体风险等级"""
         critical_count = len([a for a in anomalies if a.severity == ThreatLevel.CRITICAL])
         high_count = len([a for a in anomalies if a.severity == ThreatLevel.HIGH])

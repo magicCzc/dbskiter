@@ -34,17 +34,19 @@ logger = logging.getLogger(__name__)
 
 class PasswordStrength(Enum):
     """密码强度等级"""
-    EMPTY = "empty"           # 空密码
-    VERY_WEAK = "very_weak"   # 极弱
-    WEAK = "weak"             # 弱
-    MEDIUM = "medium"         # 中等
-    STRONG = "strong"         # 强
+
+    EMPTY = "empty"  # 空密码
+    VERY_WEAK = "very_weak"  # 极弱
+    WEAK = "weak"  # 弱
+    MEDIUM = "medium"  # 中等
+    STRONG = "strong"  # 强
     VERY_STRONG = "very_strong"  # 极强
 
 
 @dataclass
 class UserPasswordStatus:
     """用户密码状态"""
+
     username: str
     host: str
     password_hash: Optional[str]
@@ -61,6 +63,7 @@ class UserPasswordStatus:
 @dataclass
 class PasswordPolicyConfig:
     """密码策略配置"""
+
     min_length: int = 8
     require_uppercase: bool = True
     require_lowercase: bool = True
@@ -86,42 +89,66 @@ class PasswordPolicyChecker:
 
     # 常见弱密码列表
     COMMON_WEAK_PASSWORDS = [
-        "123456", "password", "12345678", "qwerty", "123456789",
-        "letmein", "1234567", "football", "iloveyou", "admin",
-        "welcome", "monkey", "login", "abc123", "111111",
-        "123123", "password123", "1234", "baseball", "qwertyuiop",
+        "123456",
+        "password",
+        "12345678",
+        "qwerty",
+        "123456789",
+        "letmein",
+        "1234567",
+        "football",
+        "iloveyou",
+        "admin",
+        "welcome",
+        "monkey",
+        "login",
+        "abc123",
+        "111111",
+        "123123",
+        "password123",
+        "1234",
+        "baseball",
+        "qwertyuiop",
         # 常见变体
-        "Password1", "Password123", "Admin123", "Root123",
-        "Ab@123456", "Aa@123456", "Test@123", "User@123",
-        "Qwerty@1", "Welcome@1", "Login@123"
+        "Password1",
+        "Password123",
+        "Admin123",
+        "Root123",
+        "Ab@123456",
+        "Aa@123456",
+        "Test@123",
+        "User@123",
+        "Qwerty@1",
+        "Welcome@1",
+        "Login@123",
     ]
-    
+
     # 弱密码模式（正则表达式）
     WEAK_PASSWORD_PATTERNS = [
         # 连续数字结尾：如 Ab@123456, Password123
-        r'^[a-zA-Z]+[@#$%^&*][0-9]{6,}$',
+        r"^[a-zA-Z]+[@#$%^&*][0-9]{6,}$",
         # 简单前缀+连续数字：如 Test123456
-        r'^(test|admin|root|user|password|login|welcome)[@#$%^&*]?[0-9]{3,}$',
+        r"^(test|admin|root|user|password|login|welcome)[@#$%^&*]?[0-9]{3,}$",
         # 键盘顺序：如 Qwerty@1
-        r'^[qQwWeErRtTyY]+[@#$%^&*]?[0-9]+$',
+        r"^[qQwWeErRtTyY]+[@#$%^&*]?[0-9]+$",
         # 重复模式：如 111aaa, abcabc
-        r'^(.)\1{2,}',
+        r"^(.)\1{2,}",
         # 纯数字且长度小于10
-        r'^[0-9]{1,9}$',
+        r"^[0-9]{1,9}$",
         # 纯字母且长度小于8
-        r'^[a-zA-Z]{1,7}$',
+        r"^[a-zA-Z]{1,7}$",
         # 简单替换：如 P@ssw0rd
-        r'^[pP][@#][sS]{2}[wW][0o][rR][dD]',
+        r"^[pP][@#][sS]{2}[wW][0o][rR][dD]",
     ]
 
     # 密码复杂度评分权重
     SCORE_WEIGHTS = {
-        "length": 2,      # 长度基础分
-        "uppercase": 1,   # 大写字母
-        "lowercase": 1,   # 小写字母
-        "digits": 1,      # 数字
-        "special": 2,     # 特殊字符
-        "variety": 2      # 字符种类多样性
+        "length": 2,  # 长度基础分
+        "uppercase": 1,  # 大写字母
+        "lowercase": 1,  # 小写字母
+        "digits": 1,  # 数字
+        "special": 2,  # 特殊字符
+        "variety": 2,  # 字符种类多样性
     }
 
     def __init__(self, connector: UnifiedConnector):
@@ -148,7 +175,9 @@ class PasswordPolicyChecker:
 
             # 统计问题
             empty_passwords = [u for u in user_statuses if u.strength == PasswordStrength.EMPTY]
-            weak_passwords = [u for u in user_statuses if u.strength in [PasswordStrength.WEAK, PasswordStrength.VERY_WEAK]]
+            weak_passwords = [
+                u for u in user_statuses if u.strength in [PasswordStrength.WEAK, PasswordStrength.VERY_WEAK]
+            ]
             expired_passwords = [u for u in user_statuses if u.password_expired]
             locked_accounts = [u for u in user_statuses if u.account_locked]
 
@@ -173,17 +202,14 @@ class PasswordPolicyChecker:
                     "empty_password_users": [self._user_to_dict(u) for u in empty_passwords],
                     "weak_password_users": [self._user_to_dict(u) for u in weak_passwords],
                     "expired_password_users": [self._user_to_dict(u) for u in expired_passwords],
-                    "locked_accounts_users": [self._user_to_dict(u) for u in locked_accounts]
+                    "locked_accounts_users": [self._user_to_dict(u) for u in locked_accounts],
                 },
-                message=f"密码策略检查完成，安全评分: {score}/100"
+                message=f"密码策略检查完成，安全评分: {score}/100",
             )
 
         except Exception as e:
             logger.error(f"密码策略检查失败: {e}")
-            return create_error_response(
-                f"检查失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"检查失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
     def find_weak_passwords(self) -> Dict[str, Any]:
         """
@@ -206,22 +232,19 @@ class PasswordPolicyChecker:
                         "empty_passwords": len(empty),
                         "very_weak_passwords": len(very_weak),
                         "weak_passwords": len(weak),
-                        "total_at_risk": len(empty) + len(very_weak) + len(weak)
+                        "total_at_risk": len(empty) + len(very_weak) + len(weak),
                     },
                     "empty_password_users": [self._user_to_dict(u) for u in empty],
                     "very_weak_password_users": [self._user_to_dict(u) for u in very_weak],
                     "weak_password_users": [self._user_to_dict(u) for u in weak],
-                    "immediate_action_required": [u.username for u in empty + very_weak]
+                    "immediate_action_required": [u.username for u in empty + very_weak],
                 },
-                message=f"发现 {len(empty)} 个空密码，{len(very_weak)} 个极弱密码，{len(weak)} 个弱密码"
+                message=f"发现 {len(empty)} 个空密码，{len(very_weak)} 个极弱密码，{len(weak)} 个弱密码",
             )
 
         except Exception as e:
             logger.error(f"弱密码检查失败: {e}")
-            return create_error_response(
-                f"检查失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"检查失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
     def check_expired_passwords(self) -> Dict[str, Any]:
         """
@@ -240,29 +263,32 @@ class PasswordPolicyChecker:
                 if user.password_last_changed and not user.password_expired:
                     days_since_change = (datetime.now() - user.password_last_changed).days
                     if days_since_change > self.config.max_age_days - 7:  # 7天内过期
-                        expiring_soon.append({
-                            "username": user.username,
-                            "host": user.host,
-                            "days_until_expiry": self.config.max_age_days - days_since_change,
-                            "last_changed": user.password_last_changed.isoformat() if hasattr(user.password_last_changed, 'isoformat') else str(user.password_last_changed)
-                        })
+                        expiring_soon.append(
+                            {
+                                "username": user.username,
+                                "host": user.host,
+                                "days_until_expiry": self.config.max_age_days - days_since_change,
+                                "last_changed": (
+                                    user.password_last_changed.isoformat()
+                                    if hasattr(user.password_last_changed, "isoformat")
+                                    else str(user.password_last_changed)
+                                ),
+                            }
+                        )
 
             return create_success_response(
                 data={
                     "expired_count": len(expired),
                     "expiring_soon_count": len(expiring_soon),
                     "expired_users": [self._user_to_dict(u) for u in expired],
-                    "expiring_soon": expiring_soon
+                    "expiring_soon": expiring_soon,
                 },
-                message=f"发现 {len(expired)} 个过期密码，{len(expiring_soon)} 个即将过期"
+                message=f"发现 {len(expired)} 个过期密码，{len(expiring_soon)} 个即将过期",
             )
 
         except Exception as e:
             logger.error(f"过期密码检查失败: {e}")
-            return create_error_response(
-                f"检查失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"检查失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
     def _get_password_policy(self) -> Dict[str, Any]:
         """获取数据库密码策略配置"""
@@ -380,7 +406,7 @@ class PasswordPolicyChecker:
             # 检查MySQL版本和可用列
             version_result = self.connector.execute("SELECT VERSION()")
             version_str = version_result.rows[0][0] if version_result.rows else "5.7"
-            major_version = int(version_str.split('.')[0])
+            major_version = int(version_str.split(".")[0])
 
             # 根据版本构建查询
             if major_version >= 8:
@@ -428,7 +454,7 @@ class PasswordPolicyChecker:
                     password_last_changed=row[5],
                     account_locked=row[6] == "Y" if row[6] else False,
                     lock_time=row[7],
-                    failed_login_attempts=row[8] or 0
+                    failed_login_attempts=row[8] or 0,
                 )
 
                 # 评估密码强度
@@ -471,7 +497,7 @@ class PasswordPolicyChecker:
                     password_last_changed=None,
                     account_locked=False,
                     lock_time=None,
-                    failed_login_attempts=0
+                    failed_login_attempts=0,
                 )
 
                 status.strength = self._assess_password_strength(status.password_hash, status.username)
@@ -514,7 +540,7 @@ class PasswordPolicyChecker:
                     password_last_changed=None,
                     account_locked=account_locked,
                     lock_time=row[2],
-                    failed_login_attempts=0
+                    failed_login_attempts=0,
                 )
 
                 # Oracle无法直接评估密码强度
@@ -531,11 +557,11 @@ class PasswordPolicyChecker:
     def _assess_password_strength(self, password_hash: Optional[str], username: str = "") -> PasswordStrength:
         """
         评估密码强度
-        
+
         参数:
             password_hash: 密码哈希
             username: 用户名（用于检测用户名相关弱密码）
-            
+
         返回:
             PasswordStrength: 密码强度等级
         """
@@ -548,92 +574,93 @@ class PasswordPolicyChecker:
 
         # 尝试从哈希中提取可能的明文特征（针对MySQL旧版哈希）
         # 注意：这只能检测已知的弱密码模式，无法解密哈希
-        
+
         # 检查是否是已知的弱密码哈希
         if self._is_known_weak_hash(password_hash):
             return PasswordStrength.VERY_WEAK
-        
+
         # 基于哈希长度和特征进行判断
         hash_len = len(password_hash)
-        
+
         # 极短哈希（明文或简单MD5）
         if hash_len < 16:
             return PasswordStrength.VERY_WEAK
-        
+
         # 短哈希（可能是弱密码）
         if hash_len < 32:
             return PasswordStrength.WEAK
-        
+
         # MySQL 4.1+ 的哈希格式（41字节）
         # 如果哈希符合弱密码特征，标记为弱
-        if hash_len == 41 and password_hash.startswith('*'):
+        if hash_len == 41 and password_hash.startswith("*"):
             # 这是MySQL的SHA1哈希，无法直接判断强度
             # 但如果是常见弱密码，哈希值会有特征
             if self._check_mysql_hash_pattern(password_hash):
                 return PasswordStrength.WEAK
-        
+
         return PasswordStrength.MEDIUM
-    
+
     def _is_known_weak_hash(self, password_hash: str) -> bool:
         """
         检查是否是已知的弱密码哈希
-        
+
         通过比对常见弱密码的哈希值来判断
         """
         import hashlib
-        
+
         # 计算常见弱密码的哈希并比对
         for weak_pass in self.COMMON_WEAK_PASSWORDS:
             # MySQL SHA1哈希格式: *SHA1(SHA1(password))
             mysql_hash = self._mysql_password_hash(weak_pass)
             if mysql_hash == password_hash:
                 return True
-            
+
             # 标准SHA1
             sha1_hash = hashlib.sha1(weak_pass.encode()).hexdigest()
             if sha1_hash == password_hash.lower():
                 return True
-            
+
             # 标准SHA256
             sha256_hash = hashlib.sha256(weak_pass.encode()).hexdigest()
             if sha256_hash == password_hash.lower():
                 return True
-        
+
         return False
-    
+
     def _mysql_password_hash(self, password: str) -> str:
         """
         计算MySQL密码哈希
-        
+
         MySQL 4.1+ 使用: SHA1(SHA1(password))
         """
         import hashlib
+
         hash1 = hashlib.sha1(password.encode()).digest()
         hash2 = hashlib.sha1(hash1).hexdigest()
         return f"*{hash2.upper()}"
-    
+
     def _check_mysql_hash_pattern(self, password_hash: str) -> bool:
         """
         检查MySQL哈希是否符合弱密码特征
-        
+
         某些弱密码的哈希有特定模式
         """
         # 这里可以添加特定弱密码的哈希模式识别
         # 例如：连续字符的哈希往往有特定特征
-        
+
         # 简单检查：如果哈希中包含大量重复模式
         hash_part = password_hash[1:]  # 去掉开头的*
-        
+
         # 检查是否有明显的重复模式（弱密码特征）
         char_counts = {}
         for c in hash_part:
             char_counts[c] = char_counts.get(c, 0) + 1
-        
+
         # 如果某个字符出现频率过高，可能是弱密码
         max_count = max(char_counts.values()) if char_counts else 0
         if max_count > len(hash_part) * 0.3:  # 某个字符占30%以上
             return True
-        
+
         return False
 
     def _identify_password_issues(self, status: UserPasswordStatus) -> List[str]:
@@ -700,22 +727,26 @@ class PasswordPolicyChecker:
 
         for status in user_statuses:
             if status.strength == PasswordStrength.EMPTY:
-                issues.append({
-                    "type": "empty_password",
-                    "severity": "CRITICAL",
-                    "user": status.username,
-                    "host": status.host,
-                    "description": f"用户 {status.username} 使用空密码"
-                })
+                issues.append(
+                    {
+                        "type": "empty_password",
+                        "severity": "CRITICAL",
+                        "user": status.username,
+                        "host": status.host,
+                        "description": f"用户 {status.username} 使用空密码",
+                    }
+                )
 
             if status.password_expired:
-                issues.append({
-                    "type": "expired_password",
-                    "severity": "HIGH",
-                    "user": status.username,
-                    "host": status.host,
-                    "description": f"用户 {status.username} 密码已过期"
-                })
+                issues.append(
+                    {
+                        "type": "expired_password",
+                        "severity": "HIGH",
+                        "user": status.username,
+                        "host": status.host,
+                        "description": f"用户 {status.username} 密码已过期",
+                    }
+                )
 
         return issues
 
@@ -724,7 +755,7 @@ class PasswordPolicyChecker:
         empty_passwords: List[UserPasswordStatus],
         weak_passwords: List[UserPasswordStatus],
         expired_passwords: List[UserPasswordStatus],
-        policy_info: Dict[str, Any]
+        policy_info: Dict[str, Any],
     ) -> List[str]:
         """生成策略建议"""
         recommendations = []
@@ -755,8 +786,12 @@ class PasswordPolicyChecker:
             "host": status.host,
             "password_expired": status.password_expired,
             "account_locked": status.account_locked,
-            "lock_time": status.lock_time.isoformat() if hasattr(status.lock_time, 'isoformat') else str(status.lock_time) if status.lock_time else None,
+            "lock_time": (
+                status.lock_time.isoformat()
+                if hasattr(status.lock_time, "isoformat")
+                else str(status.lock_time) if status.lock_time else None
+            ),
             "failed_login_attempts": status.failed_login_attempts,
             "strength": status.strength.value,
-            "issues": status.issues
+            "issues": status.issues,
         }

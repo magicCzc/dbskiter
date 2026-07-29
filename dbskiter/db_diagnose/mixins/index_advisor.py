@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Set, Tuple
 
@@ -41,34 +42,27 @@ class IndexAdvisorMixin:
             Dict: 索引建议列表
         """
         try:
-            if 'mysql' in self.dialect:
+            if "mysql" in self.dialect:
                 return self._recommend_mysql_indexes(table)
-            elif 'oracle' in self.dialect:
+            elif "oracle" in self.dialect:
                 return self._recommend_oracle_indexes(table)
-            elif 'postgresql' in self.dialect:
+            elif "postgresql" in self.dialect:
                 return self._recommend_postgresql_indexes(table)
-            elif 'clickhouse' in self.dialect:
+            elif "clickhouse" in self.dialect:
                 return self._recommend_clickhouse_indexes(table)
-            elif 'sqlite' in self.dialect:
+            elif "sqlite" in self.dialect:
                 return self._recommend_sqlite_indexes(table)
             else:
-                return create_error_response(
-                    f"索引建议暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+                return create_error_response(f"索引建议暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
         except Exception as e:
             logger.error(f"索引建议失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
-
     def _recommend_postgresql_indexes(self, table: str = None) -> Dict[str, Any]:
         """PostgreSQL索引建议"""
         try:
-            if table and not table.replace('.', '').replace('_', '').replace('-', '').isalnum():
-                return create_error_response(
-                    f"无效的表名: {table}",
-                    ErrorCode.INVALID_PARAM
-                )
+            if table and not table.replace(".", "").replace("_", "").replace("-", "").isalnum():
+                return create_error_response(f"无效的表名: {table}", ErrorCode.INVALID_PARAM)
             suggestions = []
             current_db = None
             try:
@@ -99,16 +93,18 @@ class IndexAdvisorMixin:
                     LIMIT 20
                 """)
                 for row in result.rows:
-                    suggestions.append({
-                        "type": "missing_index",
-                        "priority": "high" if int(str(row[3])) > 80 else "medium",
-                        "table": str(row[0]),
-                        "description": f"表 {row[0]} 全表扫描比例 {row[3]}%",
-                        "seq_scans": int(str(row[2])) if row[2] else 0,
-                        "index_scans": int(str(row[1])) if row[1] else 0,
-                        "suggestion": f"检查表 {row[0]} 的WHERE条件列，添加合适索引",
-                        "reason": f"顺序扫描 {row[2]} 次，索引扫描仅 {row[1]} 次"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "missing_index",
+                            "priority": "high" if int(str(row[3])) > 80 else "medium",
+                            "table": str(row[0]),
+                            "description": f"表 {row[0]} 全表扫描比例 {row[3]}%",
+                            "seq_scans": int(str(row[2])) if row[2] else 0,
+                            "index_scans": int(str(row[1])) if row[1] else 0,
+                            "suggestion": f"检查表 {row[0]} 的WHERE条件列，添加合适索引",
+                            "reason": f"顺序扫描 {row[2]} 次，索引扫描仅 {row[1]} 次",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"分析缺失索引失败: {e}")
 
@@ -126,15 +122,17 @@ class IndexAdvisorMixin:
                     LIMIT 20
                 """)
                 for row in result.rows:
-                    suggestions.append({
-                        "type": "unused_index",
-                        "priority": "low",
-                        "table": str(row[0]),
-                        "index": str(row[1]),
-                        "description": f"索引 {row[1]} 从未被使用",
-                        "suggestion": f"DROP INDEX {row[1]};",
-                        "reason": "该索引自服务器启动以来从未被使用"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "unused_index",
+                            "priority": "low",
+                            "table": str(row[0]),
+                            "index": str(row[1]),
+                            "description": f"索引 {row[1]} 从未被使用",
+                            "suggestion": f"DROP INDEX {row[1]};",
+                            "reason": "该索引自服务器启动以来从未被使用",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"分析未使用索引失败: {e}")
 
@@ -153,9 +151,7 @@ class IndexAdvisorMixin:
                 logger.warning(f"分析低基数索引失败: {e}")
 
             priority_order = {"high": 0, "medium": 1, "low": 2}
-            suggestions.sort(
-                key=lambda x: priority_order.get(x.get("priority", "low"), 2)
-            )
+            suggestions.sort(key=lambda x: priority_order.get(x.get("priority", "low"), 2))
 
             return create_success_response(
                 message=f"发现 {len(suggestions)} 个索引建议",
@@ -167,13 +163,12 @@ class IndexAdvisorMixin:
                         "total": len(suggestions),
                         "high_priority": len([s for s in suggestions if s.get("priority") == "high"]),
                         "medium_priority": len([s for s in suggestions if s.get("priority") == "medium"]),
-                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"])
-                    }
-                }
+                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"]),
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _recommend_mysql_indexes(self, table: str = None) -> Dict[str, Any]:
         """
@@ -194,10 +189,7 @@ class IndexAdvisorMixin:
         try:
             # 表名安全验证
             if table and not self._is_valid_table_name(table):
-                return create_error_response(
-                    f"无效的表名: {table}",
-                    ErrorCode.INVALID_PARAM
-                )
+                return create_error_response(f"无效的表名: {table}", ErrorCode.INVALID_PARAM)
 
             suggestions = []
             current_db = None
@@ -211,10 +203,7 @@ class IndexAdvisorMixin:
                 pass
 
             if not current_db:
-                return create_error_response(
-                    "无法获取当前数据库名",
-                    ErrorCode.UNKNOWN_ERROR
-                )
+                return create_error_response("无法获取当前数据库名", ErrorCode.UNKNOWN_ERROR)
 
             # 1. 分析缺失索引（基于performance_schema.table_io_waits_summary_by_index_usage）
             try:
@@ -246,9 +235,7 @@ class IndexAdvisorMixin:
 
             # 按优先级排序
             priority_order = {"high": 0, "medium": 1, "low": 2}
-            suggestions.sort(
-                key=lambda x: priority_order.get(x.get("priority", "low"), 2)
-            )
+            suggestions.sort(key=lambda x: priority_order.get(x.get("priority", "low"), 2))
 
             return create_success_response(
                 message=f"发现 {len(suggestions)} 个索引建议",
@@ -260,14 +247,13 @@ class IndexAdvisorMixin:
                         "total": len(suggestions),
                         "high_priority": len([s for s in suggestions if s.get("priority") == "high"]),
                         "medium_priority": len([s for s in suggestions if s.get("priority") == "medium"]),
-                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"])
-                    }
-                }
+                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"]),
+                    },
+                },
             )
 
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_missing_indexes_mysql(self, database: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -310,32 +296,36 @@ class IndexAdvisorMixin:
                 latency_ms = round(row[3] or 0, 2)
 
                 # 检查该表是否有主键
-                pk_result = self.connector.execute("""
+                pk_result = self.connector.execute(
+                    """
                     SELECT COUNT(*)
                     FROM information_schema.TABLE_CONSTRAINTS
                     WHERE TABLE_SCHEMA = :db
                         AND TABLE_NAME = :table
                         AND CONSTRAINT_TYPE = 'PRIMARY KEY'
-                """, {"db": database, "table": table_name})
+                """,
+                    {"db": database, "table": table_name},
+                )
 
                 has_pk = pk_result.rows[0][0] > 0 if pk_result.rows else False
 
                 if not has_pk:
-                    suggestions.append({
-                        "type": "missing_primary_key",
-                        "priority": "high",
-                        "table": table_name,
-                        "description": f"表 {table_name} 缺少主键，建议添加自增主键",
-                        "impact": f"全表扫描 {total_reads} 次，延迟 {latency_ms}ms",
-                        "suggestion": f"ALTER TABLE {table_name} ADD COLUMN id INT AUTO_INCREMENT PRIMARY KEY;",
-                        "reason": "无主键的表在查询和更新时性能较差"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "missing_primary_key",
+                            "priority": "high",
+                            "table": table_name,
+                            "description": f"表 {table_name} 缺少主键，建议添加自增主键",
+                            "impact": f"全表扫描 {total_reads} 次，延迟 {latency_ms}ms",
+                            "suggestion": f"ALTER TABLE {table_name} ADD COLUMN id INT AUTO_INCREMENT PRIMARY KEY;",
+                            "reason": "无主键的表在查询和更新时性能较差",
+                        }
+                    )
 
         except Exception as e:
             logger.warning(f"查询全表扫描统计失败: {e}")
 
         return suggestions
-
 
     def _analyze_redundant_indexes_mysql(self, database: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -387,22 +377,23 @@ class IndexAdvisorMixin:
 
                 if key not in seen:
                     seen.add(key)
-                    suggestions.append({
-                        "type": "redundant_index",
-                        "priority": "medium",
-                        "table": table_name,
-                        "index": index_name,
-                        "description": f"索引 {index_name} 可能是冗余的",
-                        "suggestion": f"DROP INDEX {index_name} ON {table_name};",
-                        "reason": f"该索引与 {redundant_to} 有重复前缀",
-                        "note": "请先确认该索引确实未被使用后再删除"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "redundant_index",
+                            "priority": "medium",
+                            "table": table_name,
+                            "index": index_name,
+                            "description": f"索引 {index_name} 可能是冗余的",
+                            "suggestion": f"DROP INDEX {index_name} ON {table_name};",
+                            "reason": f"该索引与 {redundant_to} 有重复前缀",
+                            "note": "请先确认该索引确实未被使用后再删除",
+                        }
+                    )
 
         except Exception as e:
             logger.warning(f"查询冗余索引失败: {e}")
 
         return suggestions
-
 
     def _analyze_unused_indexes_mysql(self, database: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -451,25 +442,26 @@ class IndexAdvisorMixin:
                 index_name = row[2]
 
                 # 排除主键
-                if index_name == 'PRIMARY':
+                if index_name == "PRIMARY":
                     continue
 
-                suggestions.append({
-                    "type": "unused_index",
-                    "priority": "low",
-                    "table": table_name,
-                    "index": index_name,
-                    "description": f"索引 {index_name} 从未被使用",
-                    "suggestion": f"DROP INDEX {index_name} ON {table_name};",
-                    "reason": "该索引自服务器启动以来从未被使用",
-                    "note": "建议观察一段时间后再删除，避免误删周期性使用的索引"
-                })
+                suggestions.append(
+                    {
+                        "type": "unused_index",
+                        "priority": "low",
+                        "table": table_name,
+                        "index": index_name,
+                        "description": f"索引 {index_name} 从未被使用",
+                        "suggestion": f"DROP INDEX {index_name} ON {table_name};",
+                        "reason": "该索引自服务器启动以来从未被使用",
+                        "note": "建议观察一段时间后再删除，避免误删周期性使用的索引",
+                    }
+                )
 
         except Exception as e:
             logger.warning(f"查询未使用索引失败: {e}")
 
         return suggestions
-
 
     def _analyze_low_cardinality_indexes_mysql(self, database: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -512,17 +504,19 @@ class IndexAdvisorMixin:
                 column_name = row[2]
                 cardinality = row[3]
 
-                suggestions.append({
-                    "type": "low_cardinality",
-                    "priority": "low",
-                    "table": table_name,
-                    "index": index_name,
-                    "column": column_name,
-                    "description": f"索引 {index_name} 选择性较差",
-                    "cardinality": cardinality,
-                    "reason": f"基数仅为 {cardinality}，索引效果不佳",
-                    "note": "考虑是否需要该索引，或者使用复合索引"
-                })
+                suggestions.append(
+                    {
+                        "type": "low_cardinality",
+                        "priority": "low",
+                        "table": table_name,
+                        "index": index_name,
+                        "column": column_name,
+                        "description": f"索引 {index_name} 选择性较差",
+                        "cardinality": cardinality,
+                        "reason": f"基数仅为 {cardinality}，索引效果不佳",
+                        "note": "考虑是否需要该索引，或者使用复合索引",
+                    }
+                )
 
         except Exception as e:
             logger.warning(f"查询低基数索引失败: {e}")
@@ -530,7 +524,6 @@ class IndexAdvisorMixin:
         return suggestions
 
     # ==================== Oracle索引推荐方法 ====================
-
 
     def _recommend_oracle_indexes(self, table: str = None) -> Dict[str, Any]:
         """
@@ -551,10 +544,7 @@ class IndexAdvisorMixin:
         try:
             # 表名安全验证
             if table and not self._is_valid_table_name(table):
-                return create_error_response(
-                    f"无效的表名: {table}",
-                    ErrorCode.INVALID_PARAM
-                )
+                return create_error_response(f"无效的表名: {table}", ErrorCode.INVALID_PARAM)
 
             suggestions = []
 
@@ -568,10 +558,7 @@ class IndexAdvisorMixin:
                 pass
 
             if not current_user:
-                return create_error_response(
-                    "无法获取当前用户",
-                    ErrorCode.UNKNOWN_ERROR
-                )
+                return create_error_response("无法获取当前用户", ErrorCode.UNKNOWN_ERROR)
 
             # 1. 分析缺失索引（基于AWR）
             try:
@@ -603,9 +590,7 @@ class IndexAdvisorMixin:
 
             # 按优先级排序
             priority_order = {"high": 0, "medium": 1, "low": 2}
-            suggestions.sort(
-                key=lambda x: priority_order.get(x.get("priority", "low"), 2)
-            )
+            suggestions.sort(key=lambda x: priority_order.get(x.get("priority", "low"), 2))
 
             return create_success_response(
                 message=f"发现 {len(suggestions)} 个索引建议",
@@ -618,15 +603,14 @@ class IndexAdvisorMixin:
                         "total": len(suggestions),
                         "high_priority": len([s for s in suggestions if s.get("priority") == "high"]),
                         "medium_priority": len([s for s in suggestions if s.get("priority") == "medium"]),
-                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"])
-                    }
-                }
+                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"]),
+                    },
+                },
             )
 
         except Exception as e:
             logger.error(f"Oracle索引建议失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_missing_indexes_oracle(self, user: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -704,25 +688,26 @@ class IndexAdvisorMixin:
                 total_elapsed = float(str(row[3])) if row[3] else 0
                 avg_elapsed = float(str(row[4])) if row[4] else 0
 
-                if 'WHERE' in sql_text.upper():
-                    suggestions.append({
-                        "type": "missing_index",
-                        "priority": "high" if avg_elapsed > 10 else "medium",
-                        "sql_id": row[0],
-                        "sql_preview": sql_text[:100] + "..." if len(sql_text) > 100 else sql_text,
-                        "executions": executions,
-                        "elapsed_sec": avg_elapsed,
-                        "total_elapsed_sec": round(total_elapsed, 2),
-                        "description": "高成本查询可能需要索引优化",
-                        "reason": f"该查询平均耗时 {avg_elapsed:.2f} 秒（总耗时 {total_elapsed:.0f} 秒，执行 {executions} 次），建议分析执行计划",
-                        "suggestion": "使用EXPLAIN PLAN分析SQL执行计划，考虑在WHERE条件列上创建索引"
-                    })
+                if "WHERE" in sql_text.upper():
+                    suggestions.append(
+                        {
+                            "type": "missing_index",
+                            "priority": "high" if avg_elapsed > 10 else "medium",
+                            "sql_id": row[0],
+                            "sql_preview": sql_text[:100] + "..." if len(sql_text) > 100 else sql_text,
+                            "executions": executions,
+                            "elapsed_sec": avg_elapsed,
+                            "total_elapsed_sec": round(total_elapsed, 2),
+                            "description": "高成本查询可能需要索引优化",
+                            "reason": f"该查询平均耗时 {avg_elapsed:.2f} 秒（总耗时 {total_elapsed:.0f} 秒，执行 {executions} 次），建议分析执行计划",
+                            "suggestion": "使用EXPLAIN PLAN分析SQL执行计划，考虑在WHERE条件列上创建索引",
+                        }
+                    )
 
         except Exception as e:
             logger.warning(f"分析缺失索引失败: {e}")
 
         return suggestions
-
 
     def _analyze_redundant_indexes_oracle(self, user: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -785,52 +770,55 @@ class IndexAdvisorMixin:
                 seen_columns = {}
                 for key, columns in indexes.items():
                     columns.sort(key=lambda x: x[0])
-                    column_str = ','.join([c[1] for c in columns])
+                    column_str = ",".join([c[1] for c in columns])
 
                     # 检查完全重复
                     if column_str in seen_columns:
-                        _, index_name = key.split('.', 1)
+                        _, index_name = key.split(".", 1)
                         duplicate_key = seen_columns[column_str]
-                        _, dup_index_name = duplicate_key.split('.', 1)
-                        suggestions.append({
-                            "type": "redundant_index",
-                            "priority": "medium",
-                            "table": table_name,
-                            "index": index_name,
-                            "columns": column_str,
-                            "description": f"索引 {index_name} 与 {dup_index_name} 重复",
-                            "reason": "两个索引包含相同的列组合",
-                            "suggestion": f"考虑删除索引 {index_name}，保留 {dup_index_name}"
-                        })
+                        _, dup_index_name = duplicate_key.split(".", 1)
+                        suggestions.append(
+                            {
+                                "type": "redundant_index",
+                                "priority": "medium",
+                                "table": table_name,
+                                "index": index_name,
+                                "columns": column_str,
+                                "description": f"索引 {index_name} 与 {dup_index_name} 重复",
+                                "reason": "两个索引包含相同的列组合",
+                                "suggestion": f"考虑删除索引 {index_name}，保留 {dup_index_name}",
+                            }
+                        )
                     else:
                         seen_columns[column_str] = key
 
                 # 检查前缀索引（索引A的列是索引B的前缀）
                 sorted_keys = sorted(seen_columns.items(), key=lambda x: len(x[0]))
                 for i, (col_str_a, key_a) in enumerate(sorted_keys):
-                    for col_str_b, key_b in sorted_keys[i+1:]:
-                        if col_str_b.startswith(col_str_a + ','):
-                            _, idx_name_a = key_a.split('.', 1)
-                            _, idx_name_b = key_b.split('.', 1)
+                    for col_str_b, key_b in sorted_keys[i + 1 :]:
+                        if col_str_b.startswith(col_str_a + ","):
+                            _, idx_name_a = key_a.split(".", 1)
+                            _, idx_name_b = key_b.split(".", 1)
                             # 跳过主键索引和唯一约束索引
-                            if idx_name_a.startswith('PK_') or idx_name_a.startswith('SYS_C'):
+                            if idx_name_a.startswith("PK_") or idx_name_a.startswith("SYS_C"):
                                 continue
-                            suggestions.append({
-                                "type": "redundant_index",
-                                "priority": "low",
-                                "table": table_name,
-                                "index": idx_name_a,
-                                "columns": col_str_a,
-                                "description": f"索引 {idx_name_a} 是 {idx_name_b} 的前缀索引",
-                                "reason": f"索引 {idx_name_a} 的列是 {idx_name_b} 的前缀，后者可替代前者",
-                                "suggestion": f"评估是否可以删除索引 {idx_name_a}，保留 {idx_name_b}"
-                            })
+                            suggestions.append(
+                                {
+                                    "type": "redundant_index",
+                                    "priority": "low",
+                                    "table": table_name,
+                                    "index": idx_name_a,
+                                    "columns": col_str_a,
+                                    "description": f"索引 {idx_name_a} 是 {idx_name_b} 的前缀索引",
+                                    "reason": f"索引 {idx_name_a} 的列是 {idx_name_b} 的前缀，后者可替代前者",
+                                    "suggestion": f"评估是否可以删除索引 {idx_name_a}，保留 {idx_name_b}",
+                                }
+                            )
 
         except Exception as e:
             logger.warning(f"分析冗余索引失败: {e}")
 
         return suggestions
-
 
     def _analyze_unused_indexes_oracle(self, user: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -870,22 +858,23 @@ class IndexAdvisorMixin:
                 index_name = row[1]
                 start_monitoring = row[4]
 
-                suggestions.append({
-                    "type": "unused_index",
-                    "priority": "low",
-                    "table": table_name,
-                    "index": index_name,
-                    "description": f"索引 {index_name} 未被使用",
-                    "monitoring_start": str(start_monitoring) if start_monitoring else None,
-                    "reason": "自监控开始以来，该索引从未被使用",
-                    "suggestion": "如果确认不需要该索引，可以考虑删除以节省空间和维护成本"
-                })
+                suggestions.append(
+                    {
+                        "type": "unused_index",
+                        "priority": "low",
+                        "table": table_name,
+                        "index": index_name,
+                        "description": f"索引 {index_name} 未被使用",
+                        "monitoring_start": str(start_monitoring) if start_monitoring else None,
+                        "reason": "自监控开始以来，该索引从未被使用",
+                        "suggestion": "如果确认不需要该索引，可以考虑删除以节省空间和维护成本",
+                    }
+                )
 
         except Exception as e:
             logger.warning(f"分析未使用索引失败: {e}")
 
         return suggestions
-
 
     def _analyze_low_selectivity_indexes_oracle(self, user: str, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -933,24 +922,25 @@ class IndexAdvisorMixin:
 
                 # 选择性低于1%认为是不好的索引
                 if selectivity < 1.0:
-                    suggestions.append({
-                        "type": "low_selectivity",
-                        "priority": "low",
-                        "table": table_name,
-                        "index": index_name,
-                        "distinct_keys": distinct_keys,
-                        "total_rows": num_rows,
-                        "selectivity_percent": selectivity,
-                        "description": f"索引 {index_name} 选择性较差",
-                        "reason": f"选择性仅为 {selectivity}%，索引效果不佳",
-                        "suggestion": "考虑是否需要该索引，或者使用位图索引（如果是数据仓库）"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "low_selectivity",
+                            "priority": "low",
+                            "table": table_name,
+                            "index": index_name,
+                            "distinct_keys": distinct_keys,
+                            "total_rows": num_rows,
+                            "selectivity_percent": selectivity,
+                            "description": f"索引 {index_name} 选择性较差",
+                            "reason": f"选择性仅为 {selectivity}%，索引效果不佳",
+                            "suggestion": "考虑是否需要该索引，或者使用位图索引（如果是数据仓库）",
+                        }
+                    )
 
         except Exception as e:
             logger.warning(f"分析低选择性索引失败: {e}")
 
         return suggestions
-
 
     def _analyze_redundant_indexes_postgresql(self, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -1001,12 +991,9 @@ class IndexAdvisorMixin:
 
                 if table_name not in indexes_by_table:
                     indexes_by_table[table_name] = []
-                indexes_by_table[table_name].append({
-                    'name': index_name,
-                    'columns': columns,
-                    'is_unique': is_unique,
-                    'is_primary': is_primary
-                })
+                indexes_by_table[table_name].append(
+                    {"name": index_name, "columns": columns, "is_unique": is_unique, "is_primary": is_primary}
+                )
 
             # 检测冗余
             for table_name, indexes in indexes_by_table.items():
@@ -1016,71 +1003,76 @@ class IndexAdvisorMixin:
                             continue
 
                         # 跳过主键和唯一索引
-                        if idx1['is_primary'] or idx2['is_primary']:
+                        if idx1["is_primary"] or idx2["is_primary"]:
                             continue
 
-                        cols1 = idx1['columns']
-                        cols2 = idx2['columns']
+                        cols1 = idx1["columns"]
+                        cols2 = idx2["columns"]
 
                         # 检测完全重复
                         if cols1 == cols2:
                             # 保留唯一索引，删除普通索引
-                            if idx1['is_unique'] and not idx2['is_unique']:
+                            if idx1["is_unique"] and not idx2["is_unique"]:
                                 redundant = idx2
                                 keeper = idx1
-                            elif idx2['is_unique'] and not idx1['is_unique']:
+                            elif idx2["is_unique"] and not idx1["is_unique"]:
                                 redundant = idx1
                                 keeper = idx2
                             else:
                                 # 都非唯一，保留名称较短的
-                                redundant = idx1 if len(idx1['name']) > len(idx2['name']) else idx2
+                                redundant = idx1 if len(idx1["name"]) > len(idx2["name"]) else idx2
                                 keeper = idx2 if redundant == idx1 else idx1
 
-                            suggestions.append({
-                                "type": "redundant_index",
-                                "priority": "medium",
-                                "table": table_name,
-                                "index": redundant['name'],
-                                "description": f"索引 {redundant['name']} 与 {keeper['name']} 完全重复",
-                                "columns": cols1,
-                                "suggestion": f"DROP INDEX {redundant['name']};",
-                                "reason": f"与索引 {keeper['name']} 列完全相同，可以删除"
-                            })
+                            suggestions.append(
+                                {
+                                    "type": "redundant_index",
+                                    "priority": "medium",
+                                    "table": table_name,
+                                    "index": redundant["name"],
+                                    "description": f"索引 {redundant['name']} 与 {keeper['name']} 完全重复",
+                                    "columns": cols1,
+                                    "suggestion": f"DROP INDEX {redundant['name']};",
+                                    "reason": f"与索引 {keeper['name']} 列完全相同，可以删除",
+                                }
+                            )
 
                         # 检测前缀冗余（idx1是idx2的前缀）
-                        elif len(cols1) < len(cols2) and cols2[:len(cols1)] == cols1:
+                        elif len(cols1) < len(cols2) and cols2[: len(cols1)] == cols1:
                             # idx1是idx2的前缀，idx1可能是冗余的
-                            if not idx1['is_unique']:  # 不删除唯一索引
-                                suggestions.append({
-                                    "type": "prefix_redundant",
-                                    "priority": "low",
-                                    "table": table_name,
-                                    "index": idx1['name'],
-                                    "description": f"索引 {idx1['name']} 是 {idx2['name']} 的前缀",
-                                    "columns": cols1,
-                                    "suggestion": f"考虑删除 {idx1['name']}，因为 {idx2['name']} 可以覆盖",
-                                    "reason": f"{idx2['name']} 包含相同的列前缀，可以替代此索引"
-                                })
+                            if not idx1["is_unique"]:  # 不删除唯一索引
+                                suggestions.append(
+                                    {
+                                        "type": "prefix_redundant",
+                                        "priority": "low",
+                                        "table": table_name,
+                                        "index": idx1["name"],
+                                        "description": f"索引 {idx1['name']} 是 {idx2['name']} 的前缀",
+                                        "columns": cols1,
+                                        "suggestion": f"考虑删除 {idx1['name']}，因为 {idx2['name']} 可以覆盖",
+                                        "reason": f"{idx2['name']} 包含相同的列前缀，可以替代此索引",
+                                    }
+                                )
 
                         # 检测前缀冗余（idx2是idx1的前缀）
-                        elif len(cols2) < len(cols1) and cols1[:len(cols2)] == cols2:
-                            if not idx2['is_unique']:
-                                suggestions.append({
-                                    "type": "prefix_redundant",
-                                    "priority": "low",
-                                    "table": table_name,
-                                    "index": idx2['name'],
-                                    "description": f"索引 {idx2['name']} 是 {idx1['name']} 的前缀",
-                                    "columns": cols2,
-                                    "suggestion": f"考虑删除 {idx2['name']}，因为 {idx1['name']} 可以覆盖",
-                                    "reason": f"{idx1['name']} 包含相同的列前缀，可以替代此索引"
-                                })
+                        elif len(cols2) < len(cols1) and cols1[: len(cols2)] == cols2:
+                            if not idx2["is_unique"]:
+                                suggestions.append(
+                                    {
+                                        "type": "prefix_redundant",
+                                        "priority": "low",
+                                        "table": table_name,
+                                        "index": idx2["name"],
+                                        "description": f"索引 {idx2['name']} 是 {idx1['name']} 的前缀",
+                                        "columns": cols2,
+                                        "suggestion": f"考虑删除 {idx2['name']}，因为 {idx1['name']} 可以覆盖",
+                                        "reason": f"{idx1['name']} 包含相同的列前缀，可以替代此索引",
+                                    }
+                                )
 
         except Exception as e:
             logger.warning(f"分析冗余索引失败: {e}")
 
         return suggestions
-
 
     def _analyze_low_cardinality_indexes_postgresql(self, table: str = None) -> List[Dict[str, Any]]:
         """
@@ -1143,25 +1135,26 @@ class IndexAdvisorMixin:
 
                 # 选择性低于1%认为是低基数索引
                 if selectivity < 1.0 and distinct_values < 10:
-                    suggestions.append({
-                        "type": "low_cardinality",
-                        "priority": "low",
-                        "table": table_name,
-                        "index": index_name,
-                        "column": column_name,
-                        "distinct_values": int(distinct_values),
-                        "total_rows": table_rows,
-                        "selectivity_percent": round(selectivity, 2),
-                        "description": f"索引 {index_name} 列 {column_name} 基数很低",
-                        "reason": f"只有 {int(distinct_values)} 个不同值，选择性 {selectivity:.2f}%",
-                        "suggestion": "考虑使用位图索引（如果适用）或重新评估索引必要性"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "low_cardinality",
+                            "priority": "low",
+                            "table": table_name,
+                            "index": index_name,
+                            "column": column_name,
+                            "distinct_values": int(distinct_values),
+                            "total_rows": table_rows,
+                            "selectivity_percent": round(selectivity, 2),
+                            "description": f"索引 {index_name} 列 {column_name} 基数很低",
+                            "reason": f"只有 {int(distinct_values)} 个不同值，选择性 {selectivity:.2f}%",
+                            "suggestion": "考虑使用位图索引（如果适用）或重新评估索引必要性",
+                        }
+                    )
 
         except Exception as e:
             logger.warning(f"分析低基数索引失败: {e}")
 
         return suggestions
-
 
     def _recommend_clickhouse_indexes(self, table: str = None) -> Dict[str, Any]:
         """
@@ -1223,17 +1216,19 @@ class IndexAdvisorMixin:
                     idx_count = int(idx_result.rows[0][0]) if idx_result and idx_result.rows else 0
 
                     if idx_count == 0 and total_rows > 10000000:
-                        suggestions.append({
-                            "type": "missing_skipping_index",
-                            "priority": "medium",
-                            "table": f"{db_name}.{table_name}",
-                            "engine": engine,
-                            "rows": total_rows,
-                            "size_gb": size_gb,
-                            "description": f"表 {table_name} 数据量大但无跳数索引",
-                            "reason": f"该表有 {total_rows} 行数据({size_gb}GB)，缺少跳数索引会导致全分区扫描",
-                            "suggestion": f"考虑在低基数字段上添加跳数索引，如: ALTER TABLE {table_name} ADD INDEX idx_name (column) TYPE minmax GRANULARITY 4"
-                        })
+                        suggestions.append(
+                            {
+                                "type": "missing_skipping_index",
+                                "priority": "medium",
+                                "table": f"{db_name}.{table_name}",
+                                "engine": engine,
+                                "rows": total_rows,
+                                "size_gb": size_gb,
+                                "description": f"表 {table_name} 数据量大但无跳数索引",
+                                "reason": f"该表有 {total_rows} 行数据({size_gb}GB)，缺少跳数索引会导致全分区扫描",
+                                "suggestion": f"考虑在低基数字段上添加跳数索引，如: ALTER TABLE {table_name} ADD INDEX idx_name (column) TYPE minmax GRANULARITY 4",
+                            }
+                        )
             except Exception as e:
                 logger.warning(f"分析ClickHouse缺少跳数索引失败: {e}")
 
@@ -1266,45 +1261,51 @@ class IndexAdvisorMixin:
 
                     # 检测主键设计问题
                     if not primary_key and total_rows > 1000000:
-                        suggestions.append({
-                            "type": "missing_primary_key",
-                            "priority": "high",
-                            "table": f"{db_name}.{table_name}",
-                            "engine": engine,
-                            "rows": total_rows,
-                            "description": f"表 {table_name} 缺少显式主键",
-                            "reason": "MergeTree表没有显式主键会导致数据排序不佳，影响查询性能",
-                            "suggestion": f"建议添加主键: ALTER TABLE {table_name} MODIFY ORDER BY (column1, column2)"
-                        })
+                        suggestions.append(
+                            {
+                                "type": "missing_primary_key",
+                                "priority": "high",
+                                "table": f"{db_name}.{table_name}",
+                                "engine": engine,
+                                "rows": total_rows,
+                                "description": f"表 {table_name} 缺少显式主键",
+                                "reason": "MergeTree表没有显式主键会导致数据排序不佳，影响查询性能",
+                                "suggestion": f"建议添加主键: ALTER TABLE {table_name} MODIFY ORDER BY (column1, column2)",
+                            }
+                        )
 
                     # 检测分区键设计问题
                     if not partition_key and total_rows > 10000000:
-                        suggestions.append({
-                            "type": "missing_partition_key",
-                            "priority": "medium",
-                            "table": f"{db_name}.{table_name}",
-                            "engine": engine,
-                            "rows": total_rows,
-                            "description": f"表 {table_name} 缺少分区键",
-                            "reason": "大表缺少分区键会导致数据管理困难，影响查询和备份效率",
-                            "suggestion": f"建议添加分区: ALTER TABLE {table_name} MODIFY PARTITION BY toYYYYMMDD(date_column)"
-                        })
+                        suggestions.append(
+                            {
+                                "type": "missing_partition_key",
+                                "priority": "medium",
+                                "table": f"{db_name}.{table_name}",
+                                "engine": engine,
+                                "rows": total_rows,
+                                "description": f"表 {table_name} 缺少分区键",
+                                "reason": "大表缺少分区键会导致数据管理困难，影响查询和备份效率",
+                                "suggestion": f"建议添加分区: ALTER TABLE {table_name} MODIFY PARTITION BY toYYYYMMDD(date_column)",
+                            }
+                        )
 
                     # 检测主键字段数量过多
                     if primary_key:
                         pk_columns = [c.strip() for c in primary_key.split(",")]
                         if len(pk_columns) > 5:
-                            suggestions.append({
-                                "type": "too_many_primary_key_columns",
-                                "priority": "low",
-                                "table": f"{db_name}.{table_name}",
-                                "engine": engine,
-                                "primary_key": primary_key,
-                                "column_count": len(pk_columns),
-                                "description": f"表 {table_name} 主键字段过多({len(pk_columns)}个)",
-                                "reason": "主键字段过多会降低数据压缩率并增加排序开销",
-                                "suggestion": "建议将主键精简为3-4个最关键字段，其他字段放入ORDER BY"
-                            })
+                            suggestions.append(
+                                {
+                                    "type": "too_many_primary_key_columns",
+                                    "priority": "low",
+                                    "table": f"{db_name}.{table_name}",
+                                    "engine": engine,
+                                    "primary_key": primary_key,
+                                    "column_count": len(pk_columns),
+                                    "description": f"表 {table_name} 主键字段过多({len(pk_columns)}个)",
+                                    "reason": "主键字段过多会降低数据压缩率并增加排序开销",
+                                    "suggestion": "建议将主键精简为3-4个最关键字段，其他字段放入ORDER BY",
+                                }
+                            )
 
             except Exception as e:
                 logger.warning(f"分析ClickHouse主键设计失败: {e}")
@@ -1324,23 +1325,23 @@ class IndexAdvisorMixin:
                 """)
 
                 for row in result.rows if result else []:
-                    suggestions.append({
-                        "type": "existing_skipping_index",
-                        "priority": "info",
-                        "table": f"{row[0]}.{row[1]}",
-                        "index_name": str(row[2]) if row[2] else "",
-                        "index_type": str(row[3]) if row[3] else "",
-                        "expression": str(row[4]) if row[4] else "",
-                        "description": f"表 {row[1]} 已有跳数索引 {row[2]}",
-                        "suggestion": "检查跳数索引类型是否适合查询模式"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "existing_skipping_index",
+                            "priority": "info",
+                            "table": f"{row[0]}.{row[1]}",
+                            "index_name": str(row[2]) if row[2] else "",
+                            "index_type": str(row[3]) if row[3] else "",
+                            "expression": str(row[4]) if row[4] else "",
+                            "description": f"表 {row[1]} 已有跳数索引 {row[2]}",
+                            "suggestion": "检查跳数索引类型是否适合查询模式",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"分析ClickHouse已有跳数索引失败: {e}")
 
             priority_order = {"high": 0, "medium": 1, "low": 2, "info": 3}
-            suggestions.sort(
-                key=lambda x: priority_order.get(x.get("priority", "low"), 2)
-            )
+            suggestions.sort(key=lambda x: priority_order.get(x.get("priority", "low"), 2))
 
             return create_success_response(
                 message=f"发现 {len(suggestions)} 个ClickHouse索引建议",
@@ -1352,13 +1353,12 @@ class IndexAdvisorMixin:
                         "total": len(suggestions),
                         "high_priority": len([s for s in suggestions if s.get("priority") == "high"]),
                         "medium_priority": len([s for s in suggestions if s.get("priority") == "medium"]),
-                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"])
-                    }
-                }
+                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"]),
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _recommend_sqlite_indexes(self, table: str = None) -> Dict[str, Any]:
         """
@@ -1415,10 +1415,12 @@ class IndexAdvisorMixin:
                         AND tbl_name = '{table_name}'
                     """)
                     for idx_row in idx_result.rows if idx_result else []:
-                        existing_indexes.append({
-                            "name": str(idx_row[0]) if idx_row[0] else "",
-                            "sql": str(idx_row[1]) if idx_row[1] else ""
-                        })
+                        existing_indexes.append(
+                            {
+                                "name": str(idx_row[0]) if idx_row[0] else "",
+                                "sql": str(idx_row[1]) if idx_row[1] else "",
+                            }
+                        )
                 except Exception:
                     pass
 
@@ -1434,27 +1436,31 @@ class IndexAdvisorMixin:
                     pass
 
                 if not has_primary_key and row_count > 10000:
-                    suggestions.append({
-                        "type": "missing_primary_key",
-                        "priority": "high",
-                        "table": table_name,
-                        "rows": row_count,
-                        "description": f"表 {table_name} 无主键",
-                        "reason": f"该表有 {row_count} 行数据，缺少主键会影响查询性能和数据完整性",
-                        "suggestion": f"ALTER TABLE {table_name} ADD COLUMN id INTEGER PRIMARY KEY AUTOINCREMENT"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "missing_primary_key",
+                            "priority": "high",
+                            "table": table_name,
+                            "rows": row_count,
+                            "description": f"表 {table_name} 无主键",
+                            "reason": f"该表有 {row_count} 行数据，缺少主键会影响查询性能和数据完整性",
+                            "suggestion": f"ALTER TABLE {table_name} ADD COLUMN id INTEGER PRIMARY KEY AUTOINCREMENT",
+                        }
+                    )
 
                 # 检查索引数量
                 if len(existing_indexes) == 0 and row_count > 10000:
-                    suggestions.append({
-                        "type": "missing_index",
-                        "priority": "medium",
-                        "table": table_name,
-                        "rows": row_count,
-                        "description": f"表 {table_name} 无任何索引",
-                        "reason": f"该表有 {row_count} 行数据，缺少索引会导致全表扫描",
-                        "suggestion": f"根据查询模式在常用WHERE条件列上创建索引: CREATE INDEX idx_{table_name}_col ON {table_name}(column)"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "missing_index",
+                            "priority": "medium",
+                            "table": table_name,
+                            "rows": row_count,
+                            "description": f"表 {table_name} 无任何索引",
+                            "reason": f"该表有 {row_count} 行数据，缺少索引会导致全表扫描",
+                            "suggestion": f"根据查询模式在常用WHERE条件列上创建索引: CREATE INDEX idx_{table_name}_col ON {table_name}(column)",
+                        }
+                    )
 
             # 分析冗余索引
             try:
@@ -1477,30 +1483,31 @@ class IndexAdvisorMixin:
 
                     # 提取索引列
                     import re
-                    match = re.search(r'\(([^)]+)\)', sql)
+
+                    match = re.search(r"\(([^)]+)\)", sql)
                     if match:
-                        columns = match.group(1).replace(' ', '').lower()
+                        columns = match.group(1).replace(" ", "").lower()
                         key = f"{tbl}:{columns}"
                         if key in indexes_by_table:
-                            suggestions.append({
-                                "type": "redundant_index",
-                                "priority": "low",
-                                "table": tbl,
-                                "index": idx_name,
-                                "columns": columns,
-                                "description": f"索引 {idx_name} 与 {indexes_by_table[key]} 重复",
-                                "reason": "两个索引包含相同的列",
-                                "suggestion": f"考虑删除索引 {idx_name}"
-                            })
+                            suggestions.append(
+                                {
+                                    "type": "redundant_index",
+                                    "priority": "low",
+                                    "table": tbl,
+                                    "index": idx_name,
+                                    "columns": columns,
+                                    "description": f"索引 {idx_name} 与 {indexes_by_table[key]} 重复",
+                                    "reason": "两个索引包含相同的列",
+                                    "suggestion": f"考虑删除索引 {idx_name}",
+                                }
+                            )
                         else:
                             indexes_by_table[key] = idx_name
             except Exception as e:
                 logger.warning(f"分析SQLite冗余索引失败: {e}")
 
             priority_order = {"high": 0, "medium": 1, "low": 2}
-            suggestions.sort(
-                key=lambda x: priority_order.get(x.get("priority", "low"), 2)
-            )
+            suggestions.sort(key=lambda x: priority_order.get(x.get("priority", "low"), 2))
 
             return create_success_response(
                 message=f"发现 {len(suggestions)} 个SQLite索引建议",
@@ -1512,13 +1519,11 @@ class IndexAdvisorMixin:
                         "total": len(suggestions),
                         "high_priority": len([s for s in suggestions if s.get("priority") == "high"]),
                         "medium_priority": len([s for s in suggestions if s.get("priority") == "medium"]),
-                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"])
-                    }
-                }
+                        "low_priority": len([s for s in suggestions if s.get("priority") == "low"]),
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
     # ==================== 统一性能模型诊断方法 ====================
-
-

@@ -73,18 +73,14 @@ class SQLiteDiagnostician(BaseDiagnostician):
                 result = self.connector.execute("PRAGMA database_list")
                 if result and result.rows:
                     for row in result.rows:
-                        if row[1] == 'main':
+                        if row[1] == "main":
                             self._database_path = row[2]
                             break
             except Exception as e:
                 logger.warning(f"获取数据库路径失败: {e}")
         return self._database_path
 
-    def analyze_slow_queries(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0
-    ) -> Dict[str, Any]:
+    def analyze_slow_queries(self, limit: int = 20, min_time: float = 1.0) -> Dict[str, Any]:
         """
         分析SQLite慢查询
 
@@ -122,16 +118,18 @@ class SQLiteDiagnostician(BaseDiagnostician):
                     for row in result.rows if result else []:
                         plan_line = row[3] if len(row) > 3 else str(row)
                         plan_lines.append(plan_line)
-                        if 'INDEX' in str(plan_line).upper():
+                        if "INDEX" in str(plan_line).upper():
                             uses_index = True
 
                     if not uses_index:
-                        slow_queries.append({
-                            "table": table,
-                            "issue": "全表扫描风险",
-                            "plan": "\n".join(plan_lines),
-                            "recommendation": f"考虑为表 {table} 添加索引"
-                        })
+                        slow_queries.append(
+                            {
+                                "table": table,
+                                "issue": "全表扫描风险",
+                                "plan": "\n".join(plan_lines),
+                                "recommendation": f"考虑为表 {table} 添加索引",
+                            }
+                        )
 
                 except Exception as e:
                     logger.warning(f"分析表 {table} 失败: {e}")
@@ -142,22 +140,15 @@ class SQLiteDiagnostician(BaseDiagnostician):
                 data={
                     "total_tables": len(tables),
                     "slow_queries": slow_queries,
-                    "tables_without_index": len(slow_queries)
-                }
+                    "tables_without_index": len(slow_queries),
+                },
             )
 
         except Exception as e:
             logger.error(f"慢查询分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"慢查询分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"慢查询分析失败: {str(e)}", error=str(e))
 
-    def analyze_performance_metrics(
-        self,
-        duration_minutes: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_performance_metrics(self, duration_minutes: int = 10) -> Dict[str, Any]:
         """
         分析SQLite性能指标
 
@@ -194,9 +185,7 @@ class SQLiteDiagnostician(BaseDiagnostician):
                 page_count = int(result.rows[0][0]) if result else 0
                 metrics["page_count"] = page_count
                 metrics["database_size_bytes"] = page_count * page_size if page_size > 0 else 0
-                metrics["database_size_pretty"] = self._format_bytes(
-                    metrics["database_size_bytes"]
-                )
+                metrics["database_size_pretty"] = self._format_bytes(metrics["database_size_bytes"])
             except Exception as e:
                 logger.warning(f"获取页面数失败: {e}")
                 metrics["page_count"] = -1
@@ -229,19 +218,11 @@ class SQLiteDiagnostician(BaseDiagnostician):
                 logger.warning(f"获取同步模式失败: {e}")
                 metrics["synchronous"] = "unknown"
 
-            return self._create_result(
-                success=True,
-                message="性能指标采集完成",
-                data=metrics
-            )
+            return self._create_result(success=True, message="性能指标采集完成", data=metrics)
 
         except Exception as e:
             logger.error(f"性能指标分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"性能指标分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"性能指标分析失败: {str(e)}", error=str(e))
 
     def get_database_stats(self) -> Dict[str, Any]:
         """
@@ -270,27 +251,19 @@ class SQLiteDiagnostician(BaseDiagnostician):
 
                     # 获取行数
                     try:
-                        count_result = self.connector.execute(
-                            f'SELECT count(*) FROM "{table_name}"'
-                        )
+                        count_result = self.connector.execute(f'SELECT count(*) FROM "{table_name}"')
                         row_count = int(count_result.rows[0][0]) if count_result else 0
                     except Exception:
                         row_count = 0
 
                     # 获取列数
                     try:
-                        pragma_result = self.connector.execute(
-                            f'PRAGMA table_info("{table_name}")'
-                        )
+                        pragma_result = self.connector.execute(f'PRAGMA table_info("{table_name}")')
                         col_count = len(pragma_result.rows) if pragma_result else 0
                     except Exception:
                         col_count = 0
 
-                    tables.append({
-                        "name": table_name,
-                        "row_count": row_count,
-                        "column_count": col_count
-                    })
+                    tables.append({"name": table_name, "row_count": row_count, "column_count": col_count})
 
                 stats["tables"] = tables
                 stats["table_count"] = len(tables)
@@ -313,11 +286,7 @@ class SQLiteDiagnostician(BaseDiagnostician):
 
                 indexes = []
                 for row in result.rows if result else []:
-                    indexes.append({
-                        "name": row[0],
-                        "table": row[1],
-                        "sql": row[2]
-                    })
+                    indexes.append({"name": row[0], "table": row[1], "sql": row[2]})
 
                 stats["indexes"] = indexes
                 stats["index_count"] = len(indexes)
@@ -328,8 +297,9 @@ class SQLiteDiagnostician(BaseDiagnostician):
 
             # 数据库文件信息
             db_path = self._get_database_path()
-            if db_path and db_path != ':memory:':
+            if db_path and db_path != ":memory:":
                 import os
+
                 try:
                     file_size = os.path.getsize(db_path)
                     stats["file_size"] = file_size
@@ -340,16 +310,12 @@ class SQLiteDiagnostician(BaseDiagnostician):
             return self._create_result(
                 success=True,
                 message=f"获取到 {stats.get('table_count', 0)} 个表，{stats.get('index_count', 0)} 个索引",
-                data=stats
+                data=stats,
             )
 
         except Exception as e:
             logger.error(f"数据库统计获取失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"数据库统计获取失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"数据库统计获取失败: {str(e)}", error=str(e))
 
     def analyze_indexes(self) -> Dict[str, Any]:
         """
@@ -398,27 +364,17 @@ class SQLiteDiagnostician(BaseDiagnostician):
 
                     if not table_indexes:
                         # 获取行数判断是否需要索引
-                        count_result = self.connector.execute(
-                            f'SELECT count(*) FROM "{table}"'
-                        )
+                        count_result = self.connector.execute(f'SELECT count(*) FROM "{table}"')
                         row_count = int(count_result.rows[0][0]) if count_result else 0
 
                         if row_count > 1000:
-                            missing_indexes.append({
-                                "table": table,
-                                "row_count": row_count,
-                                "issue": "大表缺少索引"
-                            })
+                            missing_indexes.append({"table": table, "row_count": row_count, "issue": "大表缺少索引"})
 
                 except Exception as e:
                     logger.warning(f"分析表 {table} 索引失败: {e}")
 
             for row in result.rows if result else []:
-                indexes.append({
-                    "name": row[0],
-                    "table": row[1],
-                    "sql": row[2]
-                })
+                indexes.append({"name": row[0], "table": row[1], "sql": row[2]})
 
             return self._create_result(
                 success=True,
@@ -427,17 +383,13 @@ class SQLiteDiagnostician(BaseDiagnostician):
                     "indexes": indexes,
                     "missing_indexes": missing_indexes,
                     "total_indexes": len(indexes),
-                    "missing_count": len(missing_indexes)
-                }
+                    "missing_count": len(missing_indexes),
+                },
             )
 
         except Exception as e:
             logger.error(f"索引分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"索引分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"索引分析失败: {str(e)}", error=str(e))
 
     def check_integrity(self) -> Dict[str, Any]:
         """
@@ -451,30 +403,17 @@ class SQLiteDiagnostician(BaseDiagnostician):
 
             if result and result.rows:
                 status = result.rows[0][0]
-                is_ok = status == 'ok'
+                is_ok = status == "ok"
 
                 return self._create_result(
-                    success=True,
-                    message=f"完整性检查: {status}",
-                    data={
-                        "status": status,
-                        "is_ok": is_ok
-                    }
+                    success=True, message=f"完整性检查: {status}", data={"status": status, "is_ok": is_ok}
                 )
             else:
-                return self._create_result(
-                    success=False,
-                    message="完整性检查无结果",
-                    error="no result"
-                )
+                return self._create_result(success=False, message="完整性检查无结果", error="no result")
 
         except Exception as e:
             logger.error(f"完整性检查失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"完整性检查失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"完整性检查失败: {str(e)}", error=str(e))
 
     def analyze_fragmentation(self) -> Dict[str, Any]:
         """
@@ -504,17 +443,13 @@ class SQLiteDiagnostician(BaseDiagnostician):
                     "page_count": page_count,
                     "freelist_count": freelist_count,
                     "fragmentation_rate": round(fragmentation_rate, 2),
-                    "needs_vacuum": fragmentation_rate > 20
-                }
+                    "needs_vacuum": fragmentation_rate > 20,
+                },
             )
 
         except Exception as e:
             logger.error(f"碎片分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"碎片分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"碎片分析失败: {str(e)}", error=str(e))
 
     def analyze_index_usage(self) -> Dict[str, Any]:
         """
@@ -544,12 +479,7 @@ class SQLiteDiagnostician(BaseDiagnostician):
 
             indexes = []
             for row in result.rows if result else []:
-                indexes.append({
-                    "name": row[0],
-                    "table": row[1],
-                    "sql": row[2],
-                    "origin": row[3] or "c"
-                })
+                indexes.append({"name": row[0], "table": row[1], "sql": row[2], "origin": row[3] or "c"})
 
             # 检测冗余索引(完全重复的索引)
             redundant_indexes = []
@@ -560,18 +490,18 @@ class SQLiteDiagnostician(BaseDiagnostician):
                     idx_name = idx["name"]
                     table_name = idx["table"]
                     try:
-                        col_result = self.connector.execute(
-                            f'PRAGMA index_info("{idx_name}")'
-                        )
+                        col_result = self.connector.execute(f'PRAGMA index_info("{idx_name}")')
                         columns = [row[2] for row in col_result.rows] if col_result else []
                         key = (table_name, tuple(columns))
                         if key in index_columns:
-                            redundant_indexes.append({
-                                "table": table_name,
-                                "redundant_index": idx_name,
-                                "kept_index": index_columns[key],
-                                "columns": columns
-                            })
+                            redundant_indexes.append(
+                                {
+                                    "table": table_name,
+                                    "redundant_index": idx_name,
+                                    "kept_index": index_columns[key],
+                                    "columns": columns,
+                                }
+                            )
                         else:
                             index_columns[key] = idx_name
                     except Exception as e:
@@ -593,9 +523,7 @@ class SQLiteDiagnostician(BaseDiagnostician):
                     table_name = row[0]
                     try:
                         # 检查是否有INTEGER PRIMARY KEY
-                        col_result = self.connector.execute(
-                            f'PRAGMA table_info("{table_name}")'
-                        )
+                        col_result = self.connector.execute(f'PRAGMA table_info("{table_name}")')
                         has_pk = False
                         row_count = 0
 
@@ -605,18 +533,18 @@ class SQLiteDiagnostician(BaseDiagnostician):
                                 break
 
                         # 获取行数
-                        count_result = self.connector.execute(
-                            f'SELECT count(*) FROM "{table_name}"'
-                        )
+                        count_result = self.connector.execute(f'SELECT count(*) FROM "{table_name}"')
                         row_count = int(count_result.rows[0][0]) if count_result else 0
 
                         if not has_pk and row_count > 1000:
-                            missing_pk.append({
-                                "table": table_name,
-                                "row_count": row_count,
-                                "issue": "表缺少显式主键",
-                                "suggestion": f"建议添加 INTEGER PRIMARY KEY: ALTER TABLE {table_name} ADD COLUMN id INTEGER PRIMARY KEY AUTOINCREMENT"
-                            })
+                            missing_pk.append(
+                                {
+                                    "table": table_name,
+                                    "row_count": row_count,
+                                    "issue": "表缺少显式主键",
+                                    "suggestion": f"建议添加 INTEGER PRIMARY KEY: ALTER TABLE {table_name} ADD COLUMN id INTEGER PRIMARY KEY AUTOINCREMENT",
+                                }
+                            )
                     except Exception as e:
                         logger.warning(f"分析表 {table_name} 主键失败: {e}")
             except Exception as e:
@@ -636,25 +564,23 @@ class SQLiteDiagnostician(BaseDiagnostician):
                     table_name = row[0]
                     try:
                         # 获取表的索引数量
-                        idx_result = self.connector.execute(
-                            f'PRAGMA index_list("{table_name}")'
-                        )
+                        idx_result = self.connector.execute(f'PRAGMA index_list("{table_name}")')
                         idx_count = len(idx_result.rows) if idx_result else 0
 
                         # 获取行数
-                        count_result = self.connector.execute(
-                            f'SELECT count(*) FROM "{table_name}"'
-                        )
+                        count_result = self.connector.execute(f'SELECT count(*) FROM "{table_name}"')
                         row_count = int(count_result.rows[0][0]) if count_result else 0
 
                         # 大表缺少索引
                         if row_count > 10000 and idx_count == 0:
-                            missing_indexes.append({
-                                "table": table_name,
-                                "row_count": row_count,
-                                "index_count": idx_count,
-                                "issue": "大表缺少任何索引"
-                            })
+                            missing_indexes.append(
+                                {
+                                    "table": table_name,
+                                    "row_count": row_count,
+                                    "index_count": idx_count,
+                                    "issue": "大表缺少任何索引",
+                                }
+                            )
                     except Exception as e:
                         logger.warning(f"分析表 {table_name} 索引覆盖失败: {e}")
             except Exception as e:
@@ -683,14 +609,10 @@ class SQLiteDiagnostician(BaseDiagnostician):
                     "missing_pk_count": len(missing_pk),
                     "missing_count": len(missing_indexes),
                     "health_score": health_score,
-                    "db_type": "SQLite"
-                }
+                    "db_type": "SQLite",
+                },
             )
 
         except Exception as e:
             logger.error(f"索引使用分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"索引使用分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"索引使用分析失败: {str(e)}", error=str(e))

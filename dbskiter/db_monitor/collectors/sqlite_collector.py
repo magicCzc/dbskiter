@@ -70,7 +70,7 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
                 result = self.connector.execute("PRAGMA database_list")
                 if result and result.rows:
                     for row in result.rows:
-                        if row[1] == 'main':
+                        if row[1] == "main":
                             self._database_path = row[2]
                             break
             except Exception as e:
@@ -88,18 +88,12 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
 
         # 数据库大小（页面数 * 页面大小）
         queries[MetricType.DISK_USAGE] = MetricQuery(
-            sql="PRAGMA page_count",
-            extract=lambda rows: self._calculate_db_size(rows),
-            unit="bytes",
-            is_counter=False
+            sql="PRAGMA page_count", extract=lambda rows: self._calculate_db_size(rows), unit="bytes", is_counter=False
         )
 
         # 缓存大小
         queries[MetricType.MEMORY_USAGE] = MetricQuery(
-            sql="PRAGMA cache_size",
-            extract=lambda rows: int(rows[0][0]) if rows else 0,
-            unit="pages",
-            is_counter=False
+            sql="PRAGMA cache_size", extract=lambda rows: int(rows[0][0]) if rows else 0, unit="pages", is_counter=False
         )
 
         # 空闲页面数
@@ -107,7 +101,7 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
             sql="PRAGMA freelist_count",
             extract=lambda rows: int(rows[0][0]) if rows else 0,
             unit="pages",
-            is_counter=False
+            is_counter=False,
         )
 
         return queries
@@ -145,31 +139,35 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
         timestamp = datetime.now()
 
         db_path = self._get_database_path()
-        if not db_path or db_path == ':memory:':
+        if not db_path or db_path == ":memory:":
             return metrics
 
         try:
             # 文件大小
             file_size = os.path.getsize(db_path)
-            metrics.append(MetricPoint(
-                timestamp=timestamp,
-                metric_type=MetricType.DISK_USAGE,
-                value=float(file_size),
-                unit="bytes",
-                tags={"type": "file_size"}
-            ))
+            metrics.append(
+                MetricPoint(
+                    timestamp=timestamp,
+                    metric_type=MetricType.DISK_USAGE,
+                    value=float(file_size),
+                    unit="bytes",
+                    tags={"type": "file_size"},
+                )
+            )
 
             # WAL文件大小
             wal_path = db_path + "-wal"
             if os.path.exists(wal_path):
                 wal_size = os.path.getsize(wal_path)
-                metrics.append(MetricPoint(
-                    timestamp=timestamp,
-                    metric_type=MetricType.DISK_USAGE,
-                    value=float(wal_size),
-                    unit="bytes",
-                    tags={"type": "wal_size"}
-                ))
+                metrics.append(
+                    MetricPoint(
+                        timestamp=timestamp,
+                        metric_type=MetricType.DISK_USAGE,
+                        value=float(wal_size),
+                        unit="bytes",
+                        tags={"type": "wal_size"},
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"采集文件指标失败: {e}")
@@ -199,10 +197,7 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
         返回：
             Dict[str, Any]: 健康状态信息
         """
-        status = {
-            "status": "healthy",
-            "checks": {}
-        }
+        status = {"status": "healthy", "checks": {}}
 
         # 检查完整性
         try:
@@ -210,7 +205,7 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
             if result and result.rows:
                 integrity = result.rows[0][0]
                 status["checks"]["integrity"] = integrity
-                if integrity != 'ok':
+                if integrity != "ok":
                     status["status"] = "critical"
             else:
                 status["checks"]["integrity"] = "unknown"
@@ -238,7 +233,7 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
         # 检查数据库大小
         try:
             db_path = self._get_database_path()
-            if db_path and db_path != ':memory:':
+            if db_path and db_path != ":memory:":
                 file_size = os.path.getsize(db_path)
                 status["checks"]["file_size"] = self._format_bytes(file_size)
 
@@ -262,7 +257,7 @@ class SQLiteMetricsCollector(BaseMetricsCollector):
         """
         if size_bytes is None or size_bytes < 0:
             return "0 B"
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if size_bytes < 1024:
                 return f"{size_bytes:.2f} {unit}"
             size_bytes /= 1024

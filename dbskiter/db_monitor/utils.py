@@ -26,7 +26,11 @@ from datetime import datetime
 from collections import defaultdict, deque
 
 from dbskiter.db_monitor.models import (
-    MetricPoint, MetricType, AnomalyAlert, AnomalyType, Severity,
+    MetricPoint,
+    MetricType,
+    AnomalyAlert,
+    AnomalyType,
+    Severity,
     CapacityPrediction,
 )
 
@@ -36,6 +40,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # 异常检测器
 # =============================================================================
+
 
 class AnomalyDetector:
     """
@@ -64,9 +69,7 @@ class AnomalyDetector:
         """
         self.threshold = threshold
         self.history_size = history_size
-        self.history: Dict[MetricType, deque] = defaultdict(
-            lambda: deque(maxlen=history_size)
-        )
+        self.history: Dict[MetricType, deque] = defaultdict(lambda: deque(maxlen=history_size))
 
     def detect(self, metric: MetricPoint) -> Optional[AnomalyAlert]:
         """
@@ -138,7 +141,7 @@ class AnomalyDetector:
                     f"当前 {metric.value:.2f}, 期望 {mean:.2f} (Z-score: {zscore:.2f})"
                 ),
                 timestamp=metric.timestamp,
-                tags={"algorithm": "z_score", "zscore": str(round(zscore, 2))}
+                tags={"algorithm": "z_score", "zscore": str(round(zscore, 2))},
             )
 
         return None
@@ -182,16 +185,9 @@ class AnomalyDetector:
                 current_value=metric.value,
                 expected_value=mean,
                 deviation_percent=deviation,
-                message=(
-                    f"{metric.metric_type.value} 超出正常范围: "
-                    f"[{lower_bound:.2f}, {upper_bound:.2f}]"
-                ),
+                message=(f"{metric.metric_type.value} 超出正常范围: " f"[{lower_bound:.2f}, {upper_bound:.2f}]"),
                 timestamp=metric.timestamp,
-                tags={
-                    "algorithm": "iqr",
-                    "lower": str(round(lower_bound, 2)),
-                    "upper": str(round(upper_bound, 2))
-                }
+                tags={"algorithm": "iqr", "lower": str(round(lower_bound, 2)), "upper": str(round(upper_bound, 2))},
             )
 
         return None
@@ -232,6 +228,7 @@ class AnomalyDetector:
 # 容量预测器
 # =============================================================================
 
+
 class CapacityPredictor:
     """
     容量预测器 - 基于趋势预测未来容量需求
@@ -266,12 +263,7 @@ class CapacityPredictor:
         """
         self.thresholds = thresholds or self.THRESHOLDS
 
-    def predict(
-        self,
-        metric: str,
-        historical_data: List[tuple],
-        days_ahead: int = 30
-    ) -> CapacityPrediction:
+    def predict(self, metric: str, historical_data: List[tuple], days_ahead: int = 30) -> CapacityPrediction:
         """
         预测未来容量
 
@@ -296,7 +288,7 @@ class CapacityPredictor:
                 confidence=0.0,
                 recommendation="数据不足，无法预测",
                 urgency="low",
-                predictable=False
+                predictable=False,
             )
 
         # 提取数值
@@ -359,15 +351,11 @@ class CapacityPredictor:
             confidence=confidence,
             recommendation=recommendation,
             urgency=urgency,
-            predictable=True
+            predictable=True,
         )
 
     def _generate_recommendation(
-        self,
-        metric: str,
-        current_value: float,
-        days_to_threshold: Optional[int],
-        trend_direction: str
+        self, metric: str, current_value: float, days_to_threshold: Optional[int], trend_direction: str
     ) -> tuple:
         """
         生成容量规划建议
@@ -392,20 +380,11 @@ class CapacityPredictor:
             return "low", "容量增长缓慢，暂无需扩容"
 
         if days_to_threshold < 7:
-            return (
-                "critical",
-                f"{metric} 将在{days_to_threshold}天内达到阈值，建议立即扩容"
-            )
+            return ("critical", f"{metric} 将在{days_to_threshold}天内达到阈值，建议立即扩容")
         elif days_to_threshold < 30:
-            return (
-                "high",
-                f"{metric} 将在{days_to_threshold}天内达到阈值，建议尽快规划扩容"
-            )
+            return ("high", f"{metric} 将在{days_to_threshold}天内达到阈值，建议尽快规划扩容")
         elif days_to_threshold < 90:
-            return (
-                "medium",
-                f"{metric} 将在{days_to_threshold}天内达到阈值，建议关注容量增长"
-            )
+            return ("medium", f"{metric} 将在{days_to_threshold}天内达到阈值，建议关注容量增长")
         else:
             return "low", f"{metric} 容量充足，预计{days_to_threshold}天后达到阈值"
 
@@ -413,6 +392,7 @@ class CapacityPredictor:
 # =============================================================================
 # 告警管理器
 # =============================================================================
+
 
 class AlertManager:
     """
@@ -483,5 +463,5 @@ class AlertManager:
         return {
             "total_alerts": len(self._alert_count),
             "total_triggers": sum(self._alert_count.values()),
-            "cooldown_seconds": self.cooldown
+            "cooldown_seconds": self.cooldown,
         }

@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class SlowQueryRecord:
     """SQL Server慢查询记录"""
+
     query_hash: str
     query_plan_hash: str
     sql_text: str
@@ -56,6 +57,7 @@ class SlowQueryRecord:
 @dataclass
 class WaitStatsRecord:
     """等待统计记录"""
+
     wait_type: str
     waiting_tasks_count: int
     wait_time_ms: float
@@ -67,6 +69,7 @@ class WaitStatsRecord:
 @dataclass
 class IndexUsageRecord:
     """索引使用记录"""
+
     database_name: str
     table_name: str
     index_name: str
@@ -84,6 +87,7 @@ class IndexUsageRecord:
 @dataclass
 class MissingIndexRecord:
     """缺失索引记录"""
+
     database_name: str
     table_name: str
     equality_columns: str
@@ -124,7 +128,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
     def _get_database_name(self) -> Optional[str]:
         """获取当前数据库名称"""
         if self._database_name is None:
-            if hasattr(self.connector, 'database') and self.connector.database:
+            if hasattr(self.connector, "database") and self.connector.database:
                 self._database_name = self.connector.database
             else:
                 try:
@@ -156,11 +160,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
 
         return self._query_store_enabled
 
-    def analyze_slow_queries(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0
-    ) -> Dict[str, Any]:
+    def analyze_slow_queries(self, limit: int = 20, min_time: float = 1.0) -> Dict[str, Any]:
         """
         分析SQL Server慢查询
 
@@ -181,17 +181,9 @@ class MSSQLDiagnostician(BaseDiagnostician):
 
         except Exception as e:
             logger.error(f"慢查询分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="慢查询分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="慢查询分析失败", error=str(e))
 
-    def _analyze_slow_queries_from_query_store(
-        self,
-        limit: int,
-        min_time_ms: float
-    ) -> Dict[str, Any]:
+    def _analyze_slow_queries_from_query_store(self, limit: int, min_time_ms: float) -> Dict[str, Any]:
         """从Query Store分析慢查询"""
         min_time_ms = min_time_ms * 1000  # 转换为毫秒
 
@@ -220,28 +212,28 @@ class MSSQLDiagnostician(BaseDiagnostician):
 
         if not result:
             return self._create_result(
-                success=True,
-                message="未找到慢查询",
-                data={"total_queries": 0, "queries": [], "patterns": []}
+                success=True, message="未找到慢查询", data={"total_queries": 0, "queries": [], "patterns": []}
             )
 
         queries = []
         for row in result:
-            queries.append({
-                "query_hash": row[0],
-                "query_plan_hash": row[1],
-                "sql_text": row[2],
-                "sql_short": row[2][:200] + "..." if len(row[2]) > 200 else row[2],
-                "execution_count": row[3],
-                "avg_duration_ms": row[4],
-                "max_duration_ms": row[5],
-                "stdev_duration_ms": row[6],
-                "avg_logical_reads": row[7],
-                "avg_physical_reads": row[8],
-                "avg_rowcount": row[9],
-                "last_execution_time": row[10].isoformat() if row[10] else None,
-                "database_name": row[11]
-            })
+            queries.append(
+                {
+                    "query_hash": row[0],
+                    "query_plan_hash": row[1],
+                    "sql_text": row[2],
+                    "sql_short": row[2][:200] + "..." if len(row[2]) > 200 else row[2],
+                    "execution_count": row[3],
+                    "avg_duration_ms": row[4],
+                    "max_duration_ms": row[5],
+                    "stdev_duration_ms": row[6],
+                    "avg_logical_reads": row[7],
+                    "avg_physical_reads": row[8],
+                    "avg_rowcount": row[9],
+                    "last_execution_time": row[10].isoformat() if row[10] else None,
+                    "database_name": row[11],
+                }
+            )
 
         # SQL指纹聚合
         patterns = self._aggregate_query_patterns(queries)
@@ -254,15 +246,11 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "unique_patterns": len(patterns),
                 "queries": queries,
                 "patterns": patterns,
-                "source": "query_store"
-            }
+                "source": "query_store",
+            },
         )
 
-    def _analyze_slow_queries_from_dmv(
-        self,
-        limit: int,
-        min_time_ms: float
-    ) -> Dict[str, Any]:
+    def _analyze_slow_queries_from_dmv(self, limit: int, min_time_ms: float) -> Dict[str, Any]:
         """从DMV分析慢查询（Query Store未启用时）"""
         min_time_ms = min_time_ms * 1000
 
@@ -288,9 +276,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
 
         if not result:
             return self._create_result(
-                success=True,
-                message="未找到慢查询",
-                data={"total_queries": 0, "queries": [], "patterns": []}
+                success=True, message="未找到慢查询", data={"total_queries": 0, "queries": [], "patterns": []}
             )
 
         queries = []
@@ -300,20 +286,22 @@ class MSSQLDiagnostician(BaseDiagnostician):
             if sql_text and "CREATE PROC" in sql_text.upper():
                 sql_text = sql_text[:500]
 
-            queries.append({
-                "query_hash": row[0],
-                "query_plan_hash": row[1],
-                "sql_text": sql_text,
-                "sql_short": sql_text[:200] + "..." if len(sql_text) > 200 else sql_text,
-                "execution_count": row[3],
-                "avg_duration_ms": row[4],
-                "max_duration_ms": row[5],
-                "avg_logical_reads": row[6],
-                "avg_physical_reads": row[7],
-                "avg_rows": row[8],
-                "last_execution_time": row[9].isoformat() if row[9] else None,
-                "database_name": row[10]
-            })
+            queries.append(
+                {
+                    "query_hash": row[0],
+                    "query_plan_hash": row[1],
+                    "sql_text": sql_text,
+                    "sql_short": sql_text[:200] + "..." if len(sql_text) > 200 else sql_text,
+                    "execution_count": row[3],
+                    "avg_duration_ms": row[4],
+                    "max_duration_ms": row[5],
+                    "avg_logical_reads": row[6],
+                    "avg_physical_reads": row[7],
+                    "avg_rows": row[8],
+                    "last_execution_time": row[9].isoformat() if row[9] else None,
+                    "database_name": row[10],
+                }
+            )
 
         patterns = self._aggregate_query_patterns(queries)
 
@@ -325,8 +313,8 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "unique_patterns": len(patterns),
                 "queries": queries,
                 "patterns": patterns,
-                "source": "dmv"
-            }
+                "source": "dmv",
+            },
         )
 
     def _aggregate_query_patterns(self, queries: List[Dict]) -> List[Dict]:
@@ -336,7 +324,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
         for q in queries:
             sql_text = q.get("sql_text", "")
             fp_result = self.fingerprinter.fingerprint(sql_text)
-            fp = fp_result.fingerprint if hasattr(fp_result, 'fingerprint') else str(fp_result)
+            fp = fp_result.fingerprint if hasattr(fp_result, "fingerprint") else str(fp_result)
 
             if fp not in patterns:
                 patterns[fp] = {
@@ -346,16 +334,13 @@ class MSSQLDiagnostician(BaseDiagnostician):
                     "total_executions": 0,
                     "total_duration_ms": 0.0,
                     "max_duration_ms": 0.0,
-                    "databases": set()
+                    "databases": set(),
                 }
 
             patterns[fp]["count"] += 1
             patterns[fp]["total_executions"] += q.get("execution_count", 1)
             patterns[fp]["total_duration_ms"] += q.get("avg_duration_ms", 0) * q.get("execution_count", 1)
-            patterns[fp]["max_duration_ms"] = max(
-                patterns[fp]["max_duration_ms"],
-                q.get("max_duration_ms", 0)
-            )
+            patterns[fp]["max_duration_ms"] = max(patterns[fp]["max_duration_ms"], q.get("max_duration_ms", 0))
             if q.get("database_name"):
                 patterns[fp]["databases"].add(q["database_name"])
 
@@ -363,8 +348,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
         result = []
         for fp, data in patterns.items():
             data["avg_duration_ms"] = (
-                data["total_duration_ms"] / data["total_executions"]
-                if data["total_executions"] > 0 else 0
+                data["total_duration_ms"] / data["total_executions"] if data["total_executions"] > 0 else 0
             )
             data["databases"] = list(data["databases"])
             result.append(data)
@@ -373,10 +357,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
         result.sort(key=lambda x: x["total_duration_ms"], reverse=True)
         return result[:10]
 
-    def analyze_performance_metrics(
-        self,
-        duration_minutes: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_performance_metrics(self, duration_minutes: int = 10) -> Dict[str, Any]:
         """
         分析SQL Server性能指标
 
@@ -413,19 +394,11 @@ class MSSQLDiagnostician(BaseDiagnostician):
             io_stats = self._get_io_stats()
             metrics["io_stats"] = io_stats
 
-            return self._create_result(
-                success=True,
-                message="成功获取性能指标",
-                data=metrics
-            )
+            return self._create_result(success=True, message="成功获取性能指标", data=metrics)
 
         except Exception as e:
             logger.error(f"性能分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="性能分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="性能分析失败", error=str(e))
 
     def _get_wait_stats(self) -> List[Dict]:
         """获取等待统计"""
@@ -466,7 +439,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "wait_time_sec": row[2],
                 "max_wait_time_sec": row[3],
                 "signal_wait_time_sec": row[4],
-                "wait_category": row[5]
+                "wait_category": row[5],
             }
             for row in result
         ]
@@ -490,7 +463,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "batch_requests": result[0][0],
                 "sql_compilations": result[0][1],
                 "sql_recompilations": result[0][2],
-                "transactions": result[0][3]
+                "transactions": result[0][3],
             }
         return {}
 
@@ -513,7 +486,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
             return {
                 "buffer_cache_hit_ratio": result[0][0],
                 "page_life_expectancy_sec": result[0][1],
-                "procedure_cache_hit_ratio": result[0][2]
+                "procedure_cache_hit_ratio": result[0][2],
             }
         return {}
 
@@ -534,7 +507,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "running_sessions": result[0][1],
                 "suspended_sessions": result[0][2],
                 "user_connections": result[0][3],
-                "total_sessions": result[0][4]
+                "total_sessions": result[0][4],
             }
         return {}
 
@@ -557,7 +530,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "total_server_memory_mb": result[0][0],
                 "target_server_memory_mb": result[0][1],
                 "database_cache_memory_mb": result[0][2],
-                "stolen_memory_mb": result[0][3]
+                "stolen_memory_mb": result[0][3],
             }
         return {}
 
@@ -588,7 +561,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "read_mb": round(row[3], 2),
                 "write_mb": round(row[4], 2),
                 "read_stall_ms": row[5],
-                "write_stall_ms": row[6]
+                "write_stall_ms": row[6],
             }
             for row in result
         ]
@@ -611,14 +584,10 @@ class MSSQLDiagnostician(BaseDiagnostician):
             unused_indexes = self._get_unused_indexes()
 
             # 4. 计算健康评分
-            health_score = self._calculate_index_health_score(
-                index_usage, missing_indexes, unused_indexes
-            )
+            health_score = self._calculate_index_health_score(index_usage, missing_indexes, unused_indexes)
 
             # 5. 生成建议
-            suggestions = self._generate_index_suggestions(
-                missing_indexes, unused_indexes
-            )
+            suggestions = self._generate_index_suggestions(missing_indexes, unused_indexes)
 
             return self._create_result(
                 success=True,
@@ -628,17 +597,13 @@ class MSSQLDiagnostician(BaseDiagnostician):
                     "index_usage": index_usage,
                     "missing_indexes": missing_indexes,
                     "unused_indexes": unused_indexes,
-                    "suggestions": suggestions
-                }
+                    "suggestions": suggestions,
+                },
             )
 
         except Exception as e:
             logger.error(f"索引分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="索引分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="索引分析失败", error=str(e))
 
     def _get_index_usage_stats(self) -> List[Dict]:
         """获取索引使用统计"""
@@ -679,7 +644,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "last_user_seek": row[8].isoformat() if row[8] else None,
                 "last_user_scan": row[9].isoformat() if row[9] else None,
                 "last_user_lookup": row[10].isoformat() if row[10] else None,
-                "last_user_update": row[11].isoformat() if row[11] else None
+                "last_user_update": row[11].isoformat() if row[11] else None,
             }
             for row in result
         ]
@@ -719,7 +684,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "user_scans": row[6],
                 "avg_total_user_cost": row[7],
                 "avg_user_impact": row[8],
-                "impact_score": round(row[9], 2)
+                "impact_score": round(row[9], 2),
             }
             for row in result
         ]
@@ -757,16 +722,13 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "index_name": row[2],
                 "index_type": row[3],
                 "user_updates": row[4],
-                "last_user_update": row[5].isoformat() if row[5] else None
+                "last_user_update": row[5].isoformat() if row[5] else None,
             }
             for row in result
         ]
 
     def _calculate_index_health_score(
-        self,
-        index_usage: List[Dict],
-        missing_indexes: List[Dict],
-        unused_indexes: List[Dict]
+        self, index_usage: List[Dict], missing_indexes: List[Dict], unused_indexes: List[Dict]
     ) -> int:
         """计算索引健康评分"""
         score = 100
@@ -782,11 +744,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
 
         return max(0, score)
 
-    def _generate_index_suggestions(
-        self,
-        missing_indexes: List[Dict],
-        unused_indexes: List[Dict]
-    ) -> List[str]:
+    def _generate_index_suggestions(self, missing_indexes: List[Dict], unused_indexes: List[Dict]) -> List[str]:
         """生成索引优化建议"""
         suggestions = []
 
@@ -795,8 +753,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
             if mi.get("impact_score", 0) > 1000:
                 cols = mi.get("equality_columns", "") or mi.get("inequality_columns", "")
                 suggestions.append(
-                    f"建议在表 {mi['table_name']} 的列 ({cols}) 上创建索引，"
-                    f"预计影响评分: {mi['impact_score']}"
+                    f"建议在表 {mi['table_name']} 的列 ({cols}) 上创建索引，" f"预计影响评分: {mi['impact_score']}"
                 )
 
         # 未使用索引建议
@@ -825,19 +782,12 @@ class MSSQLDiagnostician(BaseDiagnostician):
             return self._create_result(
                 success=True,
                 message=f"阻塞分析完成，发现 {len(blocking_info)} 个阻塞，{len(deadlocks)} 个历史死锁",
-                data={
-                    "current_blocking": blocking_info,
-                    "deadlock_history": deadlocks
-                }
+                data={"current_blocking": blocking_info, "deadlock_history": deadlocks},
             )
 
         except Exception as e:
             logger.error(f"阻塞分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="阻塞分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="阻塞分析失败", error=str(e))
 
     def _get_blocking_info(self) -> List[Dict]:
         """获取当前阻塞信息"""
@@ -864,7 +814,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "wait_type": row[2],
                 "wait_time_sec": row[3],
                 "wait_resource": row[4],
-                "sql_text": row[5][:200] if row[5] else None
+                "sql_text": row[5][:200] if row[5] else None,
             }
             for row in result
         ]
@@ -888,11 +838,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 return []
 
             return [
-                {
-                    "name": row[0],
-                    "timestamp": row[1].isoformat() if row[1] else None,
-                    "has_xml_data": bool(row[2])
-                }
+                {"name": row[0], "timestamp": row[1].isoformat() if row[1] else None, "has_xml_data": bool(row[2])}
                 for row in result
             ]
         except Exception as e:
@@ -925,19 +871,11 @@ class MSSQLDiagnostician(BaseDiagnostician):
             version_info = self._get_version_info()
             stats["version_info"] = version_info
 
-            return self._create_result(
-                success=True,
-                message="成功获取数据库统计信息",
-                data=stats
-            )
+            return self._create_result(success=True, message="成功获取数据库统计信息", data=stats)
 
         except Exception as e:
             logger.error(f"获取数据库统计信息失败: {e}")
-            return self._create_result(
-                success=False,
-                message="获取数据库统计信息失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="获取数据库统计信息失败", error=str(e))
 
     def _get_database_info(self) -> Dict:
         """获取数据库基本信息"""
@@ -964,7 +902,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "collation_name": result[0][4],
                 "user_access": result[0][5],
                 "state": result[0][6],
-                "recovery_model": result[0][7]
+                "recovery_model": result[0][7],
             }
         return {}
 
@@ -996,7 +934,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "size_mb": round(row[4], 2),
                 "max_size_mb": round(row[5], 2) if row[5] > 0 else "Unlimited",
                 "growth_mb": round(row[6], 2),
-                "is_percent_growth": bool(row[7])
+                "is_percent_growth": bool(row[7]),
             }
             for row in result
         ]
@@ -1029,7 +967,7 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "row_count": row[1],
                 "total_space_mb": round(row[2], 2),
                 "used_space_mb": round(row[3], 2),
-                "data_space_mb": round(row[4], 2)
+                "data_space_mb": round(row[4], 2),
             }
             for row in result
         ]
@@ -1053,6 +991,6 @@ class MSSQLDiagnostician(BaseDiagnostician):
                 "product_version": result[0][2],
                 "product_level": result[0][3],
                 "edition": result[0][4],
-                "engine_edition": result[0][5]
+                "engine_edition": result[0][5],
             }
         return {}

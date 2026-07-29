@@ -41,44 +41,23 @@ class LockCommand(BaseCommand):
 
         # analyze 子命令 - 分析当前锁
         analyze_parser = subparsers.add_parser("analyze", help="分析当前锁情况")
-        analyze_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json"],
-            default="text",
-            help="输出格式"
-        )
+        analyze_parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
 
         # deadlocks 子命令 - 检测死锁
         deadlock_parser = subparsers.add_parser("deadlocks", help="检测死锁")
-        deadlock_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json"],
-            default="text",
-            help="输出格式"
-        )
+        deadlock_parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
 
         # chains 子命令 - 锁等待链
         chain_parser = subparsers.add_parser("chains", help="追踪锁等待链")
-        chain_parser.add_argument(
-            "--format", "-f",
-            choices=["text", "json"],
-            default="text",
-            help="输出格式"
-        )
+        chain_parser.add_argument("--format", "-f", choices=["text", "json"], default="text", help="输出格式")
 
         # report 子命令 - 生成报告
         report_parser = subparsers.add_parser("report", help="生成锁分析报告")
-        report_parser.add_argument(
-            "--output", "-o",
-            help="输出文件路径"
-        )
+        report_parser.add_argument("--output", "-o", help="输出文件路径")
 
         # kill 子命令 - 终止阻塞事务
         kill_parser = subparsers.add_parser("kill", help="终止阻塞事务")
-        kill_parser.add_argument(
-            "transaction_id",
-            help="要终止的事务ID"
-        )
+        kill_parser.add_argument("transaction_id", help="要终止的事务ID")
 
     def execute(self) -> int:
         """执行锁分析命令"""
@@ -93,7 +72,7 @@ class LockCommand(BaseCommand):
         try:
             skill = LockAnalyzerSkill(self.connector)
 
-            action = getattr(self.args, 'lock_action', None)
+            action = getattr(self.args, "lock_action", None)
 
             if self.output_mode != "rule":
                 method_map = {
@@ -132,7 +111,7 @@ class LockCommand(BaseCommand):
             self.output.error(f"锁分析失败: {e}")
             return 1
         finally:
-            if 'skill' in locals():
+            if "skill" in locals():
                 skill.close()
 
     def _analyze_locks(self, skill) -> int:
@@ -142,17 +121,17 @@ class LockCommand(BaseCommand):
         # 保存结果供 --show-trace 追踪展示
         self._last_skill_result = result
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"锁分析失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        locks = data.get('locks', [])
+        data = result.get("data", {})
+        locks = data.get("locks", [])
 
-        waiting_locks = [l for l in locks if l.get('lock_status') == "WAITING"]
-        granted_locks = [l for l in locks if l.get('lock_status') == "GRANTED"]
+        waiting_locks = [l for l in locks if l.get("lock_status") == "WAITING"]
+        granted_locks = [l for l in locks if l.get("lock_status") == "GRANTED"]
 
-        output_format = getattr(self.args, 'format', 'text')
+        output_format = getattr(self.args, "format", "text")
 
         if output_format == "json":
             result = {
@@ -160,7 +139,7 @@ class LockCommand(BaseCommand):
                 "total_locks": len(locks),
                 "waiting_locks": len(waiting_locks),
                 "granted_locks": len(granted_locks),
-                "locks": locks
+                "locks": locks,
             }
             self.output.print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
@@ -178,8 +157,10 @@ class LockCommand(BaseCommand):
         if waiting_locks:
             self.output.warning(f"\n等待中的锁 ({len(waiting_locks)}个):")
             for lock in waiting_locks[:10]:  # 只显示前10个
-                self.output.print(f"  事务 {lock.get('transaction_id')}: {lock.get('table_name')} - {lock.get('lock_mode')}")
-                query_sql = lock.get('query_sql', '')
+                self.output.print(
+                    f"  事务 {lock.get('transaction_id')}: {lock.get('table_name')} - {lock.get('lock_mode')}"
+                )
+                query_sql = lock.get("query_sql", "")
                 if query_sql:
                     self.output.print(f"    SQL: {query_sql[:80]}...")
         else:
@@ -191,21 +172,17 @@ class LockCommand(BaseCommand):
         """检测死锁"""
         result = skill.detect_deadlocks()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"死锁检测失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        deadlocks = data.get('deadlocks', [])
+        data = result.get("data", {})
+        deadlocks = data.get("deadlocks", [])
 
-        output_format = getattr(self.args, 'format', 'text')
+        output_format = getattr(self.args, "format", "text")
 
         if output_format == "json":
-            result = {
-                "success": True,
-                "deadlock_count": len(deadlocks),
-                "deadlocks": deadlocks
-            }
+            result = {"success": True, "deadlock_count": len(deadlocks), "deadlocks": deadlocks}
             self.output.print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
 
@@ -229,21 +206,17 @@ class LockCommand(BaseCommand):
         """追踪锁等待链"""
         result = skill.trace_lock_wait_chain()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"锁等待链追踪失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        chains = data.get('chains', [])
+        data = result.get("data", {})
+        chains = data.get("chains", [])
 
-        output_format = getattr(self.args, 'format', 'text')
+        output_format = getattr(self.args, "format", "text")
 
         if output_format == "json":
-            result = {
-                "success": True,
-                "chain_count": len(chains),
-                "chains": chains
-            }
+            result = {"success": True, "chain_count": len(chains), "chains": chains}
             self.output.print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
 
@@ -259,8 +232,10 @@ class LockCommand(BaseCommand):
                 self.output.print(f"  链深度: {chain.get('depth')}")
                 self.output.print(f"  总等待时间: {chain.get('total_wait_time', 0):.2f}秒")
                 self.output.print("  事务链:")
-                for node in chain.get('nodes', []):
-                    self.output.print(f"    -> 事务 {node.get('transaction_id')} (等待 {node.get('wait_time', 0):.2f}秒)")
+                for node in chain.get("nodes", []):
+                    self.output.print(
+                        f"    -> 事务 {node.get('transaction_id')} (等待 {node.get('wait_time', 0):.2f}秒)"
+                    )
         else:
             self.output.print("\n未发现锁等待链")
 
@@ -270,15 +245,15 @@ class LockCommand(BaseCommand):
         """生成锁分析报告"""
         result = skill.generate_lock_report()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"报告生成失败: {result.get('message', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        output_path = getattr(self.args, 'output', None)
+        data = result.get("data", {})
+        output_path = getattr(self.args, "output", None)
 
         if output_path:
-            with open(output_path, 'w', encoding='utf-8') as f:
+            with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             self.output.print(f"报告已保存: {output_path}")
         else:
@@ -300,7 +275,7 @@ class LockCommand(BaseCommand):
 
         result = skill.kill_blocking_transaction(transaction_id)
 
-        if result.get('success'):
+        if result.get("success"):
             self.output.print(f"已终止事务: {transaction_id}")
             return 0
         else:

@@ -5,6 +5,7 @@ Auto-extracted from skill.py.
 """
 
 import logging
+
 logger = logging.getLogger(__name__)
 from typing import List, Dict, Any, Optional, Set, Tuple
 
@@ -42,14 +43,10 @@ class LockAnalyzerMixin:
                 result = self._diagnostician.get_lock_waits()
                 return self._convert_diagnostician_result(result)
             else:
-                return create_error_response(
-                    f"锁等待分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+                return create_error_response(f"锁等待分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
         except Exception as e:
             logger.error(f"获取锁等待失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def analyze_locks(self) -> Dict[str, Any]:
         """
@@ -59,27 +56,25 @@ class LockAnalyzerMixin:
             Dict: 锁分析结果，包含 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         try:
             with timer.step("select_engine", "选择数据库引擎适配"):
-                if 'mysql' in self.dialect:
+                if "mysql" in self.dialect:
                     result = self._analyze_mysql_locks()
-                elif 'oracle' in self.dialect:
+                elif "oracle" in self.dialect:
                     result = self._analyze_oracle_locks()
-                elif 'postgresql' in self.dialect:
+                elif "postgresql" in self.dialect:
                     result = self._analyze_postgresql_locks()
-                elif 'mssql' in self.dialect or 'sqlserver' in self.dialect:
+                elif "mssql" in self.dialect or "sqlserver" in self.dialect:
                     result = self._analyze_mssql_locks()
-                elif 'clickhouse' in self.dialect:
+                elif "clickhouse" in self.dialect:
                     result = self._analyze_clickhouse_locks()
-                elif 'sqlite' in self.dialect:
+                elif "sqlite" in self.dialect:
                     result = self._analyze_sqlite_locks()
                 else:
-                    result = create_error_response(
-                        f"锁分析暂不支持 {self.dialect}",
-                        ErrorCode.UNSUPPORTED_SQL
-                    )
+                    result = create_error_response(f"锁分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
 
             with timer.step("format_result", "转换并封装结果"):
                 if isinstance(result, dict) and "_execution_time" not in result:
@@ -91,13 +86,12 @@ class LockAnalyzerMixin:
             logger.error(f"锁分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
-
     def _analyze_mysql_locks(self) -> Dict[str, Any]:
         """MySQL锁分析"""
         try:
             # 获取锁等待
             lock_waits_result = self._diagnostician.get_lock_waits()
-            lock_waits = lock_waits_result.get('data', {}).get('lock_waits', [])
+            lock_waits = lock_waits_result.get("data", {}).get("lock_waits", [])
 
             # 获取事务统计
             result = self.connector.execute("""
@@ -114,22 +108,17 @@ class LockAnalyzerMixin:
                 data={
                     "lock_waits": lock_waits,
                     "deadlocks": [],  # 需要查询performance_schema
-                    "statistics": {
-                        "trx_count": row[0],
-                        "running_trx": row[1],
-                        "lock_waits_count": len(lock_waits)
-                    }
-                }
+                    "statistics": {"trx_count": row[0], "running_trx": row[1], "lock_waits_count": len(lock_waits)},
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_oracle_locks(self) -> Dict[str, Any]:
         """Oracle锁分析"""
         try:
             lock_waits_result = self._diagnostician.get_lock_waits()
-            lock_waits = lock_waits_result.get('data', {}).get('lock_waits', [])
+            lock_waits = lock_waits_result.get("data", {}).get("lock_waits", [])
 
             # 获取事务统计
             result2 = self.connector.execute("""
@@ -150,11 +139,13 @@ class LockAnalyzerMixin:
                 """)
                 long_wait_count = int(str(result3.rows[0][0])) if result3.rows else 0
                 if long_wait_count > 0:
-                    deadlocks.append({
-                        "type": "long_lock_wait",
-                        "description": f"发现 {long_wait_count} 个等待超过60秒的锁请求",
-                        "suggestion": "检查是否存在阻塞事务，考虑终止或优化"
-                    })
+                    deadlocks.append(
+                        {
+                            "type": "long_lock_wait",
+                            "description": f"发现 {long_wait_count} 个等待超过60秒的锁请求",
+                            "suggestion": "检查是否存在阻塞事务，考虑终止或优化",
+                        }
+                    )
             except Exception:
                 pass
 
@@ -166,19 +157,18 @@ class LockAnalyzerMixin:
                     "statistics": {
                         "trx_count": int(str(row[0])) if row[0] else 0,
                         "running_trx": int(str(row[1])) if row[1] else 0,
-                        "lock_waits_count": len(lock_waits)
-                    }
-                }
+                        "lock_waits_count": len(lock_waits),
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_postgresql_locks(self) -> Dict[str, Any]:
         """PostgreSQL锁分析"""
         try:
             lock_waits_result = self._diagnostician.get_lock_waits()
-            lock_waits = lock_waits_result.get('data', {}).get('lock_waits', [])
+            lock_waits = lock_waits_result.get("data", {}).get("lock_waits", [])
 
             deadlocks = 0
             try:
@@ -214,13 +204,12 @@ class LockAnalyzerMixin:
                         "trx_count": active_trx,
                         "running_trx": active_trx,
                         "lock_waits_count": len(lock_waits),
-                        "deadlock_count": deadlocks
-                    }
-                }
+                        "deadlock_count": deadlocks,
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_mssql_locks(self) -> Dict[str, Any]:
         """SQL Server锁分析"""
@@ -246,16 +235,18 @@ class LockAnalyzerMixin:
                     ORDER BY r.wait_time DESC
                 """)
                 for row in result.rows if result else []:
-                    lock_waits.append({
-                        "waiting_session": row[0],
-                        "blocking_session": row[1],
-                        "wait_type": row[2],
-                        "wait_seconds": row[3],
-                        "database": row[4],
-                        "sql_preview": row[5][:200] if row[5] else None,
-                        "login": row[6],
-                        "host": row[7]
-                    })
+                    lock_waits.append(
+                        {
+                            "waiting_session": row[0],
+                            "blocking_session": row[1],
+                            "wait_type": row[2],
+                            "wait_seconds": row[3],
+                            "database": row[4],
+                            "sql_preview": row[5][:200] if row[5] else None,
+                            "login": row[6],
+                            "host": row[7],
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取SQL Server锁等待信息失败: {e}")
 
@@ -277,10 +268,7 @@ class LockAnalyzerMixin:
                     ORDER BY creation_time DESC
                 """)
                 for row in result.rows if result else []:
-                    deadlocks.append({
-                        "report": row[0],
-                        "time": row[2]
-                    })
+                    deadlocks.append({"report": row[0], "time": row[2]})
             except Exception as e:
                 logger.warning(f"获取SQL Server死锁信息失败: {e}")
 
@@ -306,13 +294,12 @@ class LockAnalyzerMixin:
                         "trx_count": active_trx,
                         "running_trx": active_trx,
                         "lock_waits_count": len(lock_waits),
-                        "deadlock_count": len(deadlocks)
-                    }
-                }
+                        "deadlock_count": len(deadlocks),
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_clickhouse_locks(self) -> Dict[str, Any]:
         """
@@ -345,15 +332,17 @@ class LockAnalyzerMixin:
                     ORDER BY create_time DESC
                 """)
                 for row in result.rows if result else []:
-                    lock_waits.append({
-                        "type": "mutation",
-                        "database": str(row[0]) if row[0] else "",
-                        "table": str(row[1]) if row[1] else "",
-                        "mutation_id": str(row[2]) if row[2] else "",
-                        "command": str(row[3])[:100] if row[3] else "",
-                        "create_time": str(row[4]) if row[4] else "",
-                        "parts_to_do": int(row[5]) if row[5] else 0
-                    })
+                    lock_waits.append(
+                        {
+                            "type": "mutation",
+                            "database": str(row[0]) if row[0] else "",
+                            "table": str(row[1]) if row[1] else "",
+                            "mutation_id": str(row[2]) if row[2] else "",
+                            "command": str(row[3])[:100] if row[3] else "",
+                            "create_time": str(row[4]) if row[4] else "",
+                            "parts_to_do": int(row[5]) if row[5] else 0,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse mutation信息失败: {e}")
 
@@ -372,15 +361,17 @@ class LockAnalyzerMixin:
                     ORDER BY elapsed DESC
                 """)
                 for row in result.rows if result else []:
-                    deadlocks.append({
-                        "type": "long_running_query",
-                        "query_id": str(row[0]) if row[0] else "",
-                        "user": str(row[1]) if row[1] else "",
-                        "query_preview": str(row[2])[:100] if row[2] else "",
-                        "elapsed_seconds": float(row[3]) if row[3] else 0,
-                        "read_rows": int(row[4]) if row[4] else 0,
-                        "memory_usage": int(row[5]) if row[5] else 0
-                    })
+                    deadlocks.append(
+                        {
+                            "type": "long_running_query",
+                            "query_id": str(row[0]) if row[0] else "",
+                            "user": str(row[1]) if row[1] else "",
+                            "query_preview": str(row[2])[:100] if row[2] else "",
+                            "elapsed_seconds": float(row[3]) if row[3] else 0,
+                            "read_rows": int(row[4]) if row[4] else 0,
+                            "memory_usage": int(row[5]) if row[5] else 0,
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取ClickHouse长时间运行查询失败: {e}")
 
@@ -402,17 +393,19 @@ class LockAnalyzerMixin:
                 """)
                 replicated_fetches = []
                 for row in result.rows if result else []:
-                    replicated_fetches.append({
-                        "type": "replicated_fetch",
-                        "database": str(row[0]) if row[0] else "",
-                        "table": str(row[1]) if row[1] else "",
-                        "source_replica": str(row[2]) if row[2] else "",
-                        "source_path": str(row[3]) if row[3] else "",
-                        "part_name": str(row[4]) if row[4] else "",
-                        "total_size": int(row[5]) if row[5] else 0,
-                        "bytes_fetched": int(row[6]) if row[6] else 0,
-                        "elapsed_seconds": float(row[7]) if row[7] else 0
-                    })
+                    replicated_fetches.append(
+                        {
+                            "type": "replicated_fetch",
+                            "database": str(row[0]) if row[0] else "",
+                            "table": str(row[1]) if row[1] else "",
+                            "source_replica": str(row[2]) if row[2] else "",
+                            "source_path": str(row[3]) if row[3] else "",
+                            "part_name": str(row[4]) if row[4] else "",
+                            "total_size": int(row[5]) if row[5] else 0,
+                            "bytes_fetched": int(row[6]) if row[6] else 0,
+                            "elapsed_seconds": float(row[7]) if row[7] else 0,
+                        }
+                    )
 
                 if replicated_fetches:
                     lock_waits.extend(replicated_fetches)
@@ -436,16 +429,18 @@ class LockAnalyzerMixin:
                 """)
                 merges = []
                 for row in result.rows if result else []:
-                    merges.append({
-                        "type": "merge",
-                        "database": str(row[0]) if row[0] else "",
-                        "table": str(row[1]) if row[1] else "",
-                        "elapsed_seconds": float(row[2]) if row[2] else 0,
-                        "progress": float(row[3]) if row[3] else 0,
-                        "num_parts": int(row[4]) if row[4] else 0,
-                        "result_part": str(row[5]) if row[5] else "",
-                        "total_size_bytes": int(row[6]) if row[6] else 0
-                    })
+                    merges.append(
+                        {
+                            "type": "merge",
+                            "database": str(row[0]) if row[0] else "",
+                            "table": str(row[1]) if row[1] else "",
+                            "elapsed_seconds": float(row[2]) if row[2] else 0,
+                            "progress": float(row[3]) if row[3] else 0,
+                            "num_parts": int(row[4]) if row[4] else 0,
+                            "result_part": str(row[5]) if row[5] else "",
+                            "total_size_bytes": int(row[6]) if row[6] else 0,
+                        }
+                    )
 
                 if merges:
                     lock_waits.extend(merges)
@@ -461,13 +456,12 @@ class LockAnalyzerMixin:
                         "trx_count": len(lock_waits),
                         "running_trx": len(lock_waits),
                         "lock_waits_count": len(lock_waits),
-                        "deadlock_count": len(deadlocks)
-                    }
-                }
+                        "deadlock_count": len(deadlocks),
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
 
     def _analyze_sqlite_locks(self) -> Dict[str, Any]:
         """
@@ -488,11 +482,13 @@ class LockAnalyzerMixin:
             try:
                 result = self.connector.execute("PRAGMA lock_status")
                 for row in result.rows if result else []:
-                    lock_waits.append({
-                        "type": "file_lock",
-                        "database": str(row[0]) if row[0] else "main",
-                        "lock_type": str(row[1]) if len(row) > 1 else "unknown"
-                    })
+                    lock_waits.append(
+                        {
+                            "type": "file_lock",
+                            "database": str(row[0]) if row[0] else "main",
+                            "lock_type": str(row[1]) if len(row) > 1 else "unknown",
+                        }
+                    )
             except Exception as e:
                 logger.warning(f"获取SQLite锁状态失败: {e}")
 
@@ -505,11 +501,9 @@ class LockAnalyzerMixin:
                         "trx_count": 0,
                         "running_trx": 0,
                         "lock_waits_count": len(lock_waits),
-                        "deadlock_count": 0
-                    }
-                }
+                        "deadlock_count": 0,
+                    },
+                },
             )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-
-

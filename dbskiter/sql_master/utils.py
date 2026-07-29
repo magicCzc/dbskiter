@@ -34,13 +34,13 @@ class SQLTypeDetector:
 
     # SQL类型正则模式
     PATTERNS = {
-        SQLType.SELECT: re.compile(r'^\s*SELECT\s+', re.IGNORECASE),
-        SQLType.INSERT: re.compile(r'^\s*INSERT\s+INTO\s+', re.IGNORECASE),
-        SQLType.UPDATE: re.compile(r'^\s*UPDATE\s+', re.IGNORECASE),
-        SQLType.DELETE: re.compile(r'^\s*DELETE\s+FROM\s+', re.IGNORECASE),
-        SQLType.CREATE: re.compile(r'^\s*CREATE\s+(TABLE|INDEX|VIEW)\s+', re.IGNORECASE),
-        SQLType.ALTER: re.compile(r'^\s*ALTER\s+(TABLE|INDEX)\s+', re.IGNORECASE),
-        SQLType.DROP: re.compile(r'^\s*DROP\s+(TABLE|INDEX|VIEW)\s+', re.IGNORECASE),
+        SQLType.SELECT: re.compile(r"^\s*SELECT\s+", re.IGNORECASE),
+        SQLType.INSERT: re.compile(r"^\s*INSERT\s+INTO\s+", re.IGNORECASE),
+        SQLType.UPDATE: re.compile(r"^\s*UPDATE\s+", re.IGNORECASE),
+        SQLType.DELETE: re.compile(r"^\s*DELETE\s+FROM\s+", re.IGNORECASE),
+        SQLType.CREATE: re.compile(r"^\s*CREATE\s+(TABLE|INDEX|VIEW)\s+", re.IGNORECASE),
+        SQLType.ALTER: re.compile(r"^\s*ALTER\s+(TABLE|INDEX)\s+", re.IGNORECASE),
+        SQLType.DROP: re.compile(r"^\s*DROP\s+(TABLE|INDEX|VIEW)\s+", re.IGNORECASE),
     }
 
     @staticmethod
@@ -118,20 +118,49 @@ class SQLFormatter:
             return ""
 
         # 移除多余空白
-        sql = re.sub(r'\s+', ' ', sql.strip())
+        sql = re.sub(r"\s+", " ", sql.strip())
 
         if uppercase_keywords:
             # 关键字大写
             keywords = [
-                'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT',
-                'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET',
-                'DELETE', 'CREATE', 'TABLE', 'INDEX', 'VIEW',
-                'ALTER', 'DROP', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
-                'ON', 'GROUP', 'BY', 'ORDER', 'HAVING', 'LIMIT',
-                'UNION', 'ALL', 'DISTINCT', 'AS', 'ASC', 'DESC'
+                "SELECT",
+                "FROM",
+                "WHERE",
+                "AND",
+                "OR",
+                "NOT",
+                "INSERT",
+                "INTO",
+                "VALUES",
+                "UPDATE",
+                "SET",
+                "DELETE",
+                "CREATE",
+                "TABLE",
+                "INDEX",
+                "VIEW",
+                "ALTER",
+                "DROP",
+                "JOIN",
+                "LEFT",
+                "RIGHT",
+                "INNER",
+                "OUTER",
+                "ON",
+                "GROUP",
+                "BY",
+                "ORDER",
+                "HAVING",
+                "LIMIT",
+                "UNION",
+                "ALL",
+                "DISTINCT",
+                "AS",
+                "ASC",
+                "DESC",
             ]
             for keyword in keywords:
-                pattern = re.compile(r'\b' + keyword + r'\b', re.IGNORECASE)
+                pattern = re.compile(r"\b" + keyword + r"\b", re.IGNORECASE)
                 sql = pattern.sub(keyword, sql)
 
         return sql
@@ -167,10 +196,10 @@ class SQLFormatter:
         # 转小写
         sql = sql.lower()
         # 移除多余空白
-        sql = re.sub(r'\s+', ' ', sql.strip())
+        sql = re.sub(r"\s+", " ", sql.strip())
         # 移除注释
-        sql = re.sub(r'--[^\n]*', '', sql)
-        sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
+        sql = re.sub(r"--[^\n]*", "", sql)
+        sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
 
         return sql.strip()
 
@@ -189,7 +218,7 @@ class QueryBuilder:
         table: str,
         columns: Optional[List[str]] = None,
         where: Optional[Dict[str, Any]] = None,
-        limit: Optional[int] = None
+        limit: Optional[int] = None,
     ) -> Tuple[str, List[Any]]:
         """
         构建SELECT查询
@@ -203,7 +232,7 @@ class QueryBuilder:
         返回:
             Tuple[str, List[Any]]: (SQL, 参数列表)
         """
-        cols = ', '.join(columns) if columns else '*'
+        cols = ", ".join(columns) if columns else "*"
         sql = f"SELECT {cols} FROM {table}"
         params = []
 
@@ -268,11 +297,7 @@ class ResultProcessor:
         return [dict(zip(columns, row)) for row in rows]
 
     @staticmethod
-    def paginate(
-        rows: List[List[Any]],
-        page: int = 1,
-        page_size: int = 10
-    ) -> Dict[str, Any]:
+    def paginate(rows: List[List[Any]], page: int = 1, page_size: int = 10) -> Dict[str, Any]:
         """
         分页处理
 
@@ -294,7 +319,7 @@ class ResultProcessor:
             "page": page,
             "page_size": page_size,
             "total_pages": (total + page_size - 1) // page_size,
-            "data": paginated_rows
+            "data": paginated_rows,
         }
 
     @staticmethod
@@ -309,11 +334,7 @@ class ResultProcessor:
         返回:
             Dict[str, Any]: 汇总信息
         """
-        return {
-            "row_count": len(rows),
-            "column_count": len(columns),
-            "columns": columns
-        }
+        return {"row_count": len(rows), "column_count": len(columns), "columns": columns}
 
 
 class PerformanceTimer:
@@ -329,7 +350,7 @@ class PerformanceTimer:
         self._start_time: Optional[float] = None
         self._elapsed: float = 0.0
 
-    def start(self) -> 'PerformanceTimer':
+    def start(self) -> "PerformanceTimer":
         """开始计时"""
         self._start_time = time.time()
         return self
@@ -349,7 +370,7 @@ class PerformanceTimer:
             return time.time() - self._start_time
         return self._elapsed
 
-    def __enter__(self) -> 'PerformanceTimer':
+    def __enter__(self) -> "PerformanceTimer":
         """上下文管理器入口"""
         self.start()
         return self
@@ -396,35 +417,35 @@ class SQLAnalyzer:
         # ========== 规范检查（不影响复杂度等级）==========
 
         # SELECT *
-        if re.search(r'SELECT\s+\*', sql_upper):
+        if re.search(r"SELECT\s+\*", sql_upper):
             issues_score += 15
             issues.append("禁止使用SELECT *")
             suggestions.append("明确指定需要的列名")
 
         # 缺少LIMIT
-        is_select = re.search(r'^\s*SELECT\b', sql_upper) is not None
-        has_limit = 'LIMIT' in sql_upper
+        is_select = re.search(r"^\s*SELECT\b", sql_upper) is not None
+        has_limit = "LIMIT" in sql_upper
         if is_select and not has_limit:
             issues_score += 10
             issues.append("建议添加LIMIT限制")
             suggestions.append("添加LIMIT限制返回行数")
 
         # NOT IN
-        if re.search(r'NOT\s+IN\b', sql_upper):
+        if re.search(r"NOT\s+IN\b", sql_upper):
             issues_score += 10
             issues.append("避免使用NOT IN")
             suggestions.append("使用NOT EXISTS替代NOT IN")
 
         # 无WHERE的DELETE/UPDATE
-        sql_type_match = re.search(r'^\s*(DELETE|UPDATE)\b', sql_upper)
-        has_where = 'WHERE' in sql_upper
+        sql_type_match = re.search(r"^\s*(DELETE|UPDATE)\b", sql_upper)
+        has_where = "WHERE" in sql_upper
         if sql_type_match and not has_where:
             issues_score += 50
             issues.append("禁止无WHERE条件的DELETE/UPDATE")
             suggestions.append("添加WHERE条件限制影响范围")
 
         # DROP/TRUNCATE
-        if re.search(r'^\s*(DROP|TRUNCATE)\b', sql_upper):
+        if re.search(r"^\s*(DROP|TRUNCATE)\b", sql_upper):
             issues_score += 50
             issues.append("禁止DROP/TRUNCATE操作")
             suggestions.append("确认操作必要性并备份数据")
@@ -432,30 +453,30 @@ class SQLAnalyzer:
         # ========== 复杂度分析（影响等级）==========
 
         # JOIN复杂度
-        join_count = sql_upper.count(' JOIN ')
+        join_count = sql_upper.count(" JOIN ")
         if join_count > 0:
             complexity_score += join_count * 10
             factors.append(f"{join_count}个JOIN")
 
         # 子查询
-        subquery_count = sql_upper.count('SELECT') - 1
+        subquery_count = sql_upper.count("SELECT") - 1
         if subquery_count > 0:
             complexity_score += subquery_count * 15
             factors.append(f"{subquery_count}个子查询")
 
         # WHERE条件复杂度
-        where_count = sql_upper.count(' AND ') + sql_upper.count(' OR ')
+        where_count = sql_upper.count(" AND ") + sql_upper.count(" OR ")
         if where_count > 0:
             complexity_score += where_count * 5
             factors.append(f"{where_count}个WHERE条件")
 
         # GROUP BY
-        if 'GROUP BY' in sql_upper:
+        if "GROUP BY" in sql_upper:
             complexity_score += 10
             factors.append("包含GROUP BY")
 
         # ORDER BY
-        if 'ORDER BY' in sql_upper:
+        if "ORDER BY" in sql_upper:
             complexity_score += 5
             factors.append("包含ORDER BY")
 
@@ -500,5 +521,5 @@ class SQLAnalyzer:
         return {
             "complexity": complexity["level"],
             "estimated_cost": cost_map.get(complexity["level"], cost_map["unknown"]),
-            "risk_level": complexity["level"]
+            "risk_level": complexity["level"],
         }

@@ -58,10 +58,7 @@ class SQLAnalyzer:
         logger.info(f"SQLAnalyzer 初始化完成 (dialect={connector.dialect})")
 
     def analyze(
-        self,
-        sql: str,
-        params: Optional[Dict[str, Any]] = None,
-        context: Optional[Dict[str, Any]] = None
+        self, sql: str, params: Optional[Dict[str, Any]] = None, context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         深度分析SQL语句
@@ -125,7 +122,7 @@ class SQLAnalyzer:
                         "table": issue.table_name,
                         "description": issue.description,
                         "suggestion": issue.suggestion.reason if issue.suggestion else None,
-                        "create_index_sql": issue.suggestion.create_sql if issue.suggestion else None
+                        "create_index_sql": issue.suggestion.create_sql if issue.suggestion else None,
                     }
                     for issue in analysis.issues
                 ],
@@ -137,7 +134,7 @@ class SQLAnalyzer:
                         "reason": sug.reason,
                         "priority": sug.priority,
                         "create_sql": sug.create_sql,
-                        "expected_improvement": sug.expected_improvement
+                        "expected_improvement": sug.expected_improvement,
                     }
                     for sug in analysis.index_suggestions
                 ],
@@ -145,17 +142,19 @@ class SQLAnalyzer:
                 "cost_estimate": {
                     "total_cost": analysis.total_cost,
                     "total_rows": analysis.total_rows,
-                    "execution_time_ms": analysis.execution_time_ms
+                    "execution_time_ms": analysis.execution_time_ms,
                 },
                 "warnings": analysis.warnings,
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
             }
 
             # 记录问题统计
             critical_count = sum(1 for i in analysis.issues if i.severity == "critical")
             high_count = sum(1 for i in analysis.issues if i.severity == "high")
-            logger.info(f"诊断完成: {critical_count}个严重问题, {high_count}个高危问题, "
-                       f"{len(analysis.index_suggestions)}个索引建议")
+            logger.info(
+                f"诊断完成: {critical_count}个严重问题, {high_count}个高危问题, "
+                f"{len(analysis.index_suggestions)}个索引建议"
+            )
 
             return result
 
@@ -163,11 +162,7 @@ class SQLAnalyzer:
             logger.error(f"SQL诊断失败: {e}")
             return handle_exception(e, context=f"诊断SQL: {sql[:100]}...")
 
-    def analyze_batch(
-        self,
-        sqls: List[str],
-        show_progress: bool = False
-    ) -> List[Dict[str, Any]]:
+    def analyze_batch(self, sqls: List[str], show_progress: bool = False) -> List[Dict[str, Any]]:
         """
         批量分析SQL语句
 
@@ -194,11 +189,7 @@ class SQLAnalyzer:
 
         return results
 
-    def get_index_suggestions(
-        self,
-        sql: str,
-        min_priority: str = "medium"
-    ) -> List[Dict[str, Any]]:
+    def get_index_suggestions(self, sql: str, min_priority: str = "medium") -> List[Dict[str, Any]]:
         """
         获取索引建议（便捷方法）
 
@@ -226,8 +217,7 @@ class SQLAnalyzer:
         min_priority_level = priority_order.get(min_priority, 1)
 
         filtered = [
-            sug for sug in suggestions
-            if priority_order.get(sug.get("priority", "low"), 2) <= min_priority_level
+            sug for sug in suggestions if priority_order.get(sug.get("priority", "low"), 2) <= min_priority_level
         ]
 
         return filtered
@@ -271,14 +261,10 @@ class SQLAnalyzer:
 
             if not analysis.optimized_sql:
                 from dbskiter.shared.error_handler import create_success_response
+
                 return create_success_response(
                     message="SQL无需优化",
-                    data={
-                        "original_sql": sql,
-                        "rewritten_sql": sql,
-                        "changes": [],
-                        "reason": "分析未发现可优化点"
-                    }
+                    data={"original_sql": sql, "rewritten_sql": sql, "changes": [], "reason": "分析未发现可优化点"},
                 )
 
             # 收集优化变更
@@ -286,50 +272,48 @@ class SQLAnalyzer:
 
             # 1. SELECT * 优化
             if "SELECT *" in sql.upper():
-                changes.append({
-                    "type": "select_star",
-                    "description": "将SELECT *替换为具体列名",
-                    "severity": "medium"
-                })
+                changes.append({"type": "select_star", "description": "将SELECT *替换为具体列名", "severity": "medium"})
 
             # 2. 隐式转换优化
             if analysis.issues:
                 for issue in analysis.issues:
                     if "隐式转换" in issue.description or "implicit" in issue.description.lower():
-                        changes.append({
-                            "type": "implicit_conversion",
-                            "description": issue.description,
-                            "suggestion": issue.suggestion.reason if issue.suggestion else None,
-                            "severity": "high"
-                        })
+                        changes.append(
+                            {
+                                "type": "implicit_conversion",
+                                "description": issue.description,
+                                "suggestion": issue.suggestion.reason if issue.suggestion else None,
+                                "severity": "high",
+                            }
+                        )
 
             # 3. 索引相关优化
             if analysis.index_suggestions:
-                changes.append({
-                    "type": "index",
-                    "description": f"建议添加 {len(analysis.index_suggestions)} 个索引",
-                    "suggestions": [
-                        {
-                            "table": s.table_name,
-                            "columns": s.column_names,
-                            "sql": s.create_sql
-                        }
-                        for s in analysis.index_suggestions
-                    ],
-                    "severity": "high"
-                })
+                changes.append(
+                    {
+                        "type": "index",
+                        "description": f"建议添加 {len(analysis.index_suggestions)} 个索引",
+                        "suggestions": [
+                            {"table": s.table_name, "columns": s.column_names, "sql": s.create_sql}
+                            for s in analysis.index_suggestions
+                        ],
+                        "severity": "high",
+                    }
+                )
 
             from dbskiter.shared.error_handler import create_success_response
+
             return create_success_response(
                 message=f"SQL重写完成，发现 {len(changes)} 处可优化",
                 data={
                     "original_sql": sql,
                     "rewritten_sql": analysis.optimized_sql,
                     "changes": changes,
-                    "expected_improvement": "预计提升30-50%性能" if changes else "无需优化"
-                }
+                    "expected_improvement": "预计提升30-50%性能" if changes else "无需优化",
+                },
             )
 
         except Exception as e:
             from dbskiter.shared.error_handler import handle_exception
+
             return handle_exception(e, context=f"SQL重写: {sql[:100]}...")

@@ -31,7 +31,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from dbskiter.db_monitor.models import (
-    MetricPoint, MetricType, AnomalyAlert, ErrorCode,
+    MetricPoint,
+    MetricType,
+    AnomalyAlert,
+    ErrorCode,
 )
 from dbskiter.shared.error_handler import create_error_response, create_success_response
 
@@ -174,18 +177,12 @@ class MetricsStorage:
             Dict: 操作结果
         """
         if not self._require_storage():
-            return create_error_response(
-                "sqlite3 不可用，无法保存指标",
-                error_code=ErrorCode.STORAGE_ERROR
-            )
+            return create_error_response("sqlite3 不可用，无法保存指标", error_code=ErrorCode.STORAGE_ERROR)
         try:
             with self._lock:
                 conn = self._get_connection()
                 if not conn:
-                    return create_error_response(
-                        "数据库连接不可用",
-                        error_code=ErrorCode.STORAGE_ERROR
-                    )
+                    return create_error_response("数据库连接不可用", error_code=ErrorCode.STORAGE_ERROR)
                 conn.execute(
                     """
                     INSERT INTO metrics (timestamp, metric_type, value, unit, source, tags)
@@ -197,8 +194,8 @@ class MetricsStorage:
                         metric.value,
                         metric.unit,
                         metric.source,
-                        json.dumps(metric.tags) if metric.tags else None
-                    )
+                        json.dumps(metric.tags) if metric.tags else None,
+                    ),
                 )
                 conn.commit()
 
@@ -206,11 +203,7 @@ class MetricsStorage:
 
         except Exception as e:
             logger.error(f"保存指标失败: {e}")
-            return create_error_response(
-                "保存指标失败",
-                error_code=ErrorCode.STORAGE_ERROR,
-                details={"error": str(e)}
-            )
+            return create_error_response("保存指标失败", error_code=ErrorCode.STORAGE_ERROR, details={"error": str(e)})
 
     def save_alert(self, alert: AnomalyAlert) -> Dict[str, Any]:
         """
@@ -223,18 +216,12 @@ class MetricsStorage:
             Dict: 操作结果
         """
         if not self._require_storage():
-            return create_error_response(
-                "sqlite3 不可用，无法保存告警",
-                error_code=ErrorCode.STORAGE_ERROR
-            )
+            return create_error_response("sqlite3 不可用，无法保存告警", error_code=ErrorCode.STORAGE_ERROR)
         try:
             with self._lock:
                 conn = self._get_connection()
                 if not conn:
-                    return create_error_response(
-                        "数据库连接不可用",
-                        error_code=ErrorCode.STORAGE_ERROR
-                    )
+                    return create_error_response("数据库连接不可用", error_code=ErrorCode.STORAGE_ERROR)
                 conn.execute(
                     """
                     INSERT OR REPLACE INTO alerts
@@ -252,8 +239,8 @@ class MetricsStorage:
                         alert.current_value,
                         alert.expected_value,
                         alert.deviation_percent,
-                        json.dumps(alert.tags) if alert.tags else None
-                    )
+                        json.dumps(alert.tags) if alert.tags else None,
+                    ),
                 )
                 conn.commit()
 
@@ -261,18 +248,9 @@ class MetricsStorage:
 
         except Exception as e:
             logger.error(f"保存告警失败: {e}")
-            return create_error_response(
-                "保存告警失败",
-                error_code=ErrorCode.STORAGE_ERROR,
-                details={"error": str(e)}
-            )
+            return create_error_response("保存告警失败", error_code=ErrorCode.STORAGE_ERROR, details={"error": str(e)})
 
-    def get_metric_history(
-        self,
-        metric_type: MetricType,
-        hours: int = 24,
-        limit: int = 10000
-    ) -> List[MetricPoint]:
+    def get_metric_history(self, metric_type: MetricType, hours: int = 24, limit: int = 10000) -> List[MetricPoint]:
         """
         获取指标历史数据
 
@@ -301,7 +279,7 @@ class MetricsStorage:
                     ORDER BY timestamp DESC
                     LIMIT ?
                     """,
-                    (metric_type.value, since, limit)
+                    (metric_type.value, since, limit),
                 )
 
                 results = []
@@ -313,7 +291,7 @@ class MetricsStorage:
                             value=row[2],
                             unit=row[3] or "",
                             source=row[4] or "",
-                            tags=json.loads(row[5]) if row[5] else {}
+                            tags=json.loads(row[5]) if row[5] else {},
                         )
                         results.append(point)
                     except (ValueError, json.JSONDecodeError) as e:
@@ -327,12 +305,7 @@ class MetricsStorage:
             logger.error(f"查询历史数据失败: {e}")
             return []
 
-    def query_metrics(
-        self,
-        metric_type: MetricType,
-        start_time: datetime,
-        end_time: datetime
-    ) -> List[MetricPoint]:
+    def query_metrics(self, metric_type: MetricType, start_time: datetime, end_time: datetime) -> List[MetricPoint]:
         """
         按时间范围查询指标数据
 
@@ -358,7 +331,7 @@ class MetricsStorage:
                     WHERE metric_type = ? AND timestamp >= ? AND timestamp <= ?
                     ORDER BY timestamp ASC
                     """,
-                    (metric_type.value, start_time.isoformat(), end_time.isoformat())
+                    (metric_type.value, start_time.isoformat(), end_time.isoformat()),
                 )
 
                 results = []
@@ -370,7 +343,7 @@ class MetricsStorage:
                             value=row[2],
                             unit=row[3] or "",
                             source=row[4] or "",
-                            tags=json.loads(row[5]) if row[5] else {}
+                            tags=json.loads(row[5]) if row[5] else {},
                         )
                         results.append(point)
                     except (ValueError, json.JSONDecodeError) as e:
@@ -383,10 +356,7 @@ class MetricsStorage:
             logger.error(f"查询指标数据失败: {e}")
             return []
 
-    def get_earliest_metric(
-        self,
-        metric_type: MetricType
-    ) -> Optional[MetricPoint]:
+    def get_earliest_metric(self, metric_type: MetricType) -> Optional[MetricPoint]:
         """
         获取指定指标类型的最早记录
 
@@ -411,7 +381,7 @@ class MetricsStorage:
                     ORDER BY timestamp ASC
                     LIMIT 1
                     """,
-                    (metric_type.value,)
+                    (metric_type.value,),
                 )
 
                 row = cursor.fetchone()
@@ -422,7 +392,7 @@ class MetricsStorage:
                         value=row[2],
                         unit=row[3] or "",
                         source=row[4] or "",
-                        tags=json.loads(row[5]) if row[5] else {}
+                        tags=json.loads(row[5]) if row[5] else {},
                     )
                 return None
 
@@ -431,11 +401,7 @@ class MetricsStorage:
             return None
 
     def get_alerts(
-        self,
-        hours: int = 24,
-        acknowledged: Optional[bool] = None,
-        severity: Optional[str] = None,
-        limit: int = 1000
+        self, hours: int = 24, acknowledged: Optional[bool] = None, severity: Optional[str] = None, limit: int = 1000
     ) -> List[Dict[str, Any]]:
         """
         获取告警历史
@@ -504,39 +470,23 @@ class MetricsStorage:
             Dict: 操作结果
         """
         if not self._require_storage():
-            return create_error_response(
-                "sqlite3 不可用，无法确认告警",
-                error_code=ErrorCode.STORAGE_ERROR
-            )
+            return create_error_response("sqlite3 不可用，无法确认告警", error_code=ErrorCode.STORAGE_ERROR)
         try:
             with self._lock:
                 conn = self._get_connection()
                 if not conn:
-                    return create_error_response(
-                        "数据库连接不可用",
-                        error_code=ErrorCode.STORAGE_ERROR
-                    )
-                cursor = conn.execute(
-                    "UPDATE alerts SET acknowledged = 1 WHERE alert_id = ?",
-                    (alert_id,)
-                )
+                    return create_error_response("数据库连接不可用", error_code=ErrorCode.STORAGE_ERROR)
+                cursor = conn.execute("UPDATE alerts SET acknowledged = 1 WHERE alert_id = ?", (alert_id,))
                 conn.commit()
 
                 if cursor.rowcount > 0:
                     return create_success_response(message="告警已确认")
                 else:
-                    return create_error_response(
-                        "告警不存在",
-                        error_code=ErrorCode.NOT_FOUND
-                    )
+                    return create_error_response("告警不存在", error_code=ErrorCode.NOT_FOUND)
 
         except Exception as e:
             logger.error(f"确认告警失败: {e}")
-            return create_error_response(
-                "确认告警失败",
-                error_code=ErrorCode.STORAGE_ERROR,
-                details={"error": str(e)}
-            )
+            return create_error_response("确认告警失败", error_code=ErrorCode.STORAGE_ERROR, details={"error": str(e)})
 
     def get_statistics(self) -> Dict[str, Any]:
         """
@@ -553,7 +503,7 @@ class MetricsStorage:
                 "db_size_bytes": 0,
                 "db_size_mb": 0,
                 "status": "unavailable",
-                "reason": "sqlite3 模块未安装"
+                "reason": "sqlite3 模块未安装",
             }
         try:
             with self._lock:
@@ -566,7 +516,7 @@ class MetricsStorage:
                         "db_size_bytes": 0,
                         "db_size_mb": 0,
                         "status": "unavailable",
-                        "reason": "数据库连接不可用"
+                        "reason": "数据库连接不可用",
                     }
 
                 # 指标统计
@@ -577,9 +527,7 @@ class MetricsStorage:
                 cursor = conn.execute("SELECT COUNT(*) FROM alerts")
                 alert_count = cursor.fetchone()[0]
 
-                cursor = conn.execute(
-                    "SELECT COUNT(*) FROM alerts WHERE acknowledged = 0"
-                )
+                cursor = conn.execute("SELECT COUNT(*) FROM alerts WHERE acknowledged = 0")
                 unacknowledged_count = cursor.fetchone()[0]
 
                 # 数据库文件大小
@@ -590,17 +538,12 @@ class MetricsStorage:
                     "total_alerts": alert_count,
                     "unacknowledged_alerts": unacknowledged_count,
                     "db_size_bytes": db_size,
-                    "db_size_mb": round(db_size / (1024 * 1024), 2)
+                    "db_size_mb": round(db_size / (1024 * 1024), 2),
                 }
 
         except Exception as e:
             logger.error(f"获取统计信息失败: {e}")
-            return {
-                "total_metrics": 0,
-                "total_alerts": 0,
-                "unacknowledged_alerts": 0,
-                "error": str(e)
-            }
+            return {"total_metrics": 0, "total_alerts": 0, "unacknowledged_alerts": 0, "error": str(e)}
 
     def cleanup_old_data(self, days: int = 30) -> Dict[str, Any]:
         """
@@ -613,33 +556,21 @@ class MetricsStorage:
             Dict: 清理结果
         """
         if not self._require_storage():
-            return create_error_response(
-                "sqlite3 不可用，无法清理数据",
-                error_code=ErrorCode.STORAGE_ERROR
-            )
+            return create_error_response("sqlite3 不可用，无法清理数据", error_code=ErrorCode.STORAGE_ERROR)
         try:
             cutoff = (datetime.now() - timedelta(days=days)).isoformat()
 
             with self._lock:
                 conn = self._get_connection()
                 if not conn:
-                    return create_error_response(
-                        "数据库连接不可用",
-                        error_code=ErrorCode.STORAGE_ERROR
-                    )
+                    return create_error_response("数据库连接不可用", error_code=ErrorCode.STORAGE_ERROR)
 
                 # 清理旧指标
-                cursor = conn.execute(
-                    "DELETE FROM metrics WHERE timestamp < ?",
-                    (cutoff,)
-                )
+                cursor = conn.execute("DELETE FROM metrics WHERE timestamp < ?", (cutoff,))
                 metrics_deleted = cursor.rowcount
 
                 # 清理旧告警
-                cursor = conn.execute(
-                    "DELETE FROM alerts WHERE timestamp < ? AND acknowledged = 1",
-                    (cutoff,)
-                )
+                cursor = conn.execute("DELETE FROM alerts WHERE timestamp < ? AND acknowledged = 1", (cutoff,))
                 alerts_deleted = cursor.rowcount
 
                 conn.commit()
@@ -651,17 +582,9 @@ class MetricsStorage:
 
             return create_success_response(
                 message="数据清理完成",
-                data={
-                    "metrics_deleted": metrics_deleted,
-                    "alerts_deleted": alerts_deleted,
-                    "retention_days": days
-                }
+                data={"metrics_deleted": metrics_deleted, "alerts_deleted": alerts_deleted, "retention_days": days},
             )
 
         except Exception as e:
             logger.error(f"清理数据失败: {e}")
-            return create_error_response(
-                "清理数据失败",
-                error_code=ErrorCode.STORAGE_ERROR,
-                details={"error": str(e)}
-            )
+            return create_error_response("清理数据失败", error_code=ErrorCode.STORAGE_ERROR, details={"error": str(e)})

@@ -95,35 +95,38 @@ class ErrorMessage:
 
 class LockType(str, Enum):
     """锁类型"""
-    TABLE = "table"              # 表锁
-    ROW = "row"                  # 行锁
-    PAGE = "page"                # 页锁
-    METADATA = "metadata"        # 元数据锁
-    GLOBAL = "global"            # 全局锁
+
+    TABLE = "table"  # 表锁
+    ROW = "row"  # 行锁
+    PAGE = "page"  # 页锁
+    METADATA = "metadata"  # 元数据锁
+    GLOBAL = "global"  # 全局锁
     APPLICATION = "application"  # 应用程序锁
 
 
 class LockMode(str, Enum):
     """锁模式"""
-    SHARED = "shared"            # 共享锁 (S)
-    EXCLUSIVE = "exclusive"      # 排他锁 (X)
-    INTENTION_SHARED = "is"      # 意向共享锁 (IS)
-    INTENTION_EXCLUSIVE = "ix"   # 意向排他锁 (IX)
-    AUTO_INC = "auto_inc"        # 自增锁
-    GAP = "gap"                  # 间隙锁
-    NEXT_KEY = "next_key"        # 临键锁
-    UPDATE = "update"            # 更新锁 (U)
-    BULK_UPDATE = "bu"           # 大容量更新锁 (BU)
-    SCHEMA_STABILITY = "sch_s"   # 架构稳定锁 (Sch-S)
-    SCHEMA_MODIFICATION = "sch_m" # 架构修改锁 (Sch-M)
+
+    SHARED = "shared"  # 共享锁 (S)
+    EXCLUSIVE = "exclusive"  # 排他锁 (X)
+    INTENTION_SHARED = "is"  # 意向共享锁 (IS)
+    INTENTION_EXCLUSIVE = "ix"  # 意向排他锁 (IX)
+    AUTO_INC = "auto_inc"  # 自增锁
+    GAP = "gap"  # 间隙锁
+    NEXT_KEY = "next_key"  # 临键锁
+    UPDATE = "update"  # 更新锁 (U)
+    BULK_UPDATE = "bu"  # 大容量更新锁 (BU)
+    SCHEMA_STABILITY = "sch_s"  # 架构稳定锁 (Sch-S)
+    SCHEMA_MODIFICATION = "sch_m"  # 架构修改锁 (Sch-M)
 
 
 class TransactionState(str, Enum):
     """事务状态"""
-    ACTIVE = "active"            # 活跃
-    LOCK_WAIT = "lock_wait"      # 等待锁
-    RUNNING = "running"          # 运行中
-    COMMITTING = "committing"    # 提交中
+
+    ACTIVE = "active"  # 活跃
+    LOCK_WAIT = "lock_wait"  # 等待锁
+    RUNNING = "running"  # 运行中
+    COMMITTING = "committing"  # 提交中
 
 
 @dataclass
@@ -139,22 +142,23 @@ class LockInfo:
         thread_id: 线程 ID
         table_schema: 数据库名
     """
-    lock_id: str                 # 锁ID
-    transaction_id: str          # 事务ID
-    lock_type: LockType          # 锁类型
-    lock_mode: LockMode          # 锁模式
-    lock_status: str             # 锁状态: GRANTED/WAITING
-    thread_id: Optional[int] = None     # 线程ID
+
+    lock_id: str  # 锁ID
+    transaction_id: str  # 事务ID
+    lock_type: LockType  # 锁类型
+    lock_mode: LockMode  # 锁模式
+    lock_status: str  # 锁状态: GRANTED/WAITING
+    thread_id: Optional[int] = None  # 线程ID
     table_schema: Optional[str] = None  # 数据库名
-    table_name: Optional[str] = None    # 表名
-    index_name: Optional[str] = None    # 索引名
-    lock_data: Optional[str] = None     # 锁定的数据（如主键值）
-    wait_time: Optional[float] = None   # 等待时间(秒)
-    query_sql: Optional[str] = None     # 正在执行的SQL
+    table_name: Optional[str] = None  # 表名
+    index_name: Optional[str] = None  # 索引名
+    lock_data: Optional[str] = None  # 锁定的数据（如主键值）
+    wait_time: Optional[float] = None  # 等待时间(秒)
+    query_sql: Optional[str] = None  # 正在执行的SQL
     query_time: Optional[float] = None  # 查询执行时间
-    connection_id: Optional[int] = None # 连接ID
-    user: Optional[str] = None          # 用户
-    host: Optional[str] = None          # 主机
+    connection_id: Optional[int] = None  # 连接ID
+    user: Optional[str] = None  # 用户
+    host: Optional[str] = None  # 主机
     started_at: Optional[datetime] = None  # 事务开始时间
 
     def to_dict(self) -> Dict[str, Any]:
@@ -175,7 +179,7 @@ class LockInfo:
             "connection_id": self.connection_id,
             "user": self.user,
             "host": self.host,
-            "started_at": self.started_at.isoformat() if self.started_at else None
+            "started_at": self.started_at.isoformat() if self.started_at else None,
         }
 
 
@@ -190,11 +194,12 @@ class DeadlockInfo:
         victim_transaction: 被数据库回滚的牺牲事务 ID
         resolution: 解决方案（自动/手动）
     """
-    deadlock_id: str             # 死锁ID
-    detected_at: datetime        # 检测时间
-    transactions: List[Dict]     # 涉及的事务列表
-    victim_transaction: str      # 被牺牲的事务
-    resolution: str              # 解决方案
+
+    deadlock_id: str  # 死锁ID
+    detected_at: datetime  # 检测时间
+    transactions: List[Dict]  # 涉及的事务列表
+    victim_transaction: str  # 被牺牲的事务
+    resolution: str  # 解决方案
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -202,7 +207,7 @@ class DeadlockInfo:
             "detected_at": self.detected_at.isoformat(),
             "transactions": self.transactions,
             "victim_transaction": self.victim_transaction,
-            "resolution": self.resolution
+            "resolution": self.resolution,
         }
 
 
@@ -218,11 +223,12 @@ class LockWaitNode:
         waiting_for: 等待的事务 ID
         blocking: 阻塞该事务的事务 ID 列表
     """
-    transaction_id: str          # 事务ID
-    connection_id: int           # 连接ID
-    wait_time: float             # 等待时间
-    query_sql: Optional[str] = None     # SQL
-    waiting_for: Optional[str] = None   # 等待的事务ID
+
+    transaction_id: str  # 事务ID
+    connection_id: int  # 连接ID
+    wait_time: float  # 等待时间
+    query_sql: Optional[str] = None  # SQL
+    waiting_for: Optional[str] = None  # 等待的事务ID
     blocking: List[str] = field(default_factory=list)  # 阻塞的事务ID列表
 
 
@@ -237,11 +243,12 @@ class LockWaitChain:
         total_wait_time: 总等待时间（秒）
         depth: 链深度（节点数）
     """
-    chain_id: str                # 链ID
-    root_transaction: str        # 根事务（阻塞源头）
-    nodes: List[LockWaitNode]    # 链节点
-    total_wait_time: float       # 总等待时间
-    depth: int                   # 链深度
+
+    chain_id: str  # 链ID
+    root_transaction: str  # 根事务（阻塞源头）
+    nodes: List[LockWaitNode]  # 链节点
+    total_wait_time: float  # 总等待时间
+    depth: int  # 链深度
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -256,10 +263,10 @@ class LockWaitChain:
                     "query_sql": n.query_sql[:80] if n.query_sql else None,
                     "wait_time": n.wait_time,
                     "waiting_for": n.waiting_for,
-                    "blocking": n.blocking
+                    "blocking": n.blocking,
                 }
                 for n in self.nodes
-            ]
+            ],
         }
 
 
@@ -276,15 +283,16 @@ class LockStatistics:
         metadata_locks: 元数据锁数
         max_wait_time: 最大等待时间（秒）
     """
-    total_locks: int = 0             # 总锁数
-    waiting_locks: int = 0           # 等待中的锁
-    granted_locks: int = 0           # 已授予的锁
-    row_locks: int = 0               # 行锁数
-    table_locks: int = 0             # 表锁数
-    metadata_locks: int = 0          # 元数据锁数
-    max_wait_time: float = 0.0       # 最大等待时间
-    avg_wait_time: float = 0.0       # 平均等待时间
-    deadlock_count: int = 0          # 死锁次数
+
+    total_locks: int = 0  # 总锁数
+    waiting_locks: int = 0  # 等待中的锁
+    granted_locks: int = 0  # 已授予的锁
+    row_locks: int = 0  # 行锁数
+    table_locks: int = 0  # 表锁数
+    metadata_locks: int = 0  # 元数据锁数
+    max_wait_time: float = 0.0  # 最大等待时间
+    avg_wait_time: float = 0.0  # 平均等待时间
+    deadlock_count: int = 0  # 死锁次数
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -296,7 +304,7 @@ class LockStatistics:
             "metadata_locks": self.metadata_locks,
             "max_wait_time": self.max_wait_time,
             "avg_wait_time": self.avg_wait_time,
-            "deadlock_count": self.deadlock_count
+            "deadlock_count": self.deadlock_count,
         }
 
 

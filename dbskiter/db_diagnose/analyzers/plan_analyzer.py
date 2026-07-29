@@ -29,45 +29,49 @@ logger = logging.getLogger(__name__)
 
 class AccessType(str, Enum):
     """数据访问类型"""
-    FULL_TABLE_SCAN = "full_table_scan"      # 全表扫描
-    INDEX_SCAN = "index_scan"                # 索引扫描
-    INDEX_RANGE = "index_range"              # 索引范围扫描
-    INDEX_UNIQUE = "index_unique"            # 唯一索引查找
-    REF = "ref"                              # 非唯一索引查找
-    EQ_REF = "eq_ref"                        # 唯一索引查找
-    CONST = "const"                          # 常量
-    SYSTEM = "system"                        # 系统表
-    RANGE = "range"                          # 范围扫描
-    ALL = "all"                              # 全表扫描
+
+    FULL_TABLE_SCAN = "full_table_scan"  # 全表扫描
+    INDEX_SCAN = "index_scan"  # 索引扫描
+    INDEX_RANGE = "index_range"  # 索引范围扫描
+    INDEX_UNIQUE = "index_unique"  # 唯一索引查找
+    REF = "ref"  # 非唯一索引查找
+    EQ_REF = "eq_ref"  # 唯一索引查找
+    CONST = "const"  # 常量
+    SYSTEM = "system"  # 系统表
+    RANGE = "range"  # 范围扫描
+    ALL = "all"  # 全表扫描
 
 
 class IssueSeverity(str, Enum):
     """问题严重级别"""
-    CRITICAL = "critical"    # 严重
-    HIGH = "high"            # 高危
-    MEDIUM = "medium"        # 中危
-    LOW = "low"              # 低危
-    INFO = "info"            # 提示
+
+    CRITICAL = "critical"  # 严重
+    HIGH = "high"  # 高危
+    MEDIUM = "medium"  # 中危
+    LOW = "low"  # 低危
+    INFO = "info"  # 提示
 
 
 class IssueType(str, Enum):
     """问题类型"""
-    FULL_SCAN = "full_scan"                    # 全表扫描
-    MISSING_INDEX = "missing_index"            # 缺少索引
-    FILESORT = "filesort"                      # 文件排序
-    TEMP_TABLE = "temp_table"                  # 临时表
-    JOIN_BUFFER = "join_buffer"                # 连接缓冲
-    IMPLICIT_CAST = "implicit_cast"            # 隐式类型转换
+
+    FULL_SCAN = "full_scan"  # 全表扫描
+    MISSING_INDEX = "missing_index"  # 缺少索引
+    FILESORT = "filesort"  # 文件排序
+    TEMP_TABLE = "temp_table"  # 临时表
+    JOIN_BUFFER = "join_buffer"  # 连接缓冲
+    IMPLICIT_CAST = "implicit_cast"  # 隐式类型转换
     FUNCTION_ON_COLUMN = "function_on_column"  # 列上使用函数
-    WILD_CARD_PREFIX = "wild_card_prefix"      # 通配符前缀
-    NOT_IN_NULL = "not_in_null"                # NOT IN NULL问题
-    LARGE_OFFSET = "large_offset"              # 大偏移量
-    SELECT_STAR = "select_star"                # SELECT *
+    WILD_CARD_PREFIX = "wild_card_prefix"  # 通配符前缀
+    NOT_IN_NULL = "not_in_null"  # NOT IN NULL问题
+    LARGE_OFFSET = "large_offset"  # 大偏移量
+    SELECT_STAR = "select_star"  # SELECT *
 
 
 @dataclass
 class IndexSuggestion:
     """索引建议"""
+
     table_name: str
     column_names: List[str]
     index_name: str
@@ -81,6 +85,7 @@ class IndexSuggestion:
 @dataclass
 class PlanIssue:
     """执行计划问题"""
+
     severity: IssueSeverity
     issue_type: IssueType
     table_name: str
@@ -92,6 +97,7 @@ class PlanIssue:
 @dataclass
 class PlanNode:
     """执行计划节点"""
+
     id: int
     select_type: str
     table: str
@@ -104,12 +110,13 @@ class PlanNode:
     rows: int
     filtered: float
     extra: str
-    children: List['PlanNode'] = field(default_factory=list)
+    children: List["PlanNode"] = field(default_factory=list)
 
 
 @dataclass
 class PlanAnalysis:
     """执行计划分析结果"""
+
     sql: str
     sql_type: str
     nodes: List[PlanNode]
@@ -171,10 +178,10 @@ class ExecutionPlanAnalyzer:
 
     # 高危操作标识
     HIGH_COST_OPERATIONS = {
-        'Using filesort': '文件排序，建议添加索引避免排序',
-        'Using temporary': '使用临时表，考虑优化GROUP BY或ORDER BY',
-        'Using join buffer': '使用连接缓冲，建议优化JOIN条件',
-        'Range checked for each record': '逐行检查范围，索引使用不佳',
+        "Using filesort": "文件排序，建议添加索引避免排序",
+        "Using temporary": "使用临时表，考虑优化GROUP BY或ORDER BY",
+        "Using join buffer": "使用连接缓冲，建议优化JOIN条件",
+        "Range checked for each record": "逐行检查范围，索引使用不佳",
     }
 
     def __init__(self, connector: UnifiedConnector):
@@ -237,7 +244,7 @@ class ExecutionPlanAnalyzer:
                 total_rows=total_rows,
                 execution_time_ms=None,  # 可在实际执行后填充
                 warnings=warnings,
-                optimized_sql=optimized_sql
+                optimized_sql=optimized_sql,
             )
 
         except Exception as e:
@@ -252,7 +259,7 @@ class ExecutionPlanAnalyzer:
                 total_cost=0,
                 total_rows=0,
                 execution_time_ms=None,
-                warnings=[f"分析失败: {str(e)}"]
+                warnings=[f"分析失败: {str(e)}"],
             )
 
     def _get_execution_plan(self, sql: str, params: Optional[Dict[str, Any]] = None) -> List[Tuple]:
@@ -266,11 +273,11 @@ class ExecutionPlanAnalyzer:
         返回:
             List[Tuple]: 执行计划行数据
         """
-        if 'mysql' in self.dialect:
+        if "mysql" in self.dialect:
             return self._get_mysql_execution_plan(sql, params)
-        elif 'postgresql' in self.dialect:
+        elif "postgresql" in self.dialect:
             return self._get_postgresql_execution_plan(sql, params)
-        elif 'oracle' in self.dialect:
+        elif "oracle" in self.dialect:
             return self._get_oracle_execution_plan(sql, params)
         else:
             logger.warning(f"数据库类型 {self.dialect} 的执行计划获取未完全实现")
@@ -314,21 +321,22 @@ class ExecutionPlanAnalyzer:
             # 替换绑定变量为字面值（EXPLAIN PLAN不支持绑定变量）
             explain_sql = sql
             import re
-            explain_sql = re.sub(r':\d+', "'X'", explain_sql)
-            explain_sql = re.sub(r':[a-zA-Z_]\w*', "'X'", explain_sql)
+
+            explain_sql = re.sub(r":\d+", "'X'", explain_sql)
+            explain_sql = re.sub(r":[a-zA-Z_]\w*", "'X'", explain_sql)
 
             # 1. 生成执行计划
             plan_sql = f"EXPLAIN PLAN FOR {explain_sql}"
 
             # 直接使用底层连接执行，避免自动提交问题
             raw_connector = None
-            if hasattr(self.connector, '_connector'):
+            if hasattr(self.connector, "_connector"):
                 raw_connector = self.connector._connector
             else:
                 raw_connector = self.connector
 
             # 获取JDBC连接并直接执行
-            if hasattr(raw_connector, '_conn'):
+            if hasattr(raw_connector, "_conn"):
                 conn = raw_connector._conn
                 cursor = conn.cursor()
                 try:
@@ -378,28 +386,28 @@ class ExecutionPlanAnalyzer:
             plan_line = row[0] if row else ""
 
             # 跳过标题行和分隔线
-            if not plan_line or plan_line.startswith('-') or 'Plan hash value' in plan_line:
+            if not plan_line or plan_line.startswith("-") or "Plan hash value" in plan_line:
                 continue
 
             # 跳过空行和说明文字
-            if not plan_line.startswith('|'):
+            if not plan_line.startswith("|"):
                 continue
 
             # 跳过列标题行（包含"Id"、"Operation"、"Name"等）
-            if 'Id' in plan_line and 'Operation' in plan_line and 'Name' in plan_line:
+            if "Id" in plan_line and "Operation" in plan_line and "Name" in plan_line:
                 continue
 
             # 解析执行计划行
             # 格式示例: |   0 | SELECT STATEMENT  |      |       |       |            |          |
             # 或者: |*  1 |  TABLE ACCESS FULL| EMP  |     1 |    37 |     3   (0)| 00:00:01 |
-            if '|' in plan_line:
-                parts = [p.strip() for p in plan_line.split('|')]
+            if "|" in plan_line:
+                parts = [p.strip() for p in plan_line.split("|")]
                 parts = [p for p in parts if p]  # 移除空字符串
 
                 if len(parts) >= 2:
                     try:
                         # 提取ID（可能带有*表示谓词）
-                        id_part = parts[0].replace('*', '').strip()
+                        id_part = parts[0].replace("*", "").strip()
                         try:
                             plan_id = int(id_part)
                         except ValueError:
@@ -415,41 +423,43 @@ class ExecutionPlanAnalyzer:
                         # 提取行数估算
                         rows_est = parts[3] if len(parts) > 3 else "0"
                         try:
-                            rows = int(rows_est.replace(',', ''))
+                            rows = int(rows_est.replace(",", ""))
                         except Exception:
                             rows = 0
 
                         # 提取成本
                         cost_str = parts[5] if len(parts) > 5 else "0"
                         try:
-                            cost = int(cost_str.split()[0].replace(',', ''))
+                            cost = int(cost_str.split()[0].replace(",", ""))
                         except Exception:
                             cost = 0
 
                         # 提取访问方式
                         access_type = AccessType.ALL
-                        if 'INDEX' in operation.upper():
-                            if 'UNIQUE' in operation.upper():
+                        if "INDEX" in operation.upper():
+                            if "UNIQUE" in operation.upper():
                                 access_type = AccessType.INDEX_UNIQUE
                             else:
                                 access_type = AccessType.INDEX_SCAN
-                        elif 'FULL' in operation.upper():
+                        elif "FULL" in operation.upper():
                             access_type = AccessType.FULL_TABLE_SCAN
 
-                        parsed_rows.append((
-                            plan_id,           # id
-                            'SIMPLE',          # select_type
-                            object_name,       # table
-                            None,              # partitions
-                            access_type.value, # type
-                            [],                # possible_keys
-                            None,              # key
-                            None,              # key_len
-                            None,              # ref
-                            rows,              # rows
-                            100.0,             # filtered
-                            operation          # Extra
-                        ))
+                        parsed_rows.append(
+                            (
+                                plan_id,  # id
+                                "SIMPLE",  # select_type
+                                object_name,  # table
+                                None,  # partitions
+                                access_type.value,  # type
+                                [],  # possible_keys
+                                None,  # key
+                                None,  # key_len
+                                None,  # ref
+                                rows,  # rows
+                                100.0,  # filtered
+                                operation,  # Extra
+                            )
+                        )
                     except Exception as e:
                         logger.warning(f"解析执行计划行失败: {e}, line={plan_line}")
                         continue
@@ -472,7 +482,7 @@ class ExecutionPlanAnalyzer:
             return nodes
 
         # MySQL EXPLAIN输出解析
-        if 'mysql' in self.dialect:
+        if "mysql" in self.dialect:
             for idx, row in enumerate(plan_rows):
                 try:
                     # MySQL EXPLAIN返回列：
@@ -489,7 +499,7 @@ class ExecutionPlanAnalyzer:
                         ref=row[8] if len(row) > 8 else None,
                         rows=row[9] if len(row) > 9 else 0,
                         filtered=row[10] if len(row) > 10 else 100.0,
-                        extra=row[11] if len(row) > 11 else ""
+                        extra=row[11] if len(row) > 11 else "",
                     )
                     nodes.append(node)
                 except Exception as e:
@@ -497,7 +507,7 @@ class ExecutionPlanAnalyzer:
                     continue
 
         # Oracle执行计划解析（已由_parse_oracle_plan_output预处理）
-        elif 'oracle' in self.dialect:
+        elif "oracle" in self.dialect:
             for idx, row in enumerate(plan_rows):
                 try:
                     # row格式: (id, select_type, table, partitions, type, possible_keys, key, key_len, ref, rows, filtered, extra)
@@ -513,7 +523,7 @@ class ExecutionPlanAnalyzer:
                         ref=row[8] if len(row) > 8 else None,
                         rows=row[9] if len(row) > 9 else 0,
                         filtered=row[10] if len(row) > 10 else 100.0,
-                        extra=row[11] if len(row) > 11 else ""
+                        extra=row[11] if len(row) > 11 else "",
                     )
                     nodes.append(node)
                 except Exception as e:
@@ -528,19 +538,19 @@ class ExecutionPlanAnalyzer:
             return AccessType.ALL
 
         access_type_map = {
-            'system': AccessType.SYSTEM,
-            'const': AccessType.CONST,
-            'eq_ref': AccessType.EQ_REF,
-            'ref': AccessType.REF,
-            'range': AccessType.RANGE,
-            'index': AccessType.INDEX_SCAN,
-            'ALL': AccessType.ALL,
-            'all': AccessType.ALL,
-            'fulltext': AccessType.INDEX_SCAN,
-            'ref_or_null': AccessType.REF,
-            'index_merge': AccessType.INDEX_SCAN,
-            'unique_subquery': AccessType.INDEX_UNIQUE,
-            'index_subquery': AccessType.INDEX_SCAN,
+            "system": AccessType.SYSTEM,
+            "const": AccessType.CONST,
+            "eq_ref": AccessType.EQ_REF,
+            "ref": AccessType.REF,
+            "range": AccessType.RANGE,
+            "index": AccessType.INDEX_SCAN,
+            "ALL": AccessType.ALL,
+            "all": AccessType.ALL,
+            "fulltext": AccessType.INDEX_SCAN,
+            "ref_or_null": AccessType.REF,
+            "index_merge": AccessType.INDEX_SCAN,
+            "unique_subquery": AccessType.INDEX_UNIQUE,
+            "index_subquery": AccessType.INDEX_SCAN,
         }
 
         return access_type_map.get(access_type_str, AccessType.ALL)
@@ -549,7 +559,7 @@ class ExecutionPlanAnalyzer:
         """解析可能的键列表"""
         if not keys_str:
             return []
-        return [k.strip() for k in keys_str.split(',') if k.strip()]
+        return [k.strip() for k in keys_str.split(",") if k.strip()]
 
     def _identify_issues(self, nodes: List[PlanNode], sql: str) -> List[PlanIssue]:
         """
@@ -576,29 +586,29 @@ class ExecutionPlanAnalyzer:
                         issue_type=IssueType.FULL_SCAN,
                         table_name=node.table,
                         description=f"表 {node.table} 发生全表扫描，预估扫描 {node_rows:,} 行",
-                        details={"rows": node_rows, "access_type": node.access_type.value}
+                        details={"rows": node_rows, "access_type": node.access_type.value},
                     )
                     issues.append(issue)
 
             # 2. 文件排序检测
-            if node.extra and 'Using filesort' in node.extra:
+            if node.extra and "Using filesort" in node.extra:
                 issue = PlanIssue(
                     severity=IssueSeverity.MEDIUM,
                     issue_type=IssueType.FILESORT,
                     table_name=node.table,
                     description=f"表 {node.table} 使用文件排序，建议添加适当索引",
-                    details={"extra": node.extra}
+                    details={"extra": node.extra},
                 )
                 issues.append(issue)
 
             # 3. 临时表检测
-            if node.extra and 'Using temporary' in node.extra:
+            if node.extra and "Using temporary" in node.extra:
                 issue = PlanIssue(
                     severity=IssueSeverity.MEDIUM,
                     issue_type=IssueType.TEMP_TABLE,
                     table_name=node.table,
                     description=f"表 {node.table} 使用临时表，考虑优化GROUP BY或ORDER BY",
-                    details={"extra": node.extra}
+                    details={"extra": node.extra},
                 )
                 issues.append(issue)
 
@@ -609,7 +619,7 @@ class ExecutionPlanAnalyzer:
                     issue_type=IssueType.MISSING_INDEX,
                     table_name=node.table,
                     description=f"表 {node.table} 可能缺少合适索引",
-                    details={"possible_keys": node.possible_keys}
+                    details={"possible_keys": node.possible_keys},
                 )
                 issues.append(issue)
 
@@ -625,38 +635,44 @@ class ExecutionPlanAnalyzer:
         sql_upper = sql.upper()
 
         # SELECT * 检测
-        if 'SELECT *' in sql_upper:
-            issues.append(PlanIssue(
-                severity=IssueSeverity.LOW,
-                issue_type=IssueType.SELECT_STAR,
-                table_name="",
-                description="使用SELECT *，建议只查询需要的列",
-                details={}
-            ))
+        if "SELECT *" in sql_upper:
+            issues.append(
+                PlanIssue(
+                    severity=IssueSeverity.LOW,
+                    issue_type=IssueType.SELECT_STAR,
+                    table_name="",
+                    description="使用SELECT *，建议只查询需要的列",
+                    details={},
+                )
+            )
 
         # 大偏移量检测
-        offset_match = re.search(r'LIMIT\s+\d+\s*,\s*(\d+)', sql_upper)
+        offset_match = re.search(r"LIMIT\s+\d+\s*,\s*(\d+)", sql_upper)
         if offset_match:
             offset = int(offset_match.group(1))
             if offset > 10000:
-                issues.append(PlanIssue(
-                    severity=IssueSeverity.MEDIUM,
-                    issue_type=IssueType.LARGE_OFFSET,
-                    table_name="",
-                    description=f"使用大偏移量 LIMIT {offset}，建议使用覆盖索引或延迟关联优化",
-                    details={"offset": offset}
-                ))
+                issues.append(
+                    PlanIssue(
+                        severity=IssueSeverity.MEDIUM,
+                        issue_type=IssueType.LARGE_OFFSET,
+                        table_name="",
+                        description=f"使用大偏移量 LIMIT {offset}，建议使用覆盖索引或延迟关联优化",
+                        details={"offset": offset},
+                    )
+                )
 
         # 列上使用函数检测
-        func_pattern = r'WHERE\s+\w*\s*\(\s*\w+\s*\)'
+        func_pattern = r"WHERE\s+\w*\s*\(\s*\w+\s*\)"
         if re.search(func_pattern, sql_upper):
-            issues.append(PlanIssue(
-                severity=IssueSeverity.HIGH,
-                issue_type=IssueType.FUNCTION_ON_COLUMN,
-                table_name="",
-                description="WHERE条件中对列使用函数，会导致索引失效",
-                details={}
-            ))
+            issues.append(
+                PlanIssue(
+                    severity=IssueSeverity.HIGH,
+                    issue_type=IssueType.FUNCTION_ON_COLUMN,
+                    table_name="",
+                    description="WHERE条件中对列使用函数，会导致索引失效",
+                    details={},
+                )
+            )
 
         return issues
 
@@ -690,7 +706,7 @@ class ExecutionPlanAnalyzer:
                         priority="medium",
                         create_sql=f"CREATE INDEX idx_{table}_sort ON {table} (排序列);",
                         expected_improvement="避免filesort，减少排序时间",
-                        issue_type=issue.issue_type
+                        issue_type=issue.issue_type,
                     )
                 else:
                     suggestion = IndexSuggestion(
@@ -701,7 +717,7 @@ class ExecutionPlanAnalyzer:
                         priority="high" if issue.severity == IssueSeverity.HIGH else "medium",
                         create_sql=f"CREATE INDEX idx_{table}_filter ON {table} (WHERE条件列);",
                         expected_improvement=f"减少扫描行数从 {issue.details.get('rows', 'N/A')} 到估计 <100",
-                        issue_type=issue.issue_type
+                        issue_type=issue.issue_type,
                     )
 
                 suggestions.append(suggestion)
@@ -779,20 +795,20 @@ class ExecutionPlanAnalyzer:
         """确定SQL类型"""
         sql_upper = sql.strip().upper()
 
-        if sql_upper.startswith('SELECT'):
-            return 'SELECT'
-        elif sql_upper.startswith('INSERT'):
-            return 'INSERT'
-        elif sql_upper.startswith('UPDATE'):
-            return 'UPDATE'
-        elif sql_upper.startswith('DELETE'):
-            return 'DELETE'
-        elif sql_upper.startswith('CREATE'):
-            return 'CREATE'
-        elif sql_upper.startswith('ALTER'):
-            return 'ALTER'
+        if sql_upper.startswith("SELECT"):
+            return "SELECT"
+        elif sql_upper.startswith("INSERT"):
+            return "INSERT"
+        elif sql_upper.startswith("UPDATE"):
+            return "UPDATE"
+        elif sql_upper.startswith("DELETE"):
+            return "DELETE"
+        elif sql_upper.startswith("CREATE"):
+            return "CREATE"
+        elif sql_upper.startswith("ALTER"):
+            return "ALTER"
         else:
-            return 'OTHER'
+            return "OTHER"
 
     def get_table_statistics(self, table_name: str) -> Dict[str, Any]:
         """
@@ -805,8 +821,9 @@ class ExecutionPlanAnalyzer:
             Dict: 表统计信息
         """
         try:
-            if 'mysql' in self.dialect:
-                result = self.connector.execute("""
+            if "mysql" in self.dialect:
+                result = self.connector.execute(
+                    """
                     SELECT
                         table_rows,
                         ROUND(data_length / 1024 / 1024, 2) as data_mb,
@@ -814,14 +831,16 @@ class ExecutionPlanAnalyzer:
                     FROM information_schema.tables
                     WHERE table_schema = DATABASE()
                     AND table_name = %s
-                """, (table_name,))
+                """,
+                    (table_name,),
+                )
 
                 if result.rows:
                     return {
                         "table_name": table_name,
                         "row_count": result.rows[0][0],
                         "data_size_mb": result.rows[0][1],
-                        "index_size_mb": result.rows[0][2]
+                        "index_size_mb": result.rows[0][2],
                     }
 
             return {"table_name": table_name, "error": "无法获取统计信息"}

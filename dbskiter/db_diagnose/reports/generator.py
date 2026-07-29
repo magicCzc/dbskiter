@@ -36,12 +36,7 @@ class ReportGenerator:
         """初始化报告生成器"""
         logger.info("ReportGenerator 初始化完成")
 
-    def generate(
-        self,
-        analyses: List[Dict[str, Any]],
-        report_format: str = "text",
-        include_fixes: bool = True
-    ) -> str:
+    def generate(self, analyses: List[Dict[str, Any]], report_format: str = "text", include_fixes: bool = True) -> str:
         """
         生成诊断报告
 
@@ -69,12 +64,10 @@ class ReportGenerator:
         # 统计信息
         total_issues = sum(len(a.get("issues", [])) for a in analyses if a.get("success"))
         critical = sum(
-            sum(1 for i in a.get("issues", []) if i.get("severity") == "critical")
-            for a in analyses if a.get("success")
+            sum(1 for i in a.get("issues", []) if i.get("severity") == "critical") for a in analyses if a.get("success")
         )
         high = sum(
-            sum(1 for i in a.get("issues", []) if i.get("severity") == "high")
-            for a in analyses if a.get("success")
+            sum(1 for i in a.get("issues", []) if i.get("severity") == "high") for a in analyses if a.get("success")
         )
 
         data = {
@@ -84,26 +77,20 @@ class ReportGenerator:
                 "critical": critical,
                 "high": high,
             },
-            "details": analyses
+            "details": analyses,
         }
 
         return json.dumps(data, indent=2, ensure_ascii=False)
 
-    def _generate_markdown_report(
-        self,
-        analyses: List[Dict[str, Any]],
-        include_fixes: bool
-    ) -> str:
+    def _generate_markdown_report(self, analyses: List[Dict[str, Any]], include_fixes: bool) -> str:
         """生成Markdown格式报告"""
         # 统计信息
         total_issues = sum(len(a.get("issues", [])) for a in analyses if a.get("success"))
         critical = sum(
-            sum(1 for i in a.get("issues", []) if i.get("severity") == "critical")
-            for a in analyses if a.get("success")
+            sum(1 for i in a.get("issues", []) if i.get("severity") == "critical") for a in analyses if a.get("success")
         )
         high = sum(
-            sum(1 for i in a.get("issues", []) if i.get("severity") == "high")
-            for a in analyses if a.get("success")
+            sum(1 for i in a.get("issues", []) if i.get("severity") == "high") for a in analyses if a.get("success")
         )
         all_suggestions = []
         for a in analyses:
@@ -121,7 +108,7 @@ class ReportGenerator:
             f"- **索引建议**: {len(all_suggestions)} 个",
             "",
             "## 详细分析",
-            ""
+            "",
         ]
 
         for i, analysis in enumerate(analyses):
@@ -155,21 +142,15 @@ class ReportGenerator:
 
         return "\n".join(lines)
 
-    def _generate_text_report(
-        self,
-        analyses: List[Dict[str, Any]],
-        include_fixes: bool
-    ) -> str:
+    def _generate_text_report(self, analyses: List[Dict[str, Any]], include_fixes: bool) -> str:
         """生成文本格式报告"""
         # 统计信息
         total_issues = sum(len(a.get("issues", [])) for a in analyses if a.get("success"))
         critical = sum(
-            sum(1 for i in a.get("issues", []) if i.get("severity") == "critical")
-            for a in analyses if a.get("success")
+            sum(1 for i in a.get("issues", []) if i.get("severity") == "critical") for a in analyses if a.get("success")
         )
         high = sum(
-            sum(1 for i in a.get("issues", []) if i.get("severity") == "high")
-            for a in analyses if a.get("success")
+            sum(1 for i in a.get("issues", []) if i.get("severity") == "high") for a in analyses if a.get("success")
         )
         all_suggestions = []
         for a in analyses:

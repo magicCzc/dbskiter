@@ -25,27 +25,27 @@ class ChartGenerator:
         """
         # 评分等级标准：健康(>=90) 亚健康(80-89) 风险(60-79) 高危(<60)
         if score >= 90:
-            color = '#06d6a0'
-            grade = '健康'
-            grade_color = '#06d6a0'
+            color = "#06d6a0"
+            grade = "健康"
+            grade_color = "#06d6a0"
         elif score >= 80:
-            color = '#4cc9f0'
-            grade = '亚健康'
-            grade_color = '#4cc9f0'
+            color = "#4cc9f0"
+            grade = "亚健康"
+            grade_color = "#4cc9f0"
         elif score >= 60:
-            color = '#ffd166'
-            grade = '风险'
-            grade_color = '#ffd166'
+            color = "#ffd166"
+            grade = "风险"
+            grade_color = "#ffd166"
         else:
-            color = '#ef476f'
-            grade = '高危'
-            grade_color = '#ef476f'
+            color = "#ef476f"
+            grade = "高危"
+            grade_color = "#ef476f"
 
         radius = 70
         circumference = 2 * math.pi * radius
         dash_offset = circumference * (1 - score / 100)
 
-        return f'''
+        return f"""
         <div class="donut-chart">
             <svg viewBox="0 0 200 200" class="donut-svg">
                 <circle cx="100" cy="100" r="{radius}" fill="none"
@@ -63,16 +63,10 @@ class ChartGenerator:
                       class="donut-grade" fill="{grade_color}">{grade}</text>
             </svg>
         </div>
-        '''
+        """
 
     @staticmethod
-    def generate_risk_distribution_chart(
-        critical: int,
-        high: int,
-        medium: int,
-        low: int,
-        info: int
-    ) -> str:
+    def generate_risk_distribution_chart(critical: int, high: int, medium: int, low: int, info: int) -> str:
         """
         生成风险分布水平条形图
 
@@ -91,11 +85,11 @@ class ChartGenerator:
             return '<div class="chart-empty">暂无数据</div>'
 
         data = [
-            ('严重', critical, '#ef476f'),
-            ('高危', high, '#fd7e14'),
-            ('中危', medium, '#ffd166'),
-            ('低危', low, '#06d6a0'),
-            ('信息', info, '#4cc9f0')
+            ("严重", critical, "#ef476f"),
+            ("高危", high, "#fd7e14"),
+            ("中危", medium, "#ffd166"),
+            ("低危", low, "#06d6a0"),
+            ("信息", info, "#4cc9f0"),
         ]
 
         max_val = max(critical, high, medium, low, info, 1)
@@ -105,7 +99,7 @@ class ChartGenerator:
             if value > 0:
                 width = (value / max_val) * 100
                 percentage = (value / total) * 100
-                bars.append(f'''
+                bars.append(f"""
                     <div class="bar-row">
                         <div class="bar-label">{label}</div>
                         <div class="bar-track">
@@ -114,9 +108,9 @@ class ChartGenerator:
                         <div class="bar-num">{value}</div>
                         <div class="bar-pct">{percentage:.1f}%</div>
                     </div>
-                ''')
+                """)
             else:
-                bars.append(f'''
+                bars.append(f"""
                     <div class="bar-row">
                         <div class="bar-label">{label}</div>
                         <div class="bar-track">
@@ -125,20 +119,16 @@ class ChartGenerator:
                         <div class="bar-num">0</div>
                         <div class="bar-pct">0.0%</div>
                     </div>
-                ''')
+                """)
 
-        return f'''
+        return f"""
         <div class="risk-chart">
             {''.join(bars)}
         </div>
-        '''
+        """
 
     @staticmethod
-    def generate_status_chart(
-        pass_count: int,
-        warning_count: int,
-        fail_count: int
-    ) -> str:
+    def generate_status_chart(pass_count: int, warning_count: int, fail_count: int) -> str:
         """
         生成状态统计垂直柱状图
 
@@ -154,11 +144,7 @@ class ChartGenerator:
         if total == 0:
             return '<div class="chart-empty">暂无数据</div>'
 
-        data = [
-            ('通过', pass_count, '#06d6a0'),
-            ('警告', warning_count, '#ffd166'),
-            ('失败', fail_count, '#ef476f')
-        ]
+        data = [("通过", pass_count, "#06d6a0"), ("警告", warning_count, "#ffd166"), ("失败", fail_count, "#ef476f")]
 
         max_val = max(pass_count, warning_count, fail_count, 1)
 
@@ -166,7 +152,7 @@ class ChartGenerator:
         for label, value, color in data:
             height = (value / max_val) * 100
             percentage = (value / total) * 100 if total > 0 else 0
-            bars.append(f'''
+            bars.append(f"""
                 <div class="vbar-item">
                     <div class="vbar-val">{value}</div>
                     <div class="vbar-track">
@@ -175,18 +161,16 @@ class ChartGenerator:
                     <div class="vbar-label">{label}</div>
                     <div class="vbar-pct">{percentage:.1f}%</div>
                 </div>
-            ''')
+            """)
 
-        return f'''
+        return f"""
         <div class="status-chart">
             {''.join(bars)}
         </div>
-        '''
+        """
 
     @staticmethod
-    def generate_category_pass_rate_chart(
-        category_stats: Dict[str, Dict[str, Any]]
-    ) -> str:
+    def generate_category_pass_rate_chart(category_stats: Dict[str, Dict[str, Any]]) -> str:
         """
         生成分类通过率水平条形图
 
@@ -199,10 +183,7 @@ class ChartGenerator:
         if not category_stats:
             return '<div class="chart-empty">暂无数据</div>'
 
-        sorted_cats = sorted(
-            category_stats.items(),
-            key=lambda x: x[1]['pass_rate']
-        )
+        sorted_cats = sorted(category_stats.items(), key=lambda x: x[1]["pass_rate"])
 
         bars = []
         for type_key, stats in sorted_cats:
@@ -213,15 +194,15 @@ class ChartGenerator:
                     break
 
             meta = INSPECTION_TYPE_META.get(insp_type, {})
-            label = meta.get('label', type_key)
-            color = meta.get('color', '#3b82f6')
-            pass_rate = stats['pass_rate']
-            total = stats['total']
-            pass_count = stats['pass_count']
+            label = meta.get("label", type_key)
+            color = meta.get("color", "#3b82f6")
+            pass_rate = stats["pass_rate"]
+            total = stats["total"]
+            pass_count = stats["pass_count"]
 
-            rate_color = '#06d6a0' if pass_rate >= 80 else '#ffd166' if pass_rate >= 60 else '#ef476f'
+            rate_color = "#06d6a0" if pass_rate >= 80 else "#ffd166" if pass_rate >= 60 else "#ef476f"
 
-            bars.append(f'''
+            bars.append(f"""
                 <div class="cat-bar-row">
                     <div class="cat-bar-label" style="color: {color};">{label}</div>
                     <div class="cat-bar-track">
@@ -232,12 +213,10 @@ class ChartGenerator:
                         <span class="cat-bar-detail">{pass_count}/{total}</span>
                     </div>
                 </div>
-            ''')
+            """)
 
-        return f'''
+        return f"""
         <div class="category-chart">
             {''.join(bars)}
         </div>
-        '''
-
-
+        """

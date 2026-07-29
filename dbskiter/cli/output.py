@@ -41,6 +41,7 @@ from .style import (
 @dataclass
 class TableColumn:
     """表格列定义"""
+
     name: str
     width: int = 20
     align: str = "left"  # left, center, right
@@ -111,7 +112,7 @@ class TableFormatter:
                 width = self.columns[i].width
                 str_value = str(value) if value is not None else ""
                 if len(str_value) > width - 1:
-                    str_value = str_value[:width - 4] + "..."
+                    str_value = str_value[: width - 4] + "..."
                 str_row.append(str_value)
             else:
                 str_row.append(str(value) if value is not None else "")
@@ -175,7 +176,7 @@ class TableFormatter:
                     row_cells.append(str(value))
             while len(row_cells) < len(self.columns):
                 row_cells.append("" * self.columns[len(row_cells)].width)
-            lines.append("│ " + " │ ".join(row_cells[:len(self.columns)]) + " │")
+            lines.append("│ " + " │ ".join(row_cells[: len(self.columns)]) + " │")
 
         lines.append("└" + "─" * (total_width - 2) + "┘")
         return "\n".join(lines)
@@ -247,6 +248,7 @@ class OutputFormatter:
         # 自动检测：如果 stdout 不是 TTY（管道/重定向/文件），自动切换到 JSON 模式
         if not json_mode and not quiet:
             import sys
+
             if not sys.stdout.isatty():
                 json_mode = True
 
@@ -335,9 +337,7 @@ class OutputFormatter:
             return
         prefix = " " * indent
         if self.console:
-            self.console.print(
-                f"{prefix}[primary]{label}:[/primary] [info]{value}[/info]"
-            )
+            self.console.print(f"{prefix}[primary]{label}:[/primary] [info]{value}[/info]")
         else:
             self.print(f"{prefix}- {label}: {value}")
 
@@ -433,11 +433,13 @@ class OutputFormatter:
                 print(json_str)
             else:
                 if self.console:
-                    self.console.print(Panel(
-                        json_str,
-                        title=Text("JSON OUTPUT", style=f"bold {ThemeColor.MUTED}"),
-                        border_style=ThemeColor.BORDER,
-                    ))
+                    self.console.print(
+                        Panel(
+                            json_str,
+                            title=Text("JSON OUTPUT", style=f"bold {ThemeColor.MUTED}"),
+                            border_style=ThemeColor.BORDER,
+                        )
+                    )
                 else:
                     self.print("\n" + "=" * 60)
                     self.print("JSON_OUTPUT:")

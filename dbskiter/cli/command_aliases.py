@@ -17,46 +17,40 @@ cli/command_aliases.py
 
 from typing import Dict, List, Tuple, Optional
 
-
 # 顶层命令别名映射
 # 格式: alias → (目标命令, [目标子命令参数])
 COMMAND_ALIASES: Dict[str, Tuple[str, List[str]]] = {
     # 高频监控（每天使用）
-    "health":       ("monitor", ["health"]),
-    "health-all":   ("monitor", ["health-all"]),
-    "anomalies":    ("monitor", ["anomalies"]),
-    "capacity":     ("monitor", ["capacity"]),
-
+    "health": ("monitor", ["health"]),
+    "health-all": ("monitor", ["health-all"]),
+    "anomalies": ("monitor", ["anomalies"]),
+    "capacity": ("monitor", ["capacity"]),
     # 高频诊断（每天使用）
-    "top":          ("diagnose", ["top"]),
-    "slow":         ("diagnose", ["slow-queries"]),
-    "slowlog":      ("diagnose", ["slow-queries"]),
+    "top": ("diagnose", ["top"]),
+    "slow": ("diagnose", ["slow-queries"]),
+    "slowlog": ("diagnose", ["slow-queries"]),
     "slow-queries": ("diagnose", ["slow-queries"]),
-    "realtime":     ("diagnose", ["realtime"]),
-    "locks":        ("lock", ["analyze"]),
-    "deadlocks":    ("lock", ["deadlocks"]),
-    "space":        ("diagnose", ["space"]),
-    "connections":  ("diagnose", ["connections"]),
-
+    "realtime": ("diagnose", ["realtime"]),
+    "locks": ("lock", ["analyze"]),
+    "deadlocks": ("lock", ["deadlocks"]),
+    "space": ("diagnose", ["space"]),
+    "connections": ("diagnose", ["connections"]),
     # 高频安全/巡检（每周使用）
-    "audit":        ("security", ["audit"]),
-    "score":        ("security", ["score"]),
-    "permissions":  ("security", ["permissions"]),
-    "report":       ("inspector", ["report"]),
-    "inspect":      ("inspector", ["run"]),
-
+    "audit": ("security", ["audit"]),
+    "score": ("security", ["score"]),
+    "permissions": ("security", ["permissions"]),
+    "report": ("inspector", ["report"]),
+    "inspect": ("inspector", ["run"]),
     # 高频 SQL 相关（sql 本身已是命令名，不需要别名）
-    "explain":      ("sql", ["explain"]),
-
+    "explain": ("sql", ["explain"]),
     # 高频调度
-    "backup":       ("scheduler", ["backup"]),
-    "restore":      ("scheduler", ["restore"]),
-
+    "backup": ("scheduler", ["backup"]),
+    "restore": ("scheduler", ["restore"]),
     # 新手引导
-    "welcome":      ("_welcome", []),
-    "hello":        ("_welcome", []),
-    "start":        ("_welcome", []),
-    "guide":        ("_welcome", []),
+    "welcome": ("_welcome", []),
+    "hello": ("_welcome", []),
+    "start": ("_welcome", []),
+    "guide": ("_welcome", []),
 }
 
 
@@ -88,12 +82,18 @@ def expand_alias(raw_args: List[str]) -> List[str]:
 
     # 需要值的选项列表（遇到这些选项时跳过它们的值）
     VALUE_OPTIONS = {
-        "--database", "-d",
-        "--host", "-H",
-        "--port", "-P",
-        "--user", "-u",
-        "--password", "-p",
-        "--config", "-c",
+        "--database",
+        "-d",
+        "--host",
+        "-H",
+        "--port",
+        "-P",
+        "--user",
+        "-u",
+        "--password",
+        "-p",
+        "--config",
+        "-c",
         "--log-level",
         "--output-mode",
     }
@@ -111,7 +111,7 @@ def expand_alias(raw_args: List[str]) -> List[str]:
         else:
             if arg in COMMAND_ALIASES:
                 target_cmd, target_subargs = COMMAND_ALIASES[arg]
-                return raw_args[:i] + [target_cmd] + target_subargs + raw_args[i + 1:]
+                return raw_args[:i] + [target_cmd] + target_subargs + raw_args[i + 1 :]
             # 第一个非选项参数不是别名，说明用户用的是原始命令，不展开
             break
 

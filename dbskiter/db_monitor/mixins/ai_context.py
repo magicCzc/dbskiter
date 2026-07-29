@@ -9,9 +9,16 @@ from typing import List, Dict, Any, Optional, Callable, Set
 from datetime import datetime
 
 from dbskiter.db_monitor.models import (
-    MetricType, MetricPoint, AnomalyAlert, MonitorConfig,
-    HealthAssessment, CapacityPrediction, HealthStatus,
-    AnomalyType, Severity, ErrorCode,
+    MetricType,
+    MetricPoint,
+    AnomalyAlert,
+    MonitorConfig,
+    HealthAssessment,
+    CapacityPrediction,
+    HealthStatus,
+    AnomalyType,
+    Severity,
+    ErrorCode,
 )
 from dbskiter.shared.error_handler import create_success_response, create_error_response
 from dbskiter.shared.validators import validate_params, Validator
@@ -20,11 +27,7 @@ from dbskiter.shared.validators import validate_params, Validator
 class MonitorAIContextMixin:
     """ai_context for MonitorSkill"""
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "monitor"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "monitor") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -38,8 +41,8 @@ class MonitorAIContextMixin:
         from dbskiter.shared.ai_context import AIContextBuilder
 
         builder = AIContextBuilder(
-            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
-            database_name=getattr(self.connector, 'database', ''),
+            dialect=self.connector.dialect if hasattr(self.connector, "dialect") else "unknown",
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -62,12 +65,7 @@ class MonitorAIContextMixin:
             "inspection_trace": inspection_trace,
         }
 
-
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建监控透明度追踪信息
 
@@ -78,13 +76,7 @@ class MonitorAIContextMixin:
         返回:
             Dict[str, Any]: 追踪信息
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         # 判断监控数据源
         monitor_source = "直连数据库"
@@ -160,24 +152,30 @@ class MonitorAIContextMixin:
 
         return trace
 
-
     def _has_external_monitor(self) -> bool:
         """检查是否使用了外部监控源"""
         # 简化的检测逻辑
         return False
 
-
     def _get_monitor_source(self) -> str:
         """获取当前使用的监控源名称"""
         return "直连数据库"
-
 
     def _extract_raw_metrics_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取原始指标"""
         metrics = {}
 
         # 提取关键字段
-        key_fields = ["health", "anomalies", "predictions", "trends", "recommendations", "history", "metrics", "summary"]
+        key_fields = [
+            "health",
+            "anomalies",
+            "predictions",
+            "trends",
+            "recommendations",
+            "history",
+            "metrics",
+            "summary",
+        ]
         for key in key_fields:
             if key in data:
                 metrics[key] = data[key]
@@ -192,7 +190,14 @@ class MonitorAIContextMixin:
                 if key in data:
                     metrics[key] = data[key]
         elif scenario in ("capacity", "capacity_advanced"):
-            for key in ["predictions", "trends", "recommendations", "current_usage", "forecast_date", "days_until_full"]:
+            for key in [
+                "predictions",
+                "trends",
+                "recommendations",
+                "current_usage",
+                "forecast_date",
+                "days_until_full",
+            ]:
                 if key in data:
                     metrics[key] = data[key]
         elif scenario == "metrics_history":
@@ -213,7 +218,6 @@ class MonitorAIContextMixin:
 
         return metrics
 
-
     def _extract_rule_flags_for_ai(self, data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
         """提取规则标记"""
         flags = {}
@@ -233,7 +237,11 @@ class MonitorAIContextMixin:
         if isinstance(anomalies, list) and len(anomalies) > 0:
             critical_anomalies = [a for a in anomalies if a.get("severity") == "critical"]
             if critical_anomalies:
-                flags["critical_anomalies"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical_anomalies)} 个严重异常"}
+                flags["critical_anomalies"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"发现 {len(critical_anomalies)} 个严重异常",
+                }
             else:
                 flags["has_anomalies"] = {"flagged": True, "level": "high", "reason": f"发现 {len(anomalies)} 个异常"}
 
@@ -253,10 +261,13 @@ class MonitorAIContextMixin:
         if isinstance(trends, list):
             for trend in trends:
                 if isinstance(trend, dict) and trend.get("deviation") == "significant":
-                    flags["significant_deviation"] = {"flagged": True, "level": "high", "reason": "指标显著偏离正常范围"}
+                    flags["significant_deviation"] = {
+                        "flagged": True,
+                        "level": "high",
+                        "reason": "指标显著偏离正常范围",
+                    }
 
         return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
-
 
     def _build_reference_values(self, scenario: str) -> Dict[str, Any]:
         """构建参考基线"""
@@ -268,11 +279,10 @@ class MonitorAIContextMixin:
         }
         return refs
 
-
     def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """构建AI提示"""
         hints = {"focus_areas": [], "related_commands": []}
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         health = data.get("health", {})
         anomalies = data.get("anomalies", [])
@@ -331,6 +341,3 @@ class MonitorAIContextMixin:
             hints["focus_areas"] = ["performance_deviation", "configuration_drift", "workload_changes"]
 
         return hints
-
-
-

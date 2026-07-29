@@ -253,12 +253,17 @@ class MockConnector:
                 columns = self.TABLES[table_name]["columns"]
                 rows = []
                 for col in columns:
-                    col_type = "VARCHAR(255)" if col in ("username", "email", "name", "category", "status") else (
-                        "INT" if col in ("id", "user_id", "product_id", "age", "stock", "order_id") else (
-                        "DECIMAL(10,2)" if col == "amount" else (
-                        "DATETIME" if "at" in col else "VARCHAR(100)"
+                    col_type = (
+                        "VARCHAR(255)"
+                        if col in ("username", "email", "name", "category", "status")
+                        else (
+                            "INT"
+                            if col in ("id", "user_id", "product_id", "age", "stock", "order_id")
+                            else (
+                                "DECIMAL(10,2)" if col == "amount" else ("DATETIME" if "at" in col else "VARCHAR(100)")
+                            )
                         )
-                    ))
+                    )
                     rows.append((col, col_type, "YES", "", None, ""))
                 return QueryResult(
                     rows=rows,
@@ -274,7 +279,19 @@ class MockConnector:
             rows=[
                 (1, "SIMPLE", "users", None, "ALL", None, None, None, 8, 100.0, "Using where"),
             ],
-            columns=["id", "select_type", "table", "partitions", "type", "possible_keys", "key", "key_len", "rows", "filtered", "Extra"],
+            columns=[
+                "id",
+                "select_type",
+                "table",
+                "partitions",
+                "type",
+                "possible_keys",
+                "key",
+                "key_len",
+                "rows",
+                "filtered",
+                "Extra",
+            ],
             row_count=1,
             execution_time_ms=0.3,
         )

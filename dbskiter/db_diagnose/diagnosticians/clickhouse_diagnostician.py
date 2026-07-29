@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ClickHouseSlowQueryRecord:
     """ClickHouse慢查询记录"""
+
     query_id: str
     query: str
     user: str
@@ -89,7 +90,7 @@ class ClickHouseDiagnostician(BaseDiagnostician):
             Optional[str]: 数据库名称或None
         """
         if self._database_name is None:
-            if hasattr(self.connector, 'database') and self.connector.database:
+            if hasattr(self.connector, "database") and self.connector.database:
                 self._database_name = self.connector.database
             else:
                 try:
@@ -120,11 +121,7 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                 self._has_query_log = False
         return self._has_query_log
 
-    def analyze_slow_queries(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0
-    ) -> Dict[str, Any]:
+    def analyze_slow_queries(self, limit: int = 20, min_time: float = 1.0) -> Dict[str, Any]:
         """
         分析ClickHouse慢查询
 
@@ -142,17 +139,9 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                 return self._analyze_from_processes(limit, min_time)
         except Exception as e:
             logger.error(f"慢查询分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"慢查询分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"慢查询分析失败: {str(e)}", error=str(e))
 
-    def _analyze_from_query_log(
-        self,
-        limit: int,
-        min_time: float
-    ) -> Dict[str, Any]:
+    def _analyze_from_query_log(self, limit: int, min_time: float) -> Dict[str, Any]:
         """
         从query_log分析慢查询
 
@@ -166,7 +155,8 @@ class ClickHouseDiagnostician(BaseDiagnostician):
         min_ms = int(min_time * 1000)
 
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     query_id,
                     query,
@@ -185,7 +175,9 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                 AND event_time >= now() - INTERVAL 24 HOUR
                 ORDER BY query_duration_ms DESC
                 LIMIT %(limit)s
-            """, {"min_ms": min_ms, "limit": limit})
+            """,
+                {"min_ms": min_ms, "limit": limit},
+            )
 
             queries = []
             fingerprints = {}
@@ -202,13 +194,13 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                     result_bytes=int(row[7]) if row[7] else 0,
                     memory_usage=int(row[8]) if row[8] else 0,
                     event_time=row[9],
-                    exception=row[10]
+                    exception=row[10],
                 )
                 queries.append(record)
 
                 # SQL指纹聚合
                 fp_result = self.fingerprinter.fingerprint(record.query)
-                fp = fp_result.fingerprint if hasattr(fp_result, 'fingerprint') else str(fp_result)
+                fp = fp_result.fingerprint if hasattr(fp_result, "fingerprint") else str(fp_result)
 
                 if fp not in fingerprints:
                     fingerprints[fp] = {
@@ -219,15 +211,12 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                         "avg_duration_ms": 0.0,
                         "max_duration_ms": 0.0,
                         "total_read_rows": 0,
-                        "total_read_bytes": 0
+                        "total_read_bytes": 0,
                     }
 
                 fingerprints[fp]["count"] += 1
                 fingerprints[fp]["total_duration_ms"] += record.query_duration_ms
-                fingerprints[fp]["max_duration_ms"] = max(
-                    fingerprints[fp]["max_duration_ms"],
-                    record.query_duration_ms
-                )
+                fingerprints[fp]["max_duration_ms"] = max(fingerprints[fp]["max_duration_ms"], record.query_duration_ms)
                 fingerprints[fp]["total_read_rows"] += record.read_rows
                 fingerprints[fp]["total_read_bytes"] += record.read_bytes
 
@@ -239,31 +228,29 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                     )
 
             # 排序
-            sorted_patterns = sorted(
-                fingerprints.values(),
-                key=lambda x: x["total_duration_ms"],
-                reverse=True
-            )
+            sorted_patterns = sorted(fingerprints.values(), key=lambda x: x["total_duration_ms"], reverse=True)
 
             # 构建查询列表
             queries_list = []
             for q in queries[:limit]:
-                queries_list.append({
-                    "query_id": q.query_id,
-                    "sql": q.query,
-                    "sql_short": q.query[:200] + "..." if len(q.query) > 200 else q.query,
-                    "user": q.user,
-                    "duration_ms": q.query_duration_ms,
-                    "duration_sec": round(q.query_duration_ms / 1000, 3),
-                    "read_rows": q.read_rows,
-                    "read_bytes": q.read_bytes,
-                    "read_bytes_pretty": self._format_bytes(q.read_bytes),
-                    "result_rows": q.result_rows,
-                    "memory_usage": q.memory_usage,
-                    "memory_usage_pretty": self._format_bytes(q.memory_usage),
-                    "event_time": q.event_time.isoformat() if q.event_time else None,
-                    "has_error": q.exception is not None
-                })
+                queries_list.append(
+                    {
+                        "query_id": q.query_id,
+                        "sql": q.query,
+                        "sql_short": q.query[:200] + "..." if len(q.query) > 200 else q.query,
+                        "user": q.user,
+                        "duration_ms": q.query_duration_ms,
+                        "duration_sec": round(q.query_duration_ms / 1000, 3),
+                        "read_rows": q.read_rows,
+                        "read_bytes": q.read_bytes,
+                        "read_bytes_pretty": self._format_bytes(q.read_bytes),
+                        "result_rows": q.result_rows,
+                        "memory_usage": q.memory_usage,
+                        "memory_usage_pretty": self._format_bytes(q.memory_usage),
+                        "event_time": q.event_time.isoformat() if q.event_time else None,
+                        "has_error": q.exception is not None,
+                    }
+                )
 
             return self._create_result(
                 success=True,
@@ -273,19 +260,15 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                     "total_queries": len(queries),
                     "unique_patterns": len(fingerprints),
                     "patterns": sorted_patterns[:10],
-                    "queries": queries_list
-                }
+                    "queries": queries_list,
+                },
             )
 
         except Exception as e:
             logger.warning(f"从query_log分析失败: {e}，尝试从processes获取")
             return self._analyze_from_processes(limit, min_time)
 
-    def _analyze_from_processes(
-        self,
-        limit: int,
-        min_time: float
-    ) -> Dict[str, Any]:
+    def _analyze_from_processes(self, limit: int, min_time: float) -> Dict[str, Any]:
         """
         从processes分析当前运行查询
 
@@ -297,7 +280,8 @@ class ClickHouseDiagnostician(BaseDiagnostician):
             Dict: 查询分析结果
         """
         try:
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT
                     query_id,
                     query,
@@ -311,43 +295,36 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                 AND elapsed >= %(min_time)s
                 ORDER BY elapsed DESC
                 LIMIT %(limit)s
-            """, {"min_time": min_time, "limit": limit})
+            """,
+                {"min_time": min_time, "limit": limit},
+            )
 
             queries = []
             for row in result.rows if result else []:
-                queries.append({
-                    "query_id": row[0],
-                    "sql": row[1],
-                    "sql_short": row[1][:200] + "..." if len(row[1]) > 200 else row[1],
-                    "user": row[2],
-                    "elapsed_sec": float(row[3]),
-                    "read_rows": int(row[4]) if row[4] else 0,
-                    "read_bytes": int(row[5]) if row[5] else 0,
-                    "memory_usage": int(row[6]) if row[6] else 0,
-                    "source": "processes"
-                })
+                queries.append(
+                    {
+                        "query_id": row[0],
+                        "sql": row[1],
+                        "sql_short": row[1][:200] + "..." if len(row[1]) > 200 else row[1],
+                        "user": row[2],
+                        "elapsed_sec": float(row[3]),
+                        "read_rows": int(row[4]) if row[4] else 0,
+                        "read_bytes": int(row[5]) if row[5] else 0,
+                        "memory_usage": int(row[6]) if row[6] else 0,
+                        "source": "processes",
+                    }
+                )
 
             return self._create_result(
                 success=True,
                 message=f"从processes获取到 {len(queries)} 条运行中查询",
-                data={
-                    "source": "processes",
-                    "total_queries": len(queries),
-                    "queries": queries
-                }
+                data={"source": "processes", "total_queries": len(queries), "queries": queries},
             )
 
         except Exception as e:
-            return self._create_result(
-                success=False,
-                message=f"查询分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"查询分析失败: {str(e)}", error=str(e))
 
-    def analyze_performance_metrics(
-        self,
-        duration_minutes: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_performance_metrics(self, duration_minutes: int = 10) -> Dict[str, Any]:
         """
         分析ClickHouse性能指标
 
@@ -381,7 +358,7 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                         "max_duration_ms": float(row[2]) if row[2] else 0,
                         "total_read_rows": int(row[3]) if row[3] else 0,
                         "total_read_bytes": int(row[4]) if row[4] else 0,
-                        "total_read_bytes_pretty": self._format_bytes(int(row[4])) if row[4] else "0 B"
+                        "total_read_bytes_pretty": self._format_bytes(int(row[4])) if row[4] else "0 B",
                     }
             except Exception as e:
                 logger.warning(f"获取查询统计失败: {e}")
@@ -423,25 +400,17 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                         "active_parts": int(row[0]) if row[0] else 0,
                         "total_rows": int(row[1]) if row[1] else 0,
                         "total_bytes": int(row[2]) if row[2] else 0,
-                        "total_bytes_pretty": self._format_bytes(int(row[2])) if row[2] else "0 B"
+                        "total_bytes_pretty": self._format_bytes(int(row[2])) if row[2] else "0 B",
                     }
             except Exception as e:
                 logger.warning(f"获取MergeTree统计失败: {e}")
                 metrics["mergetree_stats"] = {"error": str(e)}
 
-            return self._create_result(
-                success=True,
-                message="性能指标采集完成",
-                data=metrics
-            )
+            return self._create_result(success=True, message="性能指标采集完成", data=metrics)
 
         except Exception as e:
             logger.error(f"性能指标分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"性能指标分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"性能指标分析失败: {str(e)}", error=str(e))
 
     def get_database_stats(self) -> Dict[str, Any]:
         """
@@ -467,13 +436,15 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                 """)
                 databases = []
                 for row in result.rows if result else []:
-                    databases.append({
-                        "name": row[0],
-                        "engine": row[1],
-                        "tables": int(row[2]) if row[2] else 0,
-                        "partitions": int(row[3]) if row[3] else 0,
-                        "parts": int(row[4]) if row[4] else 0
-                    })
+                    databases.append(
+                        {
+                            "name": row[0],
+                            "engine": row[1],
+                            "tables": int(row[2]) if row[2] else 0,
+                            "partitions": int(row[3]) if row[3] else 0,
+                            "parts": int(row[4]) if row[4] else 0,
+                        }
+                    )
                 stats["databases"] = databases
             except Exception as e:
                 logger.warning(f"获取数据库列表失败: {e}")
@@ -498,16 +469,18 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                 """)
                 tables = []
                 for row in result.rows if result else []:
-                    tables.append({
-                        "database": row[0],
-                        "table": row[1],
-                        "engine": row[2],
-                        "total_rows": int(row[3]) if row[3] else 0,
-                        "total_bytes": int(row[4]) if row[4] else 0,
-                        "total_bytes_pretty": self._format_bytes(int(row[4])) if row[4] else "0 B",
-                        "partitions": int(row[5]) if row[5] else 0,
-                        "parts": int(row[6]) if row[6] else 0
-                    })
+                    tables.append(
+                        {
+                            "database": row[0],
+                            "table": row[1],
+                            "engine": row[2],
+                            "total_rows": int(row[3]) if row[3] else 0,
+                            "total_bytes": int(row[4]) if row[4] else 0,
+                            "total_bytes_pretty": self._format_bytes(int(row[4])) if row[4] else "0 B",
+                            "partitions": int(row[5]) if row[5] else 0,
+                            "parts": int(row[6]) if row[6] else 0,
+                        }
+                    )
                 stats["tables"] = tables
             except Exception as e:
                 logger.warning(f"获取表统计失败: {e}")
@@ -516,16 +489,12 @@ class ClickHouseDiagnostician(BaseDiagnostician):
             return self._create_result(
                 success=True,
                 message=f"获取到 {len(stats.get('databases', []))} 个数据库，{len(stats.get('tables', []))} 个表",
-                data=stats
+                data=stats,
             )
 
         except Exception as e:
             logger.error(f"数据库统计获取失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"数据库统计获取失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"数据库统计获取失败: {str(e)}", error=str(e))
 
     def analyze_partitions(self, database: str = None, table: str = None) -> Dict[str, Any]:
         """
@@ -574,34 +543,29 @@ class ClickHouseDiagnostician(BaseDiagnostician):
 
             partitions = []
             for row in result.rows if result else []:
-                partitions.append({
-                    "database": row[0],
-                    "table": row[1],
-                    "partition": row[2],
-                    "parts": int(row[3]) if row[3] else 0,
-                    "rows": int(row[4]) if row[4] else 0,
-                    "bytes_on_disk": int(row[5]) if row[5] else 0,
-                    "bytes_on_disk_pretty": self._format_bytes(int(row[5])) if row[5] else "0 B",
-                    "min_time": row[6].isoformat() if row[6] else None,
-                    "max_time": row[7].isoformat() if row[7] else None
-                })
+                partitions.append(
+                    {
+                        "database": row[0],
+                        "table": row[1],
+                        "partition": row[2],
+                        "parts": int(row[3]) if row[3] else 0,
+                        "rows": int(row[4]) if row[4] else 0,
+                        "bytes_on_disk": int(row[5]) if row[5] else 0,
+                        "bytes_on_disk_pretty": self._format_bytes(int(row[5])) if row[5] else "0 B",
+                        "min_time": row[6].isoformat() if row[6] else None,
+                        "max_time": row[7].isoformat() if row[7] else None,
+                    }
+                )
 
             return self._create_result(
                 success=True,
                 message=f"获取到 {len(partitions)} 个分区",
-                data={
-                    "partitions": partitions,
-                    "total_partitions": len(partitions)
-                }
+                data={"partitions": partitions, "total_partitions": len(partitions)},
             )
 
         except Exception as e:
             logger.error(f"分区分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"分区分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"分区分析失败: {str(e)}", error=str(e))
 
     def analyze_replication(self) -> Dict[str, Any]:
         """
@@ -621,9 +585,7 @@ class ClickHouseDiagnostician(BaseDiagnostician):
 
             if not has_replicated:
                 return self._create_result(
-                    success=True,
-                    message="没有Replicated表，无需复制监控",
-                    data={"has_replication": False}
+                    success=True, message="没有Replicated表，无需复制监控", data={"has_replication": False}
                 )
 
             # 获取复制队列状态
@@ -643,24 +605,22 @@ class ClickHouseDiagnostician(BaseDiagnostician):
 
                 replicas = []
                 for row in result.rows if result else []:
-                    replicas.append({
-                        "database": row[0],
-                        "table": row[1],
-                        "replica_name": row[2],
-                        "position": row[3],
-                        "queue_size": int(row[4]) if row[4] else 0,
-                        "inserts_in_queue": int(row[5]) if row[5] else 0,
-                        "merges_in_queue": int(row[6]) if row[6] else 0
-                    })
+                    replicas.append(
+                        {
+                            "database": row[0],
+                            "table": row[1],
+                            "replica_name": row[2],
+                            "position": row[3],
+                            "queue_size": int(row[4]) if row[4] else 0,
+                            "inserts_in_queue": int(row[5]) if row[5] else 0,
+                            "merges_in_queue": int(row[6]) if row[6] else 0,
+                        }
+                    )
 
                 return self._create_result(
                     success=True,
                     message=f"获取到 {len(replicas)} 个复制副本",
-                    data={
-                        "has_replication": True,
-                        "replicas": replicas,
-                        "total_replicas": len(replicas)
-                    }
+                    data={"has_replication": True, "replicas": replicas, "total_replicas": len(replicas)},
                 )
 
             except Exception as e:
@@ -668,16 +628,12 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                 return self._create_result(
                     success=True,
                     message="复制表存在但无法获取详细状态",
-                    data={"has_replication": True, "error": str(e)}
+                    data={"has_replication": True, "error": str(e)},
                 )
 
         except Exception as e:
             logger.error(f"复制分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"复制分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"复制分析失败: {str(e)}", error=str(e))
 
     def analyze_index_usage(self) -> Dict[str, Any]:
         """
@@ -707,14 +663,16 @@ class ClickHouseDiagnostician(BaseDiagnostician):
 
             indexes = []
             for row in result.rows if result else []:
-                indexes.append({
-                    "database": row[0],
-                    "table": row[1],
-                    "name": row[2],
-                    "type": row[3],
-                    "expr": row[4],
-                    "granularity": int(row[5]) if row[5] else 1
-                })
+                indexes.append(
+                    {
+                        "database": row[0],
+                        "table": row[1],
+                        "name": row[2],
+                        "type": row[3],
+                        "expr": row[4],
+                        "granularity": int(row[5]) if row[5] else 1,
+                    }
+                )
 
             # 获取没有跳数索引的大表
             missing_indexes = []
@@ -742,23 +700,28 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                     total_bytes = int(row[4]) if row[4] else 0
 
                     # 检查是否有跳数索引
-                    idx_result = self.connector.execute("""
+                    idx_result = self.connector.execute(
+                        """
                         SELECT count()
                         FROM system.data_skipping_indices
                         WHERE database = %(db_name)s AND table = %(table_name)s
-                    """, {"db_name": db_name, "table_name": table_name})
+                    """,
+                        {"db_name": db_name, "table_name": table_name},
+                    )
                     idx_count = int(idx_result.rows[0][0]) if idx_result and idx_result.rows else 0
 
                     if idx_count == 0:
-                        missing_indexes.append({
-                            "database": db_name,
-                            "table": table_name,
-                            "engine": engine,
-                            "total_rows": total_rows,
-                            "total_bytes": total_bytes,
-                            "total_bytes_pretty": self._format_bytes(total_bytes),
-                            "issue": "大表缺少跳数索引"
-                        })
+                        missing_indexes.append(
+                            {
+                                "database": db_name,
+                                "table": table_name,
+                                "engine": engine,
+                                "total_rows": total_rows,
+                                "total_bytes": total_bytes,
+                                "total_bytes_pretty": self._format_bytes(total_bytes),
+                                "issue": "大表缺少跳数索引",
+                            }
+                        )
             except Exception as e:
                 logger.warning(f"检测缺少索引的表失败: {e}")
 
@@ -792,37 +755,43 @@ class ClickHouseDiagnostician(BaseDiagnostician):
 
                     # 检测缺失主键
                     if not primary_key and total_rows > 1000000:
-                        pk_issues.append({
-                            "database": db_name,
-                            "table": table_name,
-                            "engine": engine,
-                            "issue": "缺少显式主键",
-                            "total_rows": total_rows,
-                            "suggestion": f"建议添加主键: ALTER TABLE {table_name} MODIFY ORDER BY (column1, column2)"
-                        })
+                        pk_issues.append(
+                            {
+                                "database": db_name,
+                                "table": table_name,
+                                "engine": engine,
+                                "issue": "缺少显式主键",
+                                "total_rows": total_rows,
+                                "suggestion": f"建议添加主键: ALTER TABLE {table_name} MODIFY ORDER BY (column1, column2)",
+                            }
+                        )
 
                     # 检测主键字段过多
                     pk_fields = [f.strip() for f in primary_key.split(",") if f.strip()]
                     if len(pk_fields) > 3:
-                        pk_issues.append({
-                            "database": db_name,
-                            "table": table_name,
-                            "engine": engine,
-                            "issue": f"主键字段过多({len(pk_fields)}个)",
-                            "total_rows": total_rows,
-                            "suggestion": "建议减少主键字段数量，通常1-3个字段即可"
-                        })
+                        pk_issues.append(
+                            {
+                                "database": db_name,
+                                "table": table_name,
+                                "engine": engine,
+                                "issue": f"主键字段过多({len(pk_fields)}个)",
+                                "total_rows": total_rows,
+                                "suggestion": "建议减少主键字段数量，通常1-3个字段即可",
+                            }
+                        )
 
                     # 检测缺失分区键
                     if not partition_key and total_rows > 10000000:
-                        pk_issues.append({
-                            "database": db_name,
-                            "table": table_name,
-                            "engine": engine,
-                            "issue": "大表缺少分区键",
-                            "total_rows": total_rows,
-                            "suggestion": f"建议添加分区键: PARTITION BY toYYYYMMDD(date_column)"
-                        })
+                        pk_issues.append(
+                            {
+                                "database": db_name,
+                                "table": table_name,
+                                "engine": engine,
+                                "issue": "大表缺少分区键",
+                                "total_rows": total_rows,
+                                "suggestion": f"建议添加分区键: PARTITION BY toYYYYMMDD(date_column)",
+                            }
+                        )
             except Exception as e:
                 logger.warning(f"检测主键设计问题失败: {e}")
 
@@ -845,14 +814,10 @@ class ClickHouseDiagnostician(BaseDiagnostician):
                     "missing_count": len(missing_indexes),
                     "pk_issue_count": len(pk_issues),
                     "health_score": health_score,
-                    "db_type": "ClickHouse"
-                }
+                    "db_type": "ClickHouse",
+                },
             )
 
         except Exception as e:
             logger.error(f"索引使用分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message=f"索引使用分析失败: {str(e)}",
-                error=str(e)
-            )
+            return self._create_result(success=False, message=f"索引使用分析失败: {str(e)}", error=str(e))

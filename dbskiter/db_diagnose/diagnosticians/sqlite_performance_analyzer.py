@@ -23,7 +23,7 @@ from ..core.performance_model import (
     PerformanceMetric,
     SlowQueryInfo,
     MetricCategory,
-    get_threshold
+    get_threshold,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,13 +83,15 @@ class SQLitePerformanceAnalyzer(PerformanceAnalyzer):
                 page_size = int(result[0][0]) if result and result[0] else 4096
                 cache_kb = (cache_size * page_size) / 1024
 
-            metrics.append(PerformanceMetric(
-                name="cache_size_kb",
-                value=round(cache_kb, 2),
-                unit="KB",
-                category=MetricCategory.MEMORY,
-                source="PRAGMA cache_size"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="cache_size_kb",
+                    value=round(cache_kb, 2),
+                    unit="KB",
+                    category=MetricCategory.MEMORY,
+                    source="PRAGMA cache_size",
+                )
+            )
 
             # 获取页缓存使用情况（近似）
             result = self._execute_with_timeout("PRAGMA page_count")
@@ -102,29 +104,33 @@ class SQLitePerformanceAnalyzer(PerformanceAnalyzer):
             usage_pct = (used_pages / page_count) * 100 if page_count > 0 else 0
 
             threshold = get_threshold("memory_usage")
-            metrics.append(PerformanceMetric(
-                name="page_usage_ratio",
-                value=round(usage_pct, 2),
-                unit="%",
-                category=MetricCategory.MEMORY,
-                threshold_warning=threshold.get("warning"),
-                threshold_critical=threshold.get("critical"),
-                source="PRAGMA page_count"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="page_usage_ratio",
+                    value=round(usage_pct, 2),
+                    unit="%",
+                    category=MetricCategory.MEMORY,
+                    threshold_warning=threshold.get("warning"),
+                    threshold_critical=threshold.get("critical"),
+                    source="PRAGMA page_count",
+                )
+            )
 
             # 计算缓存命中率
             try:
                 cache_hit_ratio = self._calculate_cache_hit_ratio()
                 if cache_hit_ratio is not None:
-                    metrics.append(PerformanceMetric(
-                        name="cache_hit_ratio",
-                        value=round(cache_hit_ratio, 2),
-                        unit="%",
-                        category=MetricCategory.MEMORY,
-                        threshold_warning=85.0,
-                        threshold_critical=70.0,
-                        source="PRAGMA cache_hit_ratio"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="cache_hit_ratio",
+                            value=round(cache_hit_ratio, 2),
+                            unit="%",
+                            category=MetricCategory.MEMORY,
+                            threshold_warning=85.0,
+                            threshold_critical=70.0,
+                            source="PRAGMA cache_hit_ratio",
+                        )
+                    )
             except Exception as e:
                 logger.warning(f"缓存命中率计算失败: {str(e).split(chr(10))[0][:120]}")
 
@@ -183,26 +189,30 @@ class SQLitePerformanceAnalyzer(PerformanceAnalyzer):
 
             db_size_mb = (page_count * page_size) / 1024 / 1024
 
-            metrics.append(PerformanceMetric(
-                name="database_size_mb",
-                value=round(db_size_mb, 2),
-                unit="MB",
-                category=MetricCategory.IO,
-                source="PRAGMA page_count"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="database_size_mb",
+                    value=round(db_size_mb, 2),
+                    unit="MB",
+                    category=MetricCategory.IO,
+                    source="PRAGMA page_count",
+                )
+            )
 
             # 获取空闲页面
             result = self._execute_with_timeout("PRAGMA freelist_count")
             free_pages = int(result[0][0]) if result and result[0] else 0
 
             free_mb = (free_pages * page_size) / 1024 / 1024
-            metrics.append(PerformanceMetric(
-                name="free_space_mb",
-                value=round(free_mb, 2),
-                unit="MB",
-                category=MetricCategory.IO,
-                source="PRAGMA freelist_count"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="free_space_mb",
+                    value=round(free_mb, 2),
+                    unit="MB",
+                    category=MetricCategory.IO,
+                    source="PRAGMA freelist_count",
+                )
+            )
 
             # 获取WAL文件大小（如果启用WAL）
             try:
@@ -211,13 +221,15 @@ class SQLitePerformanceAnalyzer(PerformanceAnalyzer):
 
                 if journal_mode == "WAL":
                     # WAL文件大小无法直接通过PRAGMA获取，这里只是标记
-                    metrics.append(PerformanceMetric(
-                        name="wal_mode_enabled",
-                        value=1,
-                        unit="bool",
-                        category=MetricCategory.IO,
-                        source="PRAGMA journal_mode"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="wal_mode_enabled",
+                            value=1,
+                            unit="bool",
+                            category=MetricCategory.IO,
+                            source="PRAGMA journal_mode",
+                        )
+                    )
             except Exception:
                 pass
 
@@ -236,13 +248,15 @@ class SQLitePerformanceAnalyzer(PerformanceAnalyzer):
             result = self._execute_with_timeout("PRAGMA lock_status")
             lock_count = len(result) if result else 0
 
-            metrics.append(PerformanceMetric(
-                name="active_locks",
-                value=lock_count,
-                unit="count",
-                category=MetricCategory.CONCURRENCY,
-                source="PRAGMA lock_status"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="active_locks",
+                    value=lock_count,
+                    unit="count",
+                    category=MetricCategory.CONCURRENCY,
+                    source="PRAGMA lock_status",
+                )
+            )
 
             # 获取线程安全模式
             result = self._execute_with_timeout("PRAGMA compile_options")
@@ -256,21 +270,22 @@ class SQLitePerformanceAnalyzer(PerformanceAnalyzer):
                     except (IndexError, ValueError):
                         pass
 
-            metrics.append(PerformanceMetric(
-                name="threadsafe_mode",
-                value=threadsafe,
-                unit="level",
-                category=MetricCategory.CONCURRENCY,
-                source="PRAGMA compile_options"
-            ))
+            metrics.append(
+                PerformanceMetric(
+                    name="threadsafe_mode",
+                    value=threadsafe,
+                    unit="level",
+                    category=MetricCategory.CONCURRENCY,
+                    source="PRAGMA compile_options",
+                )
+            )
 
         except Exception as e:
             logger.warning(f"并发指标采集失败: {str(e).split(chr(10))[0][:120]}")
 
         return metrics
 
-    def collect_slow_queries(self, limit: int = 20,
-                            min_time_ms: float = 1000) -> List[SlowQueryInfo]:
+    def collect_slow_queries(self, limit: int = 20, min_time_ms: float = 1000) -> List[SlowQueryInfo]:
         """
         采集慢查询
 

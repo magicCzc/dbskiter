@@ -85,11 +85,7 @@ class SQLAuditorSkill:
         - PostgreSQL
     """
 
-    def __init__(
-        self,
-        connector: UnifiedConnector,
-        config: Optional[AuditConfig] = None
-    ):
+    def __init__(self, connector: UnifiedConnector, config: Optional[AuditConfig] = None):
         """
         初始化SQL审核 Skill
 
@@ -125,11 +121,7 @@ class SQLAuditorSkill:
     # ==================== 核心审核API ====================
 
     @validate_params(sql=Validator.not_empty_string)
-    def audit_sql(
-        self,
-        sql: str,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def audit_sql(self, sql: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         审核单条SQL（已接入多步骤计时）
 
@@ -141,6 +133,7 @@ class SQLAuditorSkill:
             Dict: 审核结果，包含 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         try:
@@ -148,12 +141,7 @@ class SQLAuditorSkill:
                 audit_id = str(uuid.uuid4())[:8]
                 sql_type = self.parser.detect_sql_type(sql)
 
-                result = AuditResult(
-                    audit_id=audit_id,
-                    sql_content=sql,
-                    sql_type=sql_type,
-                    audit_time=datetime.now()
-                )
+                result = AuditResult(audit_id=audit_id, sql_content=sql, sql_type=sql_type, audit_time=datetime.now())
 
             with timer.step("execute_audit", "执行 SQL 审核"):
                 self._execute_audit(sql, result)
@@ -167,17 +155,9 @@ class SQLAuditorSkill:
 
         except Exception as e:
             logger.error(f"SQL审核失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.AUDIT_FAILED,
-                {"sql": sql[:100] if len(sql) > 100 else sql}
-            )
+            return create_error_response(str(e), ErrorCode.AUDIT_FAILED, {"sql": sql[:100] if len(sql) > 100 else sql})
 
-    def audit_sql_list(
-        self,
-        sql_list: List[str],
-        show_progress: bool = False
-    ) -> Dict[str, Any]:
+    def audit_sql_list(self, sql_list: List[str], show_progress: bool = False) -> Dict[str, Any]:
         """
         批量审核SQL
 
@@ -217,7 +197,7 @@ class SQLAuditorSkill:
             success_count=success_count,
             failed_count=failed_count,
             results=results,
-            summary=summary
+            summary=summary,
         )
 
         return create_success_response(batch_result.to_dict(), "批量审核完成")
@@ -237,8 +217,7 @@ class SQLAuditorSkill:
         try:
             if not self.ddl_analyzer:
                 return create_error_response(
-                    f"当前数据库方言 '{self.dialect}' 不支持DDL影响分析",
-                    ErrorCode.DDL_ANALYSIS_FAILED
+                    f"当前数据库方言 '{self.dialect}' 不支持DDL影响分析", ErrorCode.DDL_ANALYSIS_FAILED
                 )
 
             impact = self.ddl_analyzer.analyze_impact(ddl_sql)
@@ -246,22 +225,13 @@ class SQLAuditorSkill:
 
         except ConnectionError as e:
             logger.error(f"DDL分析连接失败: {e}")
-            return create_error_response(
-                f"数据库连接失败: {e}",
-                ErrorCode.DDL_ANALYSIS_FAILED
-            )
+            return create_error_response(f"数据库连接失败: {e}", ErrorCode.DDL_ANALYSIS_FAILED)
         except PermissionError as e:
             logger.error(f"DDL分析权限不足: {e}")
-            return create_error_response(
-                f"权限不足: {e}",
-                ErrorCode.PERMISSION_DENIED
-            )
+            return create_error_response(f"权限不足: {e}", ErrorCode.PERMISSION_DENIED)
         except Exception as e:
             logger.error(f"DDL影响分析失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.DDL_ANALYSIS_FAILED
-            )
+            return create_error_response(str(e), ErrorCode.DDL_ANALYSIS_FAILED)
 
     # ==================== 规则管理 ====================
 
@@ -275,20 +245,14 @@ class SQLAuditorSkill:
         success = self.rule_engine.enable_rule(rule_id)
         if success:
             return create_success_response(None, f"规则 {rule_id} 已启用")
-        return create_error_response(
-            f"规则 {rule_id} 不存在",
-            ErrorCode.RULE_NOT_FOUND
-        )
+        return create_error_response(f"规则 {rule_id} 不存在", ErrorCode.RULE_NOT_FOUND)
 
     def disable_rule(self, rule_id: str) -> Dict[str, Any]:
         """禁用规则"""
         success = self.rule_engine.disable_rule(rule_id)
         if success:
             return create_success_response(None, f"规则 {rule_id} 已禁用")
-        return create_error_response(
-            f"规则 {rule_id} 不存在",
-            ErrorCode.RULE_NOT_FOUND
-        )
+        return create_error_response(f"规则 {rule_id} 不存在", ErrorCode.RULE_NOT_FOUND)
 
     def add_custom_rule(self, rule_data: Dict[str, Any]) -> Dict[str, Any]:
         """添加自定义规则"""
@@ -300,23 +264,16 @@ class SQLAuditorSkill:
                 level=AuditLevel(rule_data["level"]),
                 description=rule_data.get("description", ""),
                 enabled=rule_data.get("enabled", True),
-                custom_config=rule_data.get("custom_config", {})
+                custom_config=rule_data.get("custom_config", {}),
             )
             self.rule_engine.add_custom_rule(rule)
             return create_success_response(None, f"规则 {rule.rule_id} 已添加")
         except Exception as e:
-            return create_error_response(
-                f"添加规则失败: {e}",
-                ErrorCode.INVALID_PARAM
-            )
+            return create_error_response(f"添加规则失败: {e}", ErrorCode.INVALID_PARAM)
 
     # ==================== 报告生成 ====================
 
-    def generate_report(
-        self,
-        sql_list: List[str],
-        report_title: str = "SQL审核报告"
-    ) -> Dict[str, Any]:
+    def generate_report(self, sql_list: List[str], report_title: str = "SQL审核报告") -> Dict[str, Any]:
         """
         生成审核报告
 
@@ -342,20 +299,16 @@ class SQLAuditorSkill:
                 "batch_id": data["batch_id"],
                 "summary": data["summary"],
                 "top_issues": self.issue_aggregator.get_top_issues(
-                    [AuditResult(**r) for r in data["results"]],
-                    limit=10
+                    [AuditResult(**r) for r in data["results"]], limit=10
                 ),
-                "generated_at": datetime.now().isoformat()
+                "generated_at": datetime.now().isoformat(),
             }
 
             return create_success_response(report, "审核报告生成完成")
 
         except Exception as e:
             logger.error(f"生成报告失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
     # ==================== 工具方法 ====================
 
@@ -371,7 +324,7 @@ class SQLAuditorSkill:
             "columns": self.parser.extract_columns(sql),
             "has_where": self.parser.has_where_clause(sql),
             "has_limit": self.parser.has_limit_clause(sql),
-            "fingerprint": self.normalizer.generate_fingerprint(sql)
+            "fingerprint": self.normalizer.generate_fingerprint(sql),
         }
 
     def close(self):
@@ -429,11 +382,7 @@ class SQLAuditorSkill:
 
         # 计算评分
         result.score = self.score_calculator.calculate_score(result.issues)
-        result.passed = self.score_calculator.calculate_pass_status(
-            result.score,
-            result.critical_count
-        )
-
+        result.passed = self.score_calculator.calculate_pass_status(result.score, result.critical_count)
 
     # ==================== 智能优化API ====================
 
@@ -443,7 +392,7 @@ class SQLAuditorSkill:
         schema_info: Optional[Dict[str, Any]] = None,
         table_stats: Optional[Dict[str, Any]] = None,
         existing_indexes: Optional[List[Dict]] = None,
-        execution_plan: Optional[str] = None
+        execution_plan: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         智能优化SQL
@@ -464,25 +413,18 @@ class SQLAuditorSkill:
                 schema_info=schema_info,
                 table_stats=table_stats,
                 existing_indexes=existing_indexes,
-                execution_plan=execution_plan
+                execution_plan=execution_plan,
             )
 
             return create_success_response(
-                data=result,
-                message=f"SQL优化完成，发现{len(result['recommendations'])}条优化建议"
+                data=result, message=f"SQL优化完成，发现{len(result['recommendations'])}条优化建议"
             )
         except Exception as e:
             logger.error(f"SQL优化失败: {e}")
-            return create_error_response(
-                f"优化失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"优化失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
     def recommend_indexes(
-        self,
-        sql: str,
-        schema_info: Dict[str, Any],
-        existing_indexes: Optional[List[Dict]] = None
+        self, sql: str, schema_info: Dict[str, Any], existing_indexes: Optional[List[Dict]] = None
     ) -> Dict[str, Any]:
         """
         推荐索引
@@ -511,25 +453,19 @@ class SQLAuditorSkill:
                             "reason": rec.reason,
                             "estimated_benefit": rec.estimated_benefit,
                             "estimated_cost": rec.estimated_cost,
-                            "priority": rec.priority.value
+                            "priority": rec.priority.value,
                         }
                         for rec in recommendations
                     ],
-                    "total": len(recommendations)
+                    "total": len(recommendations),
                 },
-                message=f"推荐{len(recommendations)}个索引"
+                message=f"推荐{len(recommendations)}个索引",
             )
         except Exception as e:
             logger.error(f"索引推荐失败: {e}")
-            return create_error_response(
-                f"推荐失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"推荐失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
-    def analyze_execution_plan(
-        self,
-        execution_plan: str
-    ) -> Dict[str, Any]:
+    def analyze_execution_plan(self, execution_plan: str) -> Dict[str, Any]:
         """
         分析执行计划
 
@@ -543,21 +479,13 @@ class SQLAuditorSkill:
             analysis = self.intelligent_optimizer.plan_analyzer.analyze(execution_plan)
 
             return create_success_response(
-                data=analysis,
-                message=f"执行计划分析完成，发现{len(analysis['issues'])}个问题"
+                data=analysis, message=f"执行计划分析完成，发现{len(analysis['issues'])}个问题"
             )
         except Exception as e:
             logger.error(f"执行计划分析失败: {e}")
-            return create_error_response(
-                f"分析失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"分析失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
-    def estimate_cost(
-        self,
-        sql: str,
-        table_stats: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def estimate_cost(self, sql: str, table_stats: Dict[str, Any]) -> Dict[str, Any]:
         """
         估算SQL执行成本
 
@@ -578,23 +506,15 @@ class SQLAuditorSkill:
                     "memory_cost": cost.memory_cost,
                     "total_cost": cost.total_cost,
                     "estimated_time_ms": cost.estimated_time_ms,
-                    "estimated_rows": cost.estimated_rows
+                    "estimated_rows": cost.estimated_rows,
                 },
-                message="成本估算完成"
+                message="成本估算完成",
             )
         except Exception as e:
             logger.error(f"成本估算失败: {e}")
-            return create_error_response(
-                f"估算失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"估算失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
-    def compare_sql_costs(
-        self,
-        original_sql: str,
-        optimized_sql: str,
-        table_stats: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def compare_sql_costs(self, original_sql: str, optimized_sql: str, table_stats: Dict[str, Any]) -> Dict[str, Any]:
         """
         对比两条SQL的成本
 
@@ -607,32 +527,18 @@ class SQLAuditorSkill:
             Dict: 成本对比结果
         """
         try:
-            original_cost = self.intelligent_optimizer.cost_estimator.estimate(
-                original_sql, table_stats
-            )
-            optimized_cost = self.intelligent_optimizer.cost_estimator.estimate(
-                optimized_sql, table_stats
-            )
-            comparison = self.intelligent_optimizer.cost_estimator.compare_costs(
-                original_cost, optimized_cost
-            )
+            original_cost = self.intelligent_optimizer.cost_estimator.estimate(original_sql, table_stats)
+            optimized_cost = self.intelligent_optimizer.cost_estimator.estimate(optimized_sql, table_stats)
+            comparison = self.intelligent_optimizer.cost_estimator.compare_costs(original_cost, optimized_cost)
 
             return create_success_response(
-                data=comparison,
-                message=f"成本对比完成，优化效果: {comparison['improvement_level']}"
+                data=comparison, message=f"成本对比完成，优化效果: {comparison['improvement_level']}"
             )
         except Exception as e:
             logger.error(f"成本对比失败: {e}")
-            return create_error_response(
-                f"对比失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"对比失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
-    def rewrite_sql(
-        self,
-        sql: str,
-        schema_info: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+    def rewrite_sql(self, sql: str, schema_info: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         重写SQL
 
@@ -646,24 +552,14 @@ class SQLAuditorSkill:
         try:
             result = self.intelligent_optimizer.query_rewriter.rewrite(sql, schema_info)
 
-            return create_success_response(
-                data=result,
-                message=f"SQL重写完成，{result['changes_made']}处改进"
-            )
+            return create_success_response(data=result, message=f"SQL重写完成，{result['changes_made']}处改进")
         except Exception as e:
             logger.error(f"SQL重写失败: {e}")
-            return create_error_response(
-                f"重写失败: {str(e)}",
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(f"重写失败: {str(e)}", ErrorCode.UNKNOWN_ERROR)
 
     # ==================== AI上下文构建 ====================
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "sql_audit"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "sql_audit") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -677,8 +573,8 @@ class SQLAuditorSkill:
         from dbskiter.shared.ai_context import AIContextBuilder
 
         builder = AIContextBuilder(
-            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
-            database_name=getattr(self.connector, 'database', ''),
+            dialect=self.connector.dialect if hasattr(self.connector, "dialect") else "unknown",
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -701,11 +597,7 @@ class SQLAuditorSkill:
             "inspection_trace": inspection_trace,
         }
 
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建SQL审核透明度追踪信息
 
@@ -716,13 +608,7 @@ class SQLAuditorSkill:
         返回:
             Dict[str, Any]: 追踪信息
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         if scenario == "sql_audit":
             trace["metrics_checked"] = [
@@ -753,9 +639,7 @@ class SQLAuditorSkill:
             trace["data_sources"] = ["EXPLAIN", "cost_model", "rule_engine", "information_schema"]
 
         else:
-            trace["metrics_checked"] = [
-                {"name": "general_audit", "description": "通用审核指标", "source": "自动检测"}
-            ]
+            trace["metrics_checked"] = [{"name": "general_audit", "description": "通用审核指标", "source": "自动检测"}]
             trace["data_sources"] = ["auto_detection"]
             trace["notes"].append(f"未定义场景 '{scenario}' 的详细追踪，使用通用指标")
 
@@ -777,7 +661,14 @@ class SQLAuditorSkill:
                 if key in data:
                     metrics[key] = data[key]
         elif scenario == "ddl_impact":
-            for key in ["ddl_statement", "affected_tables", "affected_rows", "estimated_duration", "rollback_plan", "risk_assessment"]:
+            for key in [
+                "ddl_statement",
+                "affected_tables",
+                "affected_rows",
+                "estimated_duration",
+                "rollback_plan",
+                "risk_assessment",
+            ]:
                 if key in data:
                     metrics[key] = data[key]
         elif scenario == "file_audit":
@@ -799,18 +690,30 @@ class SQLAuditorSkill:
             # 严重违规
             critical = [v for v in violations if v.get("severity") == "error"]
             if critical:
-                flags["critical_violations"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical)} 个严重违规"}
+                flags["critical_violations"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"发现 {len(critical)} 个严重违规",
+                }
 
             # 警告违规
             warnings = [v for v in violations if v.get("severity") == "warning"]
             if warnings:
-                flags["warning_violations"] = {"flagged": True, "level": "warning", "reason": f"发现 {len(warnings)} 个警告违规"}
+                flags["warning_violations"] = {
+                    "flagged": True,
+                    "level": "warning",
+                    "reason": f"发现 {len(warnings)} 个警告违规",
+                }
 
         # 评分标记
         score = data.get("score", 100)
         if isinstance(score, (int, float)):
             if score < 60:
-                flags["poor_sql_quality"] = {"flagged": True, "level": "critical", "reason": f"SQL质量评分过低: {score}"}
+                flags["poor_sql_quality"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"SQL质量评分过低: {score}",
+                }
             elif score < 80:
                 flags["fair_sql_quality"] = {"flagged": True, "level": "warning", "reason": f"SQL质量评分一般: {score}"}
 
@@ -838,7 +741,7 @@ class SQLAuditorSkill:
     def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """构建AI提示"""
         hints = {"focus_areas": [], "related_commands": []}
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         violations = data.get("violations", [])
         score = data.get("score", 100)
@@ -888,5 +791,3 @@ class SQLAuditorSkill:
             ]
 
         return hints
-
-

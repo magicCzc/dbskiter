@@ -61,6 +61,7 @@ class AIOutput:
         ... )
         >>> output.to_dict()
     """
+
     raw_metrics: Dict[str, Any] = field(default_factory=dict)
     rule_flags: Dict[str, Any] = field(default_factory=dict)
     context: Dict[str, Any] = field(default_factory=dict)
@@ -105,10 +106,9 @@ class AIEnvelope:
         ... )
         >>> envelope.to_dict()
     """
+
     schema_version: str = SCHEMA_VERSION
-    collected_at: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    collected_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     instance_id: str = ""
     data_source: Dict[str, Any] = field(default_factory=dict)
     data: AIOutput = field(default_factory=AIOutput)
@@ -125,11 +125,7 @@ class AIEnvelope:
             "collected_at": self.collected_at,
             "instance_id": self.instance_id,
             "data_source": self.data_source,
-            "data": (
-                self.data.to_dict()
-                if isinstance(self.data, AIOutput)
-                else self.data
-            ),
+            "data": (self.data.to_dict() if isinstance(self.data, AIOutput) else self.data),
         }
 
 
@@ -318,8 +314,7 @@ class AutoContextDetector:
         try:
             # 获取事务统计
             result = self.connector.execute(
-                "SELECT SUM(xact_commit + xact_rollback) AS total_txn "
-                "FROM pg_stat_database"
+                "SELECT SUM(xact_commit + xact_rollback) AS total_txn " "FROM pg_stat_database"
             )
             if not (result and hasattr(result, "rows") and result.rows):
                 return "unknown"
@@ -330,8 +325,7 @@ class AutoContextDetector:
             total_dml = 0
             try:
                 dml_result = self.connector.execute(
-                    "SELECT SUM(n_tup_ins + n_tup_upd + n_tup_del) AS total_dml "
-                    "FROM pg_stat_user_tables"
+                    "SELECT SUM(n_tup_ins + n_tup_upd + n_tup_del) AS total_dml " "FROM pg_stat_user_tables"
                 )
                 if dml_result and hasattr(dml_result, "rows") and dml_result.rows:
                     total_dml = float(dml_result.rows[0][0]) if dml_result.rows[0][0] else 0
@@ -433,10 +427,7 @@ class AutoContextDetector:
         """
         try:
             result = self.connector.execute(
-                "SELECT relname, n_live_tup "
-                "FROM pg_stat_user_tables "
-                "ORDER BY n_live_tup DESC "
-                f"LIMIT {limit}"
+                "SELECT relname, n_live_tup " "FROM pg_stat_user_tables " "ORDER BY n_live_tup DESC " f"LIMIT {limit}"
             )
             if result and hasattr(result, "rows"):
                 return [row[0] for row in result.rows if row[0]]
@@ -465,18 +456,15 @@ class AutoContextDetector:
             Optional[int]: QPS估算值
         """
         try:
-            result = self.connector.execute(
-                "SHOW GLOBAL STATUS WHERE Variable_name = 'Queries'"
-            )
+            result = self.connector.execute("SHOW GLOBAL STATUS WHERE Variable_name = 'Queries'")
             if result and hasattr(result, "rows") and result.rows:
                 q1 = int(result.rows[0][1])
 
                 import time
+
                 time.sleep(1)
 
-                result2 = self.connector.execute(
-                    "SHOW GLOBAL STATUS WHERE Variable_name = 'Queries'"
-                )
+                result2 = self.connector.execute("SHOW GLOBAL STATUS WHERE Variable_name = 'Queries'")
                 if result2 and hasattr(result2, "rows") and result2.rows:
                     q2 = int(result2.rows[0][1])
                     return max(0, q2 - q1)
@@ -492,18 +480,15 @@ class AutoContextDetector:
             Optional[int]: QPS估算值
         """
         try:
-            result = self.connector.execute(
-                "SELECT value FROM v$sysstat WHERE name = 'execute count'"
-            )
+            result = self.connector.execute("SELECT value FROM v$sysstat WHERE name = 'execute count'")
             if result and hasattr(result, "rows") and result.rows:
                 q1 = float(result.rows[0][0])
 
                 import time
+
                 time.sleep(1)
 
-                result2 = self.connector.execute(
-                    "SELECT value FROM v$sysstat WHERE name = 'execute count'"
-                )
+                result2 = self.connector.execute("SELECT value FROM v$sysstat WHERE name = 'execute count'")
                 if result2 and hasattr(result2, "rows") and result2.rows:
                     q2 = float(result2.rows[0][0])
                     return max(0, int(q2 - q1))
@@ -536,8 +521,7 @@ class AutoContextDetector:
         """
         try:
             result = self.connector.execute(
-                "SHOW GLOBAL STATUS WHERE Variable_name IN "
-                "('Threads_connected','Connections','Queries')"
+                "SHOW GLOBAL STATUS WHERE Variable_name IN " "('Threads_connected','Connections','Queries')"
             )
             stats = {}
             if result and hasattr(result, "rows"):
@@ -593,11 +577,7 @@ class AutoContextDetector:
                 return None
 
             usage_pct = round(data_pages / total_pages * 100, 1) if total_pages else 0
-            hit_rate = (
-                round((1 - disk_reads / read_requests) * 100, 1)
-                if read_requests > 0
-                else 100.0
-            )
+            hit_rate = round((1 - disk_reads / read_requests) * 100, 1) if read_requests > 0 else 100.0
 
             return {
                 "usage_percent": usage_pct,
@@ -737,9 +717,7 @@ class AIContextBuilder:
             hints["additional_notes"] = additional_notes
         return hints
 
-    def build_rule_flags(
-        self, flags: Dict[str, Dict[str, Any]]
-    ) -> Dict[str, Any]:
+    def build_rule_flags(self, flags: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         """
         构建规则初筛标记
 
@@ -759,9 +737,7 @@ class AIContextBuilder:
             "flags": flags,
         }
 
-    def build_reference_values(
-        self, references: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def build_reference_values(self, references: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建参考基线
 
@@ -786,9 +762,9 @@ class AIContextBuilder:
         try:
             if hasattr(connector, "execute"):
                 # 获取方言，优先从connector获取，否则使用实例的dialect
-                dialect = getattr(connector, 'dialect', '')
+                dialect = getattr(connector, "dialect", "")
                 if not dialect:
-                    dialect = getattr(self, 'dialect', '')
+                    dialect = getattr(self, "dialect", "")
 
                 # 使用方言管理器获取版本查询SQL
                 dialect_mgr = SQLDialectManager(dialect)
@@ -986,11 +962,7 @@ class AIOutputFormatter:
                 "level": issue.get("level", issue.get("risk_level", "unknown")),
                 "reason": issue.get("reason", issue.get("description", "")),
             }
-        return (
-            {"_disclaimer": "rule_flags are preliminary, verify with full context", "flags": flags}
-            if flags
-            else {}
-        )
+        return {"_disclaimer": "rule_flags are preliminary, verify with full context", "flags": flags} if flags else {}
 
     def _extract_context(
         self,
@@ -1080,28 +1052,25 @@ class AIOutputFormatter:
         quality_notes = []
         if confidence == "low":
             quality_notes.append(
-                "【数据质量警告】本次诊断数据可信度为 LOW，" +
-                "建议谨慎对待分析结论，必要时人工验证。"
+                "【数据质量警告】本次诊断数据可信度为 LOW，" + "建议谨慎对待分析结论，必要时人工验证。"
             )
         elif confidence == "medium":
             quality_notes.append(
-                "【数据质量提示】本次诊断数据可信度为 MEDIUM，" +
-                "部分数据可能不完整，分析结论仅供参考。"
+                "【数据质量提示】本次诊断数据可信度为 MEDIUM，" + "部分数据可能不完整，分析结论仅供参考。"
             )
 
         # 数据来源说明
         if data_sources:
             quality_notes.append(
-                f"【数据来源】本次分析基于以下数据源: {', '.join(data_sources)}。" +
-                "AI 分析时应据此判断结论的适用范围。"
+                f"【数据来源】本次分析基于以下数据源: {', '.join(data_sources)}。"
+                + "AI 分析时应据此判断结论的适用范围。"
             )
 
         # 检查范围说明
         if metrics:
             metric_names = [m.get("name", "") for m in metrics]
             quality_notes.append(
-                f"【检查范围】本次诊断检查了以下指标: {', '.join(metric_names)}。" +
-                "未检查的维度可能存在盲区。"
+                f"【检查范围】本次诊断检查了以下指标: {', '.join(metric_names)}。" + "未检查的维度可能存在盲区。"
             )
 
         # 特定场景备注
@@ -1180,9 +1149,17 @@ class AIOutputFormatter:
             return data
 
         SENSITIVE_KEYS = {
-            "password", "passwd", "pwd", "secret", "token",
-            "api_key", "apikey", "access_key", "private_key",
-            "credential", "auth",
+            "password",
+            "passwd",
+            "pwd",
+            "secret",
+            "token",
+            "api_key",
+            "apikey",
+            "access_key",
+            "private_key",
+            "credential",
+            "auth",
         }
 
         masked = {}
@@ -1192,10 +1169,7 @@ class AIOutputFormatter:
             elif isinstance(value, dict):
                 masked[key] = self._mask_if_needed(value)
             elif isinstance(value, list):
-                masked[key] = [
-                    self._mask_if_needed(item) if isinstance(item, dict) else item
-                    for item in value
-                ]
+                masked[key] = [self._mask_if_needed(item) if isinstance(item, dict) else item for item in value]
             else:
                 masked[key] = value
         return masked

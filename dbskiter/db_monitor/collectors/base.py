@@ -25,68 +25,69 @@ logger = logging.getLogger(__name__)
 
 class MetricType(str, Enum):
     """指标类型枚举"""
+
     # 吞吐量指标
-    QPS = "qps"                              # 每秒查询数
-    TPS = "tps"                              # 每秒事务数
-    COM_SELECT = "com_select"                # SELECT次数
-    COM_INSERT = "com_insert"                # INSERT次数
-    COM_UPDATE = "com_update"                # UPDATE次数
-    COM_DELETE = "com_delete"                # DELETE次数
+    QPS = "qps"  # 每秒查询数
+    TPS = "tps"  # 每秒事务数
+    COM_SELECT = "com_select"  # SELECT次数
+    COM_INSERT = "com_insert"  # INSERT次数
+    COM_UPDATE = "com_update"  # UPDATE次数
+    COM_DELETE = "com_delete"  # DELETE次数
 
     # 连接指标
-    CONNECTIONS_ACTIVE = "connections_active"      # 活跃连接
-    CONNECTIONS_TOTAL = "connections_total"        # 总连接数
-    CONNECTIONS_MAX = "connections_max"            # 最大连接数
-    CONNECTIONS_ABORTED = "connections_aborted"    # 异常断开连接
+    CONNECTIONS_ACTIVE = "connections_active"  # 活跃连接
+    CONNECTIONS_TOTAL = "connections_total"  # 总连接数
+    CONNECTIONS_MAX = "connections_max"  # 最大连接数
+    CONNECTIONS_ABORTED = "connections_aborted"  # 异常断开连接
 
     # 查询性能指标
-    SLOW_QUERIES = "slow_queries"            # 慢查询数
-    QUERY_TIME_AVG = "query_time_avg"        # 平均查询时间
-    QUERY_TIME_MAX = "query_time_max"        # 最大查询时间
-    FULL_SCAN_COUNT = "full_scan_count"      # 全表扫描次数
+    SLOW_QUERIES = "slow_queries"  # 慢查询数
+    QUERY_TIME_AVG = "query_time_avg"  # 平均查询时间
+    QUERY_TIME_MAX = "query_time_max"  # 最大查询时间
+    FULL_SCAN_COUNT = "full_scan_count"  # 全表扫描次数
 
     # 锁指标
-    LOCK_WAITS = "lock_waits"                # 锁等待次数
-    LOCK_WAIT_TIME = "lock_wait_time"        # 锁等待时间
-    DEADLOCKS = "deadlocks"                  # 死锁次数
-    ROW_LOCK_WAITS = "row_lock_waits"        # 行锁等待
+    LOCK_WAITS = "lock_waits"  # 锁等待次数
+    LOCK_WAIT_TIME = "lock_wait_time"  # 锁等待时间
+    DEADLOCKS = "deadlocks"  # 死锁次数
+    ROW_LOCK_WAITS = "row_lock_waits"  # 行锁等待
 
     # 缓冲/缓存指标
-    BUFFER_HIT_RATIO = "buffer_hit_ratio"          # 缓冲命中率
-    BUFFER_POOL_USAGE = "buffer_pool_usage"        # 缓冲池使用率
-    CACHE_HIT_RATIO = "cache_hit_ratio"            # 缓存命中率
-    SHARED_BUFFER_USAGE = "shared_buffer_usage"    # 共享缓冲区使用率
+    BUFFER_HIT_RATIO = "buffer_hit_ratio"  # 缓冲命中率
+    BUFFER_POOL_USAGE = "buffer_pool_usage"  # 缓冲池使用率
+    CACHE_HIT_RATIO = "cache_hit_ratio"  # 缓存命中率
+    SHARED_BUFFER_USAGE = "shared_buffer_usage"  # 共享缓冲区使用率
 
     # IO指标
-    ROWS_READ = "rows_read"                  # 读取行数
-    ROWS_CHANGED = "rows_changed"            # 修改行数
-    PHYSICAL_READS = "physical_reads"        # 物理读
-    LOGICAL_READS = "logical_reads"          # 逻辑读
-    DISK_IO_READ = "disk_io_read"            # 磁盘读IO
-    DISK_IO_WRITE = "disk_io_write"          # 磁盘写IO
-    DISK_IO_WAIT = "disk_io_wait"            # 磁盘IO等待
+    ROWS_READ = "rows_read"  # 读取行数
+    ROWS_CHANGED = "rows_changed"  # 修改行数
+    PHYSICAL_READS = "physical_reads"  # 物理读
+    LOGICAL_READS = "logical_reads"  # 逻辑读
+    DISK_IO_READ = "disk_io_read"  # 磁盘读IO
+    DISK_IO_WRITE = "disk_io_write"  # 磁盘写IO
+    DISK_IO_WAIT = "disk_io_wait"  # 磁盘IO等待
 
     # 资源指标
-    CPU_USAGE = "cpu_usage"                  # CPU使用率
-    MEMORY_USAGE = "memory_usage"            # 内存使用率
-    DISK_USAGE = "disk_usage"                # 磁盘使用率
-    TEMP_SPACE_USAGE = "temp_space_usage"    # 临时空间使用率
+    CPU_USAGE = "cpu_usage"  # CPU使用率
+    MEMORY_USAGE = "memory_usage"  # 内存使用率
+    DISK_USAGE = "disk_usage"  # 磁盘使用率
+    TEMP_SPACE_USAGE = "temp_space_usage"  # 临时空间使用率
 
     # 复制/同步指标
-    REPLICATION_LAG = "replication_lag"      # 复制延迟
-    REPLICATION_IO = "replication_io"        # IO线程状态
-    REPLICATION_SQL = "replication_sql"      # SQL线程状态
+    REPLICATION_LAG = "replication_lag"  # 复制延迟
+    REPLICATION_IO = "replication_io"  # IO线程状态
+    REPLICATION_SQL = "replication_sql"  # SQL线程状态
 
     # 临时表指标
-    TEMP_TABLES_DISK = "temp_tables_disk"    # 磁盘临时表
+    TEMP_TABLES_DISK = "temp_tables_disk"  # 磁盘临时表
     TEMP_TABLES_MEMORY = "temp_tables_memory"  # 内存临时表
 
     # 表缓存指标
-    TABLE_OPEN_CACHE = "table_open_cache"    # 表缓存使用率
+    TABLE_OPEN_CACHE = "table_open_cache"  # 表缓存使用率
     TABLE_DEFINITIONS_CACHE = "table_definitions_cache"  # 表定义缓存
 
     # 事务指标
-    TRANSACTIONS_ACTIVE = "transactions_active"    # 活跃事务
+    TRANSACTIONS_ACTIVE = "transactions_active"  # 活跃事务
     TRANSACTIONS_COMMITTED = "transactions_committed"  # 提交事务数
     TRANSACTIONS_ROLLED_BACK = "transactions_rolled_back"  # 回滚事务数
 
@@ -94,6 +95,7 @@ class MetricType(str, Enum):
 @dataclass
 class MetricPoint:
     """指标数据点"""
+
     timestamp: datetime
     metric_type: MetricType
     value: float
@@ -109,13 +111,14 @@ class MetricPoint:
             "value": self.value,
             "unit": self.unit,
             "tags": self.tags,
-            "source": self.source
+            "source": self.source,
         }
 
 
 @dataclass
 class MetricQuery:
     """指标查询定义"""
+
     sql: str
     extract: callable
     unit: str = ""
@@ -206,9 +209,7 @@ class BaseMetricsCollector(ABC):
 
         for metric_type, query_def in queries.items():
             try:
-                metric = self._collect_single_metric(
-                    metric_type, query_def, timestamp
-                )
+                metric = self._collect_single_metric(metric_type, query_def, timestamp)
                 if metric:
                     metrics.append(metric)
             except ConnectionError as e:
@@ -243,9 +244,7 @@ class BaseMetricsCollector(ABC):
             return None
 
         try:
-            return self._collect_single_metric(
-                metric_type, query_def, datetime.now()
-            )
+            return self._collect_single_metric(metric_type, query_def, datetime.now())
         except ConnectionError as e:
             logger.warning(f"采集指标 {metric_type.value} 时连接失败: {e}")
             return None
@@ -257,10 +256,7 @@ class BaseMetricsCollector(ABC):
             return None
 
     def _collect_single_metric(
-        self,
-        metric_type: MetricType,
-        query_def: MetricQuery,
-        timestamp: datetime
+        self, metric_type: MetricType, query_def: MetricQuery, timestamp: datetime
     ) -> Optional[MetricPoint]:
         """
         采集单个指标的内部方法
@@ -277,19 +273,10 @@ class BaseMetricsCollector(ABC):
         value = query_def.extract(result.rows if result else [])
 
         return MetricPoint(
-            timestamp=timestamp,
-            metric_type=metric_type,
-            value=value,
-            unit=query_def.unit,
-            source="direct"
+            timestamp=timestamp, metric_type=metric_type, value=value, unit=query_def.unit, source="direct"
         )
 
-    def _safe_extract_float(
-        self,
-        rows: List[tuple],
-        default: float = 0.0,
-        index: int = 0
-    ) -> float:
+    def _safe_extract_float(self, rows: List[tuple], default: float = 0.0, index: int = 0) -> float:
         """
         安全地从查询结果中提取浮点数
 
@@ -308,12 +295,7 @@ class BaseMetricsCollector(ABC):
             pass
         return default
 
-    def _safe_extract_int(
-        self,
-        rows: List[tuple],
-        default: int = 0,
-        index: int = 0
-    ) -> int:
+    def _safe_extract_int(self, rows: List[tuple], default: int = 0, index: int = 0) -> int:
         """
         安全地从查询结果中提取整数
 

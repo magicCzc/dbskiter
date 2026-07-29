@@ -40,6 +40,7 @@ class HistoryEntry:
         status_code: 退出码（0=成功）
         execution_time_ms: 执行耗时（毫秒）
     """
+
     timestamp: str
     command: str
     action: str
@@ -215,7 +216,7 @@ class HistoryManager:
 
             if len(lines) > self.max_entries:
                 # 保留最新的 max_entries 条
-                keep_lines = lines[-self.max_entries:]
+                keep_lines = lines[-self.max_entries :]
                 with open(self.history_file, "w", encoding="utf-8") as f:
                     f.writelines(keep_lines)
         except OSError:
@@ -292,8 +293,7 @@ class HistoryManager:
                         entry = HistoryEntry.from_dict(data)
                         # 在 command / action / database / CLI 字符串中搜索
                         haystack = (
-                            f"{entry.command} {entry.action} "
-                            f"{entry.database} {entry.to_cli_string()}"
+                            f"{entry.command} {entry.action} " f"{entry.database} {entry.to_cli_string()}"
                         ).lower()
                         if keyword_lower in haystack:
                             entries.append(entry)

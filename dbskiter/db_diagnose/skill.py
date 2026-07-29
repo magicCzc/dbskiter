@@ -77,7 +77,6 @@ from dbskiter.db_diagnose.mixins import (
     PerformanceMixin,
 )
 
-
 logger = logging.getLogger(__name__)
 
 
@@ -114,11 +113,7 @@ class DiagnoseSkill(
         - SQLite
     """
 
-    def __init__(
-        self,
-        connector: UnifiedConnector,
-        config: Optional[DiagnoseConfig] = None
-    ):
+    def __init__(self, connector: UnifiedConnector, config: Optional[DiagnoseConfig] = None):
         """
         初始化诊断 Skill
 
@@ -150,7 +145,7 @@ class DiagnoseSkill(
 
         # 检测连接器类型
         connector_type = detect_connector_type(self.dialect)
-        self._is_jdbc = (connector_type == "jdbc")
+        self._is_jdbc = connector_type == "jdbc"
         self._is_unified = True
 
         logger.info(f"DiagnoseSkill 初始化完成 (dialect={self.dialect})")
@@ -159,10 +154,7 @@ class DiagnoseSkill(
 
     @validate_params(sql=Validator.not_empty_string)
     def analyze_sql(
-        self,
-        sql: str,
-        params: Optional[Dict[str, Any]] = None,
-        context: Optional[Dict[str, Any]] = None
+        self, sql: str, params: Optional[Dict[str, Any]] = None, context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """深度分析SQL语句"""
         try:
@@ -170,29 +162,13 @@ class DiagnoseSkill(
             return create_success_response(result, "SQL分析完成")
         except Exception as e:
             logger.error(f"SQL分析失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.ANALYSIS_FAILED,
-                {"sql": sql}
-            )
+            return create_error_response(str(e), ErrorCode.ANALYSIS_FAILED, {"sql": sql})
 
-    def analyze_sql_batch(
-        self,
-        sqls: List[str],
-        show_progress: bool = False
-    ) -> List[Dict[str, Any]]:
+    def analyze_sql_batch(self, sqls: List[str], show_progress: bool = False) -> List[Dict[str, Any]]:
         """批量分析SQL语句"""
-        return self._batch_analyzer.analyze_serial(
-            sqls,
-            self._sql_analyzer.analyze,
-            show_progress=show_progress
-        )
+        return self._batch_analyzer.analyze_serial(sqls, self._sql_analyzer.analyze, show_progress=show_progress)
 
-    def get_index_suggestions(
-        self,
-        sql: str,
-        min_priority: str = "medium"
-    ) -> List[Dict[str, Any]]:
+    def get_index_suggestions(self, sql: str, min_priority: str = "medium") -> List[Dict[str, Any]]:
         """获取索引建议"""
         return self._sql_analyzer.get_index_suggestions(sql, min_priority)
 
@@ -203,34 +179,22 @@ class DiagnoseSkill(
     # ==================== 多数据库诊断功能 ====================
 
     def diagnose_table(
-        self,
-        table_name: str,
-        include_indexes: bool = True,
-        include_statistics: bool = True
+        self, table_name: str, include_indexes: bool = True, include_statistics: bool = True
     ) -> Dict[str, Any]:
         """诊断单表健康状况"""
         try:
             # table_analyzer.analyze 已经返回标准响应格式，直接返回
             return self._table_analyzer.analyze(
-                table_name=table_name,
-                include_indexes=include_indexes,
-                include_statistics=include_statistics
+                table_name=table_name, include_indexes=include_indexes, include_statistics=include_statistics
             )
         except Exception as e:
             logger.error(f"表诊断失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.TABLE_DIAGNOSE_FAILED,
-                {"table_name": table_name}
-            )
+            return create_error_response(str(e), ErrorCode.TABLE_DIAGNOSE_FAILED, {"table_name": table_name})
 
     # ==================== 报告生成 ====================
 
     def generate_report(
-        self,
-        sqls: List[str],
-        report_title: str = "SQL诊断报告",
-        report_format: str = "json"
+        self, sqls: List[str], report_title: str = "SQL诊断报告", report_format: str = "json"
     ) -> Dict[str, Any]:
         """
         生成诊断报告
@@ -252,28 +216,20 @@ class DiagnoseSkill(
                     analyses.append(analysis_result.get("data", {}))
 
             # 2. 生成报告
-            report_content = self._report_generator.generate(
-                analyses=analyses,
-                report_format=report_format
-            )
+            report_content = self._report_generator.generate(analyses=analyses, report_format=report_format)
 
             # 3. 如果是JSON格式，解析为字典
             if report_format == "json":
                 import json
+
                 report_data = json.loads(report_content)
             else:
                 report_data = {"content": report_content}
 
-            return create_success_response(
-                data=report_data,
-                message=f"诊断报告生成完成，分析了 {len(analyses)} 条SQL"
-            )
+            return create_success_response(data=report_data, message=f"诊断报告生成完成，分析了 {len(analyses)} 条SQL")
         except Exception as e:
             logger.error(f"生成诊断报告失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
     # ==================== SQL重写 ====================
 
@@ -284,10 +240,7 @@ class DiagnoseSkill(
             return create_success_response(result, "SQL重写完成")
         except Exception as e:
             logger.error(f"SQL重写失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.ANALYSIS_FAILED
-            )
+            return create_error_response(str(e), ErrorCode.ANALYSIS_FAILED)
 
     def analyze_sql_quality(self, sql: str) -> Dict[str, Any]:
         """分析SQL质量"""
@@ -296,10 +249,7 @@ class DiagnoseSkill(
             return create_success_response(result, "SQL质量分析完成")
         except Exception as e:
             logger.error(f"SQL质量分析失败: {e}")
-            return create_error_response(
-                str(e),
-                ErrorCode.ANALYSIS_FAILED
-            )
+            return create_error_response(str(e), ErrorCode.ANALYSIS_FAILED)
 
     # ==================== 工具方法 ====================
 
@@ -317,7 +267,7 @@ class DiagnoseSkill(
             "tables": self.query_extractor.extract_tables(sql),
             "columns": self.query_extractor.extract_columns(sql),
             "conditions": self.query_extractor.extract_where_conditions(sql),
-            "fingerprint": self.fingerprinter.generate(sql)
+            "fingerprint": self.fingerprinter.generate(sql),
         }
 
     # ==================== AI上下文构建 ====================
@@ -341,24 +291,24 @@ class DiagnoseSkill(
         try:
             # 1. 获取连接信息
             conn_result = self.get_realtime_connections()
-            conn_data = conn_result.get('data', {}) if conn_result.get('success') else {}
+            conn_data = conn_result.get("data", {}) if conn_result.get("success") else {}
 
             # 2. 获取锁等待信息
             lock_result = self.get_lock_waits()
-            lock_data = lock_result.get('data', {}) if lock_result.get('success') else {}
+            lock_data = lock_result.get("data", {}) if lock_result.get("success") else {}
 
             # 3. 获取TOP SQL
             top_sql_result = self.get_top_sql(limit=5, threshold=threshold)
-            top_sql_data = top_sql_result.get('data', {}) if top_sql_result.get('success') else {}
+            top_sql_data = top_sql_result.get("data", {}) if top_sql_result.get("success") else {}
 
             # 4. 分析并生成建议
             suggestions = []
             issues = []
 
             # 分析连接数
-            total_conn = conn_data.get('total', 0)
-            active_conn = conn_data.get('active', 0)
-            slow_count = conn_data.get('slow_count', 0)
+            total_conn = conn_data.get("total", 0)
+            active_conn = conn_data.get("active", 0)
+            slow_count = conn_data.get("slow_count", 0)
 
             if total_conn > 100:
                 issues.append(f"连接数过多: {total_conn}")
@@ -369,13 +319,13 @@ class DiagnoseSkill(
                 suggestions.append("检查是否有长事务或慢查询占用连接")
 
             # 分析锁等待
-            lock_waits = lock_data.get('lock_waits', [])
+            lock_waits = lock_data.get("lock_waits", [])
             if lock_waits:
                 issues.append(f"存在锁等待: {len(lock_waits)}个")
                 suggestions.append("检查锁等待链，考虑优化事务或添加索引")
 
             # 分析慢查询
-            queries = top_sql_data.get('queries', [])
+            queries = top_sql_data.get("queries", [])
             if queries:
                 issues.append(f"发现慢查询: {len(queries)}个（>{threshold}秒）")
                 suggestions.append("执行 'diagnose slow-queries' 查看详细慢查询信息")
@@ -393,8 +343,8 @@ class DiagnoseSkill(
                     "top_sql": top_sql_data,
                     "issues": issues,
                     "suggestions": suggestions,
-                    "threshold": threshold
-                }
+                    "threshold": threshold,
+                },
             )
 
         except Exception as e:
@@ -413,16 +363,12 @@ class DiagnoseSkill(
                 result = self._diagnostician.get_realtime_connections()
                 return self._convert_diagnostician_result(result)
             else:
-                return create_error_response(
-                    f"实时连接分析暂不支持 {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
-                )
+                return create_error_response(f"实时连接分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
         except Exception as e:
             logger.error(f"获取实时连接失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
 
-    def get_top_sql(self, limit: int = 10, threshold: int = 0,
-                    order_by: str = "time") -> Dict[str, Any]:
+    def get_top_sql(self, limit: int = 10, threshold: int = 0, order_by: str = "time") -> Dict[str, Any]:
         """
         获取TOP SQL（已接入多步骤计时）
 
@@ -435,6 +381,7 @@ class DiagnoseSkill(
             Dict: TOP SQL列表，包含 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         try:
@@ -443,10 +390,7 @@ class DiagnoseSkill(
                     result = self._diagnostician.get_top_sql(limit, threshold)
                     result = self._convert_diagnostician_result(result)
                 else:
-                    result = create_error_response(
-                        f"TOP SQL分析暂不支持 {self.dialect}",
-                        ErrorCode.UNSUPPORTED_SQL
-                    )
+                    result = create_error_response(f"TOP SQL分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
 
             with timer.step("format_result", "转换并封装结果"):
                 if isinstance(result, dict) and "_execution_time" not in result:
@@ -478,14 +422,14 @@ class DiagnoseSkill(
 
         # 清理后检查是否只包含合法字符
         # 支持schema.table格式和Oracle的$符号
-        cleaned = table.replace('.', '').replace('_', '').replace('-', '').replace('$', '')
+        cleaned = table.replace(".", "").replace("_", "").replace("-", "").replace("$", "")
         if not cleaned.isalnum():
             return False
 
         # 检查点号使用是否合法
-        if '..' in table:
+        if ".." in table:
             return False
-        if table.startswith('.') or table.endswith('.'):
+        if table.startswith(".") or table.endswith("."):
             return False
 
         return True
@@ -502,20 +446,16 @@ class DiagnoseSkill(
             Dict: VACUUM状态分析结果
         """
         try:
-            if 'postgresql' not in self.dialect:
+            if "postgresql" not in self.dialect:
                 return create_error_response(
-                    f"VACUUM分析仅支持PostgreSQL，当前数据库: {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
+                    f"VACUUM分析仅支持PostgreSQL，当前数据库: {self.dialect}", ErrorCode.UNSUPPORTED_SQL
                 )
 
             if self._diagnostician:
                 result = self._diagnostician.analyze_vacuum_status()
                 return self._convert_diagnostician_result(result)
             else:
-                return create_error_response(
-                    "VACUUM分析需要PostgreSQL诊断器",
-                    ErrorCode.UNKNOWN_ERROR
-                )
+                return create_error_response("VACUUM分析需要PostgreSQL诊断器", ErrorCode.UNKNOWN_ERROR)
         except Exception as e:
             logger.error(f"VACUUM分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
@@ -542,26 +482,23 @@ class DiagnoseSkill(
         """
         try:
             if self._diagnostician:
-                if 'postgresql' in self.dialect:
+                if "postgresql" in self.dialect:
                     result = self._diagnostician.analyze_table_bloat(threshold=threshold)
                     db_label = "PostgreSQL"
-                elif 'mysql' in self.dialect:
+                elif "mysql" in self.dialect:
                     result = self._diagnostician.analyze_table_fragmentation()
                     db_label = "MySQL"
-                elif 'oracle' in self.dialect:
+                elif "oracle" in self.dialect:
                     result = self._diagnostician.analyze_tablespace_fragmentation()
                     db_label = "Oracle"
-                elif 'clickhouse' in self.dialect:
+                elif "clickhouse" in self.dialect:
                     result = self._diagnostician.analyze_partitions()
                     db_label = "ClickHouse"
-                elif 'sqlite' in self.dialect:
+                elif "sqlite" in self.dialect:
                     result = self._diagnostician.analyze_fragmentation()
                     db_label = "SQLite"
                 else:
-                    return create_error_response(
-                        f"膨胀/碎片分析暂不支持 {self.dialect}",
-                        ErrorCode.UNSUPPORTED_SQL
-                    )
+                    return create_error_response(f"膨胀/碎片分析暂不支持 {self.dialect}", ErrorCode.UNSUPPORTED_SQL)
 
                 standardized = self._convert_diagnostician_result(result)
 
@@ -590,16 +527,12 @@ class DiagnoseSkill(
                     # 统一 severely_bloated_count
                     if "severely_bloated_count" not in data:
                         data["severely_bloated_count"] = sum(
-                            1 for t in data.get("bloated_tables", [])
-                            if t.get("priority") == "high"
+                            1 for t in data.get("bloated_tables", []) if t.get("priority") == "high"
                         )
 
                 return standardized
             else:
-                return create_error_response(
-                    "膨胀/碎片分析需要诊断器",
-                    ErrorCode.UNKNOWN_ERROR
-                )
+                return create_error_response("膨胀/碎片分析需要诊断器", ErrorCode.UNKNOWN_ERROR)
         except Exception as e:
             logger.error(f"膨胀/碎片分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
@@ -620,15 +553,12 @@ class DiagnoseSkill(
 
                 # 添加数据库类型标签
                 if standardized.get("success") and standardized.get("data"):
-                    db_label = self.dialect.split('+')[0].title()
+                    db_label = self.dialect.split("+")[0].title()
                     standardized["data"]["db_type"] = db_label
 
                 return standardized
             else:
-                return create_error_response(
-                    "索引使用分析需要诊断器",
-                    ErrorCode.UNKNOWN_ERROR
-                )
+                return create_error_response("索引使用分析需要诊断器", ErrorCode.UNKNOWN_ERROR)
         except Exception as e:
             logger.error(f"索引使用分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
@@ -643,21 +573,16 @@ class DiagnoseSkill(
             Dict: 表空间碎片分析结果
         """
         try:
-            if 'oracle' not in self.dialect:
+            if "oracle" not in self.dialect:
                 return create_error_response(
-                    f"表空间碎片分析仅支持Oracle，当前数据库: {self.dialect}",
-                    ErrorCode.UNSUPPORTED_SQL
+                    f"表空间碎片分析仅支持Oracle，当前数据库: {self.dialect}", ErrorCode.UNSUPPORTED_SQL
                 )
 
             if self._diagnostician:
                 result = self._diagnostician.analyze_tablespace_fragmentation()
                 return self._convert_diagnostician_result(result)
             else:
-                return create_error_response(
-                    "表空间碎片分析需要Oracle诊断器",
-                    ErrorCode.UNKNOWN_ERROR
-                )
+                return create_error_response("表空间碎片分析需要Oracle诊断器", ErrorCode.UNKNOWN_ERROR)
         except Exception as e:
             logger.error(f"表空间碎片分析失败: {e}")
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
-

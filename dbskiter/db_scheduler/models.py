@@ -26,10 +26,10 @@ from datetime import datetime
 from enum import Enum
 from dataclasses import dataclass, field
 
-
 # =============================================================================
 # 错误码体系
 # =============================================================================
+
 
 class ErrorCode:
     """
@@ -90,30 +90,25 @@ class ErrorMessage:
         ErrorCode.INVALID_PARAM: "参数无效",
         ErrorCode.NOT_FOUND: "资源不存在",
         ErrorCode.ALREADY_EXISTS: "资源已存在",
-
         ErrorCode.BACKUP_FAILED: "备份失败",
         ErrorCode.BACKUP_TIMEOUT: "备份超时",
         ErrorCode.BACKUP_CIRCUIT_OPEN: "熔断器已打开，暂时无法执行备份",
         ErrorCode.BACKUP_INVALID_TYPE: "无效的备份类型",
         ErrorCode.BACKUP_STORAGE_FULL: "存储空间不足",
         ErrorCode.BACKUP_FILE_CORRUPTED: "备份文件已损坏",
-
         ErrorCode.TASK_SCHEDULE_INVALID: "无效的任务调度表达式",
         ErrorCode.TASK_EXECUTION_FAILED: "任务执行失败",
         ErrorCode.TASK_TIMEOUT: "任务执行超时",
         ErrorCode.TASK_CANCELLED: "任务已取消",
         ErrorCode.TASK_RETRY_EXHAUSTED: "任务重试次数已耗尽",
         ErrorCode.TASK_DLQ_FULL: "死信队列已满",
-
         ErrorCode.WORKFLOW_INVALID: "无效的工作流",
         ErrorCode.WORKFLOW_EXECUTION_FAILED: "工作流执行失败",
         ErrorCode.WORKFLOW_CYCLE_DETECTED: "工作流中存在循环依赖",
         ErrorCode.WORKFLOW_NODE_FAILED: "工作流节点执行失败",
-
         ErrorCode.DB_CONNECTION_FAILED: "数据库连接失败",
         ErrorCode.DB_QUERY_FAILED: "数据库查询失败",
         ErrorCode.DB_LOCK_TIMEOUT: "数据库锁超时",
-
         ErrorCode.NOTIFICATION_FAILED: "通知发送失败",
         ErrorCode.WEBHOOK_INVALID: "无效的Webhook地址",
         ErrorCode.EMAIL_SEND_FAILED: "邮件发送失败",
@@ -129,8 +124,10 @@ class ErrorMessage:
 # 枚举定义
 # =============================================================================
 
+
 class TaskType(str, Enum):
     """任务类型"""
+
     BACKUP = "backup"
     BACKUP_INCREMENTAL = "backup_incremental"
     VACUUM = "vacuum"
@@ -142,6 +139,7 @@ class TaskType(str, Enum):
 
 class TaskStatus(str, Enum):
     """任务状态"""
+
     PENDING = "pending"
     QUEUED = "queued"
     RUNNING = "running"
@@ -153,6 +151,7 @@ class TaskStatus(str, Enum):
 
 class TaskPriority(int, Enum):
     """任务优先级（数值越小优先级越高）"""
+
     CRITICAL = 1
     HIGH = 2
     MEDIUM = 3
@@ -161,6 +160,7 @@ class TaskPriority(int, Enum):
 
 class WorkflowStatus(str, Enum):
     """工作流状态"""
+
     PENDING = "pending"
     RUNNING = "running"
     PAUSED = "paused"
@@ -172,6 +172,7 @@ class WorkflowStatus(str, Enum):
 # =============================================================================
 # 数据类定义
 # =============================================================================
+
 
 @dataclass
 class BackupResult:
@@ -187,6 +188,7 @@ class BackupResult:
         backup_type: 备份类型（"full"/"incremental"/"table"）
         error: 错误信息（成功时为 None）
     """
+
     success: bool
     backup_id: str
     file_path: str
@@ -205,7 +207,7 @@ class BackupResult:
             "duration_ms": self.duration_ms,
             "tables": self.tables,
             "backup_type": self.backup_type,
-            "error": self.error
+            "error": self.error,
         }
 
 
@@ -227,6 +229,7 @@ class ScheduledTask:
         max_retries: 最大重试次数
         priority: 任务优先级
     """
+
     task_id: str
     name: str
     task_type: TaskType
@@ -259,7 +262,7 @@ class ScheduledTask:
             "priority": self.priority.value,
             "timeout": self.timeout,
             "created_at": self.created_at.isoformat(),
-            "updated_at": self.updated_at.isoformat()
+            "updated_at": self.updated_at.isoformat(),
         }
 
 
@@ -278,6 +281,7 @@ class TaskResult:
         error_code: 错误码（成功时为 ``ErrorCode.SUCCESS``）
         retry_count: 已重试次数
     """
+
     task_id: str
     task_name: str
     status: TaskStatus
@@ -304,7 +308,7 @@ class TaskResult:
             "error": self.error,
             "error_code": self.error_code,
             "error_message": ErrorMessage.get_message(self.error_code),
-            "retry_count": self.retry_count
+            "retry_count": self.retry_count,
         }
 
 
@@ -321,6 +325,7 @@ class TaskNode:
         timeout: 超时时间（秒）
         retry_count: 重试次数
     """
+
     task_id: str
     task_type: TaskType
     params: Dict[str, Any] = field(default_factory=dict)
@@ -341,7 +346,7 @@ class TaskNode:
             "depends_on": list(self.depends_on),
             "priority": self.priority.value,
             "timeout": self.timeout,
-            "retry_count": self.retry_count
+            "retry_count": self.retry_count,
         }
 
 
@@ -359,6 +364,7 @@ class TaskGraph:
         completed_at: 完成时间
         results: 各任务的执行结果
     """
+
     workflow_id: str
     description: str = ""
     tasks: Dict[str, TaskNode] = field(default_factory=dict)
@@ -419,7 +425,7 @@ class TaskGraph:
             "created_at": self.created_at.isoformat(),
             "started_at": self.started_at.isoformat() if self.started_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
-            "results": self.results
+            "results": self.results,
         }
 
 
@@ -433,6 +439,7 @@ class PrioritizedTask:
         task_id: 任务 ID
         task: 关联的 ScheduledTask
     """
+
     priority: int
     scheduled_time: datetime
     task_id: str

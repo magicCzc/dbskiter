@@ -35,44 +35,25 @@ class SQLExecutor:
         username: str = "",
         password: str = "",
         database: str = "",
-        **kwargs
+        **kwargs,
     ) -> "SQLExecutor":
         """建立数据库连接（统一使用 UnifiedConnector）"""
         self._connector = UnifiedConnector(
-            dialect=dialect,
-            host=host,
-            port=port,
-            username=username,
-            password=password,
-            database=database,
-            **kwargs
+            dialect=dialect, host=host, port=port, username=username, password=password, database=database, **kwargs
         )
         return self
 
     def connect_sqlite(self, db_path: str = ":memory:") -> "SQLExecutor":
         """快速连接 SQLite"""
-        self._connector = UnifiedConnector(
-            dialect="sqlite",
-            database=db_path
-        )
+        self._connector = UnifiedConnector(dialect="sqlite", database=db_path)
         return self
 
     def connect_mysql(
-        self,
-        host: str = "localhost",
-        port: int = 3306,
-        username: str = "root",
-        password: str = "",
-        database: str = ""
+        self, host: str = "localhost", port: int = 3306, username: str = "root", password: str = "", database: str = ""
     ) -> "SQLExecutor":
         """快速连接 MySQL"""
         self._connector = UnifiedConnector(
-            dialect="mysql+pymysql",
-            host=host,
-            port=port,
-            username=username,
-            password=password,
-            database=database
+            dialect="mysql+pymysql", host=host, port=port, username=username, password=password, database=database
         )
         return self
 

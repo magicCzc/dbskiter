@@ -37,20 +37,23 @@ except ImportError:
     sqlite3 = None
 
 from dbskiter.shared.unified_connector import UnifiedConnector
-from dbskiter.shared.error_handler import (
-    create_error_response, create_success_response, handle_exception
-)
+from dbskiter.shared.error_handler import create_error_response, create_success_response, handle_exception
 from dbskiter.shared.validators import validate_params, Validator
 
 # 导入子模块
 from .models import (
-    ErrorCode, TaskType, TaskStatus, TaskPriority, WorkflowStatus,
-    BackupResult, ScheduledTask, TaskResult, TaskNode, TaskGraph
+    ErrorCode,
+    TaskType,
+    TaskStatus,
+    TaskPriority,
+    WorkflowStatus,
+    BackupResult,
+    ScheduledTask,
+    TaskResult,
+    TaskNode,
+    TaskGraph,
 )
-from .utils import (
-    TimeoutExecutor, CircuitBreaker, CronParser,
-    NotificationManager, DeadLetterQueueManager
-)
+from .utils import TimeoutExecutor, CircuitBreaker, CronParser, NotificationManager, DeadLetterQueueManager
 from .backup import BackupManager
 from .task_executors import ExecutorFactory
 
@@ -78,7 +81,7 @@ class SchedulerSkill:
         connector: UnifiedConnector,
         backup_dir: str = "./backups",
         storage_path: str = "./runtime_data/scheduler/scheduler.db",
-        max_workers: int = 4
+        max_workers: int = 4,
     ):
         """
         初始化调度 Skill
@@ -187,7 +190,7 @@ class SchedulerSkill:
                         priority=TaskPriority(row[10]) if row[10] else TaskPriority.MEDIUM,
                         timeout=row[11] or 3600,
                         created_at=datetime.fromisoformat(row[12]) if row[12] else datetime.now(),
-                        updated_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now()
+                        updated_at=datetime.fromisoformat(row[13]) if row[13] else datetime.now(),
                     )
                     # 如果 next_run 已过期, 重新计算
                     if task.next_run is None or task.next_run <= now:
@@ -216,7 +219,7 @@ class SchedulerSkill:
                         created_at=datetime.fromisoformat(row[4]) if row[4] else datetime.now(),
                         started_at=datetime.fromisoformat(row[5]) if row[5] else None,
                         completed_at=datetime.fromisoformat(row[6]) if row[6] else None,
-                        results=json.loads(row[7]) if row[7] else {}
+                        results=json.loads(row[7]) if row[7] else {},
                     )
                     # 解析任务节点
                     if row[2]:
@@ -229,7 +232,7 @@ class SchedulerSkill:
                                 depends_on=set(task_data.get("depends_on", [])),
                                 priority=TaskPriority(task_data.get("priority", 3)),
                                 timeout=task_data.get("timeout", 3600),
-                                retry_count=task_data.get("retry_count", 3)
+                                retry_count=task_data.get("retry_count", 3),
                             )
                             workflow.add_task(node)
                     self._workflows[row[0]] = workflow
@@ -257,8 +260,8 @@ class SchedulerSkill:
                         workflow.created_at.isoformat() if workflow.created_at else None,
                         workflow.started_at.isoformat() if workflow.started_at else None,
                         workflow.completed_at.isoformat() if workflow.completed_at else None,
-                        json.dumps(workflow.results) if workflow.results else "{}"
-                    )
+                        json.dumps(workflow.results) if workflow.results else "{}",
+                    ),
                 )
                 conn.commit()
         except Exception as e:
@@ -289,64 +292,55 @@ class SchedulerSkill:
             Dict: 备份结果，包含 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         if not self.circuit_breaker.can_execute():
             return create_error_response(
-                ErrorMessage.get_message(ErrorCode.BACKUP_CIRCUIT_OPEN),
-                code=ErrorCode.BACKUP_CIRCUIT_OPEN
+                ErrorMessage.get_message(ErrorCode.BACKUP_CIRCUIT_OPEN), code=ErrorCode.BACKUP_CIRCUIT_OPEN
             )
 
         try:
             if backup_type == "incremental":
                 with timer.step("backup_incremental", "执行增量备份"):
-                    result = self.backup_manager.backup_incremental(
-                        tables, output_dir=output_dir
-                    )
+                    result = self.backup_manager.backup_incremental(tables, output_dir=output_dir)
             elif backup_type == "table" and tables:
                 with timer.step("backup_tables", "执行多表备份"):
-                    results = self.backup_manager.backup_tables(
-                        tables, output_dir=output_dir
-                    )
+                    results = self.backup_manager.backup_tables(tables, output_dir=output_dir)
                 # 多表备份返回列表, 汇总结果
                 all_success = all(r.success for r in results)
                 if all_success:
                     self.circuit_breaker.record_success()
-                    response = create_success_response({
-                        "results": [r.to_dict() for r in results],
-                        "total": len(results),
-                        "success_count": sum(1 for r in results if r.success),
-                    })
+                    response = create_success_response(
+                        {
+                            "results": [r.to_dict() for r in results],
+                            "total": len(results),
+                            "success_count": sum(1 for r in results if r.success),
+                        }
+                    )
                     response["_execution_time"] = timer.to_summary()
                     return response
                 else:
                     self.circuit_breaker.record_failure()
                     errors = [r.error for r in results if not r.success and r.error]
                     return create_error_response(
-                        "; ".join(errors) if errors else "部分表备份失败",
-                        code=ErrorCode.BACKUP_FAILED
+                        "; ".join(errors) if errors else "部分表备份失败", code=ErrorCode.BACKUP_FAILED
                     )
             else:
                 with timer.step("backup_full", "执行全量备份"):
-                    result = self.backup_manager.backup_full(
-                        output_dir=output_dir, compress=compress
-                    )
+                    result = self.backup_manager.backup_full(output_dir=output_dir, compress=compress)
 
             if result.success:
                 self.circuit_breaker.record_success()
                 self.notification.notify(
-                    f"备份成功: {result.backup_id}",
-                    {"backup_type": backup_type, "file_path": result.file_path}
+                    f"备份成功: {result.backup_id}", {"backup_type": backup_type, "file_path": result.file_path}
                 )
                 response = create_success_response(result.to_dict())
                 response["_execution_time"] = timer.to_summary()
                 return response
             else:
                 self.circuit_breaker.record_failure()
-                return create_error_response(
-                    result.error or "备份失败",
-                    code=ErrorCode.BACKUP_FAILED
-                )
+                return create_error_response(result.error or "备份失败", code=ErrorCode.BACKUP_FAILED)
 
         except Exception as e:
             self.circuit_breaker.record_failure()
@@ -362,10 +356,7 @@ class SchedulerSkill:
         if result.success:
             return create_success_response(result.to_dict())
         else:
-            return create_error_response(
-                result.error or "验证失败",
-                code=ErrorCode.BACKUP_FILE_CORRUPTED
-            )
+            return create_error_response(result.error or "验证失败", code=ErrorCode.BACKUP_FILE_CORRUPTED)
 
     def restore_backup(self, backup_file: str, target_db: Optional[str] = None) -> Dict[str, Any]:
         """从备份恢复"""
@@ -373,10 +364,7 @@ class SchedulerSkill:
         if result.success:
             return create_success_response(result.to_dict())
         else:
-            return create_error_response(
-                result.error or "恢复失败",
-                code=ErrorCode.BACKUP_FAILED
-            )
+            return create_error_response(result.error or "恢复失败", code=ErrorCode.BACKUP_FAILED)
 
     # =====================================================================
     # 定时任务功能
@@ -389,7 +377,7 @@ class SchedulerSkill:
         task_type: str = "backup",
         params: Optional[Dict[str, Any]] = None,
         priority: str = "medium",
-        enabled: bool = True
+        enabled: bool = True,
     ) -> Dict[str, Any]:
         """
         创建定时任务
@@ -407,10 +395,7 @@ class SchedulerSkill:
         """
         try:
             if not CronParser.validate(schedule):
-                return create_error_response(
-                    f"无效的Cron表达式: {schedule}",
-                    code=ErrorCode.TASK_SCHEDULE_INVALID
-                )
+                return create_error_response(f"无效的Cron表达式: {schedule}", code=ErrorCode.TASK_SCHEDULE_INVALID)
 
             task_id = f"task_{int(time.time())}_{name}"
             next_run = CronParser.get_next_run(schedule)
@@ -426,7 +411,7 @@ class SchedulerSkill:
                 params=params or {},
                 enabled=enabled,
                 next_run=next_run,
-                priority=TaskPriority[priority.upper()]
+                priority=TaskPriority[priority.upper()],
             )
 
             # 保存到内存和数据库
@@ -435,12 +420,9 @@ class SchedulerSkill:
 
             self._save_task_to_db(task)
 
-            return create_success_response({
-                "task_id": task_id,
-                "name": name,
-                "schedule": schedule,
-                "next_run": next_run.isoformat()
-            })
+            return create_success_response(
+                {"task_id": task_id, "name": name, "schedule": schedule, "next_run": next_run.isoformat()}
+            )
 
         except Exception as e:
             return handle_exception(e, "创建定时任务失败")
@@ -456,12 +438,20 @@ class SchedulerSkill:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    task.task_id, task.name, task.task_type.value, task.schedule,
-                    json.dumps(task.params), int(task.enabled),
+                    task.task_id,
+                    task.name,
+                    task.task_type.value,
+                    task.schedule,
+                    json.dumps(task.params),
+                    int(task.enabled),
                     task.next_run.isoformat() if task.next_run else None,
-                    task.retry_count, task.max_retries, task.priority.value,
-                    task.timeout, task.created_at.isoformat(), task.updated_at.isoformat()
-                )
+                    task.retry_count,
+                    task.max_retries,
+                    task.priority.value,
+                    task.timeout,
+                    task.created_at.isoformat(),
+                    task.updated_at.isoformat(),
+                ),
             )
             conn.commit()
 
@@ -531,11 +521,7 @@ class SchedulerSkill:
             try:
                 result = self._execute_task(task)
                 duration = time.time() - start_time
-                return create_success_response({
-                    "task_id": task_id,
-                    "duration_seconds": duration,
-                    "result": result
-                })
+                return create_success_response({"task_id": task_id, "duration_seconds": duration, "result": result})
             except Exception as e:
                 return create_error_response(f"任务执行失败: {e}")
 
@@ -572,10 +558,7 @@ class SchedulerSkill:
         """
         try:
             if not workflow.validate():
-                return create_error_response(
-                    "工作流验证失败：存在循环依赖",
-                    code=ErrorCode.WORKFLOW_CYCLE_DETECTED
-                )
+                return create_error_response("工作流验证失败：存在循环依赖", code=ErrorCode.WORKFLOW_CYCLE_DETECTED)
 
             # 执行工作流
             results = {}
@@ -589,10 +572,7 @@ class SchedulerSkill:
 
                 for node in ready_tasks:
                     # 创建执行器
-                    executor = ExecutorFactory.create(
-                        node.task_type.value,
-                        self.connector
-                    )
+                    executor = ExecutorFactory.create(node.task_type.value, self.connector)
 
                     # 执行任务
                     result = executor.execute(node.params)
@@ -605,18 +585,16 @@ class SchedulerSkill:
                         return create_error_response(
                             f"工作流节点执行失败: {node.task_id}",
                             code=ErrorCode.WORKFLOW_NODE_FAILED,
-                            details={"node_id": node.task_id, "error": result.get("error")}
+                            details={"node_id": node.task_id, "error": result.get("error")},
                         )
 
             workflow.status = WorkflowStatus.COMPLETED
             workflow.completed_at = datetime.now()
             workflow.results = results
 
-            return create_success_response({
-                "workflow_id": workflow.workflow_id,
-                "status": workflow.status.value,
-                "results": results
-            })
+            return create_success_response(
+                {"workflow_id": workflow.workflow_id, "status": workflow.status.value, "results": results}
+            )
 
         except Exception as e:
             workflow.status = WorkflowStatus.FAILED
@@ -636,10 +614,7 @@ class SchedulerSkill:
             workflow = self._workflows.get(workflow_id)
 
         if not workflow:
-            return create_error_response(
-                f"工作流不存在: {workflow_id}",
-                code=ErrorCode.NOT_FOUND
-            )
+            return create_error_response(f"工作流不存在: {workflow_id}", code=ErrorCode.NOT_FOUND)
 
         return self.submit_workflow(workflow)
 
@@ -677,13 +652,15 @@ class SchedulerSkill:
         enabled_tasks = sum(1 for t in self._tasks.values() if t.enabled)
         disabled_tasks = len(self._tasks) - enabled_tasks
 
-        return create_success_response({
-            "running": self._running,
-            "total_tasks": len(self._tasks),
-            "enabled_tasks": enabled_tasks,
-            "disabled_tasks": disabled_tasks,
-            "thread_alive": self._scheduler_thread.is_alive() if self._scheduler_thread else False
-        })
+        return create_success_response(
+            {
+                "running": self._running,
+                "total_tasks": len(self._tasks),
+                "enabled_tasks": enabled_tasks,
+                "disabled_tasks": disabled_tasks,
+                "thread_alive": self._scheduler_thread.is_alive() if self._scheduler_thread else False,
+            }
+        )
 
     def _scheduler_loop(self):
         """调度器主循环
@@ -741,6 +718,7 @@ class SchedulerSkill:
 
             # result 是 ExecutionResult 对象, 判断状态
             from .task_executors import ExecutionStatus
+
             is_success = result.status == ExecutionStatus.SUCCESS
 
             # 保存执行记录
@@ -750,16 +728,13 @@ class SchedulerSkill:
                 status=TaskStatus.SUCCESS if is_success else TaskStatus.FAILED,
                 start_time=datetime.now(),
                 end_time=datetime.now(),
-                result=result.to_dict() if hasattr(result, 'to_dict') else result
+                result=result.to_dict() if hasattr(result, "to_dict") else result,
             )
             self._save_execution(task_result)
 
             # 发送通知
             if is_success:
-                self.notification.notify(
-                    f"任务执行成功: {task.name}",
-                    {"task_id": task.task_id}
-                )
+                self.notification.notify(f"任务执行成功: {task.name}", {"task_id": task.task_id})
             else:
                 raise Exception(result.error or "任务执行失败")
 
@@ -780,8 +755,7 @@ class SchedulerSkill:
             logger.warning(f"任务 {task.task_id} 进入死信队列")
         else:
             self.notification.notify(
-                f"任务执行失败: {task.name}",
-                {"task_id": task.task_id, "error": error, "retry_count": task.retry_count}
+                f"任务执行失败: {task.name}", {"task_id": task.task_id, "error": error, "retry_count": task.retry_count}
             )
 
     def _save_execution(self, result: TaskResult):
@@ -794,11 +768,14 @@ class SchedulerSkill:
                 VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    result.task_id, result.task_name, result.status.value,
-                    result.start_time.isoformat(), result.end_time.isoformat(),
+                    result.task_id,
+                    result.task_name,
+                    result.status.value,
+                    result.start_time.isoformat(),
+                    result.end_time.isoformat(),
                     json.dumps(result.result) if result.result else None,
-                    result.error
-                )
+                    result.error,
+                ),
             )
             conn.commit()
 
@@ -824,12 +801,7 @@ class SchedulerSkill:
         """获取死信队列统计信息"""
         return self.dlq_manager.get_statistics()
 
-    def get_task_logs(
-        self,
-        task_name: Optional[str] = None,
-        limit: int = 50,
-        status: str = "all"
-    ) -> Dict[str, Any]:
+    def get_task_logs(self, task_name: Optional[str] = None, limit: int = 50, status: str = "all") -> Dict[str, Any]:
         """
         获取任务执行日志
 
@@ -844,11 +816,9 @@ class SchedulerSkill:
         try:
             db_path = self.storage_path
             import os
+
             if not os.path.exists(db_path):
-                return create_success_response(
-                    message="暂无执行日志",
-                    data={"logs": [], "total": 0}
-                )
+                return create_success_response(message="暂无执行日志", data={"logs": [], "total": 0})
 
             with sqlite3.connect(db_path) as conn:
                 conn.row_factory = sqlite3.Row
@@ -866,25 +836,25 @@ class SchedulerSkill:
                 params.append(limit)
 
                 rows = conn.execute(
-                    f"SELECT * FROM execution_history{where_clause} ORDER BY start_time DESC LIMIT ?",
-                    params
+                    f"SELECT * FROM execution_history{where_clause} ORDER BY start_time DESC LIMIT ?", params
                 ).fetchall()
 
                 logs = []
                 for row in rows:
-                    logs.append({
-                        "task_id": row["task_id"],
-                        "task_name": row["task_name"],
-                        "status": row["status"],
-                        "start_time": row["start_time"],
-                        "end_time": row["end_time"],
-                        "result": row["result"],
-                        "error": row["error"],
-                    })
+                    logs.append(
+                        {
+                            "task_id": row["task_id"],
+                            "task_name": row["task_name"],
+                            "status": row["status"],
+                            "start_time": row["start_time"],
+                            "end_time": row["end_time"],
+                            "result": row["result"],
+                            "error": row["error"],
+                        }
+                    )
 
                 return create_success_response(
-                    message=f"获取到 {len(logs)} 条执行日志",
-                    data={"logs": logs, "total": len(logs)}
+                    message=f"获取到 {len(logs)} 条执行日志", data={"logs": logs, "total": len(logs)}
                 )
         except Exception as e:
             return create_error_response(str(e), ErrorCode.UNKNOWN_ERROR)
@@ -930,11 +900,7 @@ class SchedulerSkill:
 
     # ==================== AI上下文构建 ====================
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "scheduler"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "scheduler") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -948,8 +914,8 @@ class SchedulerSkill:
         from dbskiter.shared.ai_context import AIContextBuilder
 
         builder = AIContextBuilder(
-            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
-            database_name=getattr(self.connector, 'database', ''),
+            dialect=self.connector.dialect if hasattr(self.connector, "dialect") else "unknown",
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -972,11 +938,7 @@ class SchedulerSkill:
             "inspection_trace": inspection_trace,
         }
 
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建调度器透明度追踪信息
 
@@ -987,13 +949,7 @@ class SchedulerSkill:
         返回:
             Dict[str, Any]: 追踪信息
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         if scenario == "scheduler":
             trace["metrics_checked"] = [
@@ -1077,13 +1033,21 @@ class SchedulerSkill:
         if "tasks" in data and isinstance(data["tasks"], list):
             failed_tasks = [t for t in data["tasks"] if t.get("status") == "failed"]
             if failed_tasks:
-                flags["failed_tasks"] = {"flagged": True, "level": "high", "reason": f"发现 {len(failed_tasks)} 个失败任务"}
+                flags["failed_tasks"] = {
+                    "flagged": True,
+                    "level": "high",
+                    "reason": f"发现 {len(failed_tasks)} 个失败任务",
+                }
 
         # 日志错误标记
         if "logs" in data and isinstance(data["logs"], list):
             error_logs = [l for l in data["logs"] if l.get("level") in ["error", "critical"]]
             if error_logs:
-                flags["error_logs"] = {"flagged": True, "level": "medium", "reason": f"发现 {len(error_logs)} 条错误日志"}
+                flags["error_logs"] = {
+                    "flagged": True,
+                    "level": "medium",
+                    "reason": f"发现 {len(error_logs)} 条错误日志",
+                }
 
         return {"_disclaimer": "规则初筛结果仅供参考", "flags": flags}
 
@@ -1099,7 +1063,7 @@ class SchedulerSkill:
     def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """构建AI提示"""
         hints = {"focus_areas": [], "related_commands": []}
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         if scenario == "backup":
             hints["focus_areas"] = ["backup_strategy", "retention_policy", "recovery_time", "backup_verification"]

@@ -41,8 +41,7 @@ class SchemaDetector:
         self.dialect = connector.dialect.lower() if connector else ""
         self._cache: Dict[str, any] = {}
 
-    def get_column_name(self, table: str, candidates: List[str],
-                       schema: Optional[str] = None) -> Optional[str]:
+    def get_column_name(self, table: str, candidates: List[str], schema: Optional[str] = None) -> Optional[str]:
         """
         动态检测表中存在的列名
 
@@ -84,8 +83,7 @@ class SchemaDetector:
             self._cache[cache_key] = None
             return None
 
-    def _check_column_exists(self, table: str, column: str,
-                            schema: Optional[str] = None) -> bool:
+    def _check_column_exists(self, table: str, column: str, schema: Optional[str] = None) -> bool:
         """
         检查列是否存在
 
@@ -112,61 +110,64 @@ class SchemaDetector:
             logger.debug(f"检查列存在失败: {e}")
             return False
 
-    def _check_column_mysql(self, table: str, column: str,
-                           schema: Optional[str] = None) -> bool:
+    def _check_column_mysql(self, table: str, column: str, schema: Optional[str] = None) -> bool:
         """MySQL 列检测"""
         schema = schema or self.connector.database
 
-        result = self.connector.execute("""
+        result = self.connector.execute(
+            """
             SELECT COUNT(*) FROM information_schema.COLUMNS
             WHERE TABLE_SCHEMA = %s
             AND TABLE_NAME = %s
             AND COLUMN_NAME = %s
-        """, (schema, table, column))
+        """,
+            (schema, table, column),
+        )
 
         return result.rows and result.rows[0][0] > 0
 
-    def _check_column_oracle(self, table: str, column: str,
-                            schema: Optional[str] = None) -> bool:
+    def _check_column_oracle(self, table: str, column: str, schema: Optional[str] = None) -> bool:
         """Oracle 列检测"""
         schema = schema or self.connector.username.upper()
 
         # Oracle 表名可能是 v$ 视图，需要特殊处理
-        if table.startswith('v$') or table.startswith('gv$'):
+        if table.startswith("v$") or table.startswith("gv$"):
             # 对于 v$ 视图，直接尝试查询
             return self._check_column_generic(table, column, schema)
 
-        result = self.connector.execute("""
+        result = self.connector.execute(
+            """
             SELECT COUNT(*) FROM all_tab_columns
             WHERE owner = :owner
             AND table_name = :table_name
             AND column_name = :column_name
-        """, {"owner": schema.upper(), "table_name": table.upper(), "column_name": column.upper()})
+        """,
+            {"owner": schema.upper(), "table_name": table.upper(), "column_name": column.upper()},
+        )
 
         return result.rows and result.rows[0][0] > 0
 
-    def _check_column_postgres(self, table: str, column: str,
-                              schema: Optional[str] = None) -> bool:
+    def _check_column_postgres(self, table: str, column: str, schema: Optional[str] = None) -> bool:
         """PostgreSQL 列检测"""
-        schema = schema or 'public'
+        schema = schema or "public"
 
-        result = self.connector.execute("""
+        result = self.connector.execute(
+            """
             SELECT COUNT(*) FROM information_schema.columns
             WHERE table_schema = %s
             AND table_name = %s
             AND column_name = %s
-        """, (schema, table, column))
+        """,
+            (schema, table, column),
+        )
 
         return result.rows and result.rows[0][0] > 0
 
-    def _check_column_generic(self, table: str, column: str,
-                             schema: Optional[str] = None) -> bool:
+    def _check_column_generic(self, table: str, column: str, schema: Optional[str] = None) -> bool:
         """通用列检测（尝试查询）"""
         try:
             full_table = f"{schema}.{table}" if schema else table
-            result = self.connector.execute(
-                f"SELECT {column} FROM {full_table} WHERE ROWNUM = 0"
-            )
+            result = self.connector.execute(f"SELECT {column} FROM {full_table} WHERE ROWNUM = 0")
             return True
         except Exception:
             return False
@@ -206,10 +207,13 @@ class SchemaDetector:
         """MySQL 表列表"""
         schema = schema or self.connector.database
 
-        result = self.connector.execute("""
+        result = self.connector.execute(
+            """
             SELECT TABLE_NAME FROM information_schema.TABLES
             WHERE TABLE_SCHEMA = %s
-        """, (schema,))
+        """,
+            (schema,),
+        )
 
         return {row[0] for row in result.rows} if result.rows else set()
 
@@ -217,22 +221,28 @@ class SchemaDetector:
         """Oracle 表列表"""
         schema = schema or self.connector.username.upper()
 
-        result = self.connector.execute("""
+        result = self.connector.execute(
+            """
             SELECT table_name FROM all_tables WHERE owner = :owner
             UNION
             SELECT view_name FROM all_views WHERE owner = :owner
-        """, {"owner": schema.upper()})
+        """,
+            {"owner": schema.upper()},
+        )
 
         return {row[0] for row in result.rows} if result.rows else set()
 
     def _get_tables_postgres(self, schema: Optional[str] = None) -> Set[str]:
         """PostgreSQL 表列表"""
-        schema = schema or 'public'
+        schema = schema or "public"
 
-        result = self.connector.execute("""
+        result = self.connector.execute(
+            """
             SELECT table_name FROM information_schema.tables
             WHERE table_schema = %s
-        """, (schema,))
+        """,
+            (schema,),
+        )
 
         return {row[0] for row in result.rows} if result.rows else set()
 

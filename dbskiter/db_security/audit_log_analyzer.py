@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AuditEvent:
     """审计事件"""
+
     event_time: datetime
     user: str
     host: str
@@ -49,6 +50,7 @@ class AuditEvent:
 @dataclass
 class HighRiskOperation:
     """高危操作记录"""
+
     operation_type: str
     severity: RiskLevel
     user: str
@@ -72,15 +74,21 @@ class AuditLogAnalyzer:
 
     # 高危SQL关键字
     HIGH_RISK_KEYWORDS = [
-        "DROP", "TRUNCATE", "DELETE.*FROM", "UPDATE.*SET",
-        "GRANT", "REVOKE", "ALTER.*USER", "CREATE.*USER",
-        "DROP.*USER", "SHUTDOWN", "KILL"
+        "DROP",
+        "TRUNCATE",
+        "DELETE.*FROM",
+        "UPDATE.*SET",
+        "GRANT",
+        "REVOKE",
+        "ALTER.*USER",
+        "CREATE.*USER",
+        "DROP.*USER",
+        "SHUTDOWN",
+        "KILL",
     ]
 
     # 数据修改关键字
-    DATA_MODIFICATION_KEYWORDS = [
-        "INSERT", "UPDATE", "DELETE", "REPLACE"
-    ]
+    DATA_MODIFICATION_KEYWORDS = ["INSERT", "UPDATE", "DELETE", "REPLACE"]
 
     def __init__(self, connector: UnifiedConnector):
         """
@@ -92,11 +100,7 @@ class AuditLogAnalyzer:
         self.connector = connector
         self.dialect = connector.dialect.lower() if connector else "unknown"
 
-    def analyze_audit_log(
-        self,
-        hours: int = 24,
-        users: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
+    def analyze_audit_log(self, hours: int = 24, users: Optional[List[str]] = None) -> Dict[str, Any]:
         """
         分析审计日志
 
@@ -127,23 +131,17 @@ class AuditLogAnalyzer:
                     "high_risk_operations": [self._operation_to_dict(op) for op in high_risk_ops],
                     "anomalies": [self._anomaly_to_dict(a) for a in anomalies],
                     "user_activity": self._get_user_activity_summary(events),
-                    "recommendations": self._generate_audit_recommendations(high_risk_ops, anomalies)
+                    "recommendations": self._generate_audit_recommendations(high_risk_ops, anomalies),
                 },
-                message=f"分析完成，发现 {len(high_risk_ops)} 个高危操作，{len(anomalies)} 个异常行为"
+                message=f"分析完成，发现 {len(high_risk_ops)} 个高危操作，{len(anomalies)} 个异常行为",
             )
 
         except Exception as e:
             logger.error(f"审计日志分析失败: {e}")
-            return create_error_response(
-                f"分析失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"分析失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
     def detect_high_risk_operations(
-        self,
-        hours: int = 24,
-        include_ddl: bool = True,
-        include_dml: bool = True
+        self, hours: int = 24, include_ddl: bool = True, include_dml: bool = True
     ) -> Dict[str, Any]:
         """
         检测高危操作
@@ -173,25 +171,17 @@ class AuditLogAnalyzer:
                     "permission_changes": len(permission_ops),
                     "operations": [self._operation_to_dict(op) for op in high_risk_ops],
                     "critical_operations": [
-                        self._operation_to_dict(op) for op in high_risk_ops
-                        if op.severity == RiskLevel.CRITICAL
-                    ]
+                        self._operation_to_dict(op) for op in high_risk_ops if op.severity == RiskLevel.CRITICAL
+                    ],
                 },
-                message=f"检测到 {len(high_risk_ops)} 个高危操作"
+                message=f"检测到 {len(high_risk_ops)} 个高危操作",
             )
 
         except Exception as e:
             logger.error(f"高危操作检测失败: {e}")
-            return create_error_response(
-                f"检测失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"检测失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
-    def track_user_activity(
-        self,
-        user: str,
-        hours: int = 24
-    ) -> Dict[str, Any]:
+    def track_user_activity(self, user: str, hours: int = 24) -> Dict[str, Any]:
         """
         追踪特定用户活动
 
@@ -207,8 +197,7 @@ class AuditLogAnalyzer:
 
             if not events:
                 return create_success_response(
-                    data={"user": user, "events": []},
-                    message=f"用户 {user} 在指定时间内无活动记录"
+                    data={"user": user, "events": []}, message=f"用户 {user} 在指定时间内无活动记录"
                 )
 
             # 活动统计
@@ -240,26 +229,19 @@ class AuditLogAnalyzer:
                             "time": e.event_time.isoformat(),
                             "action": e.action,
                             "object": e.object_name,
-                            "status": e.status
+                            "status": e.status,
                         }
                         for e in events[:20]
-                    ]
+                    ],
                 },
-                message=f"用户 {user} 活动追踪完成"
+                message=f"用户 {user} 活动追踪完成",
             )
 
         except Exception as e:
             logger.error(f"用户活动追踪失败: {e}")
-            return create_error_response(
-                f"追踪失败: {str(e)}",
-                ErrorCode.AUDIT_FAILED
-            )
+            return create_error_response(f"追踪失败: {str(e)}", ErrorCode.AUDIT_FAILED)
 
-    def _get_audit_events(
-        self,
-        hours: int = 24,
-        users: Optional[List[str]] = None
-    ) -> List[AuditEvent]:
+    def _get_audit_events(self, hours: int = 24, users: Optional[List[str]] = None) -> List[AuditEvent]:
         """
         获取审计事件
 
@@ -281,45 +263,34 @@ class AuditLogAnalyzer:
                 events = self._get_oracle_audit_events(hours, users)
             else:
                 # 通用数据库支持：返回空列表并记录日志
-                logger.info(
-                    f"数据库类型 '{self.dialect}' 暂无专用审计日志分析实现，"
-                    f"返回空列表"
-                )
+                logger.info(f"数据库类型 '{self.dialect}' 暂无专用审计日志分析实现，" f"返回空列表")
 
         except Exception as e:
             logger.error(f"获取审计事件失败: {e}")
 
         return events
 
-    def _get_mysql_audit_events(
-        self,
-        hours: int,
-        users: Optional[List[str]]
-    ) -> List[AuditEvent]:
+    def _get_mysql_audit_events(self, hours: int, users: Optional[List[str]]) -> List[AuditEvent]:
         """获取MySQL审计事件
-        
+
         优先使用performance_schema（默认启用），
         回退到mysql.general_log（需要手动启用）
         """
         events = []
-        
+
         # 首先尝试从performance_schema获取（默认启用）
         events = self._get_mysql_events_from_performance_schema(hours, users)
-        
+
         # 如果performance_schema没有数据，尝试general_log
         if not events:
             events = self._get_mysql_events_from_general_log(hours, users)
-        
+
         return events
-    
-    def _get_mysql_events_from_performance_schema(
-        self,
-        hours: int,
-        users: Optional[List[str]]
-    ) -> List[AuditEvent]:
+
+    def _get_mysql_events_from_performance_schema(self, hours: int, users: Optional[List[str]]) -> List[AuditEvent]:
         """从performance_schema获取SQL执行历史"""
         events = []
-        
+
         try:
             # 检查performance_schema是否启用
             check_result = self.connector.execute("""
@@ -328,11 +299,11 @@ class AuditLogAnalyzer:
                 WHERE table_schema = 'performance_schema' 
                 AND table_name = 'events_statements_history_long'
             """)
-            
+
             if not check_result.rows or check_result.rows[0][0] == 0:
                 logger.debug("performance_schema.events_statements_history_long表不存在")
                 return events
-            
+
             # 从performance_schema获取最近的SQL执行记录
             # 注意：使用字符串格式化而不是参数绑定，因为某些驱动对复杂SQL支持不好
             sql = f"""
@@ -359,54 +330,52 @@ class AuditLogAnalyzer:
                 LIMIT 10000
             """
             result = self.connector.execute(sql)
-            
+
             for row in result.rows:
                 try:
                     user = row[5] or "system_user"
                     host = row[6] or "localhost"
-                    
+
                     # 过滤用户
                     if users and user not in users:
                         continue
-                    
+
                     # 提取SQL类型（SELECT/INSERT/UPDATE/DELETE等）
                     sql_text = row[2] or ""
                     action = self._extract_sql_type(sql_text)
-                    
-                    events.append(AuditEvent(
-                        event_time=row[0] if row[0] else datetime.now(),
-                        user=user,
-                        host=host,
-                        action=action,
-                        sql_text=sql_text[:1000] if sql_text else None  # 限制长度
-                    ))
-                    
+
+                    events.append(
+                        AuditEvent(
+                            event_time=row[0] if row[0] else datetime.now(),
+                            user=user,
+                            host=host,
+                            action=action,
+                            sql_text=sql_text[:1000] if sql_text else None,  # 限制长度
+                        )
+                    )
+
                 except Exception as e:
                     logger.warning(f"解析performance_schema事件失败: {e}")
-                    
+
         except Exception as e:
             logger.warning(f"无法从performance_schema获取事件: {e}")
-        
+
         return events
-    
-    def _get_mysql_events_from_general_log(
-        self,
-        hours: int,
-        users: Optional[List[str]]
-    ) -> List[AuditEvent]:
+
+    def _get_mysql_events_from_general_log(self, hours: int, users: Optional[List[str]]) -> List[AuditEvent]:
         """从mysql.general_log获取事件（需要手动启用）"""
         events = []
-        
+
         try:
             # 检查general_log是否启用
             check_result = self.connector.execute("""
                 SELECT @@general_log
             """)
-            
+
             if not check_result.rows or check_result.rows[0][0] != 1:
                 logger.debug("general_log未启用")
                 return events
-            
+
             sql = f"""
                 SELECT 
                     event_time,
@@ -432,13 +401,15 @@ class AuditLogAnalyzer:
                     if users and user not in users:
                         continue
 
-                    events.append(AuditEvent(
-                        event_time=row[0] if row[0] else datetime.now(),
-                        user=user,
-                        host=host,
-                        action=row[2] or "UNKNOWN",
-                        sql_text=row[3] if len(row) > 3 else None
-                    ))
+                    events.append(
+                        AuditEvent(
+                            event_time=row[0] if row[0] else datetime.now(),
+                            user=user,
+                            host=host,
+                            action=row[2] or "UNKNOWN",
+                            sql_text=row[3] if len(row) > 3 else None,
+                        )
+                    )
 
                 except Exception as e:
                     logger.warning(f"解析general_log事件失败: {e}")
@@ -447,14 +418,14 @@ class AuditLogAnalyzer:
             logger.warning(f"无法从general_log获取事件: {e}")
 
         return events
-    
+
     def _extract_sql_type(self, sql: str) -> str:
         """从SQL中提取操作类型"""
         if not sql:
             return "UNKNOWN"
-        
+
         sql_upper = sql.strip().upper()
-        
+
         # 高危操作
         if sql_upper.startswith("DROP "):
             return "DROP"
@@ -480,17 +451,14 @@ class AuditLogAnalyzer:
         else:
             return "OTHER"
 
-    def _get_postgres_audit_events(
-        self,
-        hours: int,
-        users: Optional[List[str]]
-    ) -> List[AuditEvent]:
+    def _get_postgres_audit_events(self, hours: int, users: Optional[List[str]]) -> List[AuditEvent]:
         """获取PostgreSQL审计事件"""
         events = []
 
         try:
             # PostgreSQL需要通过pgAudit扩展或日志分析
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT 
                     query_start as event_time,
                     usename as user,
@@ -502,31 +470,31 @@ class AuditLogAnalyzer:
                 AND query IS NOT NULL
                 ORDER BY query_start DESC
                 LIMIT 10000
-            """, {"hours": hours})
+            """,
+                {"hours": hours},
+            )
 
             for row in result.rows:
                 user = row[1] or "unknown"
                 if users and user not in users:
                     continue
 
-                events.append(AuditEvent(
-                    event_time=row[0] if row[0] else datetime.now(),
-                    user=user,
-                    host=str(row[2]) if row[2] else "localhost",
-                    action=row[3] or "QUERY",
-                    sql_text=row[4]
-                ))
+                events.append(
+                    AuditEvent(
+                        event_time=row[0] if row[0] else datetime.now(),
+                        user=user,
+                        host=str(row[2]) if row[2] else "localhost",
+                        action=row[3] or "QUERY",
+                        sql_text=row[4],
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"无法获取PostgreSQL审计日志: {e}")
 
         return events
 
-    def _get_oracle_audit_events(
-        self,
-        hours: int,
-        users: Optional[List[str]]
-    ) -> List[AuditEvent]:
+    def _get_oracle_audit_events(self, hours: int, users: Optional[List[str]]) -> List[AuditEvent]:
         """获取Oracle审计事件"""
         events = []
 
@@ -552,18 +520,20 @@ class AuditLogAnalyzer:
                     continue
 
                 event_time = row[0]
-                if event_time and hasattr(event_time, 'isoformat'):
+                if event_time and hasattr(event_time, "isoformat"):
                     pass
                 else:
                     event_time = datetime.now()
 
-                events.append(AuditEvent(
-                    event_time=event_time,
-                    user=user,
-                    host=str(row[2] or "localhost"),
-                    action=self._map_oracle_action(int(str(row[3])) if row[3] else 0),
-                    object_name=str(row[4] or "")
-                ))
+                events.append(
+                    AuditEvent(
+                        event_time=event_time,
+                        user=user,
+                        host=str(row[2] or "localhost"),
+                        action=self._map_oracle_action(int(str(row[3])) if row[3] else 0),
+                        object_name=str(row[4] or ""),
+                    )
+                )
 
         except Exception as e:
             logger.warning(f"无法获取Oracle审计日志（审计可能未启用）: {e}")
@@ -573,9 +543,17 @@ class AuditLogAnalyzer:
     def _map_oracle_action(self, action_code: int) -> str:
         """映射Oracle操作代码"""
         action_map = {
-            1: "CREATE", 2: "INSERT", 3: "SELECT", 6: "UPDATE",
-            7: "DELETE", 8: "DROP", 9: "CREATE", 12: "DROP",
-            100: "LOGON", 101: "LOGOFF", 102: "LOGOFF BY CLEANUP"
+            1: "CREATE",
+            2: "INSERT",
+            3: "SELECT",
+            6: "UPDATE",
+            7: "DELETE",
+            8: "DROP",
+            9: "CREATE",
+            12: "DROP",
+            100: "LOGON",
+            101: "LOGOFF",
+            102: "LOGOFF BY CLEANUP",
         }
         return action_map.get(action_code, f"ACTION_{action_code}")
 
@@ -601,7 +579,7 @@ class AuditLogAnalyzer:
             "unique_users": len(user_counts),
             "action_distribution": dict(action_counts),
             "top_users": sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:10],
-            "status_summary": dict(status_counts)
+            "status_summary": dict(status_counts),
         }
 
     def _detect_high_risk_operations(self, events: List[AuditEvent]) -> List[HighRiskOperation]:
@@ -619,19 +597,17 @@ class AuditLogAnalyzer:
                 if re.search(keyword, sql_upper):
                     severity = RiskLevel.CRITICAL if "DROP" in keyword or "TRUNCATE" in keyword else RiskLevel.HIGH
 
-                    high_risk_ops.append(HighRiskOperation(
-                        operation_type=keyword.replace(".*", "").replace(" ", "_"),
-                        severity=severity,
-                        user=event.user,
-                        event_time=event.event_time,
-                        description=f"用户 {event.user} 执行了高危操作",
-                        sql_text=event.sql_text[:200],  # 限制长度
-                        recommendations=[
-                            "立即审查该操作是否授权",
-                            "检查数据完整性",
-                            "评估是否需要恢复操作"
-                        ]
-                    ))
+                    high_risk_ops.append(
+                        HighRiskOperation(
+                            operation_type=keyword.replace(".*", "").replace(" ", "_"),
+                            severity=severity,
+                            user=event.user,
+                            event_time=event.event_time,
+                            description=f"用户 {event.user} 执行了高危操作",
+                            sql_text=event.sql_text[:200],  # 限制长度
+                            recommendations=["立即审查该操作是否授权", "检查数据完整性", "评估是否需要恢复操作"],
+                        )
+                    )
                     break  # 一个事件只记录一次
 
         return high_risk_ops
@@ -650,34 +626,32 @@ class AuditLogAnalyzer:
 
         for user, user_event_list in user_events.items():
             # 检测非工作时间操作
-            off_hour_events = [
-                e for e in user_event_list
-                if e.event_time.hour < 8 or e.event_time.hour > 20
-            ]
+            off_hour_events = [e for e in user_event_list if e.event_time.hour < 8 or e.event_time.hour > 20]
 
             if len(off_hour_events) > 10:
-                anomalies.append({
-                    "type": "off_hours_activity",
-                    "user": user,
-                    "severity": RiskLevel.MEDIUM.value,
-                    "description": f"用户 {user} 在非工作时间有大量操作 ({len(off_hour_events)} 次)",
-                    "recommendation": "审查是否为正常业务需求"
-                })
+                anomalies.append(
+                    {
+                        "type": "off_hours_activity",
+                        "user": user,
+                        "severity": RiskLevel.MEDIUM.value,
+                        "description": f"用户 {user} 在非工作时间有大量操作 ({len(off_hour_events)} 次)",
+                        "recommendation": "审查是否为正常业务需求",
+                    }
+                )
 
             # 检测大量数据操作
-            high_volume_events = [
-                e for e in user_event_list
-                if e.rows_affected > 10000
-            ]
+            high_volume_events = [e for e in user_event_list if e.rows_affected > 10000]
 
             if high_volume_events:
-                anomalies.append({
-                    "type": "high_volume_operation",
-                    "user": user,
-                    "severity": RiskLevel.HIGH.value,
-                    "description": f"用户 {user} 执行了大量数据操作",
-                    "recommendation": "确认是否为预期的大规模数据变更"
-                })
+                anomalies.append(
+                    {
+                        "type": "high_volume_operation",
+                        "user": user,
+                        "severity": RiskLevel.HIGH.value,
+                        "description": f"用户 {user} 执行了大量数据操作",
+                        "recommendation": "确认是否为预期的大规模数据变更",
+                    }
+                )
 
         return anomalies
 
@@ -690,17 +664,12 @@ class AuditLogAnalyzer:
             user_activity[event.user]["event_count"] += 1
 
         return {
-            user: {
-                "actions": list(data["actions"]),
-                "event_count": data["event_count"]
-            }
+            user: {"actions": list(data["actions"]), "event_count": data["event_count"]}
             for user, data in user_activity.items()
         }
 
     def _generate_audit_recommendations(
-        self,
-        high_risk_ops: List[HighRiskOperation],
-        anomalies: List[Dict[str, Any]]
+        self, high_risk_ops: List[HighRiskOperation], anomalies: List[Dict[str, Any]]
     ) -> List[str]:
         """生成审计建议"""
         recommendations = []
@@ -726,7 +695,7 @@ class AuditLogAnalyzer:
             "event_time": op.event_time.isoformat(),
             "description": op.description,
             "sql_text": op.sql_text,
-            "recommendations": op.recommendations
+            "recommendations": op.recommendations,
         }
 
     def _anomaly_to_dict(self, anomaly: Dict[str, Any]) -> Dict[str, Any]:

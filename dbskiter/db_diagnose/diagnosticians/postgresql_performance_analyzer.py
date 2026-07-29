@@ -24,7 +24,7 @@ from ..core.performance_model import (
     PerformanceMetric,
     SlowQueryInfo,
     MetricCategory,
-    get_threshold
+    get_threshold,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,23 +59,20 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
         """检测数据库能力"""
         try:
             # 检测版本
-            result = self._execute_with_timeout(
-                "SELECT version()",
-                timeout=5
-            )
+            result = self._execute_with_timeout("SELECT version()", timeout=5)
             if result:
                 version_str = str(result[0][0])
                 # 提取版本号
                 import re
-                match = re.search(r'PostgreSQL\s+(\d+\.?\d*)', version_str)
+
+                match = re.search(r"PostgreSQL\s+(\d+\.?\d*)", version_str)
                 if match:
                     self._version = match.group(1)
                     logger.info(f"PostgreSQL版本: {self._version}")
 
             # 检测pg_stat_statements扩展
             result = self._execute_with_timeout(
-                "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pg_stat_statements'",
-                timeout=5
+                "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pg_stat_statements'", timeout=5
             )
             self._has_pg_stat_statements = result and result[0][0] > 0
             logger.info(f"pg_stat_statements可用: {self._has_pg_stat_statements}")
@@ -83,8 +80,7 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
             # 检测pg_stat_kcache扩展（可选，提供CPU/IO统计）
             try:
                 result = self._execute_with_timeout(
-                    "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pg_stat_kcache'",
-                    timeout=5
+                    "SELECT COUNT(*) FROM pg_extension WHERE extname = 'pg_stat_kcache'", timeout=5
                 )
                 self._has_pg_stat_kcache = result and result[0][0] > 0
                 logger.info(f"pg_stat_kcache可用: {self._has_pg_stat_kcache}")
@@ -132,15 +128,17 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                 ratio = (active / total) * 100 if total > 0 else 0
 
                 threshold = get_threshold("cpu_time_ratio")
-                metrics.append(PerformanceMetric(
-                    name="active_session_ratio",
-                    value=ratio,
-                    unit="%",
-                    category=MetricCategory.CPU,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="pg_stat_activity"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="active_session_ratio",
+                        value=ratio,
+                        unit="%",
+                        category=MetricCategory.CPU,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="pg_stat_activity",
+                    )
+                )
 
             # 如果有pg_stat_kcache，获取CPU时间
             if self._has_pg_stat_kcache:
@@ -156,13 +154,15 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                     system_time = result[0][1] or 0
                     total_cpu = user_time + system_time
 
-                    metrics.append(PerformanceMetric(
-                        name="total_cpu_time",
-                        value=total_cpu,
-                        unit="ms",
-                        category=MetricCategory.CPU,
-                        source="pg_stat_kcache"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="total_cpu_time",
+                            value=total_cpu,
+                            unit="ms",
+                            category=MetricCategory.CPU,
+                            source="pg_stat_kcache",
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"CPU指标采集失败: {e}")
@@ -188,16 +188,18 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
             if result and result[0][0] is not None:
                 hit_ratio = float(result[0][0])
                 threshold = get_threshold("buffer_hit_ratio")
-                metrics.append(PerformanceMetric(
-                    name="buffer_cache_hit_ratio",
-                    value=hit_ratio,
-                    unit="%",
-                    category=MetricCategory.IO,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    higher_is_better=True,  # 命中率越高越好
-                    source="pg_stat_database"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="buffer_cache_hit_ratio",
+                        value=hit_ratio,
+                        unit="%",
+                        category=MetricCategory.IO,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        higher_is_better=True,  # 命中率越高越好
+                        source="pg_stat_database",
+                    )
+                )
 
             # 获取数据库IO统计
             result = self._execute_with_timeout("""
@@ -215,32 +217,38 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                 temp_files = result[0][2] or 0
                 temp_mb = result[0][3] or 0
 
-                metrics.append(PerformanceMetric(
-                    name="blocks_read",
-                    value=blks_read,
-                    unit="blocks",
-                    category=MetricCategory.IO,
-                    source="pg_stat_database"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="blocks_read",
+                        value=blks_read,
+                        unit="blocks",
+                        category=MetricCategory.IO,
+                        source="pg_stat_database",
+                    )
+                )
 
                 if temp_files > 0:
-                    metrics.append(PerformanceMetric(
-                        name="temp_files",
-                        value=temp_files,
-                        unit="files",
-                        category=MetricCategory.IO,
-                        threshold_warning=10,
-                        threshold_critical=100,
-                        source="pg_stat_database"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="temp_files",
+                            value=temp_files,
+                            unit="files",
+                            category=MetricCategory.IO,
+                            threshold_warning=10,
+                            threshold_critical=100,
+                            source="pg_stat_database",
+                        )
+                    )
 
-                    metrics.append(PerformanceMetric(
-                        name="temp_size",
-                        value=temp_mb,
-                        unit="MB",
-                        category=MetricCategory.IO,
-                        source="pg_stat_database"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="temp_size",
+                            value=temp_mb,
+                            unit="MB",
+                            category=MetricCategory.IO,
+                            source="pg_stat_database",
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"IO指标采集失败: {e}")
@@ -279,13 +287,15 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
 
                 if result and result[0][1] is not None:
                     total_memory = result[0][1]
-                    metrics.append(PerformanceMetric(
-                        name="backend_memory",
-                        value=total_memory,
-                        unit="bytes",
-                        category=MetricCategory.MEMORY,
-                        source="pg_stat_activity"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="backend_memory",
+                            value=total_memory,
+                            unit="bytes",
+                            category=MetricCategory.MEMORY,
+                            source="pg_stat_activity",
+                        )
+                    )
             except Exception:
                 # 列不存在，跳过此指标
                 pass
@@ -317,26 +327,30 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                 usage_ratio = (current / max_conn) * 100 if max_conn > 0 else 0
 
                 threshold = get_threshold("connection_usage")
-                metrics.append(PerformanceMetric(
-                    name="connection_usage",
-                    value=usage_ratio,
-                    unit="%",
-                    category=MetricCategory.CONCURRENCY,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="pg_stat_activity"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="connection_usage",
+                        value=usage_ratio,
+                        unit="%",
+                        category=MetricCategory.CONCURRENCY,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="pg_stat_activity",
+                    )
+                )
 
                 if waiting > 0:
-                    metrics.append(PerformanceMetric(
-                        name="waiting_connections",
-                        value=waiting,
-                        unit="count",
-                        category=MetricCategory.CONCURRENCY,
-                        threshold_warning=5,
-                        threshold_critical=20,
-                        source="pg_stat_activity"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="waiting_connections",
+                            value=waiting,
+                            unit="count",
+                            category=MetricCategory.CONCURRENCY,
+                            threshold_warning=5,
+                            threshold_critical=20,
+                            source="pg_stat_activity",
+                        )
+                    )
 
             # 获取事务统计
             result = self._execute_with_timeout("""
@@ -353,26 +367,30 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                 longest_xact = result[0][2] or 0
 
                 if idle_in_trx > 0:
-                    metrics.append(PerformanceMetric(
-                        name="idle_in_transaction",
-                        value=idle_in_trx,
-                        unit="count",
-                        category=MetricCategory.CONCURRENCY,
-                        threshold_warning=5,
-                        threshold_critical=20,
-                        source="pg_stat_activity"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="idle_in_transaction",
+                            value=idle_in_trx,
+                            unit="count",
+                            category=MetricCategory.CONCURRENCY,
+                            threshold_warning=5,
+                            threshold_critical=20,
+                            source="pg_stat_activity",
+                        )
+                    )
 
                 if longest_xact > 60:  # 超过1分钟
-                    metrics.append(PerformanceMetric(
-                        name="longest_transaction_sec",
-                        value=longest_xact,
-                        unit="sec",
-                        category=MetricCategory.CONCURRENCY,
-                        threshold_warning=60,
-                        threshold_critical=300,
-                        source="pg_stat_activity"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="longest_transaction_sec",
+                            value=longest_xact,
+                            unit="sec",
+                            category=MetricCategory.CONCURRENCY,
+                            threshold_warning=60,
+                            threshold_critical=300,
+                            source="pg_stat_activity",
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"并发指标采集失败: {e}")
@@ -407,15 +425,17 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                 wait_ratio = (waiting_locks / total_trx) * 100 if total_trx > 0 else 0
 
                 threshold = get_threshold("lock_wait_ratio")
-                metrics.append(PerformanceMetric(
-                    name="lock_wait_ratio",
-                    value=wait_ratio,
-                    unit="%",
-                    category=MetricCategory.LOCK,
-                    threshold_warning=threshold.get("warning"),
-                    threshold_critical=threshold.get("critical"),
-                    source="pg_locks"
-                ))
+                metrics.append(
+                    PerformanceMetric(
+                        name="lock_wait_ratio",
+                        value=wait_ratio,
+                        unit="%",
+                        category=MetricCategory.LOCK,
+                        threshold_warning=threshold.get("warning"),
+                        threshold_critical=threshold.get("critical"),
+                        source="pg_locks",
+                    )
+                )
 
             # 获取死锁统计
             result = self._execute_with_timeout("""
@@ -429,23 +449,24 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                 deadlocks = result[0][0] or 0
 
                 if deadlocks > 0:
-                    metrics.append(PerformanceMetric(
-                        name="deadlock_count",
-                        value=deadlocks,
-                        unit="count",
-                        category=MetricCategory.LOCK,
-                        threshold_warning=1,
-                        threshold_critical=5,
-                        source="pg_stat_database"
-                    ))
+                    metrics.append(
+                        PerformanceMetric(
+                            name="deadlock_count",
+                            value=deadlocks,
+                            unit="count",
+                            category=MetricCategory.LOCK,
+                            threshold_warning=1,
+                            threshold_critical=5,
+                            source="pg_stat_database",
+                        )
+                    )
 
         except Exception as e:
             logger.warning(f"锁指标采集失败: {e}")
 
         return metrics
 
-    def collect_slow_queries(self, limit: int = 20,
-                            min_time_ms: float = 1000) -> List[SlowQueryInfo]:
+    def collect_slow_queries(self, limit: int = 20, min_time_ms: float = 1000) -> List[SlowQueryInfo]:
         """
         采集PostgreSQL慢查询
 
@@ -461,7 +482,8 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
         try:
             # 优先从pg_stat_statements获取
             if self._has_pg_stat_statements:
-                result = self._execute_with_timeout(f"""
+                result = self._execute_with_timeout(
+                    f"""
                     SELECT
                         queryid,
                         query,
@@ -475,23 +497,28 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                     WHERE mean_exec_time >= %s
                     ORDER BY mean_exec_time DESC
                     LIMIT %s
-                """, (min_time_ms, limit))
+                """,
+                    (min_time_ms, limit),
+                )
 
                 if result:
                     for row in result:
-                        queries.append(SlowQueryInfo(
-                            sql_text=row[1],
-                            sql_id=str(row[0]),
-                            execution_count=row[2],
-                            total_time_ms=row[3],
-                            avg_time_ms=row[4],
-                            max_time_ms=row[5],
-                            rows_examined=row[7]
-                        ))
+                        queries.append(
+                            SlowQueryInfo(
+                                sql_text=row[1],
+                                sql_id=str(row[0]),
+                                execution_count=row[2],
+                                total_time_ms=row[3],
+                                avg_time_ms=row[4],
+                                max_time_ms=row[5],
+                                rows_examined=row[7],
+                            )
+                        )
 
             # 降级到pg_stat_activity（只能看到当前执行的）
             if not queries:
-                result = self._execute_with_timeout(f"""
+                result = self._execute_with_timeout(
+                    f"""
                     SELECT
                         pid,
                         usename,
@@ -506,20 +533,24 @@ class PostgreSQLPerformanceAnalyzer(PerformanceAnalyzer):
                     AND extract(epoch from (now() - query_start)) * 1000 >= %s
                     ORDER BY query_start
                     LIMIT %s
-                """, (min_time_ms, limit))
+                """,
+                    (min_time_ms, limit),
+                )
 
                 if result:
                     for row in result:
                         query_time_ms = row[5] or 0
-                        queries.append(SlowQueryInfo(
-                            sql_text=row[6] or f"{row[4]} from {row[2]}",
-                            sql_id=str(row[0]),
-                            execution_count=1,
-                            total_time_ms=query_time_ms,
-                            avg_time_ms=query_time_ms,
-                            max_time_ms=query_time_ms,
-                            database=row[3]
-                        ))
+                        queries.append(
+                            SlowQueryInfo(
+                                sql_text=row[6] or f"{row[4]} from {row[2]}",
+                                sql_id=str(row[0]),
+                                execution_count=1,
+                                total_time_ms=query_time_ms,
+                                avg_time_ms=query_time_ms,
+                                max_time_ms=query_time_ms,
+                                database=row[3],
+                            )
+                        )
 
         except Exception as e:
             logger.error(f"慢查询采集失败: {e}")

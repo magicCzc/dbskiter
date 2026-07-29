@@ -58,9 +58,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
         """
         if ext_name not in self._extension_cache:
             try:
-                result = self.connector.execute_query(
-                    f"SELECT 1 FROM pg_extension WHERE extname = '{ext_name}'"
-                )
+                result = self.connector.execute_query(f"SELECT 1 FROM pg_extension WHERE extname = '{ext_name}'")
                 self._extension_cache[ext_name] = len(result) > 0
             except Exception as e:
                 logger.warning(f"检查扩展 {ext_name} 失败: {e}")
@@ -77,7 +75,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
         返回:
             MetricQuery: QPS指标查询定义
         """
-        if self._check_extension('pg_stat_statements'):
+        if self._check_extension("pg_stat_statements"):
             return MetricQuery(
                 sql="""
                     SELECT COALESCE(SUM(calls), 0)
@@ -86,7 +84,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             )
         else:
             # 降级方案：使用数据库统计信息估算
@@ -99,7 +97,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             )
 
     def _get_shared_buffer_usage_query(self) -> MetricQuery:
@@ -112,7 +110,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
         返回:
             MetricQuery: 共享缓冲区使用率查询定义
         """
-        if self._check_extension('pg_buffercache'):
+        if self._check_extension("pg_buffercache"):
             return MetricQuery(
                 sql="""
                     SELECT
@@ -123,7 +121,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                         )
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="percent"
+                unit="percent",
             )
         else:
             # 降级方案：返回估算值（基于缓冲命中率推算）
@@ -140,7 +138,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                     WHERE datname = current_database()
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 50.0),
-                unit="percent"
+                unit="percent",
             )
 
     def get_metric_queries(self) -> Dict[MetricType, MetricQuery]:
@@ -158,32 +156,30 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
             MetricType.CONNECTIONS_ACTIVE: MetricQuery(
                 sql="SELECT count(*) FROM pg_stat_activity WHERE state = 'active'",
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="count"
+                unit="count",
             ),
             MetricType.CONNECTIONS_TOTAL: MetricQuery(
                 sql="SELECT count(*) FROM pg_stat_activity",
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="count"
+                unit="count",
             ),
             MetricType.CONNECTIONS_MAX: MetricQuery(
                 sql="SELECT setting::int FROM pg_settings WHERE name = 'max_connections'",
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="count"
+                unit="count",
             ),
-
             # 锁指标
             MetricType.LOCK_WAITS: MetricQuery(
                 sql="SELECT count(*) FROM pg_locks WHERE NOT granted",
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="count"
+                unit="count",
             ),
             MetricType.DEADLOCKS: MetricQuery(
                 sql="SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()",
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
-
             # 缓冲指标
             MetricType.BUFFER_HIT_RATIO: MetricQuery(
                 sql="""
@@ -197,13 +193,11 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                     WHERE datname = current_database()
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 100.0),
-                unit="percent"
+                unit="percent",
             ),
-
             # 动态指标（根据扩展可用性选择查询）
             MetricType.QPS: self._get_qps_query(),
             MetricType.SHARED_BUFFER_USAGE: self._get_shared_buffer_usage_query(),
-
             # IO指标
             MetricType.PHYSICAL_READS: MetricQuery(
                 sql="""
@@ -212,7 +206,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
             MetricType.LOGICAL_READS: MetricQuery(
                 sql="""
@@ -221,9 +215,8 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
-
             # 临时文件
             MetricType.TEMP_TABLES_DISK: MetricQuery(
                 sql="""
@@ -232,9 +225,8 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
-
             # 事务指标
             MetricType.TRANSACTIONS_COMMITTED: MetricQuery(
                 sql="""
@@ -243,7 +235,7 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
             MetricType.TRANSACTIONS_ROLLED_BACK: MetricQuery(
                 sql="""
@@ -252,9 +244,8 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
-
             # 活跃事务
             MetricType.TRANSACTIONS_ACTIVE: MetricQuery(
                 sql="""
@@ -262,9 +253,8 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                     WHERE state = 'active' AND xact_start IS NOT NULL
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="count"
+                unit="count",
             ),
-
             # 复制延迟
             MetricType.REPLICATION_LAG: MetricQuery(
                 sql="""
@@ -277,9 +267,8 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                     WHERE pg_is_in_recovery()
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="seconds"
+                unit="seconds",
             ),
-
             # 表统计
             MetricType.ROWS_READ: MetricQuery(
                 sql="""
@@ -288,16 +277,15 @@ class PostgreSQLMetricsCollector(BaseMetricsCollector):
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
                 unit="count",
-                is_counter=True
+                is_counter=True,
             ),
-
             # 数据库大小
             MetricType.DISK_USAGE: MetricQuery(
                 sql="""
                     SELECT pg_database_size(current_database()) / 1024.0 / 1024.0 / 1024.0
                 """,
                 extract=lambda rows: self._safe_extract_float(rows, 0),
-                unit="GB"
+                unit="GB",
             ),
         }
 

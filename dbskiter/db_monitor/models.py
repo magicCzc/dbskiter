@@ -25,10 +25,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-
 # =============================================================================
 # 错误码体系
 # =============================================================================
+
 
 class ErrorCode:
     """
@@ -105,8 +105,10 @@ class ErrorMessage:
 # 枚举定义
 # =============================================================================
 
+
 class HealthStatus(str, Enum):
     """健康状态枚举"""
+
     HEALTHY = "healthy"
     WARNING = "warning"
     CRITICAL = "critical"
@@ -115,17 +117,19 @@ class HealthStatus(str, Enum):
 
 class AnomalyType(str, Enum):
     """异常类型枚举"""
-    SPIKE = "spike"           # 突增
-    DROP = "drop"             # 突降
-    TREND_UP = "trend_up"     # 上升趋势
-    TREND_DOWN = "trend_down" # 下降趋势
-    SEASONAL = "seasonal"     # 季节性异常
-    THRESHOLD = "threshold"   # 阈值超限
-    ML_ANOMALY = "ml_anomaly" # 机器学习检测异常
+
+    SPIKE = "spike"  # 突增
+    DROP = "drop"  # 突降
+    TREND_UP = "trend_up"  # 上升趋势
+    TREND_DOWN = "trend_down"  # 下降趋势
+    SEASONAL = "seasonal"  # 季节性异常
+    THRESHOLD = "threshold"  # 阈值超限
+    ML_ANOMALY = "ml_anomaly"  # 机器学习检测异常
 
 
 class Severity(str, Enum):
     """严重级别枚举"""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -135,6 +139,7 @@ class Severity(str, Enum):
 
 class MetricType(str, Enum):
     """指标类型枚举"""
+
     # 吞吐量指标
     QPS = "qps"
     TPS = "tps"
@@ -205,6 +210,7 @@ class MetricType(str, Enum):
 # 数据类
 # =============================================================================
 
+
 @dataclass
 class MetricPoint:
     """指标数据点
@@ -217,6 +223,7 @@ class MetricPoint:
         tags: 标签（如 ``{"database": "jump", "host": "10.0.0.1"}``）
         source: 数据来源（"direct"/"prometheus"/"zabbix"）
     """
+
     timestamp: datetime
     metric_type: MetricType
     value: float
@@ -232,7 +239,7 @@ class MetricPoint:
             "value": round(self.value, 4),
             "unit": self.unit,
             "tags": self.tags,
-            "source": self.source
+            "source": self.source,
         }
 
 
@@ -252,6 +259,7 @@ class AnomalyAlert:
         timestamp: 告警时间
         tags: 标签
     """
+
     alert_id: str
     anomaly_type: AnomalyType
     severity: Severity
@@ -275,7 +283,7 @@ class AnomalyAlert:
             "deviation_percent": round(self.deviation_percent, 2),
             "message": self.message,
             "timestamp": self.timestamp.isoformat(),
-            "tags": self.tags
+            "tags": self.tags,
         }
 
 
@@ -293,14 +301,15 @@ class MonitorConfig:
         alert_cooldown: 同一告警冷却时间（秒）
         anomaly_threshold: 异常检测 Z-score 阈值
     """
-    collection_interval: int = 60              # 采集间隔(秒)
-    max_history_size: int = 10080             # 最大历史数据点数(7天)
-    max_alerts: int = 1000                     # 最大告警数
-    enable_prediction: bool = True             # 启用容量预测
-    enable_persistent_storage: bool = True     # 启用持久化存储
-    storage_path: str = "./runtime_data/monitor"       # 存储路径
-    alert_cooldown: int = 300                  # 告警冷却时间(秒)
-    anomaly_threshold: float = 2.0             # 异常检测阈值(Z-score)
+
+    collection_interval: int = 60  # 采集间隔(秒)
+    max_history_size: int = 10080  # 最大历史数据点数(7天)
+    max_alerts: int = 1000  # 最大告警数
+    enable_prediction: bool = True  # 启用容量预测
+    enable_persistent_storage: bool = True  # 启用持久化存储
+    storage_path: str = "./runtime_data/monitor"  # 存储路径
+    alert_cooldown: int = 300  # 告警冷却时间(秒)
+    anomaly_threshold: float = 2.0  # 异常检测阈值(Z-score)
 
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -312,7 +321,7 @@ class MonitorConfig:
             "enable_persistent_storage": self.enable_persistent_storage,
             "storage_path": self.storage_path,
             "alert_cooldown": self.alert_cooldown,
-            "anomaly_threshold": self.anomaly_threshold
+            "anomaly_threshold": self.anomaly_threshold,
         }
 
 
@@ -327,8 +336,9 @@ class HealthAssessment:
         metrics_summary: 关键指标摘要
         timestamp: 评估时间
     """
+
     status: HealthStatus
-    score: int                                 # 0-100
+    score: int  # 0-100
     issues: List[str] = field(default_factory=list)
     metrics_summary: Dict[str, float] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.now)
@@ -340,7 +350,7 @@ class HealthAssessment:
             "score": self.score,
             "issues": self.issues,
             "metrics_summary": self.metrics_summary,
-            "timestamp": self.timestamp.isoformat()
+            "timestamp": self.timestamp.isoformat(),
         }
 
 
@@ -362,17 +372,18 @@ class CapacityPrediction:
         urgency: 紧急程度（"low"/"medium"/"high"/"critical"）
         predictable: 是否可预测
     """
+
     metric: str
     current_value: float
     current_time: datetime
-    predictions: Dict[str, float]             # {"7d": 75.5, "30d": 82.3}
+    predictions: Dict[str, float]  # {"7d": 75.5, "30d": 82.3}
     days_to_threshold: Optional[int]
     threshold: float
     growth_rate_daily: float
-    trend_direction: str                       # "up", "down", "stable"
-    confidence: float                          # 0-1
+    trend_direction: str  # "up", "down", "stable"
+    confidence: float  # 0-1
     recommendation: str
-    urgency: str                               # "low", "medium", "high", "critical"
+    urgency: str  # "low", "medium", "high", "critical"
     predictable: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
@@ -389,7 +400,7 @@ class CapacityPrediction:
             "confidence": round(self.confidence, 2),
             "recommendation": self.recommendation,
             "urgency": self.urgency,
-            "predictable": self.predictable
+            "predictable": self.predictable,
         }
 
 
@@ -397,4 +408,3 @@ class CapacityPrediction:
 # 响应辅助函数（从 shared 模块导入，保持统一）
 # =============================================================================
 from dbskiter.shared.error_handler import create_success_response, create_error_response
-

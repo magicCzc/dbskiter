@@ -34,11 +34,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
     def __init__(self, connector: UnifiedConnector):
         super().__init__(connector)
 
-    def analyze_slow_queries(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0
-    ) -> Dict[str, Any]:
+    def analyze_slow_queries(self, limit: int = 20, min_time: float = 1.0) -> Dict[str, Any]:
         """
         分析PostgreSQL慢查询（从pg_stat_statements获取）
 
@@ -61,7 +57,8 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 return self._analyze_slow_queries_from_activity(limit, min_time)
 
             # 获取慢查询
-            result = self._execute_query("""
+            result = self._execute_query(
+                """
                 SELECT
                     queryid,
                     query,
@@ -74,52 +71,40 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 WHERE mean_exec_time >= %s * 1000
                 ORDER BY mean_exec_time DESC
                 LIMIT %s
-            """, (min_time, limit))
+            """,
+                (min_time, limit),
+            )
 
             if not result:
                 return self._create_result(
-                    success=True,
-                    message="未找到慢查询",
-                    data={
-                        "total_queries": 0,
-                        "queries": []
-                    }
+                    success=True, message="未找到慢查询", data={"total_queries": 0, "queries": []}
                 )
 
             queries = []
             for row in result:
-                queries.append({
-                    "query_id": row[0],
-                    "query": row[1][:500] if row[1] else None,
-                    "calls": row[2],
-                    "total_time_ms": row[3],
-                    "avg_time_ms": row[4],
-                    "max_time_ms": row[5],
-                    "rows": row[6]
-                })
+                queries.append(
+                    {
+                        "query_id": row[0],
+                        "query": row[1][:500] if row[1] else None,
+                        "calls": row[2],
+                        "total_time_ms": row[3],
+                        "avg_time_ms": row[4],
+                        "max_time_ms": row[5],
+                        "rows": row[6],
+                    }
+                )
 
             return self._create_result(
                 success=True,
                 message=f"成功分析 {len(queries)} 个慢查询",
-                data={
-                    "total_queries": len(queries),
-                    "queries": queries
-                }
+                data={"total_queries": len(queries), "queries": queries},
             )
 
         except Exception as e:
             logger.error(f"慢查询分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="慢查询分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="慢查询分析失败", error=str(e))
 
-    def _analyze_slow_queries_from_activity(
-        self,
-        limit: int = 20,
-        min_time: float = 1.0
-    ) -> Dict[str, Any]:
+    def _analyze_slow_queries_from_activity(self, limit: int = 20, min_time: float = 1.0) -> Dict[str, Any]:
         """
         从pg_stat_activity分析当前活跃慢查询（降级方案）
 
@@ -131,7 +116,8 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             Dict: 慢查询分析结果
         """
         try:
-            result = self._execute_query("""
+            result = self._execute_query(
+                """
                 SELECT
                     pid,
                     LEFT(query, 500) AS query_text,
@@ -148,24 +134,28 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 AND EXTRACT(EPOCH FROM (now() - query_start)) >= %s
                 ORDER BY exec_seconds DESC
                 LIMIT %s
-            """, (min_time, limit))
+            """,
+                (min_time, limit),
+            )
 
             queries = []
             for row in result or []:
-                queries.append({
-                    "query_id": row[0],
-                    "query": row[1],
-                    "state": row[2],
-                    "exec_time_sec": row[3],
-                    "database": row[4],
-                    "user": row[5],
-                    "client": str(row[6]) if row[6] else None,
-                    "calls": 1,
-                    "total_time_ms": row[3] * 1000 if row[3] else 0,
-                    "avg_time_ms": row[3] * 1000 if row[3] else 0,
-                    "max_time_ms": row[3] * 1000 if row[3] else 0,
-                    "rows": 0
-                })
+                queries.append(
+                    {
+                        "query_id": row[0],
+                        "query": row[1],
+                        "state": row[2],
+                        "exec_time_sec": row[3],
+                        "database": row[4],
+                        "user": row[5],
+                        "client": str(row[6]) if row[6] else None,
+                        "calls": 1,
+                        "total_time_ms": row[3] * 1000 if row[3] else 0,
+                        "avg_time_ms": row[3] * 1000 if row[3] else 0,
+                        "max_time_ms": row[3] * 1000 if row[3] else 0,
+                        "rows": 0,
+                    }
+                )
 
             return self._create_result(
                 success=True,
@@ -173,22 +163,15 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 data={
                     "total_queries": len(queries),
                     "queries": queries,
-                    "note": "pg_stat_statements扩展未启用，仅显示当前活跃查询"
-                }
+                    "note": "pg_stat_statements扩展未启用，仅显示当前活跃查询",
+                },
             )
 
         except Exception as e:
             logger.error(f"从pg_stat_activity分析慢查询失败: {e}")
-            return self._create_result(
-                success=False,
-                message="慢查询分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="慢查询分析失败", error=str(e))
 
-    def analyze_performance_metrics(
-        self,
-        duration_minutes: int = 10
-    ) -> Dict[str, Any]:
+    def analyze_performance_metrics(self, duration_minutes: int = 10) -> Dict[str, Any]:
         """
         分析PostgreSQL性能指标
 
@@ -241,9 +224,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
 
                 # 计算缓存命中率
                 if row[3] + row[4] > 0:
-                    metrics["cache_hit_ratio"] = round(
-                        row[4] / (row[3] + row[4]) * 100, 2
-                    )
+                    metrics["cache_hit_ratio"] = round(row[4] / (row[3] + row[4]) * 100, 2)
 
             # 获取当前活动连接
             result = self._execute_query("""
@@ -255,9 +236,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             """)
 
             if result:
-                metrics["connection_states"] = {
-                    row[0]: row[1] for row in result
-                }
+                metrics["connection_states"] = {row[0]: row[1] for row in result}
 
             # 获取长时间运行的查询
             result = self._execute_query("""
@@ -282,7 +261,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                         "application": row[2],
                         "state": row[3],
                         "duration_sec": round(float(row[4]), 2),
-                        "query": row[5][:200] if row[5] else None
+                        "query": row[5][:200] if row[5] else None,
                     }
                     for row in result
                 ]
@@ -314,24 +293,16 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                         "blocking_pid": row[2],
                         "blocking_user": row[3],
                         "blocked_statement": row[4][:200] if row[4] else None,
-                        "blocking_statement": row[5][:200] if row[5] else None
+                        "blocking_statement": row[5][:200] if row[5] else None,
                     }
                     for row in result
                 ]
 
-            return self._create_result(
-                success=True,
-                message="成功获取性能指标",
-                data=metrics
-            )
+            return self._create_result(success=True, message="成功获取性能指标", data=metrics)
 
         except Exception as e:
             logger.error(f"性能分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="性能分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="性能分析失败", error=str(e))
 
     def get_database_stats(self) -> Dict[str, Any]:
         """
@@ -341,10 +312,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             Dict: 数据库统计信息
         """
         try:
-            stats = {
-                "database_type": "PostgreSQL",
-                "timestamp": datetime.now().isoformat()
-            }
+            stats = {"database_type": "PostgreSQL", "timestamp": datetime.now().isoformat()}
 
             # 获取版本
             result = self._execute_query("SELECT version()")
@@ -391,19 +359,11 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             if result:
                 stats["current_wal_lsn"] = str(result[0][0])
 
-            return self._create_result(
-                success=True,
-                message="成功获取数据库统计信息",
-                data=stats
-            )
+            return self._create_result(success=True, message="成功获取数据库统计信息", data=stats)
 
         except Exception as e:
             logger.error(f"获取数据库统计信息失败: {e}")
-            return self._create_result(
-                success=False,
-                message="获取数据库统计信息失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="获取数据库统计信息失败", error=str(e))
 
     def get_realtime_connections(self) -> Dict[str, Any]:
         """
@@ -430,16 +390,12 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 data={
                     "total": int(row[0]) if row[0] else 0,
                     "active": int(row[1]) if row[1] else 0,
-                    "slow_count": int(row[2]) if row[2] else 0
-                }
+                    "slow_count": int(row[2]) if row[2] else 0,
+                },
             )
         except Exception as e:
             logger.error(f"获取实时连接失败: {e}")
-            return self._create_result(
-                success=False,
-                message="获取实时连接失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="获取实时连接失败", error=str(e))
 
     def get_top_sql(self, limit: int = 10, threshold: int = 0) -> Dict[str, Any]:
         """
@@ -466,7 +422,8 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             queries = []
 
             if has_pgss:
-                result = self._execute_query("""
+                result = self._execute_query(
+                    """
                     SELECT
                         queryid,
                         query,
@@ -482,26 +439,31 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     AND query NOT LIKE '%%pg_catalog%%'
                     ORDER BY mean_exec_time DESC
                     LIMIT %s
-                """, (threshold, limit))
+                """,
+                    (threshold, limit),
+                )
 
                 if result is None:
                     result = []
 
                 for row in result:
-                    queries.append({
-                        "sql_id": str(row[0]),
-                        "sql": row[1][:500] if row[1] else "",
-                        "executions": int(row[2]) if row[2] else 0,
-                        "exec_time": float(row[4]) if row[4] else 0,
-                        "total_time": float(row[3]) if row[3] else 0,
-                        "max_time": float(row[5]) if row[5] else 0,
-                        "rows": int(row[6]) if row[6] else 0,
-                        "buffer_gets": int(row[7]) if row[7] else 0,
-                        "state": "completed"
-                    })
+                    queries.append(
+                        {
+                            "sql_id": str(row[0]),
+                            "sql": row[1][:500] if row[1] else "",
+                            "executions": int(row[2]) if row[2] else 0,
+                            "exec_time": float(row[4]) if row[4] else 0,
+                            "total_time": float(row[3]) if row[3] else 0,
+                            "max_time": float(row[5]) if row[5] else 0,
+                            "rows": int(row[6]) if row[6] else 0,
+                            "buffer_gets": int(row[7]) if row[7] else 0,
+                            "state": "completed",
+                        }
+                    )
             else:
                 # 降级到pg_stat_activity
-                result = self._execute_query("""
+                result = self._execute_query(
+                    """
                     SELECT
                         pid,
                         LEFT(query, 500) AS sql_text,
@@ -515,37 +477,35 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     AND EXTRACT(EPOCH FROM (now() - query_start)) >= %s
                     ORDER BY exec_seconds DESC
                     LIMIT %s
-                """, (threshold, limit))
+                """,
+                    (threshold, limit),
+                )
 
                 if result is None:
                     result = []
 
                 for row in result:
-                    queries.append({
-                        "sql_id": str(row[0]),
-                        "sql": row[1] if row[1] else "",
-                        "state": str(row[2]) if row[2] else "",
-                        "exec_time": float(row[3]) if row[3] else 0,
-                        "database": str(row[4]) if row[4] else "",
-                        "executions": 1,
-                        "total_time": float(row[3]) if row[3] else 0,
-                        "max_time": float(row[3]) if row[3] else 0,
-                        "rows": 0,
-                        "buffer_gets": 0
-                    })
+                    queries.append(
+                        {
+                            "sql_id": str(row[0]),
+                            "sql": row[1] if row[1] else "",
+                            "state": str(row[2]) if row[2] else "",
+                            "exec_time": float(row[3]) if row[3] else 0,
+                            "database": str(row[4]) if row[4] else "",
+                            "executions": 1,
+                            "total_time": float(row[3]) if row[3] else 0,
+                            "max_time": float(row[3]) if row[3] else 0,
+                            "rows": 0,
+                            "buffer_gets": 0,
+                        }
+                    )
 
             return self._create_result(
-                success=True,
-                message=f"获取到 {len(queries)} 条TOP SQL",
-                data={"queries": queries}
+                success=True, message=f"获取到 {len(queries)} 条TOP SQL", data={"queries": queries}
             )
         except Exception as e:
             logger.error(f"获取TOP SQL失败: {e}")
-            return self._create_result(
-                success=False,
-                message="获取TOP SQL失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="获取TOP SQL失败", error=str(e))
 
     def get_lock_waits(self) -> Dict[str, Any]:
         """
@@ -581,28 +541,24 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
 
             lock_waits = []
             for row in result:
-                lock_waits.append({
-                    "waiting_pid": int(row[0]) if row[0] else 0,
-                    "lock_type": str(row[1]) if row[1] else "",
-                    "wait_mode": str(row[2]) if row[2] else "",
-                    "wait_seconds": float(row[3]) if row[3] else 0,
-                    "holding_pid": int(row[4]) if row[4] else 0,
-                    "waiting_query": str(row[5])[:200] if row[5] else "",
-                    "blocking_query": str(row[6])[:200] if row[6] else ""
-                })
+                lock_waits.append(
+                    {
+                        "waiting_pid": int(row[0]) if row[0] else 0,
+                        "lock_type": str(row[1]) if row[1] else "",
+                        "wait_mode": str(row[2]) if row[2] else "",
+                        "wait_seconds": float(row[3]) if row[3] else 0,
+                        "holding_pid": int(row[4]) if row[4] else 0,
+                        "waiting_query": str(row[5])[:200] if row[5] else "",
+                        "blocking_query": str(row[6])[:200] if row[6] else "",
+                    }
+                )
 
             return self._create_result(
-                success=True,
-                message=f"获取到 {len(lock_waits)} 个锁等待",
-                data={"lock_waits": lock_waits}
+                success=True, message=f"获取到 {len(lock_waits)} 个锁等待", data={"lock_waits": lock_waits}
             )
         except Exception as e:
             logger.warning(f"获取锁等待失败: {e}")
-            return self._create_result(
-                success=True,
-                message="锁等待信息获取完成",
-                data={"lock_waits": []}
-            )
+            return self._create_result(success=True, message="锁等待信息获取完成", data={"lock_waits": []})
 
     def analyze_vacuum_status(self) -> Dict[str, Any]:
         """
@@ -656,34 +612,36 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 wasted_space = int(size_bytes * dead_ratio / 100)
                 total_wasted_space += wasted_space
 
-                tables_needing_vacuum.append({
-                    "schema": row[0],
-                    "table": row[1],
-                    "live_tuples": row[2] or 0,
-                    "dead_tuples": row[3] or 0,
-                    "dead_ratio": dead_ratio,
-                    "last_vacuum": row[5].isoformat() if row[5] else None,
-                    "last_autovacuum": row[6].isoformat() if row[6] else None,
-                    "last_analyze": row[7].isoformat() if row[7] else None,
-                    "last_autoanalyze": row[8].isoformat() if row[8] else None,
-                    "total_size": row[9],
-                    "size_bytes": size_bytes,
-                    "wasted_space_bytes": wasted_space,
-                    "priority": self._calculate_vacuum_priority(dead_ratio, row[3] or 0)
-                })
+                tables_needing_vacuum.append(
+                    {
+                        "schema": row[0],
+                        "table": row[1],
+                        "live_tuples": row[2] or 0,
+                        "dead_tuples": row[3] or 0,
+                        "dead_ratio": dead_ratio,
+                        "last_vacuum": row[5].isoformat() if row[5] else None,
+                        "last_autovacuum": row[6].isoformat() if row[6] else None,
+                        "last_analyze": row[7].isoformat() if row[7] else None,
+                        "last_autoanalyze": row[8].isoformat() if row[8] else None,
+                        "total_size": row[9],
+                        "size_bytes": size_bytes,
+                        "wasted_space_bytes": wasted_space,
+                        "priority": self._calculate_vacuum_priority(dead_ratio, row[3] or 0),
+                    }
+                )
 
             # 获取autovacuum配置
             autovacuum_settings = {}
             settings_to_check = [
-                'autovacuum',
-                'autovacuum_max_workers',
-                'autovacuum_naptime',
-                'autovacuum_vacuum_threshold',
-                'autovacuum_vacuum_scale_factor',
-                'autovacuum_analyze_threshold',
-                'autovacuum_analyze_scale_factor',
-                'autovacuum_vacuum_cost_limit',
-                'autovacuum_vacuum_cost_delay'
+                "autovacuum",
+                "autovacuum_max_workers",
+                "autovacuum_naptime",
+                "autovacuum_vacuum_threshold",
+                "autovacuum_vacuum_scale_factor",
+                "autovacuum_analyze_threshold",
+                "autovacuum_analyze_scale_factor",
+                "autovacuum_vacuum_cost_limit",
+                "autovacuum_vacuum_cost_delay",
             ]
 
             for setting in settings_to_check:
@@ -698,9 +656,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             vacuum_stats = self._get_vacuum_statistics()
 
             # 计算健康评分
-            health_score = self._calculate_vacuum_health_score(
-                tables_needing_vacuum, autovacuum_settings, vacuum_stats
-            )
+            health_score = self._calculate_vacuum_health_score(tables_needing_vacuum, autovacuum_settings, vacuum_stats)
 
             # 生成建议和可执行命令
             suggestions = []
@@ -712,49 +668,60 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 medium_priority = [t for t in tables_needing_vacuum if t["priority"] == "medium"]
 
                 if high_priority:
-                    suggestions.append({
-                        "type": "critical",
-                        "message": f"发现 {len(high_priority)} 个表需要立即执行VACUUM",
-                        "impact": f"预计可回收 {self._format_bytes(sum(t['wasted_space_bytes'] for t in high_priority))} 空间",
-                        "tables": [f"{t['schema']}.{t['table']}" for t in high_priority[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "critical",
+                            "message": f"发现 {len(high_priority)} 个表需要立即执行VACUUM",
+                            "impact": f"预计可回收 {self._format_bytes(sum(t['wasted_space_bytes'] for t in high_priority))} 空间",
+                            "tables": [f"{t['schema']}.{t['table']}" for t in high_priority[:5]],
+                        }
+                    )
                     # 生成高优先级表的VACUUM命令
                     for t in high_priority[:3]:
-                        actionable_commands.append({
-                            "priority": "high",
-                            "table": f"{t['schema']}.{t['table']}",
-                            "command": f"VACUUM (VERBOSE, ANALYZE) {t['schema']}.{t['table']};",
-                            "description": f"清理死元组，预计可回收 {self._format_bytes(t['wasted_space_bytes'])}",
-                            "estimated_dead_tuples": t["dead_tuples"],
-                            "dead_ratio": t["dead_ratio"]
-                        })
+                        actionable_commands.append(
+                            {
+                                "priority": "high",
+                                "table": f"{t['schema']}.{t['table']}",
+                                "command": f"VACUUM (VERBOSE, ANALYZE) {t['schema']}.{t['table']};",
+                                "description": f"清理死元组，预计可回收 {self._format_bytes(t['wasted_space_bytes'])}",
+                                "estimated_dead_tuples": t["dead_tuples"],
+                                "dead_ratio": t["dead_ratio"],
+                            }
+                        )
 
                 if medium_priority:
-                    suggestions.append({
-                        "type": "warning",
-                        "message": f"发现 {len(medium_priority)} 个表建议在维护窗口执行VACUUM",
-                        "tables": [f"{t['schema']}.{t['table']}" for t in medium_priority[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "warning",
+                            "message": f"发现 {len(medium_priority)} 个表建议在维护窗口执行VACUUM",
+                            "tables": [f"{t['schema']}.{t['table']}" for t in medium_priority[:5]],
+                        }
+                    )
 
                 # 检查长时间未VACUUM的表
-                no_recent_vacuum = [t for t in tables_needing_vacuum
-                                   if not t["last_autovacuum"] and not t["last_vacuum"]]
+                no_recent_vacuum = [
+                    t for t in tables_needing_vacuum if not t["last_autovacuum"] and not t["last_vacuum"]
+                ]
                 if no_recent_vacuum:
-                    suggestions.append({
-                        "type": "info",
-                        "message": f"发现 {len(no_recent_vacuum)} 个表从未执行过VACUUM",
-                        "note": "建议检查autovacuum配置或手动执行VACUUM",
-                        "tables": [f"{t['schema']}.{t['table']}" for t in no_recent_vacuum[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "info",
+                            "message": f"发现 {len(no_recent_vacuum)} 个表从未执行过VACUUM",
+                            "note": "建议检查autovacuum配置或手动执行VACUUM",
+                            "tables": [f"{t['schema']}.{t['table']}" for t in no_recent_vacuum[:5]],
+                        }
+                    )
 
             # 检查autovacuum配置
-            if autovacuum_settings.get('autovacuum') != 'on':
-                suggestions.append({
-                    "type": "critical",
-                    "message": "autovacuum未启用，建议立即开启",
-                    "fix_command": "ALTER SYSTEM SET autovacuum = on; SELECT pg_reload_conf();",
-                    "impact": "关闭autovacuum会导致表膨胀和性能下降"
-                })
+            if autovacuum_settings.get("autovacuum") != "on":
+                suggestions.append(
+                    {
+                        "type": "critical",
+                        "message": "autovacuum未启用，建议立即开启",
+                        "fix_command": "ALTER SYSTEM SET autovacuum = on; SELECT pg_reload_conf();",
+                        "impact": "关闭autovacuum会导致表膨胀和性能下降",
+                    }
+                )
 
             return self._create_result(
                 success=True,
@@ -767,17 +734,13 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     "total_wasted_space": self._format_bytes(total_wasted_space),
                     "total_wasted_space_bytes": total_wasted_space,
                     "suggestions": suggestions,
-                    "actionable_commands": actionable_commands
-                }
+                    "actionable_commands": actionable_commands,
+                },
             )
 
         except Exception as e:
             logger.error(f"VACUUM状态分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="VACUUM状态分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="VACUUM状态分析失败", error=str(e))
 
     def _calculate_vacuum_priority(self, dead_ratio: float, dead_tuples: int) -> str:
         """
@@ -825,10 +788,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
         return stats
 
     def _calculate_vacuum_health_score(
-        self,
-        tables: List[Dict],
-        settings: Dict[str, Any],
-        stats: Dict[str, Any]
+        self, tables: List[Dict], settings: Dict[str, Any], stats: Dict[str, Any]
     ) -> int:
         """
         计算VACUUM健康评分
@@ -848,18 +808,18 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 "name": "高优先级表",
                 "filter": lambda x: x.get("priority") == "high",
                 "deduction": 20,
-                "max_deduction": 40
+                "max_deduction": 40,
             },
             {
                 "name": "中优先级表",
                 "filter": lambda x: x.get("priority") == "medium",
                 "deduction": 10,
-                "max_deduction": 20
-            }
+                "max_deduction": 20,
+            },
         ]
         score = self._calculate_health_score(tables, rules)
 
-        if settings.get('autovacuum') != 'on':
+        if settings.get("autovacuum") != "on":
             score -= 30
 
         overall_ratio = stats.get("overall_dead_ratio", 0)
@@ -910,15 +870,17 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             for row in result or []:
                 size_bytes = row[5] or 0
                 total_unused_size += size_bytes
-                unused_indexes.append({
-                    "schema": row[0],
-                    "table": row[1],
-                    "index": row[2],
-                    "scans": row[3],
-                    "size": row[4],
-                    "size_bytes": size_bytes,
-                    "priority": "high" if size_bytes > 10 * 1024 * 1024 else "medium"  # >10MB为高优先级
-                })
+                unused_indexes.append(
+                    {
+                        "schema": row[0],
+                        "table": row[1],
+                        "index": row[2],
+                        "scans": row[3],
+                        "size": row[4],
+                        "size_bytes": size_bytes,
+                        "priority": "high" if size_bytes > 10 * 1024 * 1024 else "medium",  # >10MB为高优先级
+                    }
+                )
 
             # 获取高频使用索引
             hot_indexes = []
@@ -939,16 +901,18 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             """)
 
             for row in result or []:
-                hot_indexes.append({
-                    "schema": row[0],
-                    "table": row[1],
-                    "index": row[2],
-                    "scans": row[3],
-                    "tuples_read": row[4],
-                    "tuples_fetch": row[5],
-                    "size": row[6],
-                    "size_bytes": row[7] or 0
-                })
+                hot_indexes.append(
+                    {
+                        "schema": row[0],
+                        "table": row[1],
+                        "index": row[2],
+                        "scans": row[3],
+                        "tuples_read": row[4],
+                        "tuples_fetch": row[5],
+                        "size": row[6],
+                        "size_bytes": row[7] or 0,
+                    }
+                )
 
             # 获取可能缺少索引的表（全表扫描多）
             tables_missing_index = []
@@ -977,24 +941,24 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     continue
                 seq_scans = row[2] or 0
                 live_tuples = row[6] or 0
-                tables_missing_index.append({
-                    "schema": row[0],
-                    "table": row[1],
-                    "seq_scans": seq_scans,
-                    "seq_tuples_read": row[3] or 0,
-                    "idx_scans": row[4] or 0,
-                    "idx_to_seq_ratio": float(row[5]) if row[5] else 0,
-                    "live_tuples": live_tuples,
-                    "priority": "high" if seq_scans > 10000 and live_tuples > 10000 else "medium"
-                })
+                tables_missing_index.append(
+                    {
+                        "schema": row[0],
+                        "table": row[1],
+                        "seq_scans": seq_scans,
+                        "seq_tuples_read": row[3] or 0,
+                        "idx_scans": row[4] or 0,
+                        "idx_to_seq_ratio": float(row[5]) if row[5] else 0,
+                        "live_tuples": live_tuples,
+                        "priority": "high" if seq_scans > 10000 and live_tuples > 10000 else "medium",
+                    }
+                )
 
             # 检查重复索引
             duplicate_indexes = self._find_duplicate_indexes()
 
             # 计算健康评分
-            health_score = self._calculate_index_health_score(
-                unused_indexes, tables_missing_index, duplicate_indexes
-            )
+            health_score = self._calculate_index_health_score(unused_indexes, tables_missing_index, duplicate_indexes)
 
             # 生成建议和可执行命令
             suggestions = []
@@ -1004,84 +968,100 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 high_priority_unused = [idx for idx in unused_indexes if idx["priority"] == "high"]
                 if high_priority_unused:
                     wasted = sum(idx.get("size_bytes", 0) for idx in high_priority_unused)
-                    suggestions.append({
-                        "type": "warning",
-                        "message": f"发现 {len(high_priority_unused)} 个大体积未使用索引(>10MB)",
-                        "impact": f"可回收约 {self._format_bytes(wasted)} 空间",
-                        "indexes": [f"{idx['table']}.{idx['index']}" for idx in high_priority_unused[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "warning",
+                            "message": f"发现 {len(high_priority_unused)} 个大体积未使用索引(>10MB)",
+                            "impact": f"可回收约 {self._format_bytes(wasted)} 空间",
+                            "indexes": [f"{idx['table']}.{idx['index']}" for idx in high_priority_unused[:5]],
+                        }
+                    )
                     # 生成删除命令
                     for idx in high_priority_unused[:3]:
-                        actionable_commands.append({
-                            "priority": "high",
-                            "type": "drop_index",
-                            "index": f"{idx['schema']}.{idx['index']}",
-                            "commands": [
-                                f"-- 删除未使用的大索引",
-                                f"DROP INDEX CONCURRENTLY IF EXISTS {idx['schema']}.{idx['index']};",
-                            ],
-                            "description": f"索引大小 {idx['size']}，从未被使用",
-                            "warning": "请先在测试环境验证，确认无影响后再执行"
-                        })
+                        actionable_commands.append(
+                            {
+                                "priority": "high",
+                                "type": "drop_index",
+                                "index": f"{idx['schema']}.{idx['index']}",
+                                "commands": [
+                                    f"-- 删除未使用的大索引",
+                                    f"DROP INDEX CONCURRENTLY IF EXISTS {idx['schema']}.{idx['index']};",
+                                ],
+                                "description": f"索引大小 {idx['size']}，从未被使用",
+                                "warning": "请先在测试环境验证，确认无影响后再执行",
+                            }
+                        )
 
                 if len(unused_indexes) > len(high_priority_unused):
-                    suggestions.append({
-                        "type": "info",
-                        "message": f"还有 {len(unused_indexes) - len(high_priority_unused)} 个小体积未使用索引",
-                        "note": "虽然占用空间不大，但会影响写入性能，建议评估后删除"
-                    })
+                    suggestions.append(
+                        {
+                            "type": "info",
+                            "message": f"还有 {len(unused_indexes) - len(high_priority_unused)} 个小体积未使用索引",
+                            "note": "虽然占用空间不大，但会影响写入性能，建议评估后删除",
+                        }
+                    )
 
             if tables_missing_index:
                 high_priority_missing = [t for t in tables_missing_index if t["priority"] == "high"]
                 if high_priority_missing:
-                    suggestions.append({
-                        "type": "critical",
-                        "message": f"发现 {len(high_priority_missing)} 个表严重缺少索引",
-                        "impact": "大量全表扫描导致查询性能低下",
-                        "tables": [f"{t['schema']}.{t['table']}" for t in high_priority_missing[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "critical",
+                            "message": f"发现 {len(high_priority_missing)} 个表严重缺少索引",
+                            "impact": "大量全表扫描导致查询性能低下",
+                            "tables": [f"{t['schema']}.{t['table']}" for t in high_priority_missing[:5]],
+                        }
+                    )
                     for t in high_priority_missing[:3]:
-                        actionable_commands.append({
-                            "priority": "high",
-                            "type": "create_index",
-                            "table": f"{t['schema']}.{t['table']}",
-                            "commands": [
-                                f"-- 为表 {t['schema']}.{t['table']} 创建索引",
-                                f"-- 建议步骤:",
-                                f"-- 1. 分析慢查询日志，找出常用查询条件",
-                                f"-- 2. 使用 EXPLAIN ANALYZE 验证索引效果",
-                                f"-- 3. 创建索引 (使用CONCURRENTLY避免锁表):",
-                                f"-- CREATE INDEX CONCURRENTLY idx_{t['table']}_xxx ON {t['schema']}.{t['table']}(column_name);",
-                            ],
-                            "description": f"表有 {t['seq_scans']} 次全表扫描，{t['live_tuples']} 行数据"
-                        })
+                        actionable_commands.append(
+                            {
+                                "priority": "high",
+                                "type": "create_index",
+                                "table": f"{t['schema']}.{t['table']}",
+                                "commands": [
+                                    f"-- 为表 {t['schema']}.{t['table']} 创建索引",
+                                    f"-- 建议步骤:",
+                                    f"-- 1. 分析慢查询日志，找出常用查询条件",
+                                    f"-- 2. 使用 EXPLAIN ANALYZE 验证索引效果",
+                                    f"-- 3. 创建索引 (使用CONCURRENTLY避免锁表):",
+                                    f"-- CREATE INDEX CONCURRENTLY idx_{t['table']}_xxx ON {t['schema']}.{t['table']}(column_name);",
+                                ],
+                                "description": f"表有 {t['seq_scans']} 次全表扫描，{t['live_tuples']} 行数据",
+                            }
+                        )
 
                 medium_priority_missing = [t for t in tables_missing_index if t["priority"] == "medium"]
                 if medium_priority_missing:
-                    suggestions.append({
-                        "type": "info",
-                        "message": f"发现 {len(medium_priority_missing)} 个表可能缺少索引",
-                        "tables": [f"{t['schema']}.{t['table']}" for t in medium_priority_missing[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "info",
+                            "message": f"发现 {len(medium_priority_missing)} 个表可能缺少索引",
+                            "tables": [f"{t['schema']}.{t['table']}" for t in medium_priority_missing[:5]],
+                        }
+                    )
 
             if duplicate_indexes:
-                suggestions.append({
-                    "type": "warning",
-                    "message": f"发现 {len(duplicate_indexes)} 组重复索引",
-                    "note": "重复索引浪费空间且影响写入性能，建议删除冗余索引"
-                })
+                suggestions.append(
+                    {
+                        "type": "warning",
+                        "message": f"发现 {len(duplicate_indexes)} 组重复索引",
+                        "note": "重复索引浪费空间且影响写入性能，建议删除冗余索引",
+                    }
+                )
                 for dup in duplicate_indexes[:2]:
-                    actionable_commands.append({
-                        "priority": "medium",
-                        "type": "drop_duplicate_index",
-                        "table": dup["table"],
-                        "commands": [
-                            f"-- 删除重复索引: {dup['redundant_index']}",
-                            f"-- 保留索引: {dup['kept_index']}",
-                            f"DROP INDEX CONCURRENTLY IF EXISTS {dup['schema']}.{dup['redundant_index']};",
-                        ],
-                        "description": f"索引 {dup['redundant_index']} 被 {dup['kept_index']} 包含"
-                    })
+                    actionable_commands.append(
+                        {
+                            "priority": "medium",
+                            "type": "drop_duplicate_index",
+                            "table": dup["table"],
+                            "commands": [
+                                f"-- 删除重复索引: {dup['redundant_index']}",
+                                f"-- 保留索引: {dup['kept_index']}",
+                                f"DROP INDEX CONCURRENTLY IF EXISTS {dup['schema']}.{dup['redundant_index']};",
+                            ],
+                            "description": f"索引 {dup['redundant_index']} 被 {dup['kept_index']} 包含",
+                        }
+                    )
 
             return self._create_result(
                 success=True,
@@ -1095,17 +1075,13 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     "total_unused_index_size": self._format_bytes(total_unused_size),
                     "total_unused_index_bytes": total_unused_size,
                     "suggestions": suggestions,
-                    "actionable_commands": actionable_commands
-                }
+                    "actionable_commands": actionable_commands,
+                },
             )
 
         except Exception as e:
             logger.error(f"索引使用分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="索引使用分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="索引使用分析失败", error=str(e))
 
     def _find_duplicate_indexes(self) -> List[Dict]:
         """
@@ -1136,12 +1112,9 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 key = f"{schema}.{table}"
                 if key not in table_indexes:
                     table_indexes[key] = []
-                table_indexes[key].append({
-                    "schema": schema,
-                    "table": table,
-                    "index": index_name,
-                    "definition": index_def
-                })
+                table_indexes[key].append(
+                    {"schema": schema, "table": table, "index": index_name, "definition": index_def}
+                )
 
             duplicates = []
 
@@ -1171,13 +1144,15 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                             else:
                                 redundant, kept = idx2, idx1
 
-                            duplicates.append({
-                                "schema": redundant["schema"],
-                                "table": redundant["table"],
-                                "redundant_index": redundant["index"],
-                                "kept_index": kept["index"],
-                                "reason": "索引定义重复或包含"
-                            })
+                            duplicates.append(
+                                {
+                                    "schema": redundant["schema"],
+                                    "table": redundant["table"],
+                                    "redundant_index": redundant["index"],
+                                    "kept_index": kept["index"],
+                                    "reason": "索引定义重复或包含",
+                                }
+                            )
 
             return duplicates[:10]  # 限制返回数量
 
@@ -1186,10 +1161,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             return []
 
     def _calculate_index_health_score(
-        self,
-        unused_indexes: List[Dict],
-        tables_missing_index: List[Dict],
-        duplicate_indexes: List[Dict]
+        self, unused_indexes: List[Dict], tables_missing_index: List[Dict], duplicate_indexes: List[Dict]
     ) -> int:
         """
         计算索引健康评分
@@ -1209,20 +1181,20 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 "name": "高优先级未使用索引",
                 "filter": lambda x: x.get("priority") == "high" and x.get("size_bytes") is not None,
                 "deduction": 10,
-                "max_deduction": 30
+                "max_deduction": 30,
             },
             {
                 "name": "高优先级缺少索引",
                 "filter": lambda x: x.get("priority") == "high" and x.get("seq_scan") is not None,
                 "deduction": 15,
-                "max_deduction": 45
+                "max_deduction": 45,
             },
             {
                 "name": "重复索引",
                 "filter": lambda x: x.get("duplicate_of") is not None,
                 "deduction": 5,
-                "max_deduction": 15
-            }
+                "max_deduction": 15,
+            },
         ]
         return self._calculate_health_score(all_items, rules)
 
@@ -1278,7 +1250,8 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     try:
                         # 尝试获取膨胀信息（使用参数化查询防止SQL注入）
                         table_fullname = f"{row[0]}.{row[1]}"
-                        bloat_result = self._execute_query("""
+                        bloat_result = self._execute_query(
+                            """
                             SELECT
                                 table_len,
                                 tuple_count,
@@ -1286,7 +1259,9 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                                 free_space,
                                 ROUND(dead_tuple_len::numeric / NULLIF(table_len, 0) * 100, 2) as bloat_ratio
                             FROM pgstattuple(%s)
-                        """, (table_fullname,))
+                        """,
+                            (table_fullname,),
+                        )
 
                         if bloat_result:
                             bloat_ratio = float(bloat_result[0][4]) if bloat_result[0][4] else 0
@@ -1294,18 +1269,20 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                             wasted = int(size_bytes * bloat_ratio / 100)
                             total_wasted_space += wasted
 
-                            bloated_tables.append({
-                                "schema": row[0],
-                                "table": row[1],
-                                "total_size": row[2],
-                                "table_size": row[3],
-                                "size_bytes": size_bytes,
-                                "tuple_count": bloat_result[0][1],
-                                "dead_tuples": bloat_result[0][2],
-                                "bloat_ratio": bloat_ratio,
-                                "wasted_space_bytes": wasted,
-                                "priority": self._calculate_bloat_priority(bloat_ratio)
-                            })
+                            bloated_tables.append(
+                                {
+                                    "schema": row[0],
+                                    "table": row[1],
+                                    "total_size": row[2],
+                                    "table_size": row[3],
+                                    "size_bytes": size_bytes,
+                                    "tuple_count": bloat_result[0][1],
+                                    "dead_tuples": bloat_result[0][2],
+                                    "bloat_ratio": bloat_ratio,
+                                    "wasted_space_bytes": wasted,
+                                    "priority": self._calculate_bloat_priority(bloat_ratio),
+                                }
+                            )
                     except Exception as e:
                         logger.warning(f"获取表 {row[0]}.{row[1]} 膨胀信息失败: {e}")
                         continue
@@ -1336,28 +1313,32 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     wasted = int(size_bytes * estimated_ratio / 100)
                     total_wasted_space += wasted
 
-                    bloated_tables.append({
-                        "schema": row[0],
-                        "table": row[1],
-                        "live_tuples": row[2],
-                        "dead_tuples": row[3],
-                        "estimated_bloat_ratio": estimated_ratio,
-                        "total_size": row[5],
-                        "table_size": row[6],
-                        "size_bytes": size_bytes,
-                        "wasted_space_bytes": wasted,
-                        "priority": self._calculate_bloat_priority(estimated_ratio)
-                    })
+                    bloated_tables.append(
+                        {
+                            "schema": row[0],
+                            "table": row[1],
+                            "live_tuples": row[2],
+                            "dead_tuples": row[3],
+                            "estimated_bloat_ratio": estimated_ratio,
+                            "total_size": row[5],
+                            "table_size": row[6],
+                            "size_bytes": size_bytes,
+                            "wasted_space_bytes": wasted,
+                            "priority": self._calculate_bloat_priority(estimated_ratio),
+                        }
+                    )
 
             # 按膨胀率排序
             bloated_tables.sort(
-                key=lambda x: x.get("bloat_ratio", 0) or x.get("estimated_bloat_ratio", 0),
-                reverse=True
+                key=lambda x: x.get("bloat_ratio", 0) or x.get("estimated_bloat_ratio", 0), reverse=True
             )
 
             # 识别严重膨胀的表（使用传入的阈值）
-            severely_bloated = [t for t in bloated_tables
-                               if t.get("bloat_ratio", 0) > threshold or t.get("estimated_bloat_ratio", 0) > threshold]
+            severely_bloated = [
+                t
+                for t in bloated_tables
+                if t.get("bloat_ratio", 0) > threshold or t.get("estimated_bloat_ratio", 0) > threshold
+            ]
 
             # 计算健康评分
             health_score = self._calculate_bloat_health_score(bloated_tables, severely_bloated, has_pgstattuple)
@@ -1370,42 +1351,50 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 high_priority = [t for t in severely_bloated if t["priority"] == "high"]
                 if high_priority:
                     wasted = sum(t.get("wasted_space_bytes", 0) for t in high_priority)
-                    suggestions.append({
-                        "type": "critical",
-                        "message": f"发现 {len(high_priority)} 个表严重膨胀，需要立即处理",
-                        "impact": f"预计可回收 {self._format_bytes(wasted)} 空间",
-                        "tables": [f"{t['schema']}.{t['table']}" for t in high_priority[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "critical",
+                            "message": f"发现 {len(high_priority)} 个表严重膨胀，需要立即处理",
+                            "impact": f"预计可回收 {self._format_bytes(wasted)} 空间",
+                            "tables": [f"{t['schema']}.{t['table']}" for t in high_priority[:5]],
+                        }
+                    )
                     # 生成高优先级表的维护命令
                     for t in high_priority[:3]:
-                        actionable_commands.append({
-                            "priority": "high",
-                            "table": f"{t['schema']}.{t['table']}",
-                            "commands": [
-                                f"-- 方法1: VACUUM FULL (锁表，最彻底)",
-                                f"VACUUM FULL {t['schema']}.{t['table']};",
-                                f"",
-                                f"-- 方法2: 使用pg_repack (在线，推荐)",
-                                f"pg_repack -t {t['schema']}.{t['table']} -d your_database",
-                            ],
-                            "description": f"表膨胀率 {t.get('bloat_ratio', t.get('estimated_bloat_ratio', 0)):.1f}%，预计可回收 {self._format_bytes(t.get('wasted_space_bytes', 0))}"
-                        })
+                        actionable_commands.append(
+                            {
+                                "priority": "high",
+                                "table": f"{t['schema']}.{t['table']}",
+                                "commands": [
+                                    f"-- 方法1: VACUUM FULL (锁表，最彻底)",
+                                    f"VACUUM FULL {t['schema']}.{t['table']};",
+                                    f"",
+                                    f"-- 方法2: 使用pg_repack (在线，推荐)",
+                                    f"pg_repack -t {t['schema']}.{t['table']} -d your_database",
+                                ],
+                                "description": f"表膨胀率 {t.get('bloat_ratio', t.get('estimated_bloat_ratio', 0)):.1f}%，预计可回收 {self._format_bytes(t.get('wasted_space_bytes', 0))}",
+                            }
+                        )
 
                 medium_priority = [t for t in severely_bloated if t["priority"] == "medium"]
                 if medium_priority:
-                    suggestions.append({
-                        "type": "warning",
-                        "message": f"发现 {len(medium_priority)} 个表中度膨胀，建议在维护窗口处理",
-                        "tables": [f"{t['schema']}.{t['table']}" for t in medium_priority[:5]]
-                    })
+                    suggestions.append(
+                        {
+                            "type": "warning",
+                            "message": f"发现 {len(medium_priority)} 个表中度膨胀，建议在维护窗口处理",
+                            "tables": [f"{t['schema']}.{t['table']}" for t in medium_priority[:5]],
+                        }
+                    )
 
             if not has_pgstattuple:
-                suggestions.append({
-                    "type": "info",
-                    "message": "建议安装pgstattuple扩展以获取更准确的膨胀分析",
-                    "install_sql": "CREATE EXTENSION IF NOT EXISTS pgstattuple;",
-                    "note": "安装后可以获得更精确的膨胀率数据"
-                })
+                suggestions.append(
+                    {
+                        "type": "info",
+                        "message": "建议安装pgstattuple扩展以获取更准确的膨胀分析",
+                        "install_sql": "CREATE EXTENSION IF NOT EXISTS pgstattuple;",
+                        "note": "安装后可以获得更精确的膨胀率数据",
+                    }
+                )
 
             return self._create_result(
                 success=True,
@@ -1418,17 +1407,13 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                     "total_wasted_space": self._format_bytes(total_wasted_space),
                     "total_wasted_space_bytes": total_wasted_space,
                     "suggestions": suggestions,
-                    "actionable_commands": actionable_commands
-                }
+                    "actionable_commands": actionable_commands,
+                },
             )
 
         except Exception as e:
             logger.error(f"表膨胀分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="表膨胀分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="表膨胀分析失败", error=str(e))
 
     def _calculate_bloat_priority(self, bloat_ratio: float) -> str:
         """
@@ -1448,10 +1433,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
             return "low"
 
     def _calculate_bloat_health_score(
-        self,
-        bloated_tables: List[Dict],
-        severely_bloated: List[Dict],
-        has_pgstattuple: bool
+        self, bloated_tables: List[Dict], severely_bloated: List[Dict], has_pgstattuple: bool
     ) -> int:
         """
         计算膨胀健康评分
@@ -1470,14 +1452,14 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 "name": "高优先级膨胀表",
                 "filter": lambda x: x.get("priority") == "high",
                 "deduction": 15,
-                "max_deduction": 45
+                "max_deduction": 45,
             },
             {
                 "name": "中优先级膨胀表",
                 "filter": lambda x: x.get("priority") == "medium",
                 "deduction": 8,
-                "max_deduction": 24
-            }
+                "max_deduction": 24,
+            },
         ]
         score = self._calculate_health_score(bloated_tables, rules)
 
@@ -1505,7 +1487,7 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 "replication_mode": None,
                 "lag_seconds": 0,
                 "replication_slots": [],
-                "replication_connections": []
+                "replication_connections": [],
             }
 
             if is_standby:
@@ -1557,15 +1539,17 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 """)
 
                 for row in result or []:
-                    replication_info["replication_connections"].append({
-                        "client_addr": str(row[0]) if row[0] else None,
-                        "state": row[1],
-                        "sent_lsn": str(row[2]) if row[2] else None,
-                        "write_lsn": str(row[3]) if row[3] else None,
-                        "flush_lsn": str(row[4]) if row[4] else None,
-                        "replay_lsn": str(row[5]) if row[5] else None,
-                        "connected_seconds": float(row[6]) if row[6] else 0
-                    })
+                    replication_info["replication_connections"].append(
+                        {
+                            "client_addr": str(row[0]) if row[0] else None,
+                            "state": row[1],
+                            "sent_lsn": str(row[2]) if row[2] else None,
+                            "write_lsn": str(row[3]) if row[3] else None,
+                            "flush_lsn": str(row[4]) if row[4] else None,
+                            "replay_lsn": str(row[5]) if row[5] else None,
+                            "connected_seconds": float(row[6]) if row[6] else 0,
+                        }
+                    )
 
                 # 获取复制slot
                 result = self._execute_query("""
@@ -1580,40 +1564,33 @@ class PostgreSQLDiagnostician(BaseDiagnostician):
                 """)
 
                 for row in result or []:
-                    replication_info["replication_slots"].append({
-                        "slot_name": row[0],
-                        "plugin": row[1],
-                        "slot_type": row[2],
-                        "active": row[3],
-                        "restart_lsn": str(row[4]) if row[4] else None,
-                        "confirmed_flush_lsn": str(row[5]) if row[5] else None
-                    })
+                    replication_info["replication_slots"].append(
+                        {
+                            "slot_name": row[0],
+                            "plugin": row[1],
+                            "slot_type": row[2],
+                            "active": row[3],
+                            "restart_lsn": str(row[4]) if row[4] else None,
+                            "confirmed_flush_lsn": str(row[5]) if row[5] else None,
+                        }
+                    )
 
             # 生成建议
             suggestions = []
             if is_standby and replication_info["lag_seconds"] > 300:
-                suggestions.append({
-                    "type": "warning",
-                    "message": f"复制延迟超过5分钟（{replication_info['lag_seconds']:.1f}秒），请检查网络或主库负载",
-                    "lag_seconds": replication_info["lag_seconds"]
-                })
+                suggestions.append(
+                    {
+                        "type": "warning",
+                        "message": f"复制延迟超过5分钟（{replication_info['lag_seconds']:.1f}秒），请检查网络或主库负载",
+                        "lag_seconds": replication_info["lag_seconds"],
+                    }
+                )
 
             if not is_standby and not replication_info["replication_connections"]:
-                suggestions.append({
-                    "type": "info",
-                    "message": "当前没有活跃的复制连接，如果是主库请检查备库状态"
-                })
+                suggestions.append({"type": "info", "message": "当前没有活跃的复制连接，如果是主库请检查备库状态"})
 
-            return self._create_result(
-                success=True,
-                message="复制状态分析完成",
-                data=replication_info
-            )
+            return self._create_result(success=True, message="复制状态分析完成", data=replication_info)
 
         except Exception as e:
             logger.error(f"复制状态分析失败: {e}")
-            return self._create_result(
-                success=False,
-                message="复制状态分析失败",
-                error=str(e)
-            )
+            return self._create_result(success=False, message="复制状态分析失败", error=str(e))

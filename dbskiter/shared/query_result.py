@@ -30,6 +30,7 @@ from pathlib import Path
 
 try:
     import pandas as pd
+
     PANDAS_AVAILABLE = True
 except ImportError:
     PANDAS_AVAILABLE = False
@@ -62,6 +63,7 @@ class QueryResult:
         >>> print(result.summary())
         >>> df = result.df
     """
+
     rows: List[Tuple]
     columns: List[str]
     row_count: int
@@ -76,9 +78,7 @@ class QueryResult:
             expected_cols = len(self.columns)
             for i, row in enumerate(self.rows):
                 if len(row) != expected_cols:
-                    logger.warning(
-                        f"第{i}行数据列数不匹配: 期望{expected_cols}, 实际{len(row)}"
-                    )
+                    logger.warning(f"第{i}行数据列数不匹配: 期望{expected_cols}, 实际{len(row)}")
 
     @property
     def df(self) -> Any:
@@ -109,10 +109,7 @@ class QueryResult:
             >>> result.to_dict_list()
             [{'id': 1, 'name': 'Alice'}, {'id': 2, 'name': 'Bob'}]
         """
-        return [
-            {col: row[i] for i, col in enumerate(self.columns)}
-            for row in self.rows
-        ]
+        return [{col: row[i] for i, col in enumerate(self.columns)} for row in self.rows]
 
     def to_dict(self, orient: str = "records") -> Union[List[Dict], Dict]:
         """
@@ -155,7 +152,7 @@ class QueryResult:
             if PANDAS_AVAILABLE:
                 self.df.to_json(abs_path, orient="records", force_ascii=False, **kwargs)
             else:
-                with open(abs_path, 'w', encoding='utf-8') as f:
+                with open(abs_path, "w", encoding="utf-8") as f:
                     json.dump(self.to_dict_list(), f, ensure_ascii=False, **kwargs)
             return abs_path
         else:
@@ -202,7 +199,7 @@ class QueryResult:
             raise ImportError("pandas is required for Excel export")
 
         abs_path = os.path.abspath(path)
-        self.df.to_excel(abs_path, index=False, engine='openpyxl', **kwargs)
+        self.df.to_excel(abs_path, index=False, engine="openpyxl", **kwargs)
         return abs_path
 
     def summary(self) -> str:
@@ -216,7 +213,9 @@ class QueryResult:
             >>> print(result.summary())
             [QueryResult] 100 rows x 5 cols | 执行: 15.5ms
         """
-        base_info = f"[QueryResult] {self.row_count} rows x {len(self.columns)} cols | 执行: {self.execution_time_ms:.1f}ms"
+        base_info = (
+            f"[QueryResult] {self.row_count} rows x {len(self.columns)} cols | 执行: {self.execution_time_ms:.1f}ms"
+        )
 
         if PANDAS_AVAILABLE and self.rows:
             try:

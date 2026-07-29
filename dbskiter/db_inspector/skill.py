@@ -91,10 +91,7 @@ class InspectorSkill:
 
         logger.info(f"InspectorSkill 初始化完成 (dialect={self.dialect})")
 
-    def inspect(
-        self,
-        inspection_types: Optional[List[InspectionType]] = None
-    ) -> Dict[str, Any]:
+    def inspect(self, inspection_types: Optional[List[InspectionType]] = None) -> Dict[str, Any]:
         """
         执行完整巡检
 
@@ -116,11 +113,11 @@ class InspectorSkill:
             # 初始化报告
             report = InspectionReport(
                 report_id=report_id,
-                instance_name=instance_info.get('instance_name', 'unknown'),
-                database_type=instance_info.get('database_type', self.dialect),
-                database_version=instance_info.get('version', 'unknown'),
+                instance_name=instance_info.get("instance_name", "unknown"),
+                database_type=instance_info.get("database_type", self.dialect),
+                database_version=instance_info.get("version", "unknown"),
                 inspection_time=datetime.now(),
-                duration_seconds=0.0
+                duration_seconds=0.0,
             )
 
             # 确定巡检类型
@@ -134,7 +131,7 @@ class InspectorSkill:
                     if insp_type == InspectionType.CONFIGURATION:
                         items = self._inspector.inspect_configuration()
                         # 同时执行慢查询配置检查（属于配置类别）
-                        if hasattr(self._inspector, 'inspect_slow_queries'):
+                        if hasattr(self._inspector, "inspect_slow_queries"):
                             slow_query_items = self._inspector.inspect_slow_queries()
                             # 只保留配置相关的慢查询检查项
                             for item in slow_query_items:
@@ -143,10 +140,10 @@ class InspectorSkill:
                     elif insp_type == InspectionType.PERFORMANCE:
                         items = self._inspector.inspect_performance()
                         # 同时执行索引检查和慢查询检查（性能相关）
-                        if hasattr(self._inspector, 'inspect_indexes'):
+                        if hasattr(self._inspector, "inspect_indexes"):
                             index_items = self._inspector.inspect_indexes()
                             items.extend(index_items)
-                        if hasattr(self._inspector, 'inspect_slow_queries'):
+                        if hasattr(self._inspector, "inspect_slow_queries"):
                             slow_query_items = self._inspector.inspect_slow_queries()
                             # 只保留性能相关的慢查询检查项
                             for item in slow_query_items:
@@ -155,7 +152,7 @@ class InspectorSkill:
                     elif insp_type == InspectionType.STORAGE:
                         items = self._inspector.inspect_storage()
                         # 同时执行表结构检查（存储相关）
-                        if hasattr(self._inspector, 'inspect_table_structure'):
+                        if hasattr(self._inspector, "inspect_table_structure"):
                             structure_items = self._inspector.inspect_table_structure()
                             items.extend(structure_items)
                     elif insp_type == InspectionType.SECURITY:
@@ -164,18 +161,18 @@ class InspectorSkill:
                         items = self._inspector.inspect_capacity()
                     elif insp_type == InspectionType.REPLICATION:
                         # 复制检查
-                        if hasattr(self._inspector, 'inspect_replication'):
+                        if hasattr(self._inspector, "inspect_replication"):
                             items = self._inspector.inspect_replication()
                         else:
                             items = []
                     elif insp_type == InspectionType.BACKUP:
                         # 备份检查 - 检查binlog配置作为备份策略的一部分
                         items = []
-                        if hasattr(self._inspector, 'inspect_configuration'):
+                        if hasattr(self._inspector, "inspect_configuration"):
                             # 从配置检查中提取与备份相关的项
                             config_items = self._inspector.inspect_configuration()
                             for item in config_items:
-                                if item.name in ['log_bin', 'expire_logs_days', 'binlog_format']:
+                                if item.name in ["log_bin", "expire_logs_days", "binlog_format"]:
                                     items.append(item)
                     else:
                         continue
@@ -184,16 +181,19 @@ class InspectorSkill:
                 except Exception as e:
                     logger.warning(f"巡检类型 {insp_type.value} 执行失败: {e}")
                     import traceback
+
                     logger.debug(f"巡检类型 {insp_type.value} 错误详情: {traceback.format_exc()}")
                     # 记录失败但不中断其他巡检
-                    report.items.append(InspectionItem(
-                        name=f"{insp_type.value}_inspection",
-                        inspection_type=insp_type,
-                        risk_level=RiskLevel.MEDIUM,
-                        status="warning",
-                        description=f"巡检执行失败: {str(e)}",
-                        suggestion="请检查相关配置和权限"
-                    ))
+                    report.items.append(
+                        InspectionItem(
+                            name=f"{insp_type.value}_inspection",
+                            inspection_type=insp_type,
+                            risk_level=RiskLevel.MEDIUM,
+                            status="warning",
+                            description=f"巡检执行失败: {str(e)}",
+                            suggestion="请检查相关配置和权限",
+                        )
+                    )
 
             # 计算统计信息
             self._calculate_statistics(report)
@@ -206,41 +206,38 @@ class InspectorSkill:
 
             report.duration_seconds = round(time() - start_time, 2)
 
-            logger.info(f"巡检完成 [report_id={report_id}, duration={report.duration_seconds}s, score={report.health_score:.1f}]")
-
-            return create_success_response(
-                data=report.to_dict(),
-                message="巡检完成"
+            logger.info(
+                f"巡检完成 [report_id={report_id}, duration={report.duration_seconds}s, score={report.health_score:.1f}]"
             )
+
+            return create_success_response(data=report.to_dict(), message="巡检完成")
 
         except ConnectionError as e:
             logger.error(f"数据库连接失败: {e}")
             return create_error_response(
                 message=f"数据库连接失败: {str(e)}",
                 error_code=ErrorCode.CONNECTION_FAILED,
-                details={"report_id": report_id}
+                details={"report_id": report_id},
             )
         except PermissionError as e:
             logger.error(f"权限不足: {e}")
             return create_error_response(
-                message=f"权限不足: {str(e)}",
-                error_code=ErrorCode.PERMISSION_DENIED,
-                details={"report_id": report_id}
+                message=f"权限不足: {str(e)}", error_code=ErrorCode.PERMISSION_DENIED, details={"report_id": report_id}
             )
         except Exception as e:
             logger.error(f"巡检失败: {e}")
             return create_error_response(
                 message=f"巡检执行失败: {str(e)}",
                 error_code=ErrorCode.INSPECTION_FAILED,
-                details={"report_id": report_id}
+                details={"report_id": report_id},
             )
 
     def _calculate_statistics(self, report: InspectionReport):
         """计算统计信息"""
         report.total_items = len(report.items)
-        report.pass_count = sum(1 for item in report.items if item.status == 'pass')
-        report.warning_count = sum(1 for item in report.items if item.status == 'warning')
-        report.fail_count = sum(1 for item in report.items if item.status == 'fail')
+        report.pass_count = sum(1 for item in report.items if item.status == "pass")
+        report.warning_count = sum(1 for item in report.items if item.status == "warning")
+        report.fail_count = sum(1 for item in report.items if item.status == "fail")
 
         # 按风险等级统计
         report.critical_count = sum(1 for item in report.items if item.risk_level == RiskLevel.CRITICAL)
@@ -261,15 +258,11 @@ class InspectorSkill:
         """
         try:
             html = ReportFormatter.format_html(report)
-            return create_success_response(
-                data={"html": html},
-                message="HTML报告生成成功"
-            )
+            return create_success_response(data={"html": html}, message="HTML报告生成成功")
         except Exception as e:
             logger.error(f"HTML报告生成失败: {e}")
             return create_error_response(
-                message=f"HTML报告生成失败: {str(e)}",
-                error_code=ErrorCode.REPORT_GENERATION_FAILED
+                message=f"HTML报告生成失败: {str(e)}", error_code=ErrorCode.REPORT_GENERATION_FAILED
             )
 
     def generate_markdown_report(self, report: InspectionReport) -> Dict[str, Any]:
@@ -284,15 +277,11 @@ class InspectorSkill:
         """
         try:
             md = ReportFormatter.format_markdown(report)
-            return create_success_response(
-                data={"markdown": md},
-                message="Markdown报告生成成功"
-            )
+            return create_success_response(data={"markdown": md}, message="Markdown报告生成成功")
         except Exception as e:
             logger.error(f"Markdown报告生成失败: {e}")
             return create_error_response(
-                message=f"Markdown报告生成失败: {str(e)}",
-                error_code=ErrorCode.REPORT_GENERATION_FAILED
+                message=f"Markdown报告生成失败: {str(e)}", error_code=ErrorCode.REPORT_GENERATION_FAILED
             )
 
     def generate_json_report(self, report: InspectionReport) -> Dict[str, Any]:
@@ -307,15 +296,11 @@ class InspectorSkill:
         """
         try:
             json_str = ReportFormatter.format_json(report)
-            return create_success_response(
-                data={"json": json_str},
-                message="JSON报告生成成功"
-            )
+            return create_success_response(data={"json": json_str}, message="JSON报告生成成功")
         except Exception as e:
             logger.error(f"JSON报告生成失败: {e}")
             return create_error_response(
-                message=f"JSON报告生成失败: {str(e)}",
-                error_code=ErrorCode.REPORT_GENERATION_FAILED
+                message=f"JSON报告生成失败: {str(e)}", error_code=ErrorCode.REPORT_GENERATION_FAILED
             )
 
     def create_baseline(self, name: Optional[str] = None) -> Dict[str, Any]:
@@ -336,7 +321,7 @@ class InspectorSkill:
                 return create_error_response(
                     message="创建基线失败：无法获取当前状态",
                     error_code=ErrorCode.BASELINE_CREATE_FAILED,
-                    details={"inspect_error": result.get("message")}
+                    details={"inspect_error": result.get("message")},
                 )
 
             report_data = result["data"]
@@ -347,28 +332,18 @@ class InspectorSkill:
                 database_version=report_data.get("database_version", ""),
                 inspection_time=datetime.fromisoformat(report_data["inspection_time"]),
                 duration_seconds=report_data["duration_seconds"],
-                health_score=report_data["health_score"]
+                health_score=report_data["health_score"],
             )
 
             baseline = self._baseline_manager.create_baseline(report, name)
 
-            return create_success_response(
-                data=baseline.to_dict(),
-                message="性能基线创建成功"
-            )
+            return create_success_response(data=baseline.to_dict(), message="性能基线创建成功")
 
         except Exception as e:
             logger.error(f"基线创建失败: {e}")
-            return create_error_response(
-                message=f"基线创建失败: {str(e)}",
-                error_code=ErrorCode.BASELINE_CREATE_FAILED
-            )
+            return create_error_response(message=f"基线创建失败: {str(e)}", error_code=ErrorCode.BASELINE_CREATE_FAILED)
 
-    def compare_with_baseline(
-        self,
-        report: InspectionReport,
-        baseline_id: Optional[str] = None
-    ) -> Dict[str, Any]:
+    def compare_with_baseline(self, report: InspectionReport, baseline_id: Optional[str] = None) -> Dict[str, Any]:
         """
         对比当前报告与基线
 
@@ -383,28 +358,18 @@ class InspectorSkill:
             comparison = self._baseline_manager.compare_with_baseline(report, baseline_id)
 
             if "error" in comparison:
-                return create_error_response(
-                    message=comparison["error"],
-                    error_code=ErrorCode.BASELINE_NOT_FOUND
-                )
+                return create_error_response(message=comparison["error"], error_code=ErrorCode.BASELINE_NOT_FOUND)
 
-            return create_success_response(
-                data=comparison,
-                message="基线对比完成"
-            )
+            return create_success_response(data=comparison, message="基线对比完成")
 
         except Exception as e:
             logger.error(f"基线对比失败: {e}")
             return create_error_response(
-                message=f"基线对比失败: {str(e)}",
-                error_code=ErrorCode.BASELINE_COMPARE_FAILED
+                message=f"基线对比失败: {str(e)}", error_code=ErrorCode.BASELINE_COMPARE_FAILED
             )
 
     def get_top_issues(
-        self,
-        report: InspectionReport,
-        risk_level: Optional[RiskLevel] = None,
-        limit: int = 10
+        self, report: InspectionReport, risk_level: Optional[RiskLevel] = None, limit: int = 10
     ) -> Dict[str, Any]:
         """
         获取Top问题
@@ -421,26 +386,18 @@ class InspectorSkill:
             issues = InspectionAggregator.get_top_issues(report, risk_level, limit)
 
             return create_success_response(
-                data={
-                    "issues": [issue.to_dict() for issue in issues],
-                    "count": len(issues)
-                },
-                message=f"获取Top {len(issues)} 问题成功"
+                data={"issues": [issue.to_dict() for issue in issues], "count": len(issues)},
+                message=f"获取Top {len(issues)} 问题成功",
             )
 
         except Exception as e:
             logger.error(f"获取Top问题失败: {e}")
-            return create_error_response(
-                message=f"获取Top问题失败: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(message=f"获取Top问题失败: {str(e)}", error_code=ErrorCode.UNKNOWN_ERROR)
 
     # ==================== 智能巡检API ====================
 
     def intelligent_inspect(
-        self,
-        metrics_history: Dict[str, List[Dict[str, Any]]],
-        thresholds: Optional[Dict[str, float]] = None
+        self, metrics_history: Dict[str, List[Dict[str, Any]]], thresholds: Optional[Dict[str, float]] = None
     ) -> Dict[str, Any]:
         """
         执行智能巡检
@@ -462,9 +419,7 @@ class InspectorSkill:
 
             # 执行智能分析
             intelligent_result = self._intelligent_inspector.perform_intelligent_inspection(
-                metrics_history=metrics_history,
-                inspection_results=inspection_results,
-                thresholds=thresholds
+                metrics_history=metrics_history, inspection_results=inspection_results, thresholds=thresholds
             )
 
             # 合并结果
@@ -476,27 +431,22 @@ class InspectorSkill:
                     "overall_status": intelligent_result["summary"]["overall_status"],
                     "total_anomalies": intelligent_result["summary"]["total_anomalies"],
                     "root_causes": intelligent_result["summary"]["root_causes_identified"],
-                    "recommendations": intelligent_result["summary"]["recommendations"]
-                }
+                    "recommendations": intelligent_result["summary"]["recommendations"],
+                },
             }
 
             return create_success_response(
                 data=result,
                 message=f"智能巡检完成，发现{intelligent_result['summary']['total_anomalies']}个异常，"
-                        f"{intelligent_result['summary']['root_causes_identified']}个根因"
+                f"{intelligent_result['summary']['root_causes_identified']}个根因",
             )
 
         except Exception as e:
             logger.error(f"智能巡检失败: {e}")
-            return create_error_response(
-                message=f"智能巡检失败: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(message=f"智能巡检失败: {str(e)}", error_code=ErrorCode.UNKNOWN_ERROR)
 
     def detect_anomalies(
-        self,
-        metrics: Dict[str, List[Dict[str, Any]]],
-        thresholds: Optional[Dict[str, float]] = None
+        self, metrics: Dict[str, List[Dict[str, Any]]], thresholds: Optional[Dict[str, float]] = None
     ) -> Dict[str, Any]:
         """
         检测异常模式（已接入多步骤计时）
@@ -509,13 +459,12 @@ class InspectorSkill:
             Dict: 异常检测结果，包含 _execution_time 步骤耗时
         """
         from dbskiter.shared.execution_timer import ExecutionTimer
+
         timer = ExecutionTimer().start()
 
         try:
             with timer.step("detect_patterns", "检测异常模式"):
-                events = self._intelligent_inspector.anomaly_detector.detect_patterns(
-                    metrics, thresholds
-                )
+                events = self._intelligent_inspector.anomaly_detector.detect_patterns(metrics, thresholds)
 
             with timer.step("build_result", "构建结果数据"):
                 result = create_success_response(
@@ -528,13 +477,13 @@ class InspectorSkill:
                                 "value": e.metric_value,
                                 "severity": e.severity,
                                 "description": e.description,
-                                "timestamp": e.timestamp.isoformat()
+                                "timestamp": e.timestamp.isoformat(),
                             }
                             for e in events
                         ],
-                        "total": len(events)
+                        "total": len(events),
                     },
-                    message=f"检测到{len(events)}个异常模式"
+                    message=f"检测到{len(events)}个异常模式",
                 )
 
             result["_execution_time"] = timer.to_summary()
@@ -542,15 +491,10 @@ class InspectorSkill:
 
         except Exception as e:
             logger.error(f"异常检测失败: {e}")
-            return create_error_response(
-                message=f"检测失败: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(message=f"检测失败: {str(e)}", error_code=ErrorCode.UNKNOWN_ERROR)
 
     def analyze_root_causes(
-        self,
-        anomaly_events: List[Dict[str, Any]],
-        inspection_results: Dict[str, Any]
+        self, anomaly_events: List[Dict[str, Any]], inspection_results: Dict[str, Any]
     ) -> Dict[str, Any]:
         """
         分析根因
@@ -576,13 +520,11 @@ class InspectorSkill:
                     threshold=e.get("threshold", 0),
                     severity=e.get("severity", "MEDIUM"),
                     timestamp=datetime.fromisoformat(e.get("timestamp", datetime.now().isoformat())),
-                    description=e.get("description", "")
+                    description=e.get("description", ""),
                 )
                 events.append(event)
 
-            causes = self._intelligent_inspector.root_cause_analyzer.analyze(
-                events, inspection_results
-            )
+            causes = self._intelligent_inspector.root_cause_analyzer.analyze(events, inspection_results)
 
             return create_success_response(
                 data={
@@ -594,26 +536,21 @@ class InspectorSkill:
                             "confidence": c.confidence,
                             "evidence": c.evidence,
                             "suggested_actions": c.suggested_actions,
-                            "impact_scope": c.impact_scope
+                            "impact_scope": c.impact_scope,
                         }
                         for c in causes
                     ],
-                    "total": len(causes)
+                    "total": len(causes),
                 },
-                message=f"识别{len(causes)}个根因"
+                message=f"识别{len(causes)}个根因",
             )
 
         except Exception as e:
             logger.error(f"根因分析失败: {e}")
-            return create_error_response(
-                message=f"分析失败: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(message=f"分析失败: {str(e)}", error_code=ErrorCode.UNKNOWN_ERROR)
 
     def predict_risks(
-        self,
-        metrics_history: Dict[str, List[Dict[str, Any]]],
-        time_horizon: str = "7d"
+        self, metrics_history: Dict[str, List[Dict[str, Any]]], time_horizon: str = "7d"
     ) -> Dict[str, Any]:
         """
         预测风险
@@ -626,9 +563,7 @@ class InspectorSkill:
             Dict: 风险预测结果
         """
         try:
-            forecasts = self._intelligent_inspector.predictive_inspector.predict_risks(
-                metrics_history, time_horizon
-            )
+            forecasts = self._intelligent_inspector.predictive_inspector.predict_risks(metrics_history, time_horizon)
 
             return create_success_response(
                 data={
@@ -640,26 +575,20 @@ class InspectorSkill:
                             "probability": f.probability,
                             "time_horizon": f.time_horizon,
                             "affected_components": f.affected_components,
-                            "mitigation_suggestions": f.mitigation_suggestions
+                            "mitigation_suggestions": f.mitigation_suggestions,
                         }
                         for f in forecasts
                     ],
-                    "total": len(forecasts)
+                    "total": len(forecasts),
                 },
-                message=f"预测到{len(forecasts)}个风险"
+                message=f"预测到{len(forecasts)}个风险",
             )
 
         except Exception as e:
             logger.error(f"风险预测失败: {e}")
-            return create_error_response(
-                message=f"预测失败: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(message=f"预测失败: {str(e)}", error_code=ErrorCode.UNKNOWN_ERROR)
 
-    def generate_smart_recommendations(
-        self,
-        inspection_results: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def generate_smart_recommendations(self, inspection_results: Dict[str, Any]) -> Dict[str, Any]:
         """
         生成智能建议
 
@@ -686,26 +615,20 @@ class InspectorSkill:
                             "steps": r.implementation_steps,
                             "benefit": r.expected_benefit,
                             "risk": r.risk_if_not_addressed,
-                            "effort": r.estimated_effort
+                            "effort": r.estimated_effort,
                         }
                         for r in recommendations
                     ],
-                    "total": len(recommendations)
+                    "total": len(recommendations),
                 },
-                message=f"生成{len(recommendations)}条建议"
+                message=f"生成{len(recommendations)}条建议",
             )
 
         except Exception as e:
             logger.error(f"建议生成失败: {e}")
-            return create_error_response(
-                message=f"生成失败: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(message=f"生成失败: {str(e)}", error_code=ErrorCode.UNKNOWN_ERROR)
 
-    def analyze_correlations(
-        self,
-        metrics_data: Dict[str, List[Dict[str, Any]]]
-    ) -> Dict[str, Any]:
+    def analyze_correlations(self, metrics_data: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
         """
         分析指标关联
 
@@ -716,9 +639,7 @@ class InspectorSkill:
             Dict: 关联分析结果
         """
         try:
-            insights = self._intelligent_inspector.correlation_analyzer.analyze_correlations(
-                metrics_data
-            )
+            insights = self._intelligent_inspector.correlation_analyzer.analyze_correlations(metrics_data)
 
             return create_success_response(
                 data={
@@ -729,21 +650,18 @@ class InspectorSkill:
                             "correlated_metrics": i.correlated_metrics,
                             "relationship_type": i.relationship_type,
                             "strength": i.strength,
-                            "explanation": i.explanation
+                            "explanation": i.explanation,
                         }
                         for i in insights
                     ],
-                    "total": len(insights)
+                    "total": len(insights),
                 },
-                message=f"发现{len(insights)}个指标关联"
+                message=f"发现{len(insights)}个指标关联",
             )
 
         except Exception as e:
             logger.error(f"关联分析失败: {e}")
-            return create_error_response(
-                message=f"分析失败: {str(e)}",
-                error_code=ErrorCode.UNKNOWN_ERROR
-            )
+            return create_error_response(message=f"分析失败: {str(e)}", error_code=ErrorCode.UNKNOWN_ERROR)
 
     def generate_html_report_from_data(self, report_data: dict) -> str:
         """
@@ -792,40 +710,40 @@ class InspectorSkill:
         from .models import InspectionReport, InspectionItem, InspectionType, RiskLevel
 
         report = InspectionReport(
-            report_id=data.get('report_id', ''),
-            instance_name=data.get('instance_name', ''),
-            database_type=data.get('database_type', ''),
-            database_version=data.get('database_version', ''),
-            inspection_time=datetime.fromisoformat(data.get('inspection_time', datetime.now().isoformat())),
-            duration_seconds=data.get('duration_seconds', 0),
-            health_score=data.get('health_score', 0),
-            summary=data.get('summary', '')
+            report_id=data.get("report_id", ""),
+            instance_name=data.get("instance_name", ""),
+            database_type=data.get("database_type", ""),
+            database_version=data.get("database_version", ""),
+            inspection_time=datetime.fromisoformat(data.get("inspection_time", datetime.now().isoformat())),
+            duration_seconds=data.get("duration_seconds", 0),
+            health_score=data.get("health_score", 0),
+            summary=data.get("summary", ""),
         )
 
         # 设置统计信息
-        stats = data.get('statistics', {})
-        report.total_items = stats.get('total_items', 0)
-        report.pass_count = stats.get('pass_count', 0)
-        report.warning_count = stats.get('warning_count', 0)
-        report.fail_count = stats.get('fail_count', 0)
-        report.critical_count = stats.get('critical_count', 0)
-        report.high_count = stats.get('high_count', 0)
-        report.medium_count = stats.get('medium_count', 0)
-        report.low_count = stats.get('low_count', 0)
+        stats = data.get("statistics", {})
+        report.total_items = stats.get("total_items", 0)
+        report.pass_count = stats.get("pass_count", 0)
+        report.warning_count = stats.get("warning_count", 0)
+        report.fail_count = stats.get("fail_count", 0)
+        report.critical_count = stats.get("critical_count", 0)
+        report.high_count = stats.get("high_count", 0)
+        report.medium_count = stats.get("medium_count", 0)
+        report.low_count = stats.get("low_count", 0)
 
         # 转换巡检项
-        for item_data in data.get('items', []):
+        for item_data in data.get("items", []):
             # to_dict()返回的是'type'而不是'inspection_type'
-            type_value = item_data.get('type') or item_data.get('inspection_type', 'configuration')
+            type_value = item_data.get("type") or item_data.get("inspection_type", "configuration")
             item = InspectionItem(
-                name=item_data.get('name', ''),
+                name=item_data.get("name", ""),
                 inspection_type=InspectionType(type_value),
-                risk_level=RiskLevel(item_data.get('risk_level', 'info')),
-                status=item_data.get('status', 'pass'),
-                description=item_data.get('description', ''),
-                actual_value=item_data.get('actual_value'),
-                reference=item_data.get('reference'),
-                suggestion=item_data.get('suggestion')
+                risk_level=RiskLevel(item_data.get("risk_level", "info")),
+                status=item_data.get("status", "pass"),
+                description=item_data.get("description", ""),
+                actual_value=item_data.get("actual_value"),
+                reference=item_data.get("reference"),
+                suggestion=item_data.get("suggestion"),
             )
             report.items.append(item)
 
@@ -835,15 +753,15 @@ class InspectorSkill:
         """关闭Skill，释放资源"""
         logger.info("关闭 InspectorSkill...")
         # 关闭子组件
-        for attr in ('_inspector', '_intelligent_inspector', '_score_calculator', '_baseline_manager'):
+        for attr in ("_inspector", "_intelligent_inspector", "_score_calculator", "_baseline_manager"):
             comp = getattr(self, attr, None)
-            if comp and hasattr(comp, 'close'):
+            if comp and hasattr(comp, "close"):
                 try:
                     comp.close()
                 except Exception as e:
                     logger.debug(f"关闭 {attr} 失败: {e}")
         # 关闭底层连接器
-        if self.connector and hasattr(self.connector, 'close'):
+        if self.connector and hasattr(self.connector, "close"):
             try:
                 self.connector.close()
             except Exception as e:
@@ -852,11 +770,7 @@ class InspectorSkill:
 
     # ==================== AI上下文构建 ====================
 
-    def build_ai_context(
-        self,
-        skill_result: Dict[str, Any],
-        scenario: str = "inspection"
-    ) -> Dict[str, Any]:
+    def build_ai_context(self, skill_result: Dict[str, Any], scenario: str = "inspection") -> Dict[str, Any]:
         """
         构建AI分析上下文
 
@@ -870,8 +784,8 @@ class InspectorSkill:
         from dbskiter.shared.ai_context import AIContextBuilder
 
         builder = AIContextBuilder(
-            dialect=self.connector.dialect if hasattr(self.connector, 'dialect') else 'unknown',
-            database_name=getattr(self.connector, 'database', ''),
+            dialect=self.connector.dialect if hasattr(self.connector, "dialect") else "unknown",
+            database_name=getattr(self.connector, "database", ""),
         )
         builder.detect_business_context(self.connector)
 
@@ -894,11 +808,7 @@ class InspectorSkill:
             "inspection_trace": inspection_trace,
         }
 
-    def _build_inspection_trace(
-        self,
-        scenario: str,
-        data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _build_inspection_trace(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         构建巡检透明度追踪信息
 
@@ -909,13 +819,7 @@ class InspectorSkill:
         返回:
             Dict[str, Any]: 追踪信息
         """
-        trace = {
-            "scenario": scenario,
-            "metrics_checked": [],
-            "data_sources": [],
-            "confidence": "high",
-            "notes": []
-        }
+        trace = {"scenario": scenario, "metrics_checked": [], "data_sources": [], "confidence": "high", "notes": []}
 
         if scenario == "inspection":
             trace["metrics_checked"] = [
@@ -1011,7 +915,11 @@ class InspectorSkill:
             critical = [i for i in issues if i.get("severity") == "critical"]
             high = [i for i in issues if i.get("severity") == "high"]
             if critical:
-                flags["critical_issues"] = {"flagged": True, "level": "critical", "reason": f"发现 {len(critical)} 个严重问题"}
+                flags["critical_issues"] = {
+                    "flagged": True,
+                    "level": "critical",
+                    "reason": f"发现 {len(critical)} 个严重问题",
+                }
             if high:
                 flags["high_issues"] = {"flagged": True, "level": "high", "reason": f"发现 {len(high)} 个高危问题"}
 
@@ -1024,7 +932,7 @@ class InspectorSkill:
     def _build_ai_hints(self, scenario: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """构建AI提示"""
         hints = {"focus_areas": [], "related_commands": []}
-        db_name = getattr(self.connector, 'database', '')
+        db_name = getattr(self.connector, "database", "")
 
         # 获取健康评分
         health_score = data.get("health_score", 100)
@@ -1075,5 +983,3 @@ class InspectorSkill:
             hints["focus_areas"] = ["risk_mitigation", "preventive_measures"]
 
         return hints
-
-

@@ -32,25 +32,28 @@ logger = logging.getLogger(__name__)
 
 class AnomalyPattern(Enum):
     """异常模式类型"""
-    SUDDEN_SPIKE = "sudden_spike"           # 突然飙升
-    GRADUAL_INCREASE = "gradual_increase"   # 逐渐增长
-    CYCLICAL_ANOMALY = "cyclical_anomaly"   # 周期性异常
+
+    SUDDEN_SPIKE = "sudden_spike"  # 突然飙升
+    GRADUAL_INCREASE = "gradual_increase"  # 逐渐增长
+    CYCLICAL_ANOMALY = "cyclical_anomaly"  # 周期性异常
     BASELINE_DEVIATION = "baseline_deviation"  # 基线偏离
     CORRELATED_FAILURE = "correlated_failure"  # 关联故障
 
 
 class RiskPrediction(Enum):
     """风险预测等级"""
-    CRITICAL = "critical"      # 严重风险
-    HIGH = "high"              # 高风险
-    MEDIUM = "medium"          # 中等风险
-    LOW = "low"                # 低风险
-    NONE = "none"              # 无风险
+
+    CRITICAL = "critical"  # 严重风险
+    HIGH = "high"  # 高风险
+    MEDIUM = "medium"  # 中等风险
+    LOW = "low"  # 低风险
+    NONE = "none"  # 无风险
 
 
 @dataclass
 class AnomalyEvent:
     """异常事件"""
+
     event_id: str
     pattern: AnomalyPattern
     metric_name: str
@@ -65,6 +68,7 @@ class AnomalyEvent:
 @dataclass
 class RootCause:
     """根因分析结果"""
+
     cause_id: str
     category: str
     description: str
@@ -77,6 +81,7 @@ class RootCause:
 @dataclass
 class RiskForecast:
     """风险预测"""
+
     forecast_id: str
     risk_type: str
     prediction: RiskPrediction
@@ -89,6 +94,7 @@ class RiskForecast:
 @dataclass
 class SmartRecommendation:
     """智能建议"""
+
     recommendation_id: str
     category: str
     priority: int  # 1-10
@@ -103,6 +109,7 @@ class SmartRecommendation:
 @dataclass
 class CorrelationInsight:
     """关联洞察"""
+
     insight_id: str
     primary_metric: str
     correlated_metrics: List[Tuple[str, float]]  # (metric, correlation_coefficient)
@@ -136,9 +143,7 @@ class AnomalyPatternDetector:
         }
 
     def detect_patterns(
-        self,
-        metrics: Dict[str, List[Dict[str, Any]]],
-        thresholds: Optional[Dict[str, float]] = None
+        self, metrics: Dict[str, List[Dict[str, Any]]], thresholds: Optional[Dict[str, float]] = None
     ) -> List[AnomalyEvent]:
         """
         检测异常模式
@@ -172,18 +177,15 @@ class AnomalyPatternDetector:
         return events
 
     def _detect_sudden_spike(
-        self,
-        metric_name: str,
-        data_points: List[Dict],
-        threshold: float
+        self, metric_name: str, data_points: List[Dict], threshold: float
     ) -> Optional[AnomalyEvent]:
         """检测突然飙升"""
         if len(data_points) < 2:
             return None
 
         # 计算最近两个点的变化率
-        recent = data_points[-1]['value']
-        previous = data_points[-2]['value']
+        recent = data_points[-1]["value"]
+        previous = data_points[-2]["value"]
 
         if previous == 0:
             return None
@@ -201,23 +203,20 @@ class AnomalyPatternDetector:
                 severity="HIGH",
                 timestamp=datetime.now(),
                 description=f"{metric_name}突然飙升{change_rate*100:.1f}%",
-                related_metrics=[]
+                related_metrics=[],
             )
 
         return None
 
     def _detect_gradual_increase(
-        self,
-        metric_name: str,
-        data_points: List[Dict],
-        threshold: float
+        self, metric_name: str, data_points: List[Dict], threshold: float
     ) -> Optional[AnomalyEvent]:
         """检测逐渐增长"""
         if len(data_points) < 5:
             return None
 
         # 计算趋势线
-        values = [dp['value'] for dp in data_points[-5:]]
+        values = [dp["value"] for dp in data_points[-5:]]
         first_avg = sum(values[:2]) / 2
         last_avg = sum(values[-2:]) / 2
 
@@ -237,28 +236,25 @@ class AnomalyPatternDetector:
                 severity="MEDIUM",
                 timestamp=datetime.now(),
                 description=f"{metric_name}持续增长{growth_rate*100:.1f}%",
-                related_metrics=[]
+                related_metrics=[],
             )
 
         return None
 
     def _detect_cyclical_anomaly(
-        self,
-        metric_name: str,
-        data_points: List[Dict],
-        threshold: float
+        self, metric_name: str, data_points: List[Dict], threshold: float
     ) -> Optional[AnomalyEvent]:
         """检测周期性异常"""
         if len(data_points) < 10:
             return None
 
         # 简单检测：检查是否有规律的峰值
-        values = [dp['value'] for dp in data_points]
+        values = [dp["value"] for dp in data_points]
         mean_val = sum(values) / len(values)
 
         # 检测偏离均值超过2倍标准差的点
         variance = sum((v - mean_val) ** 2 for v in values) / len(values)
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
 
         recent_values = values[-3:]
         anomalies = [v for v in recent_values if abs(v - mean_val) > 2 * std_dev]
@@ -273,22 +269,19 @@ class AnomalyPatternDetector:
                 severity="MEDIUM",
                 timestamp=datetime.now(),
                 description=f"{metric_name}出现周期性异常波动",
-                related_metrics=[]
+                related_metrics=[],
             )
 
         return None
 
     def _detect_baseline_deviation(
-        self,
-        metric_name: str,
-        data_points: List[Dict],
-        threshold: float
+        self, metric_name: str, data_points: List[Dict], threshold: float
     ) -> Optional[AnomalyEvent]:
         """检测基线偏离"""
         if not threshold or len(data_points) < 3:
             return None
 
-        recent_value = data_points[-1]['value']
+        recent_value = data_points[-1]["value"]
 
         if recent_value > threshold:
             deviation_percent = (recent_value - threshold) / threshold * 100
@@ -302,7 +295,7 @@ class AnomalyPatternDetector:
                 severity="HIGH" if deviation_percent > 50 else "MEDIUM",
                 timestamp=datetime.now(),
                 description=f"{metric_name}偏离基线{deviation_percent:.1f}%",
-                related_metrics=[]
+                related_metrics=[],
             )
 
         return None
@@ -331,11 +324,7 @@ class RootCauseAnalyzer:
             self._analyze_connection_issues,
         ]
 
-    def analyze(
-        self,
-        anomaly_events: List[AnomalyEvent],
-        inspection_results: Dict[str, Any]
-    ) -> List[RootCause]:
+    def analyze(self, anomaly_events: List[AnomalyEvent], inspection_results: Dict[str, Any]) -> List[RootCause]:
         """
         分析根因
 
@@ -358,13 +347,9 @@ class RootCauseAnalyzer:
 
         return causes
 
-    def _analyze_cpu_spike(
-        self,
-        events: List[AnomalyEvent],
-        results: Dict[str, Any]
-    ) -> Optional[RootCause]:
+    def _analyze_cpu_spike(self, events: List[AnomalyEvent], results: Dict[str, Any]) -> Optional[RootCause]:
         """分析CPU飙升根因"""
-        cpu_events = [e for e in events if 'cpu' in e.metric_name.lower()]
+        cpu_events = [e for e in events if "cpu" in e.metric_name.lower()]
 
         if not cpu_events:
             return None
@@ -374,14 +359,14 @@ class RootCauseAnalyzer:
         suggested_actions = []
 
         # 检查是否有慢查询
-        slow_queries = results.get('performance', {}).get('slow_queries', [])
+        slow_queries = results.get("performance", {}).get("slow_queries", [])
         if slow_queries:
             evidence.append(f"发现{len(slow_queries)}个慢查询")
             suggested_actions.append("优化慢查询")
 
         # 检查连接数
-        connections = results.get('performance', {}).get('connections', {})
-        if connections.get('current', 0) > connections.get('max', 100) * 0.8:
+        connections = results.get("performance", {}).get("connections", {})
+        if connections.get("current", 0) > connections.get("max", 100) * 0.8:
             evidence.append("连接数接近上限")
             suggested_actions.append("增加连接池大小或优化连接使用")
 
@@ -393,18 +378,14 @@ class RootCauseAnalyzer:
                 confidence=80.0,
                 evidence=evidence,
                 suggested_actions=suggested_actions,
-                impact_scope=["查询性能", "响应时间"]
+                impact_scope=["查询性能", "响应时间"],
             )
 
         return None
 
-    def _analyze_memory_growth(
-        self,
-        events: List[AnomalyEvent],
-        results: Dict[str, Any]
-    ) -> Optional[RootCause]:
+    def _analyze_memory_growth(self, events: List[AnomalyEvent], results: Dict[str, Any]) -> Optional[RootCause]:
         """分析内存增长根因"""
-        memory_events = [e for e in events if 'memory' in e.metric_name.lower()]
+        memory_events = [e for e in events if "memory" in e.metric_name.lower()]
 
         if not memory_events:
             return None
@@ -413,12 +394,12 @@ class RootCauseAnalyzer:
         suggested_actions = []
 
         # 检查缓存配置
-        cache_config = results.get('configuration', {}).get('cache_settings', {})
-        if cache_config.get('buffer_pool_size', 0) > 0:
+        cache_config = results.get("configuration", {}).get("cache_settings", {})
+        if cache_config.get("buffer_pool_size", 0) > 0:
             evidence.append(f"缓冲池大小: {cache_config['buffer_pool_size']}MB")
 
         # 检查长连接
-        long_connections = results.get('performance', {}).get('long_connections', [])
+        long_connections = results.get("performance", {}).get("long_connections", [])
         if long_connections:
             evidence.append(f"发现{len(long_connections)}个长连接")
             suggested_actions.append("检查并关闭不必要的长连接")
@@ -431,18 +412,14 @@ class RootCauseAnalyzer:
                 confidence=75.0,
                 evidence=evidence,
                 suggested_actions=suggested_actions + ["优化内存配置", "检查内存泄漏"],
-                impact_scope=["系统稳定性", "OOM风险"]
+                impact_scope=["系统稳定性", "OOM风险"],
             )
 
         return None
 
-    def _analyze_slow_queries(
-        self,
-        events: List[AnomalyEvent],
-        results: Dict[str, Any]
-    ) -> Optional[RootCause]:
+    def _analyze_slow_queries(self, events: List[AnomalyEvent], results: Dict[str, Any]) -> Optional[RootCause]:
         """分析慢查询根因"""
-        slow_queries = results.get('performance', {}).get('slow_queries', [])
+        slow_queries = results.get("performance", {}).get("slow_queries", [])
 
         if not slow_queries:
             return None
@@ -451,12 +428,12 @@ class RootCauseAnalyzer:
         suggested_actions = []
 
         # 分析慢查询类型
-        full_scan_queries = [q for q in slow_queries if 'ALL' in q.get('explain', '')]
+        full_scan_queries = [q for q in slow_queries if "ALL" in q.get("explain", "")]
         if full_scan_queries:
             evidence.append(f"{len(full_scan_queries)}个查询存在全表扫描")
             suggested_actions.append("为相关表添加索引")
 
-        join_queries = [q for q in slow_queries if 'JOIN' in q.get('sql', '')]
+        join_queries = [q for q in slow_queries if "JOIN" in q.get("sql", "")]
         if join_queries:
             evidence.append(f"{len(join_queries)}个慢查询涉及JOIN操作")
             suggested_actions.append("优化JOIN条件和顺序")
@@ -469,26 +446,22 @@ class RootCauseAnalyzer:
                 confidence=85.0,
                 evidence=evidence,
                 suggested_actions=suggested_actions,
-                impact_scope=["查询性能", "用户体验"]
+                impact_scope=["查询性能", "用户体验"],
             )
 
         return None
 
-    def _analyze_connection_issues(
-        self,
-        events: List[AnomalyEvent],
-        results: Dict[str, Any]
-    ) -> Optional[RootCause]:
+    def _analyze_connection_issues(self, events: List[AnomalyEvent], results: Dict[str, Any]) -> Optional[RootCause]:
         """分析连接问题根因"""
-        connections = results.get('performance', {}).get('connections', {})
+        connections = results.get("performance", {}).get("connections", {})
 
-        if connections.get('current', 0) < connections.get('max', 100) * 0.5:
+        if connections.get("current", 0) < connections.get("max", 100) * 0.5:
             return None
 
         evidence = []
         suggested_actions = []
 
-        connection_ratio = connections.get('current', 0) / connections.get('max', 100)
+        connection_ratio = connections.get("current", 0) / connections.get("max", 100)
 
         if connection_ratio > 0.9:
             evidence.append(f"连接数使用率: {connection_ratio*100:.1f}%")
@@ -498,8 +471,8 @@ class RootCauseAnalyzer:
             suggested_actions.append("监控连接数增长趋势")
 
         # 检查空闲连接
-        idle_connections = results.get('performance', {}).get('idle_connections', 0)
-        if idle_connections > connections.get('current', 0) * 0.5:
+        idle_connections = results.get("performance", {}).get("idle_connections", 0)
+        if idle_connections > connections.get("current", 0) * 0.5:
             evidence.append(f"空闲连接占比: {idle_connections/connections['current']*100:.1f}%")
             suggested_actions.append("优化连接池配置，减少空闲连接")
 
@@ -511,7 +484,7 @@ class RootCauseAnalyzer:
                 confidence=70.0,
                 evidence=evidence,
                 suggested_actions=suggested_actions,
-                impact_scope=["新连接建立", "应用可用性"]
+                impact_scope=["新连接建立", "应用可用性"],
             )
 
         return None
@@ -536,9 +509,7 @@ class PredictiveInspector:
         pass
 
     def predict_risks(
-        self,
-        metrics_history: Dict[str, List[Dict[str, Any]]],
-        time_horizon: str = "7d"
+        self, metrics_history: Dict[str, List[Dict[str, Any]]], time_horizon: str = "7d"
     ) -> List[RiskForecast]:
         """
         预测风险
@@ -564,19 +535,15 @@ class PredictiveInspector:
 
         return forecasts
 
-    def _predict_capacity_risk(
-        self,
-        metrics: Dict[str, List[Dict]],
-        time_horizon: str
-    ) -> Optional[RiskForecast]:
+    def _predict_capacity_risk(self, metrics: Dict[str, List[Dict]], time_horizon: str) -> Optional[RiskForecast]:
         """预测容量风险"""
         # 检查存储增长趋势
-        storage_metrics = metrics.get('storage_usage', [])
+        storage_metrics = metrics.get("storage_usage", [])
         if len(storage_metrics) < 7:
             return None
 
         # 计算每日增长率
-        recent_values = [m['value'] for m in storage_metrics[-7:]]
+        recent_values = [m["value"] for m in storage_metrics[-7:]]
         if len(recent_values) < 2:
             return None
 
@@ -599,24 +566,22 @@ class PredictiveInspector:
                     mitigation_suggestions=[
                         f"预计{days_to_threshold:.0f}天后存储达到{threshold}%",
                         "清理无用数据",
-                        "考虑扩容"
-                    ]
+                        "考虑扩容",
+                    ],
                 )
 
         return None
 
     def _predict_performance_degradation(
-        self,
-        metrics: Dict[str, List[Dict]],
-        time_horizon: str
+        self, metrics: Dict[str, List[Dict]], time_horizon: str
     ) -> Optional[RiskForecast]:
         """预测性能退化"""
         # 检查查询响应时间趋势
-        response_metrics = metrics.get('avg_response_time', [])
+        response_metrics = metrics.get("avg_response_time", [])
         if len(response_metrics) < 7:
             return None
 
-        recent_values = [m['value'] for m in response_metrics[-7:]]
+        recent_values = [m["value"] for m in response_metrics[-7:]]
         if len(recent_values) < 2:
             return None
 
@@ -634,11 +599,7 @@ class PredictiveInspector:
                 probability=70.0,
                 time_horizon=time_horizon,
                 affected_components=["查询性能", "用户体验"],
-                mitigation_suggestions=[
-                    f"响应时间已增长{degradation_percent:.1f}%",
-                    "检查慢查询日志",
-                    "优化热点查询"
-                ]
+                mitigation_suggestions=[f"响应时间已增长{degradation_percent:.1f}%", "检查慢查询日志", "优化热点查询"],
             )
 
         return None
@@ -667,7 +628,7 @@ class SmartRecommendationEngine:
                 "description": "数据库CPU使用率过高，需要优化",
                 "steps": ["分析慢查询", "优化查询语句", "考虑读写分离"],
                 "benefit": "降低CPU负载，提升响应速度",
-                "risk": "系统响应变慢，影响用户体验"
+                "risk": "系统响应变慢，影响用户体验",
             },
             "MEMORY_HIGH": {
                 "category": "RESOURCE",
@@ -675,7 +636,7 @@ class SmartRecommendationEngine:
                 "description": "内存使用接近上限，需要优化配置",
                 "steps": ["调整缓冲池大小", "检查长连接", "优化查询缓存"],
                 "benefit": "避免OOM，提升稳定性",
-                "risk": "系统OOM，导致服务中断"
+                "risk": "系统OOM，导致服务中断",
             },
             "STORAGE_FULL": {
                 "category": "CAPACITY",
@@ -683,7 +644,7 @@ class SmartRecommendationEngine:
                 "description": "存储空间即将耗尽，需要扩容",
                 "steps": ["清理无用数据", "归档历史数据", "申请扩容"],
                 "benefit": "确保数据正常写入",
-                "risk": "无法写入新数据，服务中断"
+                "risk": "无法写入新数据，服务中断",
             },
             "SLOW_QUERY": {
                 "category": "QUERY",
@@ -691,7 +652,7 @@ class SmartRecommendationEngine:
                 "description": "存在慢查询影响性能",
                 "steps": ["分析执行计划", "添加索引", "重写查询"],
                 "benefit": "提升查询性能",
-                "risk": "持续影响用户体验"
+                "risk": "持续影响用户体验",
             },
             "CONNECTION_HIGH": {
                 "category": "CONNECTION",
@@ -699,14 +660,12 @@ class SmartRecommendationEngine:
                 "description": "连接数接近上限",
                 "steps": ["增加连接限制", "优化连接池", "检查连接泄漏"],
                 "benefit": "支持更多并发连接",
-                "risk": "新连接无法建立"
+                "risk": "新连接无法建立",
             },
         }
 
     def generate_recommendations(
-        self,
-        inspection_results: Dict[str, Any],
-        root_causes: List[RootCause]
+        self, inspection_results: Dict[str, Any], root_causes: List[RootCause]
     ) -> List[SmartRecommendation]:
         """
         生成智能建议
@@ -735,10 +694,7 @@ class SmartRecommendationEngine:
 
         return recommendations
 
-    def _create_recommendation_from_cause(
-        self,
-        cause: RootCause
-    ) -> Optional[SmartRecommendation]:
+    def _create_recommendation_from_cause(self, cause: RootCause) -> Optional[SmartRecommendation]:
         """基于根因创建建议"""
         template_key = None
 
@@ -765,31 +721,30 @@ class SmartRecommendationEngine:
             implementation_steps=template["steps"],
             expected_benefit=template["benefit"],
             risk_if_not_addressed=template["risk"],
-            estimated_effort="2-4小时"
+            estimated_effort="2-4小时",
         )
 
-    def _create_recommendations_from_inspection(
-        self,
-        results: Dict[str, Any]
-    ) -> List[SmartRecommendation]:
+    def _create_recommendations_from_inspection(self, results: Dict[str, Any]) -> List[SmartRecommendation]:
         """基于巡检结果创建建议"""
         recommendations = []
 
         # 检查存储
-        storage = results.get('storage', {})
-        if storage.get('usage_percent', 0) > 80:
+        storage = results.get("storage", {})
+        if storage.get("usage_percent", 0) > 80:
             template = self.recommendation_templates["STORAGE_FULL"]
-            recommendations.append(SmartRecommendation(
-                recommendation_id=f"rec_storage_{datetime.now().timestamp()}",
-                category=template["category"],
-                priority=8 if storage['usage_percent'] > 90 else 6,
-                title=template["title"],
-                description=f"当前存储使用率: {storage['usage_percent']}%",
-                implementation_steps=template["steps"],
-                expected_benefit=template["benefit"],
-                risk_if_not_addressed=template["risk"],
-                estimated_effort="1-2天"
-            ))
+            recommendations.append(
+                SmartRecommendation(
+                    recommendation_id=f"rec_storage_{datetime.now().timestamp()}",
+                    category=template["category"],
+                    priority=8 if storage["usage_percent"] > 90 else 6,
+                    title=template["title"],
+                    description=f"当前存储使用率: {storage['usage_percent']}%",
+                    implementation_steps=template["steps"],
+                    expected_benefit=template["benefit"],
+                    risk_if_not_addressed=template["risk"],
+                    estimated_effort="1-2天",
+                )
+            )
 
         return recommendations
 
@@ -812,10 +767,7 @@ class CorrelationAnalyzer:
         """初始化关联分析器"""
         pass
 
-    def analyze_correlations(
-        self,
-        metrics_data: Dict[str, List[Dict[str, Any]]]
-    ) -> List[CorrelationInsight]:
+    def analyze_correlations(self, metrics_data: Dict[str, List[Dict[str, Any]]]) -> List[CorrelationInsight]:
         """
         分析指标关联
 
@@ -830,11 +782,8 @@ class CorrelationAnalyzer:
         metric_names = list(metrics_data.keys())
 
         for i, primary in enumerate(metric_names):
-            for secondary in metric_names[i+1:]:
-                correlation = self._calculate_correlation(
-                    metrics_data[primary],
-                    metrics_data[secondary]
-                )
+            for secondary in metric_names[i + 1 :]:
+                correlation = self._calculate_correlation(metrics_data[primary], metrics_data[secondary])
 
                 if abs(correlation) > 0.5:  # 相关系数阈值
                     insight = CorrelationInsight(
@@ -843,21 +792,17 @@ class CorrelationAnalyzer:
                         correlated_metrics=[(secondary, correlation)],
                         relationship_type="positive" if correlation > 0 else "negative",
                         strength="strong" if abs(correlation) > 0.8 else "moderate",
-                        explanation=f"{primary}与{secondary}存在{'正' if correlation > 0 else '负'}相关关系"
+                        explanation=f"{primary}与{secondary}存在{'正' if correlation > 0 else '负'}相关关系",
                     )
                     insights.append(insight)
 
         return insights
 
-    def _calculate_correlation(
-        self,
-        data1: List[Dict],
-        data2: List[Dict]
-    ) -> float:
+    def _calculate_correlation(self, data1: List[Dict], data2: List[Dict]) -> float:
         """计算相关系数"""
         # 简化实现：使用皮尔逊相关系数
-        values1 = [d['value'] for d in data1[-10:]]  # 取最近10个值
-        values2 = [d['value'] for d in data2[-10:]]
+        values1 = [d["value"] for d in data1[-10:]]  # 取最近10个值
+        values2 = [d["value"] for d in data2[-10:]]
 
         if len(values1) != len(values2) or len(values1) < 2:
             return 0.0
@@ -900,7 +845,7 @@ class IntelligentInspector:
         self,
         metrics_history: Dict[str, List[Dict[str, Any]]],
         inspection_results: Dict[str, Any],
-        thresholds: Optional[Dict[str, float]] = None
+        thresholds: Optional[Dict[str, float]] = None,
     ) -> Dict[str, Any]:
         """
         执行智能巡检
@@ -920,24 +865,18 @@ class IntelligentInspector:
             "risk_forecasts": [],
             "recommendations": [],
             "correlation_insights": [],
-            "summary": {}
+            "summary": {},
         }
 
         # 1. 异常模式检测
-        result["anomaly_events"] = self.anomaly_detector.detect_patterns(
-            metrics_history, thresholds
-        )
+        result["anomaly_events"] = self.anomaly_detector.detect_patterns(metrics_history, thresholds)
 
         # 2. 根因分析
         if result["anomaly_events"]:
-            result["root_causes"] = self.root_cause_analyzer.analyze(
-                result["anomaly_events"], inspection_results
-            )
+            result["root_causes"] = self.root_cause_analyzer.analyze(result["anomaly_events"], inspection_results)
 
         # 3. 风险预测
-        result["risk_forecasts"] = self.predictive_inspector.predict_risks(
-            metrics_history
-        )
+        result["risk_forecasts"] = self.predictive_inspector.predict_risks(metrics_history)
 
         # 4. 生成智能建议
         result["recommendations"] = self.recommendation_engine.generate_recommendations(
@@ -946,9 +885,7 @@ class IntelligentInspector:
 
         # 5. 关联分析
         if len(metrics_history) >= 2:
-            result["correlation_insights"] = self.correlation_analyzer.analyze_correlations(
-                metrics_history
-            )
+            result["correlation_insights"] = self.correlation_analyzer.analyze_correlations(metrics_history)
 
         # 6. 生成摘要
         result["summary"] = self._generate_summary(result)
@@ -963,18 +900,14 @@ class IntelligentInspector:
             "risks_predicted": len(result["risk_forecasts"]),
             "recommendations": len(result["recommendations"]),
             "correlations_found": len(result["correlation_insights"]),
-            "overall_status": self._determine_overall_status(result)
+            "overall_status": self._determine_overall_status(result),
         }
 
     def _determine_overall_status(self, result: Dict) -> str:
         """确定整体状态"""
-        critical_anomalies = sum(
-            1 for e in result["anomaly_events"]
-            if e.severity == "CRITICAL"
-        )
+        critical_anomalies = sum(1 for e in result["anomaly_events"] if e.severity == "CRITICAL")
         high_risks = sum(
-            1 for r in result["risk_forecasts"]
-            if r.prediction in [RiskPrediction.CRITICAL, RiskPrediction.HIGH]
+            1 for r in result["risk_forecasts"] if r.prediction in [RiskPrediction.CRITICAL, RiskPrediction.HIGH]
         )
 
         if critical_anomalies > 0 or high_risks > 0:

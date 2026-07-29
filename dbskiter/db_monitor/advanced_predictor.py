@@ -27,13 +27,13 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class PredictionResult:
     """预测结果数据类"""
+
     metric: str
     algorithm: str
     current_value: float
@@ -52,10 +52,7 @@ class PredictionAlgorithm(ABC):
 
     @abstractmethod
     def predict(
-        self,
-        timestamps: List[datetime],
-        values: List[float],
-        days_ahead: int
+        self, timestamps: List[datetime], values: List[float], days_ahead: int
     ) -> Tuple[Dict[str, float], float]:
         """
         执行预测
@@ -83,10 +80,7 @@ class LinearRegressionAlgorithm(PredictionAlgorithm):
         return "linear_regression"
 
     def predict(
-        self,
-        timestamps: List[datetime],
-        values: List[float],
-        days_ahead: int
+        self, timestamps: List[datetime], values: List[float], days_ahead: int
     ) -> Tuple[Dict[str, float], float]:
         """
         使用线性回归预测
@@ -144,24 +138,21 @@ class MovingAverageAlgorithm(PredictionAlgorithm):
         return f"moving_average_{self.window_size}"
 
     def predict(
-        self,
-        timestamps: List[datetime],
-        values: List[float],
-        days_ahead: int
+        self, timestamps: List[datetime], values: List[float], days_ahead: int
     ) -> Tuple[Dict[str, float], float]:
         """使用移动平均预测"""
         if len(values) < self.window_size:
             return {}, 0.0
 
         # 计算移动平均
-        recent_values = values[-self.window_size:]
+        recent_values = values[-self.window_size :]
         avg = statistics.mean(recent_values)
 
         # 计算趋势（最近3个窗口的平均变化）
         if len(values) >= self.window_size * 3:
-            window1 = statistics.mean(values[-self.window_size*3:-self.window_size*2])
-            window2 = statistics.mean(values[-self.window_size*2:-self.window_size])
-            window3 = statistics.mean(values[-self.window_size:])
+            window1 = statistics.mean(values[-self.window_size * 3 : -self.window_size * 2])
+            window2 = statistics.mean(values[-self.window_size * 2 : -self.window_size])
+            window3 = statistics.mean(values[-self.window_size :])
             trend = (window3 - window1) / 2
         else:
             trend = 0
@@ -196,10 +187,7 @@ class ExponentialSmoothingAlgorithm(PredictionAlgorithm):
         return f"exponential_smoothing_{self.alpha}"
 
     def predict(
-        self,
-        timestamps: List[datetime],
-        values: List[float],
-        days_ahead: int
+        self, timestamps: List[datetime], values: List[float], days_ahead: int
     ) -> Tuple[Dict[str, float], float]:
         """使用指数平滑预测"""
         if len(values) < 2:
@@ -245,10 +233,7 @@ class PolynomialRegressionAlgorithm(PredictionAlgorithm):
         return f"polynomial_{self.degree}"
 
     def predict(
-        self,
-        timestamps: List[datetime],
-        values: List[float],
-        days_ahead: int
+        self, timestamps: List[datetime], values: List[float], days_ahead: int
     ) -> Tuple[Dict[str, float], float]:
         """使用多项式回归预测"""
         if len(values) < self.degree + 1:
@@ -329,10 +314,7 @@ class AdvancedCapacityPredictor:
         ]
 
     def predict(
-        self,
-        metric: str,
-        historical_data: List[Tuple[datetime, float]],
-        days_ahead: int = 30
+        self, metric: str, historical_data: List[Tuple[datetime, float]], days_ahead: int = 30
     ) -> PredictionResult:
         """
         执行容量预测
@@ -359,9 +341,7 @@ class AdvancedCapacityPredictor:
 
         for algorithm in self.algorithms:
             try:
-                predictions, confidence = algorithm.predict(
-                    timestamps, values, days_ahead
-                )
+                predictions, confidence = algorithm.predict(timestamps, values, days_ahead)
 
                 if predictions and confidence > best_confidence:
                     best_confidence = confidence
@@ -382,9 +362,7 @@ class AdvancedCapacityPredictor:
 
         # 计算达到阈值的时间
         threshold = self.thresholds.get(metric, 90.0)
-        days_to_threshold = self._calculate_days_to_threshold(
-            current_value, predictions, threshold
-        )
+        days_to_threshold = self._calculate_days_to_threshold(current_value, predictions, threshold)
 
         # 生成建议
         urgency, recommendation = self._generate_recommendation(
@@ -402,7 +380,7 @@ class AdvancedCapacityPredictor:
             days_to_threshold=days_to_threshold,
             threshold=threshold,
             recommendation=recommendation,
-            urgency=urgency
+            urgency=urgency,
         )
 
     def _create_insufficient_data_result(self, metric: str) -> PredictionResult:
@@ -418,7 +396,7 @@ class AdvancedCapacityPredictor:
             days_to_threshold=None,
             threshold=self.thresholds.get(metric, 90.0),
             recommendation="历史数据不足（至少需要3个数据点），无法预测",
-            urgency="low"
+            urgency="low",
         )
 
     def _calculate_growth_rate(self, values: List[float]) -> float:
@@ -440,10 +418,7 @@ class AdvancedCapacityPredictor:
             return "stable"
 
     def _calculate_days_to_threshold(
-        self,
-        current_value: float,
-        predictions: Dict[str, float],
-        threshold: float
+        self, current_value: float, predictions: Dict[str, float], threshold: float
     ) -> Optional[int]:
         """计算达到阈值的天数"""
         if current_value >= threshold:
@@ -473,7 +448,7 @@ class AdvancedCapacityPredictor:
         current_value: float,
         days_to_threshold: Optional[int],
         trend_direction: str,
-        confidence: float
+        confidence: float,
     ) -> Tuple[str, str]:
         """生成容量规划建议"""
         if trend_direction == "stable":
@@ -489,30 +464,15 @@ class AdvancedCapacityPredictor:
             return "low", "容量增长缓慢，暂无需扩容"
 
         if days_to_threshold < 7:
-            return (
-                "critical",
-                f"{metric} 将在{days_to_threshold}天内达到阈值，建议立即扩容"
-            )
+            return ("critical", f"{metric} 将在{days_to_threshold}天内达到阈值，建议立即扩容")
         elif days_to_threshold < 30:
-            return (
-                "high",
-                f"{metric} 将在{days_to_threshold}天内达到阈值，建议本周内规划扩容"
-            )
+            return ("high", f"{metric} 将在{days_to_threshold}天内达到阈值，建议本周内规划扩容")
         elif days_to_threshold < 90:
-            return (
-                "medium",
-                f"{metric} 将在{days_to_threshold}天内达到阈值，建议本月内规划扩容"
-            )
+            return ("medium", f"{metric} 将在{days_to_threshold}天内达到阈值，建议本月内规划扩容")
         else:
-            return (
-                "low",
-                f"{metric} 预计{days_to_threshold}天后达到阈值，可纳入长期规划"
-            )
+            return ("low", f"{metric} 预计{days_to_threshold}天后达到阈值，可纳入长期规划")
 
-    def batch_predict(
-        self,
-        metrics_data: Dict[str, List[Tuple[datetime, float]]]
-    ) -> Dict[str, PredictionResult]:
+    def batch_predict(self, metrics_data: Dict[str, List[Tuple[datetime, float]]]) -> Dict[str, PredictionResult]:
         """
         批量预测多个指标
 

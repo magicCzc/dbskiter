@@ -29,7 +29,7 @@ def format_bytes(size_bytes: int) -> str:
         >>> format_bytes(1073741824)
         '1.00 GB'
     """
-    for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
         if size_bytes < 1024:
             return f"{size_bytes:.2f} {unit}"
         size_bytes /= 1024
@@ -83,4 +83,4 @@ def truncate_text(text: str, max_length: int = 200, suffix: str = "...") -> str:
     """
     if len(text) <= max_length:
         return text
-    return text[:max_length - len(suffix)] + suffix
+    return text[: max_length - len(suffix)] + suffix

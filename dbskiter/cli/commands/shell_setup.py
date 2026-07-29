@@ -49,32 +49,13 @@ class ShellSetupCommand(BaseCommand):
         """
         添加 shell-setup 命令参数
         """
+        parser.add_argument("--auto", action="store_true", help="自动检测 shell 并配置（推荐，首次使用）")
         parser.add_argument(
-            "--auto",
-            action="store_true",
-            help="自动检测 shell 并配置（推荐，首次使用）"
+            "--global", dest="global_mode", action="store_true", help="全局激活（需要 sudo，对所有用户生效）"
         )
-        parser.add_argument(
-            "--global",
-            dest="global_mode",
-            action="store_true",
-            help="全局激活（需要 sudo，对所有用户生效）"
-        )
-        parser.add_argument(
-            "--bash",
-            action="store_true",
-            help="强制配置 bash 补全"
-        )
-        parser.add_argument(
-            "--zsh",
-            action="store_true",
-            help="强制配置 zsh 补全"
-        )
-        parser.add_argument(
-            "--fish",
-            action="store_true",
-            help="强制配置 fish 补全"
-        )
+        parser.add_argument("--bash", action="store_true", help="强制配置 bash 补全")
+        parser.add_argument("--zsh", action="store_true", help="强制配置 zsh 补全")
+        parser.add_argument("--fish", action="store_true", help="强制配置 fish 补全")
 
     def execute(self) -> int:
         """
@@ -95,13 +76,11 @@ class ShellSetupCommand(BaseCommand):
         # 1. 检查 argcomplete 是否安装
         try:
             import argcomplete
+
             output.success("argcomplete 已安装")
         except ImportError:
             output.error("argcomplete 未安装，正在安装...")
-            ret = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "argcomplete"],
-                capture_output=True
-            )
+            ret = subprocess.run([sys.executable, "-m", "pip", "install", "argcomplete"], capture_output=True)
             if ret.returncode != 0:
                 output.error("安装失败，请手动运行: pip install argcomplete")
                 return 1
@@ -169,6 +148,7 @@ class ShellSetupCommand(BaseCommand):
         # 尝试通过 ps 检测父进程
         try:
             import psutil
+
             parent = psutil.Process().parent()
             if parent:
                 name = parent.name().lower()

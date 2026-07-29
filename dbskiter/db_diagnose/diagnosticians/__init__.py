@@ -14,14 +14,14 @@ from .sqlite_diagnostician import SQLiteDiagnostician
 from .generic_diagnostician import GenericDiagnostician
 
 __all__ = [
-    'BaseDiagnostician',
-    'MySQLDiagnostician',
-    'OracleDiagnostician',
-    'PostgreSQLDiagnostician',
-    'MSSQLDiagnostician',
-    'ClickHouseDiagnostician',
-    'SQLiteDiagnostician',
-    'GenericDiagnostician',
+    "BaseDiagnostician",
+    "MySQLDiagnostician",
+    "OracleDiagnostician",
+    "PostgreSQLDiagnostician",
+    "MSSQLDiagnostician",
+    "ClickHouseDiagnostician",
+    "SQLiteDiagnostician",
+    "GenericDiagnostician",
 ]
 
 
@@ -42,17 +42,17 @@ def get_diagnostician(dialect: str, connector):
     """
     dialect = dialect.lower()
 
-    if 'mysql' in dialect:
+    if "mysql" in dialect:
         return MySQLDiagnostician(connector)
-    elif 'oracle' in dialect:
+    elif "oracle" in dialect:
         return OracleDiagnostician(connector)
-    elif 'postgresql' in dialect:
+    elif "postgresql" in dialect:
         return PostgreSQLDiagnostician(connector)
-    elif 'mssql' in dialect or 'sqlserver' in dialect:
+    elif "mssql" in dialect or "sqlserver" in dialect:
         return MSSQLDiagnostician(connector)
-    elif 'clickhouse' in dialect:
+    elif "clickhouse" in dialect:
         return ClickHouseDiagnostician(connector)
-    elif 'sqlite' in dialect:
+    elif "sqlite" in dialect:
         return SQLiteDiagnostician(connector)
     else:
         # 默认使用通用诊断器

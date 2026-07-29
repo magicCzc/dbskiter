@@ -37,10 +37,7 @@ class BatchAnalyzer:
         logger.info("BatchAnalyzer 初始化完成")
 
     def analyze_serial(
-        self,
-        items: List[Any],
-        analyze_func: Callable[[Any], Dict[str, Any]],
-        show_progress: bool = False
+        self, items: List[Any], analyze_func: Callable[[Any], Dict[str, Any]], show_progress: bool = False
     ) -> List[Dict[str, Any]]:
         """
         串行批量分析
@@ -73,7 +70,7 @@ class BatchAnalyzer:
         items: List[Any],
         analyze_func: Callable[[Any], Dict[str, Any]],
         max_workers: int = 4,
-        show_progress: bool = False
+        show_progress: bool = False,
     ) -> List[Dict[str, Any]]:
         """
         并发批量分析
@@ -103,10 +100,7 @@ class BatchAnalyzer:
             return idx, analyze_func(item)
 
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = {
-                executor.submit(analyze_with_index, (i, item)): i
-                for i, item in enumerate(items)
-            }
+            futures = {executor.submit(analyze_with_index, (i, item)): i for i, item in enumerate(items)}
 
             for future in as_completed(futures):
                 try:
@@ -120,9 +114,6 @@ class BatchAnalyzer:
                 except Exception as e:
                     logger.error(f"分析任务失败: {e}")
                     idx = futures[future]
-                    results[idx] = create_error_response(
-                        Exception(str(e)),
-                        context="analyze_concurrent"
-                    )
+                    results[idx] = create_error_response(Exception(str(e)), context="analyze_concurrent")
 
         return results

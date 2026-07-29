@@ -61,6 +61,7 @@ class OracleSlowQuery:
         module: 应用模块
         action: 操作类型
     """
+
     sql_id: str
     sql_text: str
     executions: int = 0
@@ -98,6 +99,7 @@ class OracleQueryPattern:
         first_seen: 首次出现
         last_seen: 最后出现
     """
+
     fingerprint: str
     sql_pattern: str
     sql_ids: List[str] = field(default_factory=list)
@@ -129,6 +131,7 @@ class OracleSlowQueryReport:
         top_by_cpu: 按CPU排序的模式
         recommendations: 优化建议
     """
+
     total_queries: int = 0
     unique_patterns: int = 0
     total_elapsed: float = 0.0
@@ -143,33 +146,33 @@ class OracleSlowQueryReport:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典（与MySQL分析器保持字段名一致）"""
         return {
-            'summary': {
-                'total_queries': self.total_queries,
-                'unique_patterns': self.unique_patterns,
-                'total_time': round(self.total_elapsed, 2),
-                'avg_time': round(self.total_elapsed / self.total_queries, 3) if self.total_queries > 0 else 0.0,
-                'total_cpu_sec': round(self.total_cpu, 2),
-                'total_buffer_gets': self.total_buffer_gets,
-                'time_range': [
+            "summary": {
+                "total_queries": self.total_queries,
+                "unique_patterns": self.unique_patterns,
+                "total_time": round(self.total_elapsed, 2),
+                "avg_time": round(self.total_elapsed / self.total_queries, 3) if self.total_queries > 0 else 0.0,
+                "total_cpu_sec": round(self.total_cpu, 2),
+                "total_buffer_gets": self.total_buffer_gets,
+                "time_range": [
                     self.time_range[0].isoformat() if self.time_range[0] else None,
-                    self.time_range[1].isoformat() if self.time_range[1] else None
-                ]
+                    self.time_range[1].isoformat() if self.time_range[1] else None,
+                ],
             },
-            'top_patterns': [
+            "top_patterns": [
                 {
-                    'fingerprint': p.fingerprint[:80],
-                    'sql_pattern': p.sql_pattern[:150],
-                    'count': p.count,
-                    'executions': p.executions,
-                    'total_time': round(p.total_elapsed, 2),
-                    'avg_time': round(p.avg_elapsed, 3),
-                    'p95_time': round(p.avg_elapsed, 3),
-                    'rows_examined': p.total_buffer_gets,
-                    'rows_sent': 0  # Oracle v$sql中没有返回行数统计
+                    "fingerprint": p.fingerprint[:80],
+                    "sql_pattern": p.sql_pattern[:150],
+                    "count": p.count,
+                    "executions": p.executions,
+                    "total_time": round(p.total_elapsed, 2),
+                    "avg_time": round(p.avg_elapsed, 3),
+                    "p95_time": round(p.avg_elapsed, 3),
+                    "rows_examined": p.total_buffer_gets,
+                    "rows_sent": 0,  # Oracle v$sql中没有返回行数统计
                 }
                 for p in self.top_patterns[:10]
             ],
-            'recommendations': self.recommendations
+            "recommendations": self.recommendations,
         }
 
 
@@ -194,8 +197,7 @@ class OracleSlowQueryAnalyzer:
         self.connector = connector
         self.fingerprinter = SQLFingerprinter()
 
-    def analyze_realtime(self, limit: int = 20,
-                         min_time: float = 1.0) -> OracleSlowQueryReport:
+    def analyze_realtime(self, limit: int = 20, min_time: float = 1.0) -> OracleSlowQueryReport:
         """
         分析实时慢SQL（从v$sql）
 
@@ -211,17 +213,17 @@ class OracleSlowQueryAnalyzer:
         queries = self._fetch_realtime_queries(limit, min_time)
         if not queries:
             return OracleSlowQueryReport(
-                recommendations=["未找到慢SQL，请检查：\n"
-                               "1. 是否有SQL执行超过阈值\n"
-                               "2. v$sql视图是否有数据\n"
-                               "3. 数据库负载情况"]
+                recommendations=[
+                    "未找到慢SQL，请检查：\n"
+                    "1. 是否有SQL执行超过阈值\n"
+                    "2. v$sql视图是否有数据\n"
+                    "3. 数据库负载情况"
+                ]
             )
 
         return self._analyze_queries(queries)
 
-    def analyze_awr_history(self, hours: int = 24,
-                            limit: int = 50,
-                            min_time: float = 1.0) -> OracleSlowQueryReport:
+    def analyze_awr_history(self, hours: int = 24, limit: int = 50, min_time: float = 1.0) -> OracleSlowQueryReport:
         """
         分析AWR历史数据
 
@@ -243,10 +245,12 @@ class OracleSlowQueryAnalyzer:
         queries = self._fetch_awr_queries(hours, limit, min_time)
         if not queries:
             return OracleSlowQueryReport(
-                recommendations=["未在AWR中找到慢SQL，请检查：\n"
-                               "1. AWR快照是否已采集\n"
-                               "2. 时间范围是否合适\n"
-                               "3. SQL执行时间是否超过阈值"]
+                recommendations=[
+                    "未在AWR中找到慢SQL，请检查：\n"
+                    "1. AWR快照是否已采集\n"
+                    "2. 时间范围是否合适\n"
+                    "3. SQL执行时间是否超过阈值"
+                ]
             )
 
         return self._analyze_queries(queries)
@@ -254,21 +258,19 @@ class OracleSlowQueryAnalyzer:
     def _check_awr_available(self) -> bool:
         """检查AWR是否可用"""
         try:
-            result = self.connector.execute(
-                "SELECT COUNT(*) FROM dba_hist_snapshot WHERE ROWNUM = 1"
-            )
+            result = self.connector.execute("SELECT COUNT(*) FROM dba_hist_snapshot WHERE ROWNUM = 1")
             return result.rows and result.rows[0][0] > 0
         except Exception as e:
             logger.warning(f"AWR检查失败: {e}")
             return False
 
-    def _fetch_realtime_queries(self, limit: int,
-                                 min_time: float) -> List[OracleSlowQuery]:
+    def _fetch_realtime_queries(self, limit: int, min_time: float) -> List[OracleSlowQuery]:
         """从v$sql获取实时慢SQL"""
         try:
             # 使用参数化查询防止SQL注入
             # 注意：JDBC使用?作为占位符
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT * FROM (
                     SELECT
                         sql_id,
@@ -293,7 +295,9 @@ class OracleSlowQueryAnalyzer:
                     ORDER BY elapsed_time / executions DESC
                 )
                 WHERE ROWNUM <= ?
-            """, (min_time, limit))
+            """,
+                (min_time, limit),
+            )
 
             queries = []
             for row in result.rows:
@@ -313,7 +317,7 @@ class OracleSlowQueryAnalyzer:
 
                 query = OracleSlowQuery(
                     sql_id=row[0],
-                    sql_text=row[1] if row[1] else '',
+                    sql_text=row[1] if row[1] else "",
                     executions=int(str(row[2])) if row[2] else 0,
                     elapsed_time=elapsed_time_val,
                     cpu_time=cpu_time_val,
@@ -323,7 +327,7 @@ class OracleSlowQueryAnalyzer:
                     plan_hash_value=str(row[8]) if row[8] else None,
                     parsing_schema_name=row[9],
                     module=row[10],
-                    action=row[11]
+                    action=row[11],
                 )
                 query.avg_time = query.elapsed_time / query.executions if query.executions > 0 else 0
                 queries.append(query)
@@ -334,13 +338,13 @@ class OracleSlowQueryAnalyzer:
             logger.error(f"获取实时慢SQL失败: {e}")
             return []
 
-    def _fetch_awr_queries(self, hours: int, limit: int,
-                           min_time: float) -> List[OracleSlowQuery]:
+    def _fetch_awr_queries(self, hours: int, limit: int, min_time: float) -> List[OracleSlowQuery]:
         """从AWR获取历史慢SQL"""
         try:
             # 使用参数化查询防止SQL注入
             # 注意：JDBC使用?作为占位符
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT * FROM (
                     SELECT
                         s.sql_id,
@@ -365,7 +369,9 @@ class OracleSlowQueryAnalyzer:
                     ORDER BY s.elapsed_time_delta DESC
                 )
                 WHERE ROWNUM <= ?
-            """, (hours, min_time, limit))
+            """,
+                (hours, min_time, limit),
+            )
 
             queries = []
             for row in result.rows:
@@ -384,14 +390,14 @@ class OracleSlowQueryAnalyzer:
 
                 query = OracleSlowQuery(
                     sql_id=row[0],
-                    sql_text=row[1] if row[1] else '',
+                    sql_text=row[1] if row[1] else "",
                     executions=int(str(row[2])) if row[2] else 0,
                     elapsed_time=elapsed_time_val,
                     cpu_time=cpu_time_val,
                     buffer_gets=int(str(row[5])) if row[5] else 0,
                     disk_reads=int(str(row[6])) if row[6] else 0,
                     rows_processed=int(str(row[7])) if row[7] else 0,
-                    plan_hash_value=str(row[8]) if row[8] else None
+                    plan_hash_value=str(row[8]) if row[8] else None,
                 )
                 query.avg_time = query.elapsed_time / query.executions if query.executions > 0 else 0
                 queries.append(query)
@@ -409,7 +415,7 @@ class OracleSlowQueryAnalyzer:
 
         for query in queries:
             # 生成指纹
-            fp_result = self.fingerprinter.fingerprint(query.sql_text, dialect='oracle')
+            fp_result = self.fingerprinter.fingerprint(query.sql_text, dialect="oracle")
             fingerprint = fp_result.fingerprint
             query.fingerprint = fingerprint
             pattern_groups[fingerprint].append(query)
@@ -441,20 +447,19 @@ class OracleSlowQueryAnalyzer:
             top_patterns=sorted(patterns, key=lambda x: x.total_elapsed, reverse=True)[:10],
             top_by_io=sorted(patterns, key=lambda x: x.total_buffer_gets, reverse=True)[:10],
             top_by_cpu=sorted(patterns, key=lambda x: x.total_cpu, reverse=True)[:10],
-            recommendations=self._generate_recommendations(patterns)
+            recommendations=self._generate_recommendations(patterns),
         )
 
         return report
 
-    def _calculate_pattern_stats(self, fingerprint: str,
-                                  queries: List[OracleSlowQuery]) -> OracleQueryPattern:
+    def _calculate_pattern_stats(self, fingerprint: str, queries: List[OracleSlowQuery]) -> OracleQueryPattern:
         """计算模式统计"""
         elapsed_list = [q.elapsed_time for q in queries]
         cpu_list = [q.cpu_time for q in queries]
         buffer_list = [q.buffer_gets for q in queries]
 
         # 获取SQL示例
-        sql_example = queries[0].sql_text[:200] if queries else ''
+        sql_example = queries[0].sql_text[:200] if queries else ""
 
         # 收集所有SQL ID
         sql_ids = list(set(q.sql_id for q in queries))
@@ -475,7 +480,7 @@ class OracleSlowQueryAnalyzer:
             total_disk_reads=sum(q.disk_reads for q in queries),
             executions=sum(q.executions for q in queries),
             first_seen=min(first_times) if first_times else None,
-            last_seen=max(last_times) if last_times else None
+            last_seen=max(last_times) if last_times else None,
         )
 
     def _get_time_range(self, queries: List[OracleSlowQuery]) -> tuple:
@@ -499,21 +504,18 @@ class OracleSlowQueryAnalyzer:
         high_io = [p for p in patterns if p.total_buffer_gets > 1000000]
         if high_io:
             recommendations.append(
-                f"发现{len(high_io)}个高IO查询模式，"
-                f"建议优化索引或SQL逻辑: {high_io[0].sql_pattern[:80]}..."
+                f"发现{len(high_io)}个高IO查询模式，" f"建议优化索引或SQL逻辑: {high_io[0].sql_pattern[:80]}..."
             )
 
         # 检查高CPU查询
         high_cpu = [p for p in patterns if p.total_cpu > 10]
         if high_cpu:
             recommendations.append(
-                f"发现{len(high_cpu)}个高CPU查询模式，"
-                f"建议检查执行计划: {high_cpu[0].sql_pattern[:80]}..."
+                f"发现{len(high_cpu)}个高CPU查询模式，" f"建议检查执行计划: {high_cpu[0].sql_pattern[:80]}..."
             )
 
         # 检查执行次数多但总时间长的查询
-        high_freq_slow = [p for p in patterns
-                         if p.executions > 100 and p.total_elapsed > 10]
+        high_freq_slow = [p for p in patterns if p.executions > 100 and p.total_elapsed > 10]
         if high_freq_slow:
             recommendations.append(
                 f"发现{len(high_freq_slow)}个高频且慢的查询模式，"
@@ -540,10 +542,7 @@ class OracleSlowQueryAnalyzer:
 
             if result.rows:
                 plan_lines = [row[0] for row in result.rows if row[0]]
-                return {
-                    'sql_id': sql_id,
-                    'plan_text': '\n'.join(plan_lines)
-                }
+                return {"sql_id": sql_id, "plan_text": "\n".join(plan_lines)}
 
             return None
 

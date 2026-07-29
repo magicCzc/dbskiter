@@ -12,6 +12,7 @@ import pandas as pd
 @dataclass
 class PipelineStep:
     """流水线步骤记录"""
+
     step_type: str
     description: str
     detail: Any = None
@@ -20,6 +21,7 @@ class PipelineStep:
 @dataclass
 class PipelineResult:
     """Pipeline 执行结果"""
+
     df: Optional[pd.DataFrame] = None
     query_result: Optional[Any] = field(default=None, repr=False)
     base64_images: List[str] = field(default_factory=list)
@@ -42,6 +44,7 @@ class PipelineResult:
 @dataclass
 class UnifiedPipelineResult:
     """统一 Pipeline 执行结果 (扩展版)"""
+
     df: Optional[pd.DataFrame] = None
     base64_images: List[str] = field(default_factory=list)
     interactive_charts: List[str] = field(default_factory=list)

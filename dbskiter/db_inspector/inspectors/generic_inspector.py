@@ -100,41 +100,31 @@ class GenericInspector(BaseInspector):
         }
 
         # 测试 INFORMATION_SCHEMA
-        rows = self._execute_query(
-            "SELECT 1 FROM INFORMATION_SCHEMA.TABLES LIMIT 1"
-        )
+        rows = self._execute_query("SELECT 1 FROM INFORMATION_SCHEMA.TABLES LIMIT 1")
         if rows:
             capabilities["information_schema"] = True
             logger.info("数据库支持 INFORMATION_SCHEMA")
 
         # 测试 PostgreSQL 风格
-        rows = self._execute_query(
-            "SELECT 1 FROM pg_stat_activity LIMIT 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM pg_stat_activity LIMIT 0")
         if rows is not None:
             capabilities["pg_stat_activity"] = True
             logger.info("数据库支持 pg_stat_activity")
 
         # 测试 MySQL 风格 performance_schema
-        rows = self._execute_query(
-            "SELECT 1 FROM performance_schema.threads LIMIT 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM performance_schema.threads LIMIT 0")
         if rows is not None:
             capabilities["performance_schema"] = True
             logger.info("数据库支持 performance_schema")
 
         # 测试 Oracle 风格
-        rows = self._execute_query(
-            "SELECT 1 FROM v$session WHERE ROWNUM = 0"
-        )
+        rows = self._execute_query("SELECT 1 FROM v$session WHERE ROWNUM = 0")
         if rows is not None:
             capabilities["v$session"] = True
             logger.info("数据库支持 v$session")
 
         # 测试 SQL Server 风格
-        rows = self._execute_query(
-            "SELECT 1 FROM sys.dm_exec_sessions WHERE 1=0"
-        )
+        rows = self._execute_query("SELECT 1 FROM sys.dm_exec_sessions WHERE 1=0")
         if rows is not None:
             capabilities["sys.dm_exec_sessions"] = True
             logger.info("数据库支持 sys.dm_exec_sessions")
@@ -197,50 +187,52 @@ class GenericInspector(BaseInspector):
         # 1. 数据库类型和版本（使用能力探测缓存的版本信息）
         version = self._version_cache if self._version_cache else "未知"
 
-        items.append(self._create_item(
-            name="数据库类型与版本",
-            insp_type=InspectionType.CONFIGURATION,
-            risk_level=RiskLevel.INFO if "未知" not in version else RiskLevel.MEDIUM,
-            status="pass" if "未知" not in version else "warning",
-            description=f"数据库类型: {self.dialect}, 版本: {version}",
-            actual_value=version,
-            suggestion=None if "未知" not in version else "无法获取数据库版本信息，请检查连接配置"
-        ))
+        items.append(
+            self._create_item(
+                name="数据库类型与版本",
+                insp_type=InspectionType.CONFIGURATION,
+                risk_level=RiskLevel.INFO if "未知" not in version else RiskLevel.MEDIUM,
+                status="pass" if "未知" not in version else "warning",
+                description=f"数据库类型: {self.dialect}, 版本: {version}",
+                actual_value=version,
+                suggestion=None if "未知" not in version else "无法获取数据库版本信息，请检查连接配置",
+            )
+        )
 
         # 2. 数据库/schema 数量
         schema_count = None
         if caps["information_schema"]:
-            rows = self._execute_query(
-                "SELECT COUNT(DISTINCT TABLE_SCHEMA) FROM INFORMATION_SCHEMA.TABLES"
-            )
+            rows = self._execute_query("SELECT COUNT(DISTINCT TABLE_SCHEMA) FROM INFORMATION_SCHEMA.TABLES")
             if rows and rows[0][0] is not None:
                 schema_count = int(rows[0][0])
 
         if schema_count is not None:
-            items.append(self._create_item(
-                name="Schema 数量",
-                insp_type=InspectionType.CONFIGURATION,
-                risk_level=RiskLevel.INFO,
-                status="pass",
-                description=f"当前数据库共有 {schema_count} 个 Schema",
-                actual_value=str(schema_count)
-            ))
+            items.append(
+                self._create_item(
+                    name="Schema 数量",
+                    insp_type=InspectionType.CONFIGURATION,
+                    risk_level=RiskLevel.INFO,
+                    status="pass",
+                    description=f"当前数据库共有 {schema_count} 个 Schema",
+                    actual_value=str(schema_count),
+                )
+            )
         else:
-            items.append(self._create_item(
-                name="Schema 数量",
-                insp_type=InspectionType.CONFIGURATION,
-                risk_level=RiskLevel.INFO,
-                status="warning",
-                description=f"数据库 {self.dialect} 不支持通过标准视图查询 Schema 数量",
-                suggestion="部分数据库无 Schema 概念（如 MySQL 将 Schema 等同于 Database）"
-            ))
+            items.append(
+                self._create_item(
+                    name="Schema 数量",
+                    insp_type=InspectionType.CONFIGURATION,
+                    risk_level=RiskLevel.INFO,
+                    status="warning",
+                    description=f"数据库 {self.dialect} 不支持通过标准视图查询 Schema 数量",
+                    suggestion="部分数据库无 Schema 概念（如 MySQL 将 Schema 等同于 Database）",
+                )
+            )
 
         # 3. 表总数
         table_count = None
         if caps["information_schema"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'")
             if rows and rows[0][0] is not None:
                 table_count = int(rows[0][0])
 
@@ -256,25 +248,29 @@ class GenericInspector(BaseInspector):
                     "建议定期清理无用的表，或考虑分库分表"
                 )
 
-            items.append(self._create_item(
-                name="表总数",
-                insp_type=InspectionType.CONFIGURATION,
-                risk_level=risk,
-                status=status,
-                description=f"当前数据库共有 {table_count} 张表",
-                actual_value=str(table_count),
-                reference=f"建议不超过 {self.TABLE_COUNT_THRESHOLD}",
-                suggestion=suggestion
-            ))
+            items.append(
+                self._create_item(
+                    name="表总数",
+                    insp_type=InspectionType.CONFIGURATION,
+                    risk_level=risk,
+                    status=status,
+                    description=f"当前数据库共有 {table_count} 张表",
+                    actual_value=str(table_count),
+                    reference=f"建议不超过 {self.TABLE_COUNT_THRESHOLD}",
+                    suggestion=suggestion,
+                )
+            )
         else:
-            items.append(self._create_item(
-                name="表总数",
-                insp_type=InspectionType.CONFIGURATION,
-                risk_level=RiskLevel.INFO,
-                status="warning",
-                description=f"数据库 {self.dialect} 不支持通过标准视图查询表数量",
-                suggestion="没有 INFORMATION_SCHEMA 或 pg_class 等系统视图可用"
-            ))
+            items.append(
+                self._create_item(
+                    name="表总数",
+                    insp_type=InspectionType.CONFIGURATION,
+                    risk_level=RiskLevel.INFO,
+                    status="warning",
+                    description=f"数据库 {self.dialect} 不支持通过标准视图查询表数量",
+                    suggestion="没有 INFORMATION_SCHEMA 或 pg_class 等系统视图可用",
+                )
+            )
 
         # 4. 数据库引擎信息（如果有）
         engine_info = "未知"
@@ -287,18 +283,21 @@ class GenericInspector(BaseInspector):
                 if engines:
                     engine_info = ", ".join(engines)
 
-        items.append(self._create_item(
-            name="数据库引擎/方言",
-            insp_type=InspectionType.CONFIGURATION,
-            risk_level=RiskLevel.INFO,
-            status="pass" if engine_info != "未知" else "warning",
-            description=f"数据库方言: {self.dialect}, 引擎: {engine_info}",
-            actual_value=engine_info,
-            suggestion=(
-                "该数据库类型使用通用巡检器，部分针对特定数据库的优化检查可能不可用"
-                if engine_info == "未知" else None
+        items.append(
+            self._create_item(
+                name="数据库引擎/方言",
+                insp_type=InspectionType.CONFIGURATION,
+                risk_level=RiskLevel.INFO,
+                status="pass" if engine_info != "未知" else "warning",
+                description=f"数据库方言: {self.dialect}, 引擎: {engine_info}",
+                actual_value=engine_info,
+                suggestion=(
+                    "该数据库类型使用通用巡检器，部分针对特定数据库的优化检查可能不可用"
+                    if engine_info == "未知"
+                    else None
+                ),
             )
-        ))
+        )
 
         return items
 
@@ -339,28 +338,32 @@ class GenericInspector(BaseInspector):
                     f"{self.CONNECTION_USAGE_THRESHOLD}，请关注连接池使用情况"
                 )
 
-            items.append(self._create_item(
-                name="活跃连接数",
-                insp_type=InspectionType.PERFORMANCE,
-                risk_level=risk,
-                status=status,
-                description=f"当前活跃连接数: {connection_count}",
-                actual_value=str(connection_count),
-                reference=f"建议 < {self.CONNECTION_USAGE_THRESHOLD}",
-                suggestion=suggestion
-            ))
-        else:
-            items.append(self._create_item(
-                name="活跃连接数",
-                insp_type=InspectionType.PERFORMANCE,
-                risk_level=RiskLevel.INFO,
-                status="warning",
-                description=f"数据库 {self.dialect} 不支持通过标准视图查询活跃连接数",
-                suggestion=(
-                    "当前数据库没有 pg_stat_activity / v$session / "
-                    "sys.dm_exec_sessions / SHOW PROCESSLIST 等会话视图"
+            items.append(
+                self._create_item(
+                    name="活跃连接数",
+                    insp_type=InspectionType.PERFORMANCE,
+                    risk_level=risk,
+                    status=status,
+                    description=f"当前活跃连接数: {connection_count}",
+                    actual_value=str(connection_count),
+                    reference=f"建议 < {self.CONNECTION_USAGE_THRESHOLD}",
+                    suggestion=suggestion,
                 )
-            ))
+            )
+        else:
+            items.append(
+                self._create_item(
+                    name="活跃连接数",
+                    insp_type=InspectionType.PERFORMANCE,
+                    risk_level=RiskLevel.INFO,
+                    status="warning",
+                    description=f"数据库 {self.dialect} 不支持通过标准视图查询活跃连接数",
+                    suggestion=(
+                        "当前数据库没有 pg_stat_activity / v$session / "
+                        "sys.dm_exec_sessions / SHOW PROCESSLIST 等会话视图"
+                    ),
+                )
+            )
 
         # 2. 大表检查 - 通过 INFORMATION_SCHEMA 获取前 10 大表
         if caps["information_schema"]:
@@ -372,27 +375,28 @@ class GenericInspector(BaseInspector):
                     "ORDER BY TABLE_ROWS DESC LIMIT 10"
                 )
                 if rows and rows.rows:
-                    top_tables = [
-                        f"{r[0]}.{r[1]}({r[2]}行)"
-                        for r in rows.rows
-                    ]
-                    items.append(self._create_item(
-                        name="TOP 大表",
-                        insp_type=InspectionType.PERFORMANCE,
-                        risk_level=RiskLevel.INFO,
-                        status="pass",
-                        description="前 10 大表: " + ", ".join(top_tables),
-                        actual_value=str(len(rows.rows)) + " 张表"
-                    ))
+                    top_tables = [f"{r[0]}.{r[1]}({r[2]}行)" for r in rows.rows]
+                    items.append(
+                        self._create_item(
+                            name="TOP 大表",
+                            insp_type=InspectionType.PERFORMANCE,
+                            risk_level=RiskLevel.INFO,
+                            status="pass",
+                            description="前 10 大表: " + ", ".join(top_tables),
+                            actual_value=str(len(rows.rows)) + " 张表",
+                        )
+                    )
                 else:
-                    items.append(self._create_item(
-                        name="TOP 大表",
-                        insp_type=InspectionType.PERFORMANCE,
-                        risk_level=RiskLevel.INFO,
-                        status="pass",
-                        description="当前数据库没有行数统计信息",
-                        suggestion="部分数据库（如 Trino）的 INFORMATION_SCHEMA 不提供 TABLE_ROWS"
-                    ))
+                    items.append(
+                        self._create_item(
+                            name="TOP 大表",
+                            insp_type=InspectionType.PERFORMANCE,
+                            risk_level=RiskLevel.INFO,
+                            status="pass",
+                            description="当前数据库没有行数统计信息",
+                            suggestion="部分数据库（如 Trino）的 INFORMATION_SCHEMA 不提供 TABLE_ROWS",
+                        )
+                    )
             except Exception as e:
                 logger.debug(f"大表查询失败（非关键路径）: {e}")
 
@@ -402,20 +406,21 @@ class GenericInspector(BaseInspector):
         else:
             connection_info = "无法获取"
 
-        items.append(self._create_item(
-            name="性能综述",
-            insp_type=InspectionType.PERFORMANCE,
-            risk_level=RiskLevel.INFO,
-            status="pass",
-            description=(
-                f"通用性能检查完成。{connection_info}。"
-                f"数据库方言 {self.dialect} 的部分深度性能指标需要专用采集器"
-            ),
-            suggestion=(
-                f"如需更详细的性能指标，建议使用 db_monitor 模块的 "
-                f"GenericMetricsCollector 进行指标采集"
+        items.append(
+            self._create_item(
+                name="性能综述",
+                insp_type=InspectionType.PERFORMANCE,
+                risk_level=RiskLevel.INFO,
+                status="pass",
+                description=(
+                    f"通用性能检查完成。{connection_info}。"
+                    f"数据库方言 {self.dialect} 的部分深度性能指标需要专用采集器"
+                ),
+                suggestion=(
+                    f"如需更详细的性能指标，建议使用 db_monitor 模块的 " f"GenericMetricsCollector 进行指标采集"
+                ),
             )
-        ))
+        )
 
         return items
 
@@ -431,35 +436,28 @@ class GenericInspector(BaseInspector):
         """
         # PostgreSQL 风格
         if caps["pg_stat_activity"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         # performance_schema
         if caps["performance_schema"]:
             rows = self._execute_query(
-                "SELECT COUNT(*) FROM performance_schema.threads "
-                "WHERE NAME LIKE '%/connection%'"
+                "SELECT COUNT(*) FROM performance_schema.threads " "WHERE NAME LIKE '%/connection%'"
             )
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         # Oracle 风格
         if caps["v$session"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM v$session "
-                "WHERE STATUS = 'ACTIVE' AND TYPE = 'USER'"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM v$session " "WHERE STATUS = 'ACTIVE' AND TYPE = 'USER'")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         # SQL Server 风格
         if caps["sys.dm_exec_sessions"]:
             rows = self._execute_query(
-                "SELECT COUNT(*) FROM sys.dm_exec_sessions "
-                "WHERE status = 'running' AND is_user_process = 1"
+                "SELECT COUNT(*) FROM sys.dm_exec_sessions " "WHERE status = 'running' AND is_user_process = 1"
             )
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
@@ -467,10 +465,8 @@ class GenericInspector(BaseInspector):
         # INFORMATION_SCHEMA 通用查询
         if caps["information_schema"]:
             queries = [
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST "
-                "WHERE COMMAND != 'Sleep'",
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SESSION_STATUS "
-                "WHERE VARIABLE_NAME = 'THREADS_CONNECTED'",
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.PROCESSLIST " "WHERE COMMAND != 'Sleep'",
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SESSION_STATUS " "WHERE VARIABLE_NAME = 'THREADS_CONNECTED'",
             ]
             for sql in queries:
                 rows = self._execute_query(sql)
@@ -497,61 +493,69 @@ class GenericInspector(BaseInspector):
         db_size_mb = self._get_database_size_mb(caps)
         if db_size_mb is not None:
             size_str = self._format_size_mb(db_size_mb)
-            items.append(self._create_item(
-                name="数据库总大小",
-                insp_type=InspectionType.STORAGE,
-                risk_level=RiskLevel.INFO,
-                status="pass",
-                description=f"当前数据库总大小: {size_str}",
-                actual_value=f"{db_size_mb:.1f} MB"
-            ))
-        else:
-            items.append(self._create_item(
-                name="数据库总大小",
-                insp_type=InspectionType.STORAGE,
-                risk_level=RiskLevel.INFO,
-                status="warning",
-                description=f"数据库 {self.dialect} 不支持通过标准视图查询数据库大小",
-                suggestion=(
-                    "没有 pg_database_size / information_schema.tables(data_length) "
-                    "/ PRAGMA page_count 等存储信息查询方式"
+            items.append(
+                self._create_item(
+                    name="数据库总大小",
+                    insp_type=InspectionType.STORAGE,
+                    risk_level=RiskLevel.INFO,
+                    status="pass",
+                    description=f"当前数据库总大小: {size_str}",
+                    actual_value=f"{db_size_mb:.1f} MB",
                 )
-            ))
+            )
+        else:
+            items.append(
+                self._create_item(
+                    name="数据库总大小",
+                    insp_type=InspectionType.STORAGE,
+                    risk_level=RiskLevel.INFO,
+                    status="warning",
+                    description=f"数据库 {self.dialect} 不支持通过标准视图查询数据库大小",
+                    suggestion=(
+                        "没有 pg_database_size / information_schema.tables(data_length) "
+                        "/ PRAGMA page_count 等存储信息查询方式"
+                    ),
+                )
+            )
 
         # 2. 表数量检查
         if caps["information_schema"]:
             rows = self._execute_query(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES "
-                "WHERE TABLE_TYPE = 'BASE TABLE'"
+                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES " "WHERE TABLE_TYPE = 'BASE TABLE'"
             )
             if rows and rows[0][0] is not None:
                 table_count = int(rows[0][0])
-                items.append(self._create_item(
-                    name="表数量",
-                    insp_type=InspectionType.STORAGE,
-                    risk_level=RiskLevel.INFO,
-                    status="pass" if table_count < self.TABLE_COUNT_THRESHOLD else "warning",
-                    description=f"当前数据库共有 {table_count} 张表",
-                    actual_value=str(table_count),
-                    reference=f"建议不超过 {self.TABLE_COUNT_THRESHOLD}",
-                    suggestion=(
-                        f"表数量 {table_count} 较大，建议关注表数量增长趋势"
-                        if table_count >= self.TABLE_COUNT_THRESHOLD else None
+                items.append(
+                    self._create_item(
+                        name="表数量",
+                        insp_type=InspectionType.STORAGE,
+                        risk_level=RiskLevel.INFO,
+                        status="pass" if table_count < self.TABLE_COUNT_THRESHOLD else "warning",
+                        description=f"当前数据库共有 {table_count} 张表",
+                        actual_value=str(table_count),
+                        reference=f"建议不超过 {self.TABLE_COUNT_THRESHOLD}",
+                        suggestion=(
+                            f"表数量 {table_count} 较大，建议关注表数量增长趋势"
+                            if table_count >= self.TABLE_COUNT_THRESHOLD
+                            else None
+                        ),
                     )
-                ))
+                )
 
         # 3. 索引数量
         index_count = self._get_index_count(caps)
         if index_count is not None:
-            items.append(self._create_item(
-                name="索引数量",
-                insp_type=InspectionType.STORAGE,
-                risk_level=RiskLevel.INFO,
-                status="pass",
-                description=f"当前数据库共有 {index_count} 个索引",
-                actual_value=str(index_count),
-                suggestion="建议定期检查索引使用率，清理无用索引" if index_count > 100 else None
-            ))
+            items.append(
+                self._create_item(
+                    name="索引数量",
+                    insp_type=InspectionType.STORAGE,
+                    risk_level=RiskLevel.INFO,
+                    status="pass",
+                    description=f"当前数据库共有 {index_count} 个索引",
+                    actual_value=str(index_count),
+                    suggestion="建议定期检查索引使用率，清理无用索引" if index_count > 100 else None,
+                )
+            )
 
         return items
 
@@ -567,9 +571,7 @@ class GenericInspector(BaseInspector):
         """
         # PostgreSQL 风格
         if caps["pg_stat_activity"]:
-            rows = self._execute_query(
-                "SELECT pg_database_size(current_database()) / 1024.0 / 1024.0"
-            )
+            rows = self._execute_query("SELECT pg_database_size(current_database()) / 1024.0 / 1024.0")
             if rows and rows[0][0] is not None:
                 return float(rows[0][0])
 
@@ -587,10 +589,8 @@ class GenericInspector(BaseInspector):
             try:
                 rows = self._execute_query("PRAGMA page_count")
                 rows2 = self._execute_query("PRAGMA page_size")
-                if (rows and rows[0][0] is not None
-                        and rows2 and rows2[0][0] is not None):
-                    return (float(rows[0][0]) * float(rows2[0][0])
-                            / 1024.0 / 1024.0)
+                if rows and rows[0][0] is not None and rows2 and rows2[0][0] is not None:
+                    return float(rows[0][0]) * float(rows2[0][0]) / 1024.0 / 1024.0
             except Exception:
                 pass
 
@@ -607,16 +607,12 @@ class GenericInspector(BaseInspector):
             Optional[int]: 索引数量，不支持返回 None
         """
         if caps["information_schema"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM INFORMATION_SCHEMA.STATISTICS")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
         if caps["pg_stat_activity"]:
-            rows = self._execute_query(
-                "SELECT COUNT(*) FROM pg_class WHERE relkind = 'i'"
-            )
+            rows = self._execute_query("SELECT COUNT(*) FROM pg_class WHERE relkind = 'i'")
             if rows and rows[0][0] is not None:
                 return int(rows[0][0])
 
@@ -668,34 +664,31 @@ class GenericInspector(BaseInspector):
                 user_info = str(rows[0][0])
                 break
 
-        items.append(self._create_item(
-            name="数据库用户",
-            insp_type=InspectionType.SECURITY,
-            risk_level=RiskLevel.INFO,
-            status="pass" if user_info != "未知" else "warning",
-            description=f"当前数据库用户: {user_info}",
-            actual_value=user_info,
-            suggestion=(
-                "无法获取当前用户信息，请确认连接的用户权限"
-                if user_info == "未知" else None
+        items.append(
+            self._create_item(
+                name="数据库用户",
+                insp_type=InspectionType.SECURITY,
+                risk_level=RiskLevel.INFO,
+                status="pass" if user_info != "未知" else "warning",
+                description=f"当前数据库用户: {user_info}",
+                actual_value=user_info,
+                suggestion=("无法获取当前用户信息，请确认连接的用户权限" if user_info == "未知" else None),
             )
-        ))
+        )
 
         # 2. 安全检查说明
-        items.append(self._create_item(
-            name="安全审计",
-            insp_type=InspectionType.SECURITY,
-            risk_level=RiskLevel.INFO,
-            status="warning",
-            description=(
-                f"数据库 {self.dialect} 的专项安全审计尚未实现。"
-                f"当前仅能获取基础用户信息。"
-            ),
-            suggestion=(
-                f"如需完整安全审计，可使用 db_security 模块。"
-                f"数据库 {self.dialect} 将使用通用安全检测规则"
+        items.append(
+            self._create_item(
+                name="安全审计",
+                insp_type=InspectionType.SECURITY,
+                risk_level=RiskLevel.INFO,
+                status="warning",
+                description=(f"数据库 {self.dialect} 的专项安全审计尚未实现。" f"当前仅能获取基础用户信息。"),
+                suggestion=(
+                    f"如需完整安全审计，可使用 db_security 模块。" f"数据库 {self.dialect} 将使用通用安全检测规则"
+                ),
             )
-        ))
+        )
 
         return items
 
@@ -717,38 +710,40 @@ class GenericInspector(BaseInspector):
         db_size_mb = self._get_database_size_mb(caps)
         if db_size_mb is not None:
             size_str = self._format_size_mb(db_size_mb)
-            items.append(self._create_item(
-                name="数据库容量",
+            items.append(
+                self._create_item(
+                    name="数据库容量",
+                    insp_type=InspectionType.CAPACITY,
+                    risk_level=RiskLevel.INFO,
+                    status="pass",
+                    description=f"当前数据库总容量: {size_str}",
+                    actual_value=f"{db_size_mb:.1f} MB",
+                )
+            )
+        else:
+            items.append(
+                self._create_item(
+                    name="数据库容量",
+                    insp_type=InspectionType.CAPACITY,
+                    risk_level=RiskLevel.INFO,
+                    status="warning",
+                    description=f"数据库 {self.dialect} 不支持通过标准视图查询容量",
+                    suggestion="无法获取存储容量信息，请通过操作系统层面监控磁盘使用",
+                )
+            )
+
+        # 2. 容量规划建议
+        items.append(
+            self._create_item(
+                name="容量规划建议",
                 insp_type=InspectionType.CAPACITY,
                 risk_level=RiskLevel.INFO,
                 status="pass",
-                description=f"当前数据库总容量: {size_str}",
-                actual_value=f"{db_size_mb:.1f} MB"
-            ))
-        else:
-            items.append(self._create_item(
-                name="数据库容量",
-                insp_type=InspectionType.CAPACITY,
-                risk_level=RiskLevel.INFO,
-                status="warning",
-                description=f"数据库 {self.dialect} 不支持通过标准视图查询容量",
-                suggestion="无法获取存储容量信息，请通过操作系统层面监控磁盘使用"
-            ))
-
-        # 2. 容量规划建议
-        items.append(self._create_item(
-            name="容量规划建议",
-            insp_type=InspectionType.CAPACITY,
-            risk_level=RiskLevel.INFO,
-            status="pass",
-            description=(
-                f"数据库 {self.dialect} 的容量规划建议。"
-                f"如需容量趋势预测，建议启用 db_monitor 的持久化存储功能"
-            ),
-            suggestion=(
-                f"使用 db_monitor 定期采集指标数据，"
-                f"结合 CapacityPredictor 进行趋势预测和阈值预警"
+                description=(
+                    f"数据库 {self.dialect} 的容量规划建议。" f"如需容量趋势预测，建议启用 db_monitor 的持久化存储功能"
+                ),
+                suggestion=(f"使用 db_monitor 定期采集指标数据，" f"结合 CapacityPredictor 进行趋势预测和阈值预警"),
             )
-        ))
+        )
 
         return items

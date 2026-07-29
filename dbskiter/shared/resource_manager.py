@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class PoolConfig:
     """连接池配置"""
+
     max_connections: int = 10
     max_idle_time: int = 300  # 5分钟
     connection_timeout: int = 30
@@ -48,6 +49,7 @@ class PoolConfig:
 @dataclass
 class ThreadPoolConfig:
     """线程池配置"""
+
     max_workers: int = 10
     queue_size: int = 100
     thread_name_prefix: str = "dbskiter_"
@@ -99,7 +101,7 @@ class ConnectionPool:
             "connector": new_connector,
             "created_at": time.time(),
             "last_used": time.time(),
-            "in_use": False
+            "in_use": False,
         }
 
     def get_connection(self, timeout: int = None) -> Dict[str, Any]:
@@ -176,7 +178,7 @@ class ConnectionPool:
 class ResourceManager:
     """资源管理器 - 单例模式"""
 
-    _instance: Optional['ResourceManager'] = None
+    _instance: Optional["ResourceManager"] = None
     _lock = threading.Lock()
 
     def __new__(cls):
@@ -207,8 +209,7 @@ class ResourceManager:
             self._thread_pool.shutdown(wait=True)
 
         self._thread_pool = ThreadPoolExecutor(
-            max_workers=config.max_workers,
-            thread_name_prefix=config.thread_name_prefix
+            max_workers=config.max_workers, thread_name_prefix=config.thread_name_prefix
         )
 
         logger.info(f"线程池初始化完成，最大线程数: {config.max_workers}")
@@ -255,11 +256,7 @@ class ResourceManager:
         """获取资源池状态"""
         with self._pool_lock:
             connection_status = {
-                key: {
-                    "size": pool._pool.qsize(),
-                    "in_use": len(pool._in_use),
-                    "max": pool.config.max_connections
-                }
+                key: {"size": pool._pool.qsize(), "in_use": len(pool._in_use), "max": pool.config.max_connections}
                 for key, pool in self._connection_pools.items()
             }
 
@@ -267,8 +264,8 @@ class ResourceManager:
             "connection_pools": connection_status,
             "thread_pool": {
                 "max_workers": self._thread_pool._max_workers if self._thread_pool else 0,
-                "active": len(self._thread_pool._threads) if self._thread_pool else 0
-            }
+                "active": len(self._thread_pool._threads) if self._thread_pool else 0,
+            },
         }
 
     def shutdown(self):

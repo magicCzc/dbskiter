@@ -70,18 +70,18 @@ class SQLFingerprint:
         sql = sql.lower()
 
         # 移除多余空白
-        sql = re.sub(r'\s+', ' ', sql.strip())
+        sql = re.sub(r"\s+", " ", sql.strip())
 
         # 替换字符串常量
         sql = re.sub(r"'[^']*'", "'?'", sql)
         sql = re.sub(r'"[^"]*"', '"?"', sql)
 
         # 替换数字常量
-        sql = re.sub(r'\b\d+\b', '?', sql)
+        sql = re.sub(r"\b\d+\b", "?", sql)
 
         # 移除注释
-        sql = re.sub(r'--[^\n]*', '', sql)
-        sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
+        sql = re.sub(r"--[^\n]*", "", sql)
+        sql = re.sub(r"/\*.*?\*/", "", sql, flags=re.DOTALL)
 
         return sql.strip()
 
@@ -128,29 +128,25 @@ class IssueClassifier:
     # 问题模式定义
     PATTERNS = {
         "full_table_scan": {
-            "patterns": [r'full\s+table\s+scan', r'type.*all', r'using\s+filesort'],
+            "patterns": [r"full\s+table\s+scan", r"type.*all", r"using\s+filesort"],
             "level": DiagnoseLevel.HIGH,
-            "category": "performance"
+            "category": "performance",
         },
         "missing_index": {
-            "patterns": [r'missing\s+index', r'no\s+index', r'index\s+not\s+used'],
+            "patterns": [r"missing\s+index", r"no\s+index", r"index\s+not\s+used"],
             "level": DiagnoseLevel.HIGH,
-            "category": "index"
+            "category": "index",
         },
-        "select_star": {
-            "patterns": [r'select\s+\*'],
-            "level": DiagnoseLevel.LOW,
-            "category": "best_practice"
-        },
+        "select_star": {"patterns": [r"select\s+\*"], "level": DiagnoseLevel.LOW, "category": "best_practice"},
         "implicit_conversion": {
-            "patterns": [r'implicit\s+conversion', r'type\s+mismatch'],
+            "patterns": [r"implicit\s+conversion", r"type\s+mismatch"],
             "level": DiagnoseLevel.MEDIUM,
-            "category": "data_type"
+            "category": "data_type",
         },
         "cartesian_product": {
-            "patterns": [r'cartesian', r'cross\s+join', r'no\s+join\s+condition'],
+            "patterns": [r"cartesian", r"cross\s+join", r"no\s+join\s+condition"],
             "level": DiagnoseLevel.CRITICAL,
-            "category": "join"
+            "category": "join",
         },
     }
 
@@ -174,14 +170,14 @@ class IssueClassifier:
                         "type": issue_type,
                         "level": config["level"],
                         "level_value": config["level"].value,
-                        "category": config["category"]
+                        "category": config["category"],
                     }
 
         return {
             "type": "unknown",
             "level": DiagnoseLevel.LOW,
             "level_value": DiagnoseLevel.LOW.value,
-            "category": "other"
+            "category": "other",
         }
 
     @staticmethod
@@ -292,10 +288,7 @@ class PrioritySorter:
     """
 
     @staticmethod
-    def sort_by_priority(
-        items: List[Dict[str, Any]],
-        priority_key: str = "priority"
-    ) -> List[Dict[str, Any]]:
+    def sort_by_priority(items: List[Dict[str, Any]], priority_key: str = "priority") -> List[Dict[str, Any]]:
         """
         按优先级排序
 
@@ -314,16 +307,11 @@ class PrioritySorter:
             "info": 4,
         }
 
-        return sorted(
-            items,
-            key=lambda x: priority_order.get(x.get(priority_key, "low"), 5)
-        )
+        return sorted(items, key=lambda x: priority_order.get(x.get(priority_key, "low"), 5))
 
     @staticmethod
     def filter_by_min_priority(
-        items: List[Dict[str, Any]],
-        min_priority: str,
-        priority_key: str = "priority"
+        items: List[Dict[str, Any]], min_priority: str, priority_key: str = "priority"
     ) -> List[Dict[str, Any]]:
         """
         按最小优先级筛选
@@ -346,10 +334,7 @@ class PrioritySorter:
 
         min_level = priority_order.get(min_priority, 3)
 
-        return [
-            item for item in items
-            if priority_order.get(item.get(priority_key, "low"), 5) <= min_level
-        ]
+        return [item for item in items if priority_order.get(item.get(priority_key, "low"), 5) <= min_level]
 
 
 class MetricsAggregator:
@@ -422,11 +407,7 @@ class MetricsAggregator:
                     sums[key] = sums.get(key, 0) + value
                     counts[key] = counts.get(key, 0) + 1
 
-        return {
-            key: sums[key] / counts[key]
-            for key in sums
-            if counts[key] > 0
-        }
+        return {key: sums[key] / counts[key] for key in sums if counts[key] > 0}
 
 
 class QueryExtractor:
@@ -469,16 +450,16 @@ class QueryExtractor:
         columns = []
 
         # SELECT 列
-        select_match = re.search(r'SELECT\s+(.+?)\s+FROM', sql, re.IGNORECASE | re.DOTALL)
+        select_match = re.search(r"SELECT\s+(.+?)\s+FROM", sql, re.IGNORECASE | re.DOTALL)
         if select_match:
             cols_text = select_match.group(1)
             # 分割列
-            cols = [c.strip() for c in cols_text.split(',')]
+            cols = [c.strip() for c in cols_text.split(",")]
             for col in cols:
                 # 移除别名
-                col = re.sub(r'\s+AS\s+\w+', '', col, flags=re.IGNORECASE)
+                col = re.sub(r"\s+AS\s+\w+", "", col, flags=re.IGNORECASE)
                 col = col.strip()
-                if col and col != '*':
+                if col and col != "*":
                     columns.append(col)
 
         return columns
@@ -500,21 +481,19 @@ class QueryExtractor:
         conditions = []
 
         # WHERE 子句
-        where_match = re.search(r'WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)', sql, re.IGNORECASE | re.DOTALL)
+        where_match = re.search(r"WHERE\s+(.+?)(?:ORDER|GROUP|LIMIT|$)", sql, re.IGNORECASE | re.DOTALL)
         if where_match:
             where_text = where_match.group(1).strip()
             # 简单分割条件
-            for condition in re.split(r'\s+AND\s+', where_text, flags=re.IGNORECASE):
+            for condition in re.split(r"\s+AND\s+", where_text, flags=re.IGNORECASE):
                 condition = condition.strip()
                 if condition:
                     # 提取列名和运算符
-                    match = re.match(r'(\w+)\s*(=|<>|!=|<|>|<=|>=|LIKE|IN)', condition, re.IGNORECASE)
+                    match = re.match(r"(\w+)\s*(=|<>|!=|<|>|<=|>=|LIKE|IN)", condition, re.IGNORECASE)
                     if match:
-                        conditions.append({
-                            "column": match.group(1),
-                            "operator": match.group(2).upper(),
-                            "full": condition
-                        })
+                        conditions.append(
+                            {"column": match.group(1), "operator": match.group(2).upper(), "full": condition}
+                        )
 
         return conditions
 

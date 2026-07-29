@@ -38,6 +38,7 @@ from dbskiter.shared.validators import validate_params, Validator
 try:
     from dbskiter.shared.prometheus_client import PrometheusClient, RDSMetrics
     from dbskiter.shared.zabbix_client import ZabbixClient, ZabbixMySQLMetrics
+
     EXTERNAL_MONITORING_AVAILABLE = True
 except ImportError:
     EXTERNAL_MONITORING_AVAILABLE = False
@@ -45,13 +46,14 @@ except ImportError:
 # 导入子模块
 from dbskiter.db_monitor.models import (
     ErrorCode,
-    HealthStatus, MetricType,
-    AnomalyAlert, MonitorConfig, HealthAssessment,
+    HealthStatus,
+    MetricType,
+    AnomalyAlert,
+    MonitorConfig,
+    HealthAssessment,
 )
 from dbskiter.shared.error_handler import create_success_response, create_error_response
-from dbskiter.db_monitor.utils import (
-    AnomalyDetector, CapacityPredictor, AlertManager
-)
+from dbskiter.db_monitor.utils import AnomalyDetector, CapacityPredictor, AlertManager
 from dbskiter.db_monitor.storage import MetricsStorage
 from dbskiter.db_monitor.collectors import get_collector
 from dbskiter.db_monitor.health_scorer import get_health_scorer
@@ -71,8 +73,10 @@ from dbskiter.db_monitor.mixins import (
 try:
     from dbskiter.db_monitor.advanced_predictor import AdvancedCapacityPredictor
     from dbskiter.db_monitor.trend_analyzer import (
-        TrendAnalyzer, StorageBasedDataProvider,
+        TrendAnalyzer,
+        StorageBasedDataProvider,
     )
+
     ADVANCED_FEATURES_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"高级功能不可用: {e}")
@@ -112,7 +116,7 @@ class MonitorSkill(
         self,
         connector: Optional[UnifiedConnector] = None,
         config: Optional[MonitorConfig] = None,
-        host_name: Optional[Union[str, List[str]]] = None
+        host_name: Optional[Union[str, List[str]]] = None,
     ):
         """
         初始化监控 Skill
@@ -164,4 +168,3 @@ class MonitorSkill(
             self._init_external_monitoring()
 
         logger.info(f"MonitorSkill 初始化完成 (dialect={self.dialect}, host={self._host_name})")
-

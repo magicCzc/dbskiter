@@ -49,81 +49,31 @@ class HistoryCommand(BaseCommand):
         参数:
             parser: 子命令解析器
         """
-        subparsers = parser.add_subparsers(
-            dest="action",
-            help="历史操作",
-            metavar="ACTION"
-        )
+        subparsers = parser.add_subparsers(dest="action", help="历史操作", metavar="ACTION")
 
         # list 子命令（默认）
-        list_parser = subparsers.add_parser(
-            "list",
-            help="列出历史记录（默认）"
-        )
-        list_parser.add_argument(
-            "--limit", "-n",
-            type=int,
-            default=20,
-            help="最多显示条数（默认 20）"
-        )
-        list_parser.add_argument(
-            "--filter-db",
-            help="按数据库别名过滤"
-        )
-        list_parser.add_argument(
-            "--filter-cmd",
-            help="按主命令过滤（如 diagnose, monitor）"
-        )
+        list_parser = subparsers.add_parser("list", help="列出历史记录（默认）")
+        list_parser.add_argument("--limit", "-n", type=int, default=20, help="最多显示条数（默认 20）")
+        list_parser.add_argument("--filter-db", help="按数据库别名过滤")
+        list_parser.add_argument("--filter-cmd", help="按主命令过滤（如 diagnose, monitor）")
 
         # search 子命令
-        search_parser = subparsers.add_parser(
-            "search",
-            help="搜索历史记录"
-        )
-        search_parser.add_argument(
-            "keyword",
-            help="搜索关键词"
-        )
-        search_parser.add_argument(
-            "--limit", "-n",
-            type=int,
-            default=20,
-            help="最多显示条数"
-        )
+        search_parser = subparsers.add_parser("search", help="搜索历史记录")
+        search_parser.add_argument("keyword", help="搜索关键词")
+        search_parser.add_argument("--limit", "-n", type=int, default=20, help="最多显示条数")
 
         # clear 子命令
-        subparsers.add_parser(
-            "clear",
-            help="清空历史记录"
-        )
+        subparsers.add_parser("clear", help="清空历史记录")
 
         # rerun 子命令
-        rerun_parser = subparsers.add_parser(
-            "rerun",
-            help="复用历史命令"
-        )
-        rerun_parser.add_argument(
-            "index",
-            type=int,
-            help="历史记录索引（1=最新，可用 history list 查看）"
-        )
+        rerun_parser = subparsers.add_parser("rerun", help="复用历史命令")
+        rerun_parser.add_argument("index", type=int, help="历史记录索引（1=最新，可用 history list 查看）")
 
         # 为 parser 本身也添加 --limit，支持直接 `history --limit 5`
         # 注意：--database 已由全局连接参数提供，此处不再重复添加
-        parser.add_argument(
-            "--limit", "-n",
-            type=int,
-            default=20,
-            help="最多显示条数（默认 20）"
-        )
-        parser.add_argument(
-            "--filter-db",
-            help="按数据库别名过滤"
-        )
-        parser.add_argument(
-            "--filter-cmd",
-            help="按主命令过滤"
-        )
+        parser.add_argument("--limit", "-n", type=int, default=20, help="最多显示条数（默认 20）")
+        parser.add_argument("--filter-db", help="按数据库别名过滤")
+        parser.add_argument("--filter-cmd", help="按主命令过滤")
 
     def execute(self) -> int:
         """
@@ -177,10 +127,8 @@ class HistoryCommand(BaseCommand):
 
         if self.output.json_mode:
             import json
-            self.output.print(
-                json.dumps([e.to_dict() for e in entries], ensure_ascii=False, indent=2),
-                force=True
-            )
+
+            self.output.print(json.dumps([e.to_dict() for e in entries], ensure_ascii=False, indent=2), force=True)
             return 0
 
         # Rich Table 展示
@@ -314,7 +262,9 @@ class HistoryCommand(BaseCommand):
 
         # 递归调用 main，跳过本次历史记录（避免 rerun 自身被记录导致循环）
         import os
+
         os.environ["_DBSKITER_SKIP_HISTORY"] = "1"
 
         from ..main import main
+
         return main(cli_args)

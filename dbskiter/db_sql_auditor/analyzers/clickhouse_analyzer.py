@@ -62,11 +62,7 @@ class ClickHouseDDLAnalyzer(BaseDDLAnalyzer):
         table_name = self._extract_table_name(ddl_sql)
         operation = self._detect_operation(ddl_sql)
 
-        impact = DDLImpact(
-            ddl_sql=ddl_sql,
-            table_name=table_name,
-            operation=operation
-        )
+        impact = DDLImpact(ddl_sql=ddl_sql, table_name=table_name, operation=operation)
 
         # 获取表信息
         try:
@@ -76,25 +72,17 @@ class ClickHouseDDLAnalyzer(BaseDDLAnalyzer):
             logger.warning(f"获取表 {table_name} 信息失败: {e}")
 
         # 评估执行时间（ClickHouse ALTER是异步的）
-        impact.execution_time_estimate = self._estimate_clickhouse_execution_time(
-            operation, impact.table_size_mb
-        )
+        impact.execution_time_estimate = self._estimate_clickhouse_execution_time(operation, impact.table_size_mb)
 
         # 评估风险
         impact.risks = self._assess_clickhouse_risks(operation, ddl_sql)
 
         # 生成建议
-        impact.suggestions = self._generate_clickhouse_suggestions(
-            operation, ddl_sql, table_name
-        )
+        impact.suggestions = self._generate_clickhouse_suggestions(operation, ddl_sql, table_name)
 
         return impact
 
-    def _estimate_clickhouse_execution_time(
-        self,
-        operation: str,
-        table_size_mb: float
-    ) -> str:
+    def _estimate_clickhouse_execution_time(self, operation: str, table_size_mb: float) -> str:
         """
         预估ClickHouse DDL执行时间
 
@@ -111,15 +99,15 @@ class ClickHouseDDLAnalyzer(BaseDDLAnalyzer):
             return "未知（异步执行）"
 
         # ClickHouse ALTER是异步的
-        if operation in ('DELETE', 'UPDATE', 'LIGHTWEIGHT_DELETE'):
+        if operation in ("DELETE", "UPDATE", "LIGHTWEIGHT_DELETE"):
             return "异步执行，取决于数据量和parts数量"
-        elif operation == 'ADD_COLUMN':
+        elif operation == "ADD_COLUMN":
             return "通常很快（秒级），异步完成"
-        elif operation == 'DROP_COLUMN':
+        elif operation == "DROP_COLUMN":
             return "异步执行，取决于数据量"
-        elif operation == 'MODIFY_COLUMN':
+        elif operation == "MODIFY_COLUMN":
             return "异步执行，可能需要重写数据"
-        elif 'INDEX' in operation:
+        elif "INDEX" in operation:
             return "异步构建，取决于数据量"
         else:
             return "异步执行"
@@ -139,37 +127,22 @@ class ClickHouseDDLAnalyzer(BaseDDLAnalyzer):
         sql_upper = ddl_sql.upper()
 
         # 检查是否缺少ON CLUSTER（分布式表）
-        if 'DISTRIBUTED' not in sql_upper and 'ON CLUSTER' not in sql_upper:
-            risks.append(
-                "如果是分布式表，建议添加ON CLUSTER子句"
-            )
+        if "DISTRIBUTED" not in sql_upper and "ON CLUSTER" not in sql_upper:
+            risks.append("如果是分布式表，建议添加ON CLUSTER子句")
 
-        if operation in ('DELETE', 'UPDATE', 'LIGHTWEIGHT_DELETE'):
-            risks.append(
-                "ClickHouse的DELETE/UPDATE是异步mutation，不会立即生效"
-            )
-            risks.append(
-                "频繁的轻量级DELETE/UPDATE会影响性能，考虑使用ReplacingMergeTree"
-            )
+        if operation in ("DELETE", "UPDATE", "LIGHTWEIGHT_DELETE"):
+            risks.append("ClickHouse的DELETE/UPDATE是异步mutation，不会立即生效")
+            risks.append("频繁的轻量级DELETE/UPDATE会影响性能，考虑使用ReplacingMergeTree")
 
-        if 'DROP' in operation or 'TRUNCATE' in operation:
-            risks.append(
-                "ClickHouse DROP/TRUNCATE操作不可逆，数据无法恢复"
-            )
+        if "DROP" in operation or "TRUNCATE" in operation:
+            risks.append("ClickHouse DROP/TRUNCATE操作不可逆，数据无法恢复")
 
-        if 'ALTER' in sql_upper and 'MATERIALIZED VIEW' in sql_upper:
-            risks.append(
-                "修改物化视图可能需要重建，影响查询性能"
-            )
+        if "ALTER" in sql_upper and "MATERIALIZED VIEW" in sql_upper:
+            risks.append("修改物化视图可能需要重建，影响查询性能")
 
         return risks
 
-    def _generate_clickhouse_suggestions(
-        self,
-        operation: str,
-        ddl_sql: str,
-        table_name: str
-    ) -> List[str]:
+    def _generate_clickhouse_suggestions(self, operation: str, ddl_sql: str, table_name: str) -> List[str]:
         """
         生成ClickHouse DDL建议
 
@@ -185,40 +158,24 @@ class ClickHouseDDLAnalyzer(BaseDDLAnalyzer):
         sql_upper = ddl_sql.upper()
 
         # 分布式表建议
-        if 'ON CLUSTER' not in sql_upper:
-            suggestions.append(
-                "如果是集群部署，建议使用: ALTER TABLE ... ON CLUSTER cluster_name"
-            )
+        if "ON CLUSTER" not in sql_upper:
+            suggestions.append("如果是集群部署，建议使用: ALTER TABLE ... ON CLUSTER cluster_name")
 
-        if operation in ('DELETE', 'UPDATE'):
-            suggestions.append(
-                "考虑使用ReplacingMergeTree或CollapsingMergeTree替代频繁DELETE"
-            )
-            suggestions.append(
-                "使用SELECT ... FINAL查询获取最新数据，避免物理删除"
-            )
+        if operation in ("DELETE", "UPDATE"):
+            suggestions.append("考虑使用ReplacingMergeTree或CollapsingMergeTree替代频繁DELETE")
+            suggestions.append("使用SELECT ... FINAL查询获取最新数据，避免物理删除")
 
-        if operation == 'ADD_COLUMN':
-            suggestions.append(
-                "ClickHouse添加列是轻量级操作，不需要重写数据"
-            )
+        if operation == "ADD_COLUMN":
+            suggestions.append("ClickHouse添加列是轻量级操作，不需要重写数据")
 
-        if 'INDEX' in operation and 'ADD' in operation:
-            suggestions.append(
-                "新索引是异步构建的，构建期间查询性能可能受影响"
-            )
-            suggestions.append(
-                "考虑使用主键和ORDER BY替代二级索引"
-            )
+        if "INDEX" in operation and "ADD" in operation:
+            suggestions.append("新索引是异步构建的，构建期间查询性能可能受影响")
+            suggestions.append("考虑使用主键和ORDER BY替代二级索引")
 
-        if 'PARTITION' in sql_upper:
-            suggestions.append(
-                "分区操作可能影响大量数据，建议在低峰期执行"
-            )
+        if "PARTITION" in sql_upper:
+            suggestions.append("分区操作可能影响大量数据，建议在低峰期执行")
 
         # 检查mutation队列
-        suggestions.append(
-            "执行后检查system.mutations表监控进度"
-        )
+        suggestions.append("执行后检查system.mutations表监控进度")
 
         return suggestions

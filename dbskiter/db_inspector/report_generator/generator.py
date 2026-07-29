@@ -32,46 +32,46 @@ logger = logging.getLogger(__name__)
 
 INSPECTION_TYPE_META = {
     InspectionType.CONFIGURATION: {
-        'label': '配置检查',
-        'icon': 'settings',
-        'color': '#3b82f6',
-        'description': '检查数据库参数配置是否符合生产环境最佳实践'
+        "label": "配置检查",
+        "icon": "settings",
+        "color": "#3b82f6",
+        "description": "检查数据库参数配置是否符合生产环境最佳实践",
     },
     InspectionType.PERFORMANCE: {
-        'label': '性能检查',
-        'icon': 'speed',
-        'color': '#8b5cf6',
-        'description': '检查数据库运行性能指标是否在合理范围内'
+        "label": "性能检查",
+        "icon": "speed",
+        "color": "#8b5cf6",
+        "description": "检查数据库运行性能指标是否在合理范围内",
     },
     InspectionType.SECURITY: {
-        'label': '安全检查',
-        'icon': 'shield',
-        'color': '#ef476f',
-        'description': '检查数据库安全配置是否存在风险隐患'
+        "label": "安全检查",
+        "icon": "shield",
+        "color": "#ef476f",
+        "description": "检查数据库安全配置是否存在风险隐患",
     },
     InspectionType.STORAGE: {
-        'label': '存储检查',
-        'icon': 'database',
-        'color': '#06d6a0',
-        'description': '检查数据库存储空间使用和表结构是否合理'
+        "label": "存储检查",
+        "icon": "database",
+        "color": "#06d6a0",
+        "description": "检查数据库存储空间使用和表结构是否合理",
     },
     InspectionType.REPLICATION: {
-        'label': '复制检查',
-        'icon': 'sync',
-        'color': '#fd7e14',
-        'description': '检查数据库主从复制状态是否正常'
+        "label": "复制检查",
+        "icon": "sync",
+        "color": "#fd7e14",
+        "description": "检查数据库主从复制状态是否正常",
     },
     InspectionType.BACKUP: {
-        'label': '备份检查',
-        'icon': 'archive',
-        'color': '#4cc9f0',
-        'description': '检查数据库备份策略是否完善'
+        "label": "备份检查",
+        "icon": "archive",
+        "color": "#4cc9f0",
+        "description": "检查数据库备份策略是否完善",
     },
     InspectionType.CAPACITY: {
-        'label': '容量检查',
-        'icon': 'chart',
-        'color': '#ffd166',
-        'description': '检查数据库容量使用情况和增长趋势'
+        "label": "容量检查",
+        "icon": "chart",
+        "color": "#ffd166",
+        "description": "检查数据库容量使用情况和增长趋势",
     },
 }
 
@@ -91,15 +91,10 @@ class RiskPrioritizer:
         RiskLevel.HIGH: 75,
         RiskLevel.MEDIUM: 50,
         RiskLevel.LOW: 25,
-        RiskLevel.INFO: 0
+        RiskLevel.INFO: 0,
     }
 
-    STATUS_WEIGHTS = {
-        'fail': 100,
-        'warning': 50,
-        'pass': 0,
-        'skip': -1
-    }
+    STATUS_WEIGHTS = {"fail": 100, "warning": 50, "pass": 0, "skip": -1}
 
     @classmethod
     def prioritize_items(cls, items: List[InspectionItem]) -> List[InspectionItem]:
@@ -117,6 +112,7 @@ class RiskPrioritizer:
         返回:
             List[InspectionItem]: 排序后的巡检项列表
         """
+
         def get_priority(item: InspectionItem) -> Tuple[int, int, str]:
             risk_level = item.risk_level
             if isinstance(risk_level, str):
@@ -134,9 +130,7 @@ class RiskPrioritizer:
 
     @classmethod
     def get_high_priority_items(
-        cls,
-        items: List[InspectionItem],
-        min_risk_level: RiskLevel = RiskLevel.MEDIUM
+        cls, items: List[InspectionItem], min_risk_level: RiskLevel = RiskLevel.MEDIUM
     ) -> List[InspectionItem]:
         """
         获取高优先级巡检项
@@ -160,7 +154,7 @@ class RiskPrioritizer:
                     continue
 
             item_weight = cls.RISK_WEIGHTS.get(risk_level, 0)
-            if item_weight >= min_weight and item.status != 'pass':
+            if item_weight >= min_weight and item.status != "pass":
                 high_priority.append(item)
 
         return cls.prioritize_items(high_priority)
@@ -213,9 +207,9 @@ class CategoryAnalyzer:
 
         for type_key, type_items in groups.items():
             total = len(type_items)
-            pass_count = sum(1 for i in type_items if i.status == 'pass')
-            warning_count = sum(1 for i in type_items if i.status == 'warning')
-            fail_count = sum(1 for i in type_items if i.status == 'fail')
+            pass_count = sum(1 for i in type_items if i.status == "pass")
+            warning_count = sum(1 for i in type_items if i.status == "warning")
+            fail_count = sum(1 for i in type_items if i.status == "fail")
 
             risk_counts = Counter()
             for item in type_items:
@@ -228,26 +222,23 @@ class CategoryAnalyzer:
 
             suggestions = []
             for item in type_items:
-                if item.suggestion and item.status != 'pass':
+                if item.suggestion and item.status != "pass":
                     rl_val = item.risk_level
                     if isinstance(rl_val, RiskLevel):
                         rl_val = rl_val.value
-                    suggestions.append({
-                        'name': item.name,
-                        'suggestion': item.suggestion,
-                        'risk_level': rl_val,
-                        'status': item.status
-                    })
+                    suggestions.append(
+                        {"name": item.name, "suggestion": item.suggestion, "risk_level": rl_val, "status": item.status}
+                    )
 
             stats[type_key] = {
-                'total': total,
-                'pass_count': pass_count,
-                'warning_count': warning_count,
-                'fail_count': fail_count,
-                'pass_rate': pass_rate,
-                'risk_counts': dict(risk_counts),
-                'suggestions': suggestions,
-                'items': type_items
+                "total": total,
+                "pass_count": pass_count,
+                "warning_count": warning_count,
+                "fail_count": fail_count,
+                "pass_rate": pass_rate,
+                "risk_counts": dict(risk_counts),
+                "suggestions": suggestions,
+                "items": type_items,
             }
 
         return stats
@@ -263,8 +254,6 @@ class EnhancedReportGenerator:
         - 提供交互式图表
         - 支持多种报告格式
     """
-
-    
 
     @staticmethod
     def _get_risk_level_value(item: InspectionItem) -> str:
@@ -292,7 +281,7 @@ class EnhancedReportGenerator:
         返回:
             str: 中文状态文本
         """
-        return '通过' if status == 'pass' else '告警' if status == 'warning' else '失败'
+        return "通过" if status == "pass" else "告警" if status == "warning" else "失败"
 
     @staticmethod
     def _get_insp_type_enum(item: InspectionItem) -> Optional[InspectionType]:
@@ -326,7 +315,7 @@ class EnhancedReportGenerator:
         """
         if item.actual_value:
             return f'<div class="cat-item-value" title="{item.actual_value}">实际: {item.actual_value}</div>'
-        return ''
+        return ""
 
     @staticmethod
     def _build_item_suggestion_html(item: InspectionItem) -> str:
@@ -339,9 +328,9 @@ class EnhancedReportGenerator:
         返回:
             str: HTML代码
         """
-        if item.suggestion and item.status != 'pass':
+        if item.suggestion and item.status != "pass":
             return f'<div class="cat-item-suggestion" title="{item.suggestion}">{item.suggestion}</div>'
-        return ''
+        return ""
 
     @staticmethod
     def generate_html_report(report: InspectionReport) -> str:
@@ -355,12 +344,12 @@ class EnhancedReportGenerator:
             str: HTML格式报告
         """
         db_type = report.database_type
-        if 'mysql' in db_type.lower():
-            db_type_display = 'MySQL'
-        elif 'oracle' in db_type.lower():
-            db_type_display = 'Oracle'
-        elif 'postgresql' in db_type.lower():
-            db_type_display = 'PostgreSQL'
+        if "mysql" in db_type.lower():
+            db_type_display = "MySQL"
+        elif "oracle" in db_type.lower():
+            db_type_display = "Oracle"
+        elif "postgresql" in db_type.lower():
+            db_type_display = "PostgreSQL"
         else:
             db_type_display = db_type
 
@@ -373,17 +362,11 @@ class EnhancedReportGenerator:
             report.database_version,
             report.inspection_time,
             report.duration_seconds,
-            report.health_score
+            report.health_score,
         )
-        summary = EnhancedReportGenerator._generate_executive_summary(
-            report, db_type_display, category_stats
-        )
+        summary = EnhancedReportGenerator._generate_executive_summary(report, db_type_display, category_stats)
         stats = EnhancedReportGenerator._generate_stats_row(
-            report.critical_count,
-            report.high_count,
-            report.medium_count,
-            report.low_count,
-            report.info_count
+            report.critical_count, report.high_count, report.medium_count, report.low_count, report.info_count
         )
         charts = EnhancedReportGenerator._generate_charts(
             report.health_score,
@@ -395,25 +378,17 @@ class EnhancedReportGenerator:
             report.pass_count,
             report.warning_count,
             report.fail_count,
-            category_stats
+            category_stats,
         )
         high_risk = EnhancedReportGenerator._generate_high_risk_section(report.items)
-        categories = EnhancedReportGenerator._generate_category_sections(
-            report.items, category_stats
-        )
+        categories = EnhancedReportGenerator._generate_category_sections(report.items, category_stats)
         recommendations = EnhancedReportGenerator._generate_recommendations(report.items)
         details = EnhancedReportGenerator._generate_details_section(report.items)
         footer = EnhancedReportGenerator._generate_footer()
 
-        content = (
-            nav + header + summary + stats + charts + high_risk
-            + categories + recommendations + details + footer
-        )
+        content = nav + header + summary + stats + charts + high_risk + categories + recommendations + details + footer
 
-        return HTML_TEMPLATE.format(
-            instance_name=report.instance_name,
-            content=content
-        )
+        return HTML_TEMPLATE.format(instance_name=report.instance_name, content=content)
 
     @staticmethod
     def _generate_header(
@@ -422,10 +397,10 @@ class EnhancedReportGenerator:
         db_version: str,
         inspection_time: datetime,
         duration: float,
-        health_score: float
+        health_score: float,
     ) -> str:
         """生成报告头部"""
-        return f'''
+        return f"""
         <div class="report-header">
             <div class="header-top">
                 <div>
@@ -457,12 +432,10 @@ class EnhancedReportGenerator:
                 </div>
             </div>
         </div>
-        '''
+        """
 
     @staticmethod
-    def _generate_nav(
-        category_stats: Dict[str, Dict[str, Any]]
-    ) -> str:
+    def _generate_nav(category_stats: Dict[str, Dict[str, Any]]) -> str:
         """
         生成导航栏
 
@@ -491,26 +464,22 @@ class EnhancedReportGenerator:
         for insp_type in type_order:
             if insp_type.value in category_stats:
                 meta = INSPECTION_TYPE_META.get(insp_type, {})
-                label = meta.get('label', insp_type.value)
-                nav_links.append(
-                    f'<a class="nav-link" href="#cat-{insp_type.value}">{label}</a>'
-                )
+                label = meta.get("label", insp_type.value)
+                nav_links.append(f'<a class="nav-link" href="#cat-{insp_type.value}">{label}</a>')
 
         nav_links.append('<a class="nav-link" href="#recommendations">建议汇总</a>')
         nav_links.append('<a class="nav-link" href="#details">详细列表</a>')
 
-        return f'''
+        return f"""
         <nav class="report-nav">
             <span class="nav-label">快速导航</span>
             {''.join(nav_links)}
         </nav>
-        '''
+        """
 
     @staticmethod
     def _generate_executive_summary(
-        report: InspectionReport,
-        db_type_display: str,
-        category_stats: Dict[str, Dict[str, Any]]
+        report: InspectionReport, db_type_display: str, category_stats: Dict[str, Dict[str, Any]]
     ) -> str:
         """
         生成执行摘要
@@ -533,46 +502,46 @@ class EnhancedReportGenerator:
 
         # 评估标准：健康(>=90) 亚健康(80-89) 风险(60-79) 高危(<60)
         if health >= 90:
-            overall_assessment = '整体运行状况健康'
-            assessment_detail = '数据库各项指标正常，继续保持当前运维策略'
+            overall_assessment = "整体运行状况健康"
+            assessment_detail = "数据库各项指标正常，继续保持当前运维策略"
         elif health >= 80:
-            overall_assessment = '整体运行状况亚健康，存在轻微问题'
-            assessment_detail = '数据库存在少量可优化项，建议在合适时机处理'
+            overall_assessment = "整体运行状况亚健康，存在轻微问题"
+            assessment_detail = "数据库存在少量可优化项，建议在合适时机处理"
         elif health >= 60:
-            overall_assessment = '整体运行状况存在风险，需要关注'
-            assessment_detail = '数据库存在若干配置或性能问题，建议按优先级逐步处理'
+            overall_assessment = "整体运行状况存在风险，需要关注"
+            assessment_detail = "数据库存在若干配置或性能问题，建议按优先级逐步处理"
         else:
-            overall_assessment = '整体运行状况高危，需立即处理'
-            assessment_detail = '数据库存在严重风险，建议立即采取措施'
+            overall_assessment = "整体运行状况高危，需立即处理"
+            assessment_detail = "数据库存在严重风险，建议立即采取措施"
 
         problem_categories = []
         for type_key, stats in category_stats.items():
-            if stats['warning_count'] + stats['fail_count'] > 0:
+            if stats["warning_count"] + stats["fail_count"] > 0:
                 insp_type = None
                 for it in InspectionType:
                     if it.value == type_key:
                         insp_type = it
                         break
                 meta = INSPECTION_TYPE_META.get(insp_type, {})
-                label = meta.get('label', type_key)
-                problem_count = stats['warning_count'] + stats['fail_count']
-                problem_categories.append(f'{label}({problem_count}项)')
+                label = meta.get("label", type_key)
+                problem_count = stats["warning_count"] + stats["fail_count"]
+                problem_categories.append(f"{label}({problem_count}项)")
 
-        problem_text = '、'.join(problem_categories) if problem_categories else '无'
+        problem_text = "、".join(problem_categories) if problem_categories else "无"
 
         summary_text = (
-            f'本次巡检对 <strong>{report.instance_name}</strong> '
-            f'({db_type_display} {report.database_version}) 进行了全面检查，'
-            f'共执行 <strong>{total}</strong> 项检查，'
-            f'其中 <strong>{pass_count}</strong> 项通过、'
-            f'<strong>{warning_count}</strong> 项告警、'
-            f'<strong>{fail_count}</strong> 项失败。'
-            f'{overall_assessment}。'
-            f'存在问题的检查类别：{problem_text}。'
-            f'{assessment_detail}。'
+            f"本次巡检对 <strong>{report.instance_name}</strong> "
+            f"({db_type_display} {report.database_version}) 进行了全面检查，"
+            f"共执行 <strong>{total}</strong> 项检查，"
+            f"其中 <strong>{pass_count}</strong> 项通过、"
+            f"<strong>{warning_count}</strong> 项告警、"
+            f"<strong>{fail_count}</strong> 项失败。"
+            f"{overall_assessment}。"
+            f"存在问题的检查类别：{problem_text}。"
+            f"{assessment_detail}。"
         )
 
-        return f'''
+        return f"""
         <div class="executive-summary section-anchor" id="summary">
             <div class="card-header">
                 <div class="card-title">执行摘要</div>
@@ -609,18 +578,12 @@ class EnhancedReportGenerator:
                 </div>
             </div>
         </div>
-        '''
+        """
 
     @staticmethod
-    def _generate_stats_row(
-        critical: int,
-        high: int,
-        medium: int,
-        low: int,
-        info: int
-    ) -> str:
+    def _generate_stats_row(critical: int, high: int, medium: int, low: int, info: int) -> str:
         """生成统计卡片行"""
-        return f'''
+        return f"""
         <div class="stats-row">
             <div class="stat-card critical">
                 <div class="stat-num">{critical}</div>
@@ -643,7 +606,7 @@ class EnhancedReportGenerator:
                 <div class="stat-label">信息项</div>
             </div>
         </div>
-        '''
+        """
 
     @staticmethod
     def _generate_charts(
@@ -656,26 +619,20 @@ class EnhancedReportGenerator:
         pass_count: int,
         warning_count: int,
         fail_count: int,
-        category_stats: Dict[str, Dict[str, Any]]
+        category_stats: Dict[str, Dict[str, Any]],
     ) -> str:
         """生成图表区域"""
         donut = ChartGenerator.generate_health_donut(health_score)
-        risk_chart = ChartGenerator.generate_risk_distribution_chart(
-            critical, high, medium, low, info
-        )
-        status_chart = ChartGenerator.generate_status_chart(
-            pass_count, warning_count, fail_count
-        )
-        category_chart = ChartGenerator.generate_category_pass_rate_chart(
-            category_stats
-        )
+        risk_chart = ChartGenerator.generate_risk_distribution_chart(critical, high, medium, low, info)
+        status_chart = ChartGenerator.generate_status_chart(pass_count, warning_count, fail_count)
+        category_chart = ChartGenerator.generate_category_pass_rate_chart(category_stats)
 
         total = pass_count + warning_count + fail_count
         pass_rate = pass_count / max(total, 1) * 100
         problem_rate = (warning_count + fail_count) / max(total, 1) * 100
         high_risk_rate = (critical + high) / max(critical + high + medium + low + info, 1) * 100
 
-        return f'''
+        return f"""
         <div class="charts-grid section-anchor" id="charts">
             <div class="card">
                 <div class="card-header">
@@ -756,17 +713,15 @@ class EnhancedReportGenerator:
                 </div>
             </div>
         </div>
-        '''
+        """
 
     @staticmethod
     def _generate_high_risk_section(items: List[InspectionItem]) -> str:
         """生成高风险区域"""
-        high_priority_items = RiskPrioritizer.get_high_priority_items(
-            items, min_risk_level=RiskLevel.MEDIUM
-        )
+        high_priority_items = RiskPrioritizer.get_high_priority_items(items, min_risk_level=RiskLevel.MEDIUM)
 
         if not high_priority_items:
-            return '''
+            return """
             <div class="high-risk-section">
                 <div class="card-header">
                     <div class="card-title">重点关注问题</div>
@@ -776,24 +731,21 @@ class EnhancedReportGenerator:
                     <div>未发现高风险问题，系统运行良好</div>
                 </div>
             </div>
-            '''
+            """
 
         risk_cards = []
         for item in high_priority_items[:10]:
             risk_class = EnhancedReportGenerator._get_risk_level_value(item)
 
-            meta_items = [
-                f'<span>类型: {item.inspection_type.value}</span>',
-                f'<span>状态: {item.status}</span>'
-            ]
+            meta_items = [f"<span>类型: {item.inspection_type.value}</span>", f"<span>状态: {item.status}</span>"]
             if item.actual_value:
-                meta_items.append(f'<span>实际值: {item.actual_value}</span>')
+                meta_items.append(f"<span>实际值: {item.actual_value}</span>")
             if item.reference:
-                meta_items.append(f'<span>参考值: {item.reference}</span>')
+                meta_items.append(f"<span>参考值: {item.reference}</span>")
 
-            suggestion_html = f'<div class="risk-item-suggestion">{item.suggestion}</div>' if item.suggestion else ''
+            suggestion_html = f'<div class="risk-item-suggestion">{item.suggestion}</div>' if item.suggestion else ""
 
-            risk_cards.append(f'''
+            risk_cards.append(f"""
                 <div class="risk-item {risk_class}">
                     <div class="risk-item-top">
                         <div class="risk-item-name">{item.name}</div>
@@ -805,14 +757,16 @@ class EnhancedReportGenerator:
                     </div>
                     {suggestion_html}
                 </div>
-            ''')
+            """)
 
         total_high_risk = len(high_priority_items)
         show_more = total_high_risk > 10
 
-        show_more_html = f'<div class="show-more">还有 {total_high_risk - 10} 个问题，请查看详细列表</div>' if show_more else ''
+        show_more_html = (
+            f'<div class="show-more">还有 {total_high_risk - 10} 个问题，请查看详细列表</div>' if show_more else ""
+        )
 
-        return f'''
+        return f"""
         <div class="high-risk-section">
             <div class="card-header">
                 <div class="card-title">重点关注问题（需优先处理）</div>
@@ -821,13 +775,10 @@ class EnhancedReportGenerator:
             {''.join(risk_cards)}
             {show_more_html}
         </div>
-        '''
+        """
 
     @staticmethod
-    def _generate_category_sections(
-        items: List[InspectionItem],
-        category_stats: Dict[str, Dict[str, Any]]
-    ) -> str:
+    def _generate_category_sections(items: List[InspectionItem], category_stats: Dict[str, Dict[str, Any]]) -> str:
         """
         生成分类展示区域
 
@@ -856,23 +807,23 @@ class EnhancedReportGenerator:
 
             stats = category_stats[type_key]
             meta = INSPECTION_TYPE_META.get(insp_type, {})
-            label = meta.get('label', type_key)
-            color = meta.get('color', '#3b82f6')
-            desc = meta.get('description', '')
+            label = meta.get("label", type_key)
+            color = meta.get("color", "#3b82f6")
+            desc = meta.get("description", "")
 
-            total = stats['total']
-            pass_count = stats['pass_count']
-            warning_count = stats['warning_count']
-            fail_count = stats['fail_count']
-            pass_rate = stats['pass_rate']
+            total = stats["total"]
+            pass_count = stats["pass_count"]
+            warning_count = stats["warning_count"]
+            fail_count = stats["fail_count"]
+            pass_rate = stats["pass_rate"]
 
-            rate_color = '#06d6a0' if pass_rate >= 80 else '#ffd166' if pass_rate >= 60 else '#ef476f'
+            rate_color = "#06d6a0" if pass_rate >= 80 else "#ffd166" if pass_rate >= 60 else "#ef476f"
 
-            risk_counts = stats['risk_counts']
-            critical_count = risk_counts.get('critical', 0)
-            high_count = risk_counts.get('high', 0)
+            risk_counts = stats["risk_counts"]
+            critical_count = risk_counts.get("critical", 0)
+            high_count = risk_counts.get("high", 0)
 
-            sorted_items = RiskPrioritizer.prioritize_items(stats['items'])
+            sorted_items = RiskPrioritizer.prioritize_items(stats["items"])
 
             max_display = 5
             display_items = sorted_items[:max_display]
@@ -885,7 +836,7 @@ class EnhancedReportGenerator:
                 suggestion_text = EnhancedReportGenerator._build_item_suggestion_html(item)
                 status_display = EnhancedReportGenerator._get_status_display(status_class)
 
-                item_rows.append(f'''
+                item_rows.append(f"""
                     <div class="cat-item">
                         <div>
                             <div class="cat-item-name">{item.name}</div>
@@ -895,10 +846,10 @@ class EnhancedReportGenerator:
                         {suggestion_text}
                         <span class="status-tag {status_class}">{status_display}</span>
                     </div>
-                ''')
+                """)
 
-            expand_btn = ''
-            hidden_items_html = ''
+            expand_btn = ""
+            hidden_items_html = ""
             if hidden_count > 0:
                 expand_btn = f'<button class="toggle-btn" id="cat-{type_key}-btn" onclick="toggleCategory(\'cat-{type_key}-hidden\')">展开全部 ({hidden_count}项)</button>'
 
@@ -909,7 +860,7 @@ class EnhancedReportGenerator:
                     suggestion_text = EnhancedReportGenerator._build_item_suggestion_html(item)
                     status_display = EnhancedReportGenerator._get_status_display(status_class)
 
-                    hidden_rows.append(f'''
+                    hidden_rows.append(f"""
                         <div class="cat-item">
                             <div>
                                 <div class="cat-item-name">{item.name}</div>
@@ -919,15 +870,15 @@ class EnhancedReportGenerator:
                             {suggestion_text}
                             <span class="status-tag {status_class}">{status_display}</span>
                         </div>
-                    ''')
+                    """)
 
                 hidden_items_html = f'<div id="cat-{type_key}-hidden" class="collapsed">{''.join(hidden_rows)}</div>'
 
-            high_risk_badge = ''
+            high_risk_badge = ""
             if critical_count + high_count > 0:
                 high_risk_badge = f'<span class="risk-count-badge" style="background: rgba(253,126,20,0.15); color: var(--high);">{critical_count + high_count} 高危</span>'
 
-            sections.append(f'''
+            sections.append(f"""
             <div class="category-section section-anchor" id="cat-{type_key}">
                 <div class="category-section-header">
                     <div class="category-title">
@@ -965,9 +916,9 @@ class EnhancedReportGenerator:
                 {hidden_items_html}
                 {expand_btn}
             </div>
-            ''')
+            """)
 
-        return ''.join(sections)
+        return "".join(sections)
 
     @staticmethod
     def _generate_recommendations(items: List[InspectionItem]) -> str:
@@ -980,15 +931,12 @@ class EnhancedReportGenerator:
         返回:
             str: HTML代码
         """
-        problem_items = [
-            item for item in items
-            if item.suggestion and item.status != 'pass'
-        ]
+        problem_items = [item for item in items if item.suggestion and item.status != "pass"]
 
         sorted_problems = RiskPrioritizer.prioritize_items(problem_items)
 
         if not sorted_problems:
-            return '''
+            return """
             <div class="recommendations-section section-anchor" id="recommendations">
                 <div class="card-header">
                     <div class="card-title">建议汇总</div>
@@ -997,34 +945,34 @@ class EnhancedReportGenerator:
                     <div>未发现需要处理的问题</div>
                 </div>
             </div>
-            '''
+            """
 
         rec_items = []
         for idx, item in enumerate(sorted_problems[:15], 1):
             risk_class = EnhancedReportGenerator._get_risk_level_value(item)
 
-            if risk_class in ('critical', 'high'):
-                priority_class = 'p1'
-                priority_label = 'P1'
-            elif risk_class == 'medium':
-                priority_class = 'p2'
-                priority_label = 'P2'
+            if risk_class in ("critical", "high"):
+                priority_class = "p1"
+                priority_label = "P1"
+            elif risk_class == "medium":
+                priority_class = "p2"
+                priority_label = "P2"
             else:
-                priority_class = 'p3'
-                priority_label = 'P3'
+                priority_class = "p3"
+                priority_label = "P3"
 
             insp_type = EnhancedReportGenerator._get_insp_type_enum(item)
             type_meta = INSPECTION_TYPE_META.get(insp_type, {})
-            type_label = type_meta.get('label', str(item.inspection_type))
+            type_label = type_meta.get("label", str(item.inspection_type))
 
             detail_parts = []
             if item.actual_value:
-                detail_parts.append(f'当前值: {item.actual_value}')
+                detail_parts.append(f"当前值: {item.actual_value}")
             if item.reference:
-                detail_parts.append(f'建议值: {item.reference}')
-            detail_text = ' | '.join(detail_parts) if detail_parts else ''
+                detail_parts.append(f"建议值: {item.reference}")
+            detail_text = " | ".join(detail_parts) if detail_parts else ""
 
-            rec_items.append(f'''
+            rec_items.append(f"""
                 <div class="rec-item">
                     <div class="rec-priority {priority_class}">{priority_label}</div>
                     <div class="rec-content">
@@ -1037,14 +985,14 @@ class EnhancedReportGenerator:
                         </div>
                     </div>
                 </div>
-            ''')
+            """)
 
         remaining = len(sorted_problems) - 15
-        remaining_html = ''
+        remaining_html = ""
         if remaining > 0:
             remaining_html = f'<div style="text-align: center; color: var(--text-muted); font-size: 13px; padding: 12px;">还有 {remaining} 条建议，请查看详细列表</div>'
 
-        return f'''
+        return f"""
         <div class="recommendations-section section-anchor" id="recommendations">
             <div class="card-header">
                 <div class="card-title">建议汇总（按优先级排列）</div>
@@ -1053,7 +1001,7 @@ class EnhancedReportGenerator:
             {''.join(rec_items)}
             {remaining_html}
         </div>
-        '''
+        """
 
     @staticmethod
     def _generate_details_section(items: List[InspectionItem]) -> str:
@@ -1085,7 +1033,7 @@ class EnhancedReportGenerator:
                 status_class = f"status-{item.status}"
                 risk_level = EnhancedReportGenerator._get_risk_level_value(item)
 
-                rows.append(f'''
+                rows.append(f"""
                     <tr>
                         <td>{item.name}</td>
                         <td>{item.inspection_type.value}</td>
@@ -1096,13 +1044,13 @@ class EnhancedReportGenerator:
                         <td>{item.reference or '-'}</td>
                         <td>{item.suggestion or '-'}</td>
                     </tr>
-                ''')
-            all_page_rows.append(''.join(rows))
+                """)
+            all_page_rows.append("".join(rows))
 
         # 生成页码按钮
         page_buttons = []
         for i in range(total_pages):
-            active_class = 'active' if i == 0 else ''
+            active_class = "active" if i == 0 else ""
             page_buttons.append(
                 f'<button class="page-btn {active_class}" data-page="{i}" onclick="goToPage({i})">{i + 1}</button>'
             )
@@ -1110,15 +1058,15 @@ class EnhancedReportGenerator:
         # 生成各页面的tbody
         page_bodies = []
         for i, page_rows in enumerate(all_page_rows):
-            display = 'table-row-group' if i == 0 else 'none'
+            display = "table-row-group" if i == 0 else "none"
             page_bodies.append(
                 f'<tbody id="page-{i}" class="page-content" style="display: {display};">{page_rows}</tbody>'
             )
 
         # 分页信息
-        pagination_info = f'共 {total_items} 条，{total_pages} 页'
+        pagination_info = f"共 {total_items} 条，{total_pages} 页"
 
-        return f'''
+        return f"""
         <div class="details-section section-anchor" id="details">
             <div class="card-header">
                 <div class="card-title">详细检查结果</div>
@@ -1151,17 +1099,17 @@ class EnhancedReportGenerator:
                 </div>
             </div>
         </div>
-        '''
+        """
 
     @staticmethod
     def _generate_footer() -> str:
         """生成页脚"""
-        return f'''
+        return f"""
         <div class="report-footer">
             <p>本报告由数据库巡检系统自动生成</p>
             <p>生成时间：{datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
         </div>
-        '''
+        """
 
     @staticmethod
     def generate_markdown_report(report: InspectionReport) -> str:
@@ -1175,24 +1123,24 @@ class EnhancedReportGenerator:
             str: Markdown格式报告
         """
         db_type = report.database_type
-        if 'mysql' in db_type.lower():
-            db_type_display = 'MySQL'
-        elif 'oracle' in db_type.lower():
-            db_type_display = 'Oracle'
-        elif 'postgresql' in db_type.lower():
-            db_type_display = 'PostgreSQL'
+        if "mysql" in db_type.lower():
+            db_type_display = "MySQL"
+        elif "oracle" in db_type.lower():
+            db_type_display = "Oracle"
+        elif "postgresql" in db_type.lower():
+            db_type_display = "PostgreSQL"
         else:
             db_type_display = db_type
 
         # 评分等级标准：健康(>=90) 亚健康(80-89) 风险(60-79) 高危(<60)
         if report.health_score >= 90:
-            grade = '健康'
+            grade = "健康"
         elif report.health_score >= 80:
-            grade = '亚健康'
+            grade = "亚健康"
         elif report.health_score >= 60:
-            grade = '风险'
+            grade = "风险"
         else:
-            grade = '高危'
+            grade = "高危"
 
         md = f"""# 数据库巡检报告
 
@@ -1230,9 +1178,7 @@ class EnhancedReportGenerator:
 
 """
 
-        high_priority_items = RiskPrioritizer.get_high_priority_items(
-            report.items, min_risk_level=RiskLevel.MEDIUM
-        )
+        high_priority_items = RiskPrioritizer.get_high_priority_items(report.items, min_risk_level=RiskLevel.MEDIUM)
 
         if high_priority_items:
             for i, item in enumerate(high_priority_items[:10], 1):
@@ -1273,4 +1219,3 @@ class EnhancedReportGenerator:
 """
 
         return md
-

@@ -16,11 +16,11 @@ from dbskiter.shared.utils import format_bytes
 
 class SchedulerCommand(BaseCommand):
     """数据库调度命令"""
-    
+
     name = "scheduler"
     description = "Database Scheduler - 任务调度与备份管理"
     help_text = "数据库备份、定时任务管理、任务日志"
-    
+
     @classmethod
     def add_arguments(cls, parser: ArgumentParser) -> None:
         """添加调度命令参数"""
@@ -36,63 +36,62 @@ class SchedulerCommand(BaseCommand):
   dbskiter scheduler daemon start                                 # 启动调度器守护进程
         """
         subparsers = parser.add_subparsers(dest="scheduler_action", help="调度操作")
-        
+
         # ==================== 核心命令 ====================
-        
+
         # backup 子命令 - 执行备份
         backup_parser = subparsers.add_parser("backup", help="执行备份")
-        backup_parser.add_argument("--type", choices=["full", "table", "incremental"],
-                                  default="full", help="备份类型")
+        backup_parser.add_argument("--type", choices=["full", "table", "incremental"], default="full", help="备份类型")
         backup_parser.add_argument("--compress", action="store_true", help="压缩备份")
         backup_parser.add_argument("--tables", help="指定表（逗号分隔）")
         backup_parser.add_argument("--output-dir", help="输出目录")
-        
+
         # backup-verify 子命令 - 验证备份
         verify_parser = subparsers.add_parser("backup-verify", help="验证备份文件完整性")
         verify_parser.add_argument("file", help="备份文件路径")
-        
+
         # backup-restore 子命令 - 恢复备份
         restore_parser = subparsers.add_parser("backup-restore", help="从备份文件恢复数据库")
         restore_parser.add_argument("file", help="备份文件路径")
         restore_parser.add_argument("--target-db", help="目标数据库名")
-        
+
         # task 子命令 - 定时任务管理
         task_parser = subparsers.add_parser("task", help="定时任务管理")
         task_subparsers = task_parser.add_subparsers(dest="task_action", help="任务操作")
-        
+
         # task list - 列出任务
         task_list_parser = task_subparsers.add_parser("list", help="列出所有定时任务")
-        
+
         # task add - 添加任务
         task_add_parser = task_subparsers.add_parser("add", help="添加定时任务")
         task_add_parser.add_argument("name", help="任务名称")
-        task_add_parser.add_argument("schedule", help="Cron表达式 (如 \"0 2 * * *\")")
-        task_add_parser.add_argument("--type", choices=["backup", "analyze", "vacuum", "custom"],
-                                    default="backup", help="任务类型")
+        task_add_parser.add_argument("schedule", help='Cron表达式 (如 "0 2 * * *")')
+        task_add_parser.add_argument(
+            "--type", choices=["backup", "analyze", "vacuum", "custom"], default="backup", help="任务类型"
+        )
         task_add_parser.add_argument("--params", help="任务参数（JSON格式）")
         task_add_parser.add_argument("--enabled", action="store_true", default=True, help="立即启用")
-        
+
         # task remove - 删除任务
         task_remove_parser = task_subparsers.add_parser("remove", help="删除定时任务")
         task_remove_parser.add_argument("name", help="任务名称")
-        
+
         # task enable/disable - 启用/禁用任务
         task_enable_parser = task_subparsers.add_parser("enable", help="启用定时任务")
         task_enable_parser.add_argument("name", help="任务名称")
-        
+
         task_disable_parser = task_subparsers.add_parser("disable", help="禁用定时任务")
         task_disable_parser.add_argument("name", help="任务名称")
-        
+
         # task run - 立即执行任务
         task_run_parser = task_subparsers.add_parser("run", help="立即执行任务")
         task_run_parser.add_argument("name", help="任务名称")
-        
+
         # logs 子命令 - 查看任务日志
         logs_parser = subparsers.add_parser("logs", help="查看任务执行日志")
         logs_parser.add_argument("--task", help="指定任务名称")
         logs_parser.add_argument("--limit", type=int, default=20, help="返回记录数")
-        logs_parser.add_argument("--status", choices=["success", "failed", "all"],
-                                default="all", help="过滤状态")
+        logs_parser.add_argument("--status", choices=["success", "failed", "all"], default="all", help="过滤状态")
 
         # daemon 子命令 - 调度器守护进程管理
         daemon_parser = subparsers.add_parser("daemon", help="调度器守护进程管理")
@@ -120,8 +119,9 @@ class SchedulerCommand(BaseCommand):
         workflow_add_parser = workflow_subparsers.add_parser("add-task", help="添加任务到工作流")
         workflow_add_parser.add_argument("workflow", help="工作流名称")
         workflow_add_parser.add_argument("task", help="任务名称")
-        workflow_add_parser.add_argument("--type", choices=["backup", "analyze", "vacuum", "custom"],
-                                        default="backup", help="任务类型")
+        workflow_add_parser.add_argument(
+            "--type", choices=["backup", "analyze", "vacuum", "custom"], default="backup", help="任务类型"
+        )
         workflow_add_parser.add_argument("--depends", help="依赖任务（逗号分隔）")
 
         # workflow submit - 提交执行工作流
@@ -134,12 +134,12 @@ class SchedulerCommand(BaseCommand):
         # workflow status - 查看工作流状态
         workflow_status_parser = workflow_subparsers.add_parser("status", help="查看工作流状态")
         workflow_status_parser.add_argument("name", help="工作流名称")
-    
+
     def execute(self) -> int:
         """执行调度命令"""
         from dbskiter.db_scheduler.skill import SchedulerSkill
 
-        action = getattr(self.args, 'scheduler_action', None)
+        action = getattr(self.args, "scheduler_action", None)
 
         if not action:
             self.output.error("请指定操作: backup, task, logs, daemon, workflow")
@@ -147,7 +147,7 @@ class SchedulerCommand(BaseCommand):
 
         if action == "daemon":
             try:
-                daemon_action = getattr(self.args, 'daemon_action', None)
+                daemon_action = getattr(self.args, "daemon_action", None)
                 if daemon_action == "status":
                     skill = SchedulerSkill.__new__(SchedulerSkill)
                     # 注意：跳过 __init__ 因为不需要完整初始化
@@ -162,7 +162,7 @@ class SchedulerCommand(BaseCommand):
                 self.output.error(f"调度操作失败: {e}")
                 return 1
             finally:
-                if 'skill' in locals():
+                if "skill" in locals():
                     try:
                         skill.close()
                     except Exception:
@@ -174,20 +174,22 @@ class SchedulerCommand(BaseCommand):
             if self.output_mode != "rule":
                 method_map = {
                     "backup": lambda: skill.backup(
-                        backup_type=getattr(self.args, 'type', 'full'),
-                        tables=getattr(self.args, 'tables', '').split(',') if getattr(self.args, 'tables', None) else None,
+                        backup_type=getattr(self.args, "type", "full"),
+                        tables=(
+                            getattr(self.args, "tables", "").split(",") if getattr(self.args, "tables", None) else None
+                        ),
                     ),
                     "backup-verify": lambda: skill.verify_backup(
-                        getattr(self.args, 'file', ''),
+                        getattr(self.args, "file", ""),
                     ),
                     "backup-restore": lambda: skill.restore_backup(
-                        getattr(self.args, 'file', ''),
-                        target_db=getattr(self.args, 'target_db', None),
+                        getattr(self.args, "file", ""),
+                        target_db=getattr(self.args, "target_db", None),
                     ),
                     "logs": lambda: skill.get_task_logs(
-                        task_name=getattr(self.args, 'task', None),
-                        limit=getattr(self.args, 'limit', 50),
-                        status=getattr(self.args, 'status', 'all'),
+                        task_name=getattr(self.args, "task", None),
+                        limit=getattr(self.args, "limit", 50),
+                        status=getattr(self.args, "status", "all"),
                     ),
                 }
                 scenario_map = {
@@ -219,12 +221,12 @@ class SchedulerCommand(BaseCommand):
             self.output.error(f"调度操作失败: {e}")
             return 1
         finally:
-            if 'skill' in locals():
+            if "skill" in locals():
                 skill.close()
-    
+
     def _execute_backup(self, skill) -> int:
         """执行备份"""
-        tables = self.args.tables.split(',') if self.args.tables else None
+        tables = self.args.tables.split(",") if self.args.tables else None
         backup_type = self.args.type
         # 如果指定了表但未指定table类型, 自动切换
         if tables and backup_type == "full":
@@ -239,10 +241,10 @@ class SchedulerCommand(BaseCommand):
         # skill.backup() 返回 create_success_response/create_error_response 格式
         # 成功: {'success': True, 'data': {...}, 'message': '...'}
         # 失败: {'success': False, 'error': '...', 'code': '...'}
-        success = result.get('success', False)
+        success = result.get("success", False)
 
         if success:
-            data = result.get('data', {})
+            data = result.get("data", {})
 
             # 多表备份返回汇总格式
             if "results" in data:
@@ -251,7 +253,7 @@ class SchedulerCommand(BaseCommand):
                 self.output.print(f"摘要: {summary}")
                 self.output.print(f"{'='*60}")
                 self.output.success(f"\n备份完成")
-                for item in data.get('results', []):
+                for item in data.get("results", []):
                     self.output.print(f"  表: {', '.join(item.get('tables', []))}")
                     self.output.print(f"  文件: {item.get('file_path', 'N/A')}")
                     self.output.print(f"  大小: {self._format_bytes(item.get('file_size', 0))}")
@@ -260,12 +262,12 @@ class SchedulerCommand(BaseCommand):
                 return 0
 
             # 单表/全量备份返回单个结果
-            file_path = data.get('file_path', 'N/A')
-            file_size = data.get('file_size', 0)
-            duration_ms = data.get('duration_ms', 0)
-            backup_id = data.get('backup_id', 'N/A')
-            backup_type = data.get('backup_type', 'unknown')
-            tables = data.get('tables', [])
+            file_path = data.get("file_path", "N/A")
+            file_size = data.get("file_size", 0)
+            duration_ms = data.get("duration_ms", 0)
+            backup_id = data.get("backup_id", "N/A")
+            backup_type = data.get("backup_type", "unknown")
+            tables = data.get("tables", [])
 
             summary = f"备份成功 [{backup_id}]"
             self.output.print(f"\n{'='*60}")
@@ -280,24 +282,24 @@ class SchedulerCommand(BaseCommand):
                 self.output.print(f"表: {', '.join(tables)}")
             return 0
         else:
-            error_msg = result.get('error', '未知错误')
+            error_msg = result.get("error", "未知错误")
             summary = f"备份失败: {error_msg}"
             self.output.print(f"\n{'='*60}")
             self.output.print(f"摘要: {summary}")
             self.output.print(f"{'='*60}")
             self.output.error(f"\n备份失败")
             self.output.error(f"错误: {error_msg}")
-            code = result.get('code')
+            code = result.get("code")
             if code:
                 self.output.print(f"错误码: {code}")
             return 1
-    
+
     def _execute_verify(self, skill) -> int:
         """执行备份验证"""
         file_path = self.args.file
         result = skill.verify_backup(file_path)
 
-        success = result.get('success', False)
+        success = result.get("success", False)
         if success:
             self.output.success(f"\n备份文件验证通过")
             self.output.print(f"文件: {file_path}")
@@ -310,7 +312,7 @@ class SchedulerCommand(BaseCommand):
     def _execute_restore(self, skill) -> int:
         """执行备份恢复"""
         file_path = self.args.file
-        target_db = getattr(self.args, 'target_db', None)
+        target_db = getattr(self.args, "target_db", None)
 
         self.output.print(f"\n{'='*60}")
         self.output.print("警告: 恢复操作将覆盖目标数据库中的数据")
@@ -318,7 +320,7 @@ class SchedulerCommand(BaseCommand):
 
         result = skill.restore_backup(file_path, target_db)
 
-        success = result.get('success', False)
+        success = result.get("success", False)
         if success:
             self.output.success(f"\n恢复完成")
             self.output.print(f"备份文件: {file_path}")
@@ -330,12 +332,12 @@ class SchedulerCommand(BaseCommand):
 
     def _manage_tasks(self, skill) -> int:
         """管理定时任务"""
-        task_action = getattr(self.args, 'task_action', None)
-        
+        task_action = getattr(self.args, "task_action", None)
+
         if not task_action:
             self.output.error("请指定任务操作: list, add, remove, enable, disable, run")
             return 1
-        
+
         if task_action == "list":
             return self._list_tasks(skill)
         elif task_action == "add":
@@ -351,21 +353,21 @@ class SchedulerCommand(BaseCommand):
         else:
             self.output.error(f"未知任务操作: {task_action}")
             return 1
-    
+
     def _list_tasks(self, skill) -> int:
         """列出所有定时任务"""
         response = skill.list_tasks()
 
         # 处理response格式
         if isinstance(response, dict):
-            if response.get('status') == 'error':
+            if response.get("status") == "error":
                 self.output.error(f"获取任务列表失败: {response.get('error', '未知错误')}")
                 return 1
-            tasks = response.get('data', {}).get('tasks', [])
+            tasks = response.get("data", {}).get("tasks", [])
         else:
             tasks = response
 
-        enabled_count = sum(1 for t in tasks if t.get('enabled'))
+        enabled_count = sum(1 for t in tasks if t.get("enabled"))
         disabled_count = len(tasks) - enabled_count
 
         summary = f"共{len(tasks)}个任务（{enabled_count}个启用，{disabled_count}个禁用）"
@@ -382,30 +384,31 @@ class SchedulerCommand(BaseCommand):
         self.output.print("-" * 80)
 
         for task in tasks:
-            name = task.get('name', '')[:18]
-            task_type = task.get('task_type', '')[:8]
-            schedule = task.get('schedule', '')[:13]
-            status = "启用" if task.get('enabled') else "禁用"
-            next_run = task.get('next_run', '未知')[:16]
+            name = task.get("name", "")[:18]
+            task_type = task.get("task_type", "")[:8]
+            schedule = task.get("schedule", "")[:13]
+            status = "启用" if task.get("enabled") else "禁用"
+            next_run = task.get("next_run", "未知")[:16]
 
             self.output.print(f"{name:<20} {task_type:<10} {schedule:<15} {status:<8} {next_run}")
 
         self.output.print(f"\n提示: 使用 'scheduler task add' 添加新任务")
         return 0
-    
+
     def _add_task(self, skill) -> int:
         """添加定时任务"""
         name = self.args.name
         schedule = self.args.schedule
         task_type = self.args.type
-        
+
         # 验证Cron表达式
         from dbskiter.db_scheduler.skill import CronParser
+
         if not CronParser.validate(schedule):
             self.output.error(f"无效的Cron表达式: {schedule}")
-            self.output.print("格式: 分 时 日 月 周 (如 \"0 2 * * *\" 表示每天凌晨2点)")
+            self.output.print('格式: 分 时 日 月 周 (如 "0 2 * * *" 表示每天凌晨2点)')
             return 1
-        
+
         # 解析参数
         params = {}
         if self.args.params:
@@ -414,65 +417,61 @@ class SchedulerCommand(BaseCommand):
             except json.JSONDecodeError as e:
                 self.output.error(f"参数JSON格式错误: {e}")
                 return 1
-        
+
         # 添加任务
         result = skill.schedule_task(
-            name=name,
-            schedule=schedule,
-            task_type=task_type,
-            params=params,
-            enabled=self.args.enabled
+            name=name, schedule=schedule, task_type=task_type, params=params, enabled=self.args.enabled
         )
-        
-        if result.get('success'):
+
+        if result.get("success"):
             self.output.success(f"\n任务添加成功")
             self.output.print(f"任务名称: {name}")
             self.output.print(f"调度规则: {schedule}")
             self.output.print(f"任务类型: {task_type}")
             self.output.print(f"下次执行: {result.get('next_run', '未知')}")
-            
+
             if not self.args.enabled:
                 self.output.print("状态: 已禁用（使用 'scheduler task enable' 启用）")
         else:
             self.output.error(f"\n任务添加失败")
             self.output.error(f"错误: {result.get('error', '未知错误')}")
             return 1
-        
+
         return 0
-    
+
     def _remove_task(self, skill) -> int:
         """删除定时任务"""
         name = self.args.name
-        
+
         result = skill.remove_task(name)
-        
-        if result.get('success'):
+
+        if result.get("success"):
             self.output.success(f"\n任务 '{name}' 已删除")
         else:
             self.output.error(f"\n删除失败")
             self.output.error(f"错误: {result.get('error', '未知错误')}")
             return 1
-        
+
         return 0
-    
+
     def _enable_task(self, skill, enabled: bool) -> int:
         """启用/禁用定时任务"""
         name = self.args.name
         action_text = "启用" if enabled else "禁用"
-        
+
         result = skill.enable_task(name, enabled)
-        
-        if result.get('success'):
+
+        if result.get("success"):
             self.output.success(f"\n任务 '{name}' 已{action_text}")
-            if enabled and result.get('next_run'):
+            if enabled and result.get("next_run"):
                 self.output.print(f"下次执行: {result['next_run']}")
         else:
             self.output.error(f"\n{action_text}失败")
             self.output.error(f"错误: {result.get('error', '未知错误')}")
             return 1
-        
+
         return 0
-    
+
     def _run_task_now(self, skill) -> int:
         """立即执行任务"""
         from dbskiter.cli.readonly_middleware import is_readonly_mode
@@ -484,38 +483,34 @@ class SchedulerCommand(BaseCommand):
             return 1
 
         name = self.args.name
-        
+
         self.output.print(f"\n正在执行任务 '{name}'...")
         self.output.print(f"{'='*60}")
-        
+
         result = skill.run_task_now(name)
-        
-        if result.get('success'):
+
+        if result.get("success"):
             self.output.success(f"\n任务执行成功")
             self.output.print(f"耗时: {result.get('duration_seconds', 0):.1f}秒")
-            if result.get('result'):
+            if result.get("result"):
                 self.output.print(f"结果: {result['result']}")
         else:
             self.output.error(f"\n任务执行失败")
             self.output.error(f"错误: {result.get('error', '未知错误')}")
             return 1
-        
+
         return 0
-    
+
     def _view_logs(self, skill) -> int:
         """查看任务执行日志"""
-        response = skill.get_task_logs(
-            task_name=self.args.task,
-            limit=self.args.limit,
-            status=self.args.status
-        )
+        response = skill.get_task_logs(task_name=self.args.task, limit=self.args.limit, status=self.args.status)
 
-        if not response.get('success'):
+        if not response.get("success"):
             self.output.error(f"获取日志失败: {response.get('message', '未知错误')}")
             return 1
 
-        data = response.get('data', {})
-        logs = data.get('logs', [])
+        data = response.get("data", {})
+        logs = data.get("logs", [])
 
         summary = f"共{len(logs)}条日志记录"
         if self.args.task:
@@ -535,10 +530,10 @@ class SchedulerCommand(BaseCommand):
         self.output.print("-" * 90)
 
         for log in logs:
-            time_str = log.get('start_time', '')[:19] if log.get('start_time') else ''
-            task_name = log.get('task_name', '')[:18]
-            status = log.get('status', '')[:6]
-            result = log.get('result', '')[:25] if log.get('result') else '-'
+            time_str = log.get("start_time", "")[:19] if log.get("start_time") else ""
+            task_name = log.get("task_name", "")[:18]
+            status = log.get("status", "")[:6]
+            result = log.get("result", "")[:25] if log.get("result") else "-"
 
             if status == "success":
                 status_str = "成功"
@@ -553,7 +548,7 @@ class SchedulerCommand(BaseCommand):
 
     def _manage_daemon(self, skill) -> int:
         """管理调度器守护进程"""
-        daemon_action = getattr(self.args, 'daemon_action', None)
+        daemon_action = getattr(self.args, "daemon_action", None)
 
         if not daemon_action:
             self.output.error("请指定守护进程操作: start, stop, status")
@@ -576,7 +571,7 @@ class SchedulerCommand(BaseCommand):
 
         result = skill.start_scheduler()
 
-        if result.get('status') == 'success':
+        if result.get("status") == "success":
             self.output.success("\n调度器已启动")
             self.output.print("说明: 调度器将在后台自动执行定时任务")
             self.output.print("提示: 使用 'scheduler daemon status' 查看状态")
@@ -595,7 +590,7 @@ class SchedulerCommand(BaseCommand):
 
         result = skill.stop_scheduler()
 
-        if result.get('status') == 'success':
+        if result.get("status") == "success":
             self.output.success("\n调度器已停止")
             self.output.print("说明: 定时任务将不再自动执行")
         else:
@@ -609,15 +604,15 @@ class SchedulerCommand(BaseCommand):
         """查看调度器状态"""
         result = skill.get_scheduler_status()
 
-        if not result.get('success'):
+        if not result.get("success"):
             self.output.error(f"获取状态失败: {result.get('error', '未知错误')}")
             return 1
 
-        data = result.get('data', {})
-        running = data.get('running', False)
-        total_tasks = data.get('total_tasks', 0)
-        enabled_tasks = data.get('enabled_tasks', 0)
-        thread_alive = data.get('thread_alive', False)
+        data = result.get("data", {})
+        running = data.get("running", False)
+        total_tasks = data.get("total_tasks", 0)
+        enabled_tasks = data.get("enabled_tasks", 0)
+        thread_alive = data.get("thread_alive", False)
 
         status = "运行中" if running else "已停止"
         thread_status = "正常" if thread_alive else "未启动"
@@ -642,7 +637,7 @@ class SchedulerCommand(BaseCommand):
 
     def _manage_workflow(self, skill) -> int:
         """管理工作流"""
-        workflow_action = getattr(self.args, 'workflow_action', None)
+        workflow_action = getattr(self.args, "workflow_action", None)
 
         if not workflow_action:
             self.output.error("请指定工作流操作: create, add-task, submit, list, status")
@@ -665,7 +660,7 @@ class SchedulerCommand(BaseCommand):
     def _create_workflow(self, skill) -> int:
         """创建工作流"""
         name = self.args.name
-        desc = getattr(self.args, 'desc', '')
+        desc = getattr(self.args, "desc", "")
 
         workflow = skill.create_workflow(name, desc)
 
@@ -682,7 +677,7 @@ class SchedulerCommand(BaseCommand):
         workflow_name = self.args.workflow
         task_name = self.args.task
         task_type = self.args.type
-        depends = self.args.depends.split(',') if self.args.depends else []
+        depends = self.args.depends.split(",") if self.args.depends else []
 
         from dbskiter.db_scheduler.skill import TaskNode, TaskType
 
@@ -694,10 +689,7 @@ class SchedulerCommand(BaseCommand):
         workflow = skill._workflows[workflow_name]
 
         # 创建任务节点
-        task_node = TaskNode(
-            task_id=task_name,
-            task_type=TaskType(task_type)
-        )
+        task_node = TaskNode(task_id=task_name, task_type=TaskType(task_type))
 
         # 添加依赖
         for dep in depends:
@@ -731,12 +723,12 @@ class SchedulerCommand(BaseCommand):
 
         result = skill.submit_workflow_by_name(name)
 
-        if result.get('success'):
+        if result.get("success"):
             self.output.success(f"\n工作流执行完成")
 
             # 显示执行结果
-            data = result.get('data', {})
-            results = data.get('results', [])
+            data = result.get("data", {})
+            results = data.get("results", [])
 
             if results:
                 self.output.print(f"\n执行结果:")
@@ -744,9 +736,9 @@ class SchedulerCommand(BaseCommand):
                 self.output.print("-" * 50)
 
                 for r in results:
-                    task_id = r.get('task_id', '')[:18]
-                    status = r.get('status', '')
-                    duration = f"{r.get('duration_ms', 0)}ms" if r.get('duration_ms') else '-'
+                    task_id = r.get("task_id", "")[:18]
+                    status = r.get("status", "")
+                    duration = f"{r.get('duration_ms', 0)}ms" if r.get("duration_ms") else "-"
 
                     if status == "success":
                         status_str = "成功"
@@ -780,7 +772,7 @@ class SchedulerCommand(BaseCommand):
 
         for name, workflow in workflows.items():
             task_count = len(workflow.tasks)
-            desc = workflow.description[:30] if workflow.description else '-'
+            desc = workflow.description[:30] if workflow.description else "-"
             self.output.print(f"{name:<20} {task_count:<10} {desc}")
 
         return 0
@@ -808,7 +800,7 @@ class SchedulerCommand(BaseCommand):
 
         for task_id, task in workflow.tasks.items():
             task_type = task.task_type.value
-            deps = ', '.join(task.depends_on) if task.depends_on else '-'
+            deps = ", ".join(task.depends_on) if task.depends_on else "-"
             self.output.print(f"{task_id:<20} {task_type:<10} {deps}")
 
         # 显示执行顺序

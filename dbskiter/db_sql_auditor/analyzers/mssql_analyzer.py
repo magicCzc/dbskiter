@@ -52,11 +52,7 @@ class MSSQLDDLAnalyzer(BaseDDLAnalyzer):
         table_name = self._extract_table_name(ddl_sql)
         operation = self._detect_operation(ddl_sql)
 
-        impact = DDLImpact(
-            ddl_sql=ddl_sql,
-            table_name=table_name,
-            operation=operation
-        )
+        impact = DDLImpact(ddl_sql=ddl_sql, table_name=table_name, operation=operation)
 
         # 通过元数据服务获取表信息
         try:
@@ -70,25 +66,18 @@ class MSSQLDDLAnalyzer(BaseDDLAnalyzer):
             logger.warning(f"获取表 {table_name} 信息时数据错误: {e}")
 
         # 评估执行时间
-        impact.execution_time_estimate = self._estimate_execution_time(
-            impact.table_size_mb
-        )
+        impact.execution_time_estimate = self._estimate_execution_time(impact.table_size_mb)
 
         # 评估风险
         impact.risks = self._assess_risks(operation, impact.table_size_mb)
 
         # 生成建议
-        impact.suggestions = self._generate_suggestions(
-            operation, impact.table_size_mb, table_name
-        )
+        impact.suggestions = self._generate_suggestions(operation, impact.table_size_mb, table_name)
 
         # 获取依赖对象
         impact.dependent_objects = self._get_dependent_objects(table_name)
 
-        logger.info(
-            f"DDL影响分析完成: {table_name}, "
-            f"大小={impact.table_size_mb}MB, 操作={operation}"
-        )
+        logger.info(f"DDL影响分析完成: {table_name}, " f"大小={impact.table_size_mb}MB, 操作={operation}")
 
         return impact
 
@@ -106,7 +95,8 @@ class MSSQLDDLAnalyzer(BaseDDLAnalyzer):
 
         try:
             # 查询依赖该表的存储过程、函数、视图
-            result = self.connector.execute("""
+            result = self.connector.execute(
+                """
                 SELECT DISTINCT
                     o.name AS object_name,
                     o.type_desc AS object_type
@@ -114,7 +104,9 @@ class MSSQLDDLAnalyzer(BaseDDLAnalyzer):
                 JOIN sys.objects o ON d.referencing_id = o.object_id
                 WHERE d.referenced_entity_name = ?
                 AND o.type IN ('P', 'V', 'FN', 'IF', 'TF')
-            """, (table_name,))
+            """,
+                (table_name,),
+            )
 
             for row in result.rows if result else []:
                 obj_type = self._get_object_type_desc(row[1])
@@ -140,13 +132,13 @@ class MSSQLDDLAnalyzer(BaseDDLAnalyzer):
             str: 对象类型中文描述
         """
         type_map = {
-            'SQL_STORED_PROCEDURE': '存储过程',
-            'VIEW': '视图',
-            'SQL_SCALAR_FUNCTION': '标量函数',
-            'SQL_INLINE_TABLE_VALUED_FUNCTION': '内联表值函数',
-            'SQL_TABLE_VALUED_FUNCTION': '表值函数',
-            'CLR_STORED_PROCEDURE': 'CLR存储过程',
-            'CLR_FUNCTION': 'CLR函数',
+            "SQL_STORED_PROCEDURE": "存储过程",
+            "VIEW": "视图",
+            "SQL_SCALAR_FUNCTION": "标量函数",
+            "SQL_INLINE_TABLE_VALUED_FUNCTION": "内联表值函数",
+            "SQL_TABLE_VALUED_FUNCTION": "表值函数",
+            "CLR_STORED_PROCEDURE": "CLR存储过程",
+            "CLR_FUNCTION": "CLR函数",
         }
         return type_map.get(type_desc, type_desc)
 
@@ -223,12 +215,7 @@ class MSSQLDDLAnalyzer(BaseDDLAnalyzer):
 
         return risks
 
-    def _generate_suggestions(
-        self,
-        operation: str,
-        table_size_mb: float,
-        table_name: str
-    ) -> List[str]:
+    def _generate_suggestions(self, operation: str, table_size_mb: float, table_name: str) -> List[str]:
         """
         生成SQL Server DDL执行建议
 

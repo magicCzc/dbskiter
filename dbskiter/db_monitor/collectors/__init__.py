@@ -39,38 +39,38 @@ from .generic_collector import GenericMetricsCollector
 from .mock_collector import MockMetricsCollector
 
 __all__ = [
-    'BaseMetricsCollector',
-    'MySQLMetricsCollector',
-    'OracleMetricsCollector',
-    'PostgreSQLMetricsCollector',
-    'MSSQLMetricsCollector',
-    'ClickHouseMetricsCollector',
-    'SQLiteMetricsCollector',
-    'GenericMetricsCollector',
-    'MockMetricsCollector',
-    'get_collector',
-    'MetricPoint',
-    'MetricType',
+    "BaseMetricsCollector",
+    "MySQLMetricsCollector",
+    "OracleMetricsCollector",
+    "PostgreSQLMetricsCollector",
+    "MSSQLMetricsCollector",
+    "ClickHouseMetricsCollector",
+    "SQLiteMetricsCollector",
+    "GenericMetricsCollector",
+    "MockMetricsCollector",
+    "get_collector",
+    "MetricPoint",
+    "MetricType",
 ]
 
 # 已知方言到采集器的映射
 # 注意：新增数据库类型时，优先在此注册专用采集器
 # 未注册的方言自动回退到 GenericMetricsCollector
 KNOWN_COLLECTORS = {
-    'mysql': MySQLMetricsCollector,
-    'mysql+pymysql': MySQLMetricsCollector,
-    'oracle': OracleMetricsCollector,
-    'oracle+cx_oracle': OracleMetricsCollector,
-    'postgresql': PostgreSQLMetricsCollector,
-    'postgresql+psycopg2': PostgreSQLMetricsCollector,
-    'mssql': MSSQLMetricsCollector,
-    'mssql+pyodbc': MSSQLMetricsCollector,
-    'sqlserver': MSSQLMetricsCollector,
-    'clickhouse': ClickHouseMetricsCollector,
-    'clickhouse+native': ClickHouseMetricsCollector,
-    'sqlite': SQLiteMetricsCollector,
-    'sqlite+pysqlite': SQLiteMetricsCollector,
-    'mock': MockMetricsCollector,
+    "mysql": MySQLMetricsCollector,
+    "mysql+pymysql": MySQLMetricsCollector,
+    "oracle": OracleMetricsCollector,
+    "oracle+cx_oracle": OracleMetricsCollector,
+    "postgresql": PostgreSQLMetricsCollector,
+    "postgresql+psycopg2": PostgreSQLMetricsCollector,
+    "mssql": MSSQLMetricsCollector,
+    "mssql+pyodbc": MSSQLMetricsCollector,
+    "sqlserver": MSSQLMetricsCollector,
+    "clickhouse": ClickHouseMetricsCollector,
+    "clickhouse+native": ClickHouseMetricsCollector,
+    "sqlite": SQLiteMetricsCollector,
+    "sqlite+pysqlite": SQLiteMetricsCollector,
+    "mock": MockMetricsCollector,
 }
 
 
@@ -103,27 +103,24 @@ def get_collector(dialect: str, connector):
 
     # 2. 前缀匹配（处理 mysql+pymysql 等变体）
     for known_dialect, collector_class in KNOWN_COLLECTORS.items():
-        if dialect.startswith(known_dialect + '+'):
+        if dialect.startswith(known_dialect + "+"):
             return collector_class(connector)
 
     # 3. 子串匹配（处理包含数据库名称的方言字符串）
-    if 'mysql' in dialect:
+    if "mysql" in dialect:
         return MySQLMetricsCollector(connector)
-    elif 'oracle' in dialect:
+    elif "oracle" in dialect:
         return OracleMetricsCollector(connector)
-    elif 'postgresql' in dialect or 'postgres' in dialect:
+    elif "postgresql" in dialect or "postgres" in dialect:
         return PostgreSQLMetricsCollector(connector)
-    elif 'mssql' in dialect or 'sqlserver' in dialect:
+    elif "mssql" in dialect or "sqlserver" in dialect:
         return MSSQLMetricsCollector(connector)
-    elif 'clickhouse' in dialect:
+    elif "clickhouse" in dialect:
         return ClickHouseMetricsCollector(connector)
-    elif 'sqlite' in dialect:
+    elif "sqlite" in dialect:
         return SQLiteMetricsCollector(connector)
 
     # 4. 回退到通用采集器
     logger = logging.getLogger(__name__)
-    logger.info(
-        f"方言 '{dialect}' 未找到专用采集器，"
-        f"回退到 GenericMetricsCollector"
-    )
+    logger.info(f"方言 '{dialect}' 未找到专用采集器，" f"回退到 GenericMetricsCollector")
     return GenericMetricsCollector(connector)
