@@ -32,7 +32,7 @@ STATIC_DIR = Path(__file__).resolve().parent / "static"
 app = FastAPI(
     title="DBSKiter Web UI",
     description="数据库 AIOps 运维助手 - Web 管理界面",
-    version="3.0.43",
+    version="3.0.44",
     docs_url="/docs",
     redoc_url="/redoc",
 )
@@ -99,7 +99,7 @@ async def get_status():
         pass
     return {
         "status": "ok",
-        "version": "3.0.43",
+        "version": "3.0.44",
         "auth": "enabled",
         "database": "ok" if db_ok else "error",
         "api_endpoints": [

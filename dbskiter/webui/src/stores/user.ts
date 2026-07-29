@@ -3,7 +3,7 @@ import { ref } from 'vue'
 
 export const useUserStore = defineStore('user', () => {
   const isDark = ref(localStorage.getItem('dbskiter-theme') === 'dark')
-  const version = ref('3.0.43')
+  const version = ref('3.0.44')
   const language = ref(localStorage.getItem('dbskiter-lang') || 'zh-CN')
 
   function toggleTheme() {

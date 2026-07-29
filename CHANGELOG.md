@@ -4,6 +4,15 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
+## [3.0.44] - 2026-07-29
+
+### 🐛 Bug 修复
+- 修复 WebUI 构建失败：`StatusTag.vue` 中 `colorMap` 对象字面量存在重复的 `disabled` 属性，导致 TypeScript 严格模式报错 TS1117
+
+### 🏗️ 重构
+- 更新 CI 工作流：`actions/checkout@v4` → `@v5`，`actions/setup-node@v4` → `@v5`
+- CI 增加 `main` 分支 push 触发器
+
 ## [3.0.43] - 2026-07-24
 
 ### 🐛 Bug 修复
