@@ -232,11 +232,11 @@ dbskiter --database=jump monitor health
 - "分析这条 SQL：SELECT * FROM users WHERE created_at > '2026-01-01'"
 - "给我列出今天最慢的 5 个查询"
 
-详见 [AI 集成指南](../AI集成指南.md)。
+详见 [AI 集成指南](guides/AI集成指南.md)。
 
 ### Q10: `--output-mode=ai` 的输出 AI 怎么解析？
 
-**A**: 输出格式见 [AI 集成指南](../AI集成指南.md#-ai-输出格式详解)，结构示例：
+**A**: 输出格式见 [AI 集成指南](guides/AI集成指南.md)，结构示例：
 
 ```json
 {
@@ -317,7 +317,7 @@ dbskiter scheduler backup --type=full --parallel=4
 
 ### Q15: 升级 dbskiter 后命令变了怎么办？
 
-**A**: 升级前先看 [CHANGELOG](../CHANGELOG.md) 了解 breaking changes。
+**A**: 升级前先看 [CHANGELOG](https://github.com/magicCzc/dbskiter/blob/main/CHANGELOG.md) 了解 breaking changes。
 
 升级命令：
 
@@ -341,7 +341,7 @@ dbskiter --version  # 确认版本
 3. 用户名/密码是否正确
 4. 数据库名是否存在
 
-详见 [错误处理](#q5-数据库连接失败怎么办)。
+详见 [错误处理](#q5)。
 
 ### Q17: 错误码 `CONFIG_ERROR` 是什么意思？
 
@@ -398,7 +398,7 @@ spec:
         # ...
 ```
 
-详见 [Dockerfile](../Dockerfile) 和 [docker-compose.yml](../docker-compose.yml)。
+详见 [Dockerfile](https://github.com/magicCzc/dbskiter/blob/main/Dockerfile) 和 [docker-compose.yml](https://github.com/magicCzc/dbskiter/blob/main/docker-compose.yml)。
 
 ### Q20: 性能基准怎么样？
 
@@ -413,7 +413,7 @@ spec:
 | 备份（10GB MySQL） | ~5min |
 | 备份（10GB PostgreSQL） | ~8min |
 
-详见 [性能基准测试](../tests/test_benchmarks.py)。
+详见 [性能基准测试](https://github.com/magicCzc/dbskiter/blob/main/tests/test_benchmarks.py)。
 
 ---
 
@@ -431,7 +431,7 @@ spec:
 
 ### Q22: 如何贡献代码？
 
-**A**: 参考 [贡献指南](../CONTRIBUTING.md)：
+**A**: 参考 [贡献指南](https://github.com/magicCzc/dbskiter/blob/main/CONTRIBUTING.md)：
 
 1. Fork 仓库
 2. 创建特性分支：`git checkout -b feature/my-feature`
@@ -457,7 +457,7 @@ spec:
 - 备份管理
 - 任务调度
 
-详见 [架构文档](architecture.md#11-未来演进)。
+详见 [架构文档](architecture.md)。
 
 ### Q25: 未来会增加哪些数据库？
 

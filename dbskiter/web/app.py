@@ -95,7 +95,7 @@ async def get_status():
     try:
         with get_session() as s:
             db_ok = s.query(User).count() >= 0
-    except:
+    except Exception:
         pass
     return {
         "status": "ok",

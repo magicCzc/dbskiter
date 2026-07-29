@@ -301,7 +301,7 @@ def delete_db_config(alias: str) -> bool:
 def get_all_db_configs() -> Dict[str, dict]:
     """获取所有数据库配置"""
     with session_scope() as session:
-        configs = session.query(DbConfig).filter(DbConfig.is_active == True).all()
+        configs = session.query(DbConfig).filter(DbConfig.is_active.is_(True)).all()
         return {
             c.alias: {
                 "host": c.host,

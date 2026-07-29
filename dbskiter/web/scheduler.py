@@ -156,7 +156,7 @@ def init_scheduler():
     # 加载持久化的任务
     try:
         with session_scope() as session:
-            tasks = session.query(ScheduledTask).filter(ScheduledTask.is_enabled == True).all()
+            tasks = session.query(ScheduledTask).filter(ScheduledTask.is_enabled.is_(True)).all()
             for task in tasks:
                 _add_job_to_scheduler(task)
             logger.info(f"已加载 {len(tasks)} 个定时任务")
@@ -304,5 +304,5 @@ def _get_next_run(cron_expr: str) -> Optional[str]:
         trigger = CronTrigger.from_crontab(cron_expr)
         next_time = trigger.get_next_fire_time(None, datetime.utcnow())
         return next_time.isoformat() if next_time else None
-    except:
+    except Exception:
         return None

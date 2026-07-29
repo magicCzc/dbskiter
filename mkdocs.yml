@@ -62,7 +62,7 @@ nav:
     - v3→v4 迁移: guides/migration-v3-to-v4.md
   - English:
     - CLI Guide: guides/cli_guide_en.md
-    - README (EN): ../README_EN.md
+    - README (EN): https://github.com/magicCzc/dbskiter/blob/main/README_EN.md
   - 相关资源: resources.md
 
 markdown_extensions:

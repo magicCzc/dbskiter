@@ -534,17 +534,17 @@ mkdocs gh-deploy  # 部署
 - V2 模块待 v4.0 移除
 - 测试覆盖率从 27% 提升到 50%
 
-详见 [优化计划](../README.md#-优化计划)。
+详见 [优化计划](https://github.com/magicCzc/dbskiter#-优化计划)。
 
 ---
 
 ## 12. 参考资料
 
-- 📖 [README](../../README.md)
-- 🔧 [CLI 使用指南](../../CLI使用指南.md)
-- 🤖 [AI 集成指南](../../AI集成指南.md)
-- ⚙️ [配置文档](../configuration.md)
-- 💻 [贡献指南](../../CONTRIBUTING.md)
+- 📖 [README](https://github.com/magicCzc/dbskiter)
+- 🔧 [CLI 使用指南](guides/CLI使用指南.md)
+- 🤖 [AI 集成指南](guides/AI集成指南.md)
+- ⚙️ [配置文档](configuration.md)
+- 💻 [贡献指南](https://github.com/magicCzc/dbskiter/blob/main/CONTRIBUTING.md)
 
 ---
 
