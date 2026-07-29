@@ -10,6 +10,9 @@ import { ScatterChart, LineChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
 import type { AnomalyInfo } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatCard from '@/components/StatCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 use([CanvasRenderer, ScatterChart, LineChart, GridComponent, TooltipComponent, LegendComponent])
 
@@ -33,7 +36,12 @@ const filtered = computed(() => {
 })
 
 const scatterOption = computed(() => {
-  const colors: Record<string, string> = { critical: '#ef4444', warning: '#f59e0b', info: '#3b82f6', low: '#22c55e' }
+  const colors: Record<string, string> = {
+    critical: 'var(--color-danger-500)',
+    warning: 'var(--color-warning-500)',
+    info: 'var(--color-info-500)',
+    low: 'var(--color-success-500)',
+  }
   const series: { name: string; type: string; data: any[]; symbolSize: number; itemStyle: { color: string } }[] = []
   const severities = ['critical', 'warning', 'info', 'low']
   for (const sev of severities) {
@@ -55,8 +63,7 @@ const scatterOption = computed(() => {
     tooltip: {
       trigger: 'item',
       formatter: (params: { dataIndex: number }) => {
-        const idx = params.dataIndex
-        const item = anomalies.value[idx]
+        const item = anomalies.value[params.dataIndex]
         if (!item) return ''
         return `<b>${item.metric || ''}</b><br/>
           时间: ${item.timestamp || ''}<br/>
@@ -67,14 +74,11 @@ const scatterOption = computed(() => {
       },
     },
     grid: { left: 60, right: 20, top: 20, bottom: 50 },
-    xAxis: {
-      type: 'time',
-      axisLabel: { fontSize: 11 },
-    },
+    xAxis: { type: 'time', axisLabel: { fontSize: 11 } },
     yAxis: {
       type: 'value',
       name: '偏差值',
-      splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } },
+      splitLine: { lineStyle: { color: 'var(--color-gray-100)', type: 'dashed' } },
     },
     legend: { bottom: 0, textStyle: { fontSize: 11 } },
     series,
@@ -113,21 +117,13 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot" :class="{ active: autoRefresh }"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-      <el-switch v-model="autoRefresh" @change="toggleAuto" size="small" active-text="自动" inactive-text="" style="margin-left:8px" />
-    </div>
-
-    <!-- 告警横幅 -->
     <el-alert
       v-if="criticalCount > 0"
       :title="`发现 ${criticalCount} 个严重异常，请立即检查！`"
       type="error"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="anomaly-alert"
     />
     <el-alert
       v-else-if="warningCount > 0"
@@ -135,72 +131,58 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
       type="warning"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="anomaly-alert"
     />
 
-    <!-- 控制栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <label>数据库：</label>
+    <SectionCard padding>
+      <div class="anomaly-controls">
+        <div class="anomaly-controls__left">
+          <label>数据库</label>
           <el-select v-model="dbStore.current" size="small" style="width:160px" @change="load">
             <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
           </el-select>
-          <label>时间范围：</label>
-          <el-select v-model="hours" size="small" style="width:100px" @change="load">
+          <label>时间范围</label>
+          <el-select v-model="hours" size="small" style="width:110px" @change="load">
             <el-option v-for="[v,l] of [[1,'1小时'],[6,'6小时'],[24,'24小时'],[168,'7天']]" :key="v" :value="v" :label="l" />
           </el-select>
+          <el-switch v-model="autoRefresh" @change="toggleAuto" size="small" active-text="自动" />
           <el-button type="primary" size="small" :loading="loading" @click="load">
             <el-icon><Refresh /></el-icon> 刷新
           </el-button>
         </div>
-        <div class="control-right">
-          <el-tag type="danger" size="small" v-if="criticalCount > 0">{{ criticalCount }} 严重</el-tag>
-          <el-tag type="warning" size="small" v-if="warningCount > 0">{{ warningCount }} 警告</el-tag>
+        <div class="anomaly-controls__right">
+          <StatusTag v-if="criticalCount > 0" status="critical" :label="`${criticalCount} 严重`" />
+          <StatusTag v-if="warningCount > 0" status="warning" :label="`${warningCount} 警告`" />
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- KPI 卡片 -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: criticalCount > 0 ? '#ef4444' : '#6366f1' }">{{ totalAnomalies }}</div>
-        <div class="kpi-label">异常总数</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#ef4444">{{ criticalCount }}</div>
-        <div class="kpi-label">严重</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#f59e0b">{{ warningCount }}</div>
-        <div class="kpi-label">警告</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#3b82f6">{{ infoCount }}</div>
-        <div class="kpi-label">提示</div>
-      </div>
+    <div class="stat-grid">
+      <StatCard
+        :value="totalAnomalies"
+        label="异常总数"
+        size="sm"
+        :color="criticalCount > 0 ? 'var(--color-danger-500)' : 'var(--color-brand-500)'"
+      />
+      <StatCard :value="criticalCount" label="严重" size="sm" color="var(--color-danger-500)" />
+      <StatCard :value="warningCount" label="警告" size="sm" color="var(--color-warning-500)" />
+      <StatCard :value="infoCount" label="提示" size="sm" color="var(--color-info-500)" />
     </div>
 
-    <!-- 图表 -->
-    <el-card shadow="never" class="section-card" v-if="anomalies.length > 0">
-      <template #header><span>📈 异常时间线</span></template>
+    <SectionCard v-if="anomalies.length > 0" title="异常时间线">
       <VChart :option="scatterOption" autoresize style="height: 300px" />
-    </el-card>
+    </SectionCard>
 
-    <!-- 详情表格 -->
-    <el-card shadow="never" class="section-card">
-      <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span>异常详情</span>
-          <el-select v-model="filterSeverity" size="small" style="width:120px">
-            <el-option label="全部级别" value="all" />
-            <el-option label="严重" value="critical" />
-            <el-option label="警告" value="warning" />
-            <el-option label="提示" value="info" />
-          </el-select>
-        </div>
+    <SectionCard title="异常详情">
+      <template #actions>
+        <el-select v-model="filterSeverity" size="small" style="width:120px">
+          <el-option label="全部级别" value="all" />
+          <el-option label="严重" value="critical" />
+          <el-option label="警告" value="warning" />
+          <el-option label="提示" value="info" />
+        </el-select>
       </template>
-      <el-table :data="filtered" v-loading="loading" stripe style="width:100%" :empty-text="'暂无异常数据 ✅'">
+      <el-table :data="filtered" v-loading="loading" stripe style="width:100%">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="metric" label="指标" width="120" />
         <el-table-column prop="timestamp" label="时间" width="170" />
@@ -208,39 +190,48 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
         <el-table-column prop="expected_value" label="期望值" width="100" />
         <el-table-column prop="deviation" label="偏差" width="100" sortable>
           <template #default="{row}">
-            <span :style="{ color: Math.abs(row.deviation || 0) > 50 ? '#ef4444' : '#f59e0b', fontWeight: 600 }">
+            <span :class="`anomaly-deviation--${Math.abs(row.deviation || 0) > 50 ? 'critical' : 'warning'}`">
               {{ (row.deviation || 0).toFixed(2) }}
             </span>
           </template>
         </el-table-column>
         <el-table-column prop="severity" label="级别" width="90">
           <template #default="{row}">
-            <el-tag :type="row.severity === 'critical' ? 'danger' : row.severity === 'warning' ? 'warning' : 'info'" size="small">
-              {{ row.severity }}
-            </el-tag>
+            <StatusTag :status="row.severity" />
           </template>
         </el-table-column>
         <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
       </el-table>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
-.control-row label { font-size: 14px; color: var(--el-text-color-secondary); }
+.anomaly-alert { margin-bottom: var(--space-4); }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.kpi-card { background: var(--el-bg-color); border-radius: 8px; padding: 20px; border: 1px solid var(--el-border-color-light); text-align: center; }
-.kpi-value { font-size: 28px; font-weight: 700; }
-.kpi-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.anomaly-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.anomaly-controls__left, .anomaly-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.anomaly-controls label { font-size: var(--text-sm); color: var(--text-secondary); }
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
-.live-dot.active { background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.anomaly-deviation--critical { color: var(--color-danger-500); font-weight: var(--font-semibold); }
+.anomaly-deviation--warning { color: var(--color-warning-500); font-weight: var(--font-semibold); }
 </style>

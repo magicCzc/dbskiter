@@ -5,6 +5,8 @@ import { api, formatBytes } from '@/api'
 import { ElMessage } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import type { SpaceInfo } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatCard from '@/components/StatCard.vue'
 
 const dbStore = useDatabaseStore()
 const tables = ref<SpaceInfo[]>([])
@@ -27,9 +29,9 @@ const warningTables = computed(() => tables.value.filter(t => {
 }))
 
 function spaceColor(freeSpace: number): string {
-  if (freeSpace < 10) return '#ef4444'
-  if (freeSpace < 20) return '#f59e0b'
-  return '#22c55e'
+  if (freeSpace < 10) return 'var(--color-danger-500)'
+  if (freeSpace < 20) return 'var(--color-warning-500)'
+  return 'var(--color-success-500)'
 }
 
 function rowClass(row: SpaceInfo): string {
@@ -59,20 +61,13 @@ onMounted(() => { dbStore.loadDatabases(); load() })
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <!-- 空间告警 -->
     <el-alert
       v-if="criticalTables.length > 0"
       :title="`发现 ${criticalTables.length} 个表空闲空间不足 10%，建议立即扩容或清理`"
       type="error"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="space-alert"
     />
     <el-alert
       v-else-if="warningTables.length > 0"
@@ -80,62 +75,48 @@ onMounted(() => { dbStore.loadDatabases(); load() })
       type="warning"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="space-alert"
     />
 
-    <!-- 控制栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <label>数据库：</label>
+    <SectionCard padding>
+      <div class="space-controls">
+        <div class="space-controls__left">
+          <label>数据库</label>
           <el-select v-model="dbStore.current" size="small" style="width:160px" @change="load">
             <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
           </el-select>
-          <label>Top N：</label>
+          <label>Top</label>
           <el-select v-model="top" size="small" style="width:100px" @change="load">
-            <el-option v-for="n in [10, 20, 50, 100]" :key="n" :label="'Top ' + n" :value="n" />
+            <el-option v-for="n in [10, 20, 50, 100]" :key="n" :label="`Top ${n}`" :value="n" />
           </el-select>
           <el-button type="primary" size="small" :loading="loading" @click="load">
             <el-icon><Refresh /></el-icon> 刷新
           </el-button>
         </div>
-        <div class="control-right">
-          <el-tag v-if="totalSize > 0" type="info" size="medium">总空间: {{ formatBytes(totalSize) }}</el-tag>
+        <div class="space-controls__right">
+          <el-tag v-if="totalSize > 0" type="info">总空间: {{ formatBytes(totalSize) }}</el-tag>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- KPI 卡片 -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#6366f1">{{ formatBytes(totalSize) }}</div>
-        <div class="kpi-label">总空间占用</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#f59e0b">{{ maxTable ? formatBytes(maxTable.total_size) : '-' }}</div>
-        <div class="kpi-label">最大表</div>
-        <div class="kpi-sub">{{ maxTable?.table_name || '' }}</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#3b82f6">{{ formatBytes(totalDataSize) }}</div>
-        <div class="kpi-label">数据大小</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#8b5cf6">{{ formatBytes(totalIndexSize) }}</div>
-        <div class="kpi-label">索引大小</div>
-      </div>
+    <div class="stat-grid">
+      <StatCard :value="formatBytes(totalSize)" label="总空间占用" size="sm" color="var(--color-brand-500)" />
+      <StatCard
+        :value="maxTable ? formatBytes(maxTable.total_size) : '-'"
+        :subtitle="maxTable?.table_name || ''"
+        label="最大表"
+        size="sm"
+        color="var(--color-warning-500)"
+      />
+      <StatCard :value="formatBytes(totalDataSize)" label="数据大小" size="sm" color="var(--color-info-500)" />
+      <StatCard :value="formatBytes(totalIndexSize)" label="索引大小" size="sm" color="var(--el-color-purple-light-3, #8b5cf6)" />
     </div>
 
-    <!-- 空间表格 -->
-    <el-card shadow="never" class="section-card">
-      <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span>表空间详情</span>
-          <el-button size="small" @click="load" :loading="loading">刷新</el-button>
-        </div>
+    <SectionCard title="表空间详情">
+      <template #actions>
+        <el-button size="small" @click="load" :loading="loading">刷新</el-button>
       </template>
-      <el-table :data="tables" v-loading="loading" stripe style="width:100%" :empty-text="'暂无数据'"
-        :row-class-name="rowClass">
+      <el-table :data="tables" v-loading="loading" stripe style="width:100%" :row-class-name="rowClass">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="table_schema" label="Schema" width="120" />
         <el-table-column prop="table_name" label="表名" min-width="200" show-overflow-tooltip />
@@ -150,44 +131,56 @@ onMounted(() => { dbStore.loadDatabases(); load() })
         </el-table-column>
         <el-table-column prop="free_space" label="空闲空间" width="110" sortable>
           <template #default="{row}">
-            <span :style="{ color: spaceColor(row.free_space ?? 100), fontWeight: 600 }">
+            <span class="space-percent" :style="{ color: spaceColor(row.free_space ?? 100) }">
               {{ (row.free_space ?? 0).toFixed(1) }}%
             </span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="110" fixed="right">
           <template #default="{row}">
-            <el-button size="small" type="primary" plain @click="ElMessage.info('分析功能将在 Phase 3 实现')">
+            <el-button size="small" type="primary" plain @click="ElMessage.info('分析功能将在后续版本提供')">
               分析
             </el-button>
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
-.control-row label { font-size: 14px; color: var(--el-text-color-secondary); }
+.space-alert { margin-bottom: var(--space-4); }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.kpi-card { background: var(--el-bg-color); border-radius: 8px; padding: 20px; border: 1px solid var(--el-border-color-light); text-align: center; }
-.kpi-value { font-size: 28px; font-weight: 700; }
-.kpi-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
-.kpi-sub { font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 4px; }
+.space-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.space-controls__left, .space-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.space-controls label { font-size: var(--text-sm); color: var(--text-secondary); }
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.space-percent {
+  font-weight: var(--font-semibold);
+  font-variant-numeric: tabular-nums;
+}
 </style>
 
 <style>
 /* 全局行颜色 */
-.row-critical { background-color: #fef2f2 !important; }
-.row-warning { background-color: #fffbeb !important; }
+.row-critical { background-color: var(--color-danger-50) !important; }
+.row-warning { background-color: var(--color-warning-50) !important; }
 </style>
