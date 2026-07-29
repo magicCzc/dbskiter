@@ -4,6 +4,7 @@ import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
 import { ElMessage } from 'element-plus'
 import type { ApiStatus, DbConfigTestResponse } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
 
 const dbStore = useDatabaseStore()
 
@@ -30,7 +31,7 @@ async function testConnection() {
     const data = await api.testDbConfig({ alias: dbStore.current })
     testResult.value = {
       success: data.success,
-      message: data.message || (data.success ? '连接成功 🎉' : '连接失败'),
+      message: data.message || (data.success ? '连接成功' : '连接失败'),
     }
     dbStore.connectionStatus[dbStore.current] = data.success ? 'online' : 'offline'
   } catch (e: any) {
@@ -45,23 +46,11 @@ onMounted(loadStatus)
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
+    <SectionCard padding>
+      <h2 class="config-title">系统配置</h2>
+    </SectionCard>
 
-    <!-- 标题 -->
-    <el-card shadow="never" class="section-card">
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:20px">⚙️</span>
-        <h2 style="margin:0;font-size:16px">系统配置</h2>
-      </div>
-    </el-card>
-
-    <!-- API 服务状态 -->
-    <el-card shadow="never" class="section-card">
-      <template #header><span>🟢 API 服务状态</span></template>
+    <SectionCard title="API 服务状态">
       <div v-if="status" class="status-list">
         <div class="status-item">
           <span class="status-label">服务状态</span>
@@ -76,22 +65,16 @@ onMounted(loadStatus)
           <span>{{ status.api_endpoints?.length || 0 }} 个</span>
         </div>
       </div>
-      <div v-else style="padding:20px;text-align:center;color:var(--el-text-color-placeholder)">加载中...</div>
-    </el-card>
+      <div v-else class="config-loading">加载中...</div>
+    </SectionCard>
 
-    <!-- 连接测试 -->
-    <el-card shadow="never" class="section-card">
-      <template #header><span>🔌 数据库连接测试</span></template>
-      <div style="margin-bottom:12px;font-size:13px;color:var(--el-text-color-secondary)">
-        选择一个数据库别名，测试是否能正常连接。
-      </div>
+    <SectionCard title="数据库连接测试">
+      <p class="config-desc">选择一个数据库别名，测试是否能正常连接。</p>
       <div class="test-row">
         <el-select v-model="dbStore.current" size="small" style="width:300px">
           <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
         </el-select>
-        <el-button type="primary" size="small" :loading="testing" @click="testConnection">
-          测试连接
-        </el-button>
+        <el-button type="primary" size="small" :loading="testing" @click="testConnection">测试连接</el-button>
       </div>
       <el-alert
         v-if="testResult"
@@ -99,65 +82,117 @@ onMounted(loadStatus)
         :type="testResult.success ? 'success' : 'error'"
         show-icon
         closable
-        style="margin-top:12px"
+        class="test-alert"
         @close="testResult = null"
       />
-    </el-card>
+    </SectionCard>
 
-    <!-- 已配置数据库 -->
-    <el-card shadow="never" class="section-card">
-      <template #header><span>📋 已配置数据库</span></template>
+    <SectionCard title="已配置数据库">
       <div v-if="dbStore.databases.length" class="db-list">
         <div
           v-for="d in dbStore.databases"
           :key="d"
           class="db-item"
-          :class="{ active: d === dbStore.current }"
+          :class="{ 'db-item--active': d === dbStore.current }"
           @click="dbStore.setCurrent(d)"
         >
-          <span style="font-size:18px">🗄️</span>
-          <div class="db-info">
-            <div class="db-name">{{ d }}</div>
-            <div class="db-desc">{{ d === dbStore.current ? '当前选中' : '点击切换' }}</div>
+          <svg class="db-item__icon" viewBox="0 0 24 24" fill="none" width="20" height="20">
+            <rect x="3" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.35"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.55"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5" fill="currentColor" opacity="0.55"/>
+            <rect x="14" y="14" width="7" height="7" rx="1.5" fill="currentColor"/>
+          </svg>
+          <div class="db-item__info">
+            <div class="db-item__name">{{ d }}</div>
+            <div class="db-item__desc">{{ d === dbStore.current ? '当前选中' : '点击切换' }}</div>
           </div>
           <el-tag v-if="d === dbStore.current" type="primary" size="small">当前</el-tag>
         </div>
       </div>
-      <div v-else style="padding:20px;text-align:center;color:var(--el-text-color-placeholder)">暂无已配置的数据库</div>
-    </el-card>
+      <div v-else class="config-empty">暂无已配置的数据库</div>
+    </SectionCard>
 
-    <!-- 快速链接 -->
-    <el-card shadow="never" class="section-card">
-      <template #header><span>🔗 快速链接</span></template>
-      <div style="display:flex;gap:12px">
+    <SectionCard title="快速链接">
+      <div class="link-row">
         <el-button tag="a" href="/docs" target="_blank" plain>Swagger API 文档</el-button>
         <el-button tag="a" href="/redoc" target="_blank" plain>ReDoc 文档</el-button>
       </div>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1200px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
 
-.status-list { display: flex; flex-direction: column; gap: 8px; }
-.status-item { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--el-border-color-lighter); }
+.config-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+.config-desc {
+  margin: 0 0 var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.config-loading, .config-empty {
+  text-align: center;
+  padding: var(--space-5);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
+.status-list { display: flex; flex-direction: column; }
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-muted);
+  font-size: var(--text-sm);
+}
 .status-item:last-child { border-bottom: none; }
-.status-label { font-size: 14px; color: var(--el-text-color-secondary); min-width: 80px; }
+.status-label {
+  color: var(--text-tertiary);
+  min-width: 80px;
+}
 
-.test-row { display: flex; align-items: center; gap: 12px; }
+.test-row { display: flex; align-items: center; gap: var(--space-3); }
+.test-alert { margin-top: var(--space-3); }
 
-.db-list { display: flex; flex-direction: column; gap: 4px; }
-.db-item { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--el-border-color-light); border-radius: 8px; cursor: pointer; transition: all 0.15s; }
-.db-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.db-item.active { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.db-info { flex: 1; }
-.db-name { font-size: 14px; font-weight: 500; }
-.db-desc { font-size: 12px; color: var(--el-text-color-placeholder); }
+.db-list { display: flex; flex-direction: column; gap: var(--space-2); }
+.db-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.db-item:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+}
+.db-item--active {
+  border-color: var(--color-brand-500);
+  background: var(--color-brand-50);
+}
+.db-item__icon {
+  color: var(--color-brand-500);
+  flex-shrink: 0;
+}
+.db-item__info { flex: 1; }
+.db-item__name {
+  font-size: var(--text-sm);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+.db-item__desc {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.link-row { display: flex; gap: var(--space-2); }
 </style>
