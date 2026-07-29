@@ -102,7 +102,10 @@ def count_test_functions() -> int:
         return 0
 
     count = 0
-    for test_file in tests_dir.glob("test_*.py"):
+    # 搜索所有 tests/ 下的 test_*.py 文件（包括子目录）
+    for test_file in tests_dir.rglob("test_*.py"):
+        if "node_modules" in test_file.parts:
+            continue
         content = read_file(test_file)
         # 匹配 "def test_" 开头的函数
         count += len(re.findall(r"^def\s+test_\w+", content, re.MULTILINE))
