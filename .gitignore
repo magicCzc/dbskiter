@@ -47,6 +47,7 @@ monitor_metrics.db
 # Logs
 *.log
 logs/
+dbskiter/webui/logs/
 
 # Grafana dashboard exports (contains sensitive data)
 mysql.json
@@ -60,9 +61,12 @@ Thumbs.db
 # Backup
 *.bak
 *.backup
+backup/
+backups/
 
-# Runtime data (统一运行时数据目录)
+# Runtime data
 runtime_data/
+dbskiter/webui/runtime_data/
 
 # Legacy runtime directories (deprecated, will be removed)
 aas_data/
@@ -85,9 +89,6 @@ docs/
 !docs/faq.md
 !docs/security.md
 
-# Backup files
-backup/
-
 # MkDocs build output
 site/
 
@@ -95,11 +96,6 @@ site/
 db_performance_report_*.md
 test_report.html
 *.png
-
-# Backup files
-backups/
-# MkDocs build output
-site/
 
 # Node.js
 node_modules/
@@ -111,21 +107,19 @@ dbskiter/web/static/
 dbskiter/web/static/index.html
 dbskiter/web/static/assets/
 
-# pytest-cov 运行时产物(包含主机名,绝对不该进版本库)
+# pytest-cov
 .coverage
 .coverage.*
 htmlcov/
 
-# 本地数据库连接配置(可能含密码,不入库)
+# Hypothesis property-based testing cache
+.hypothesis/
+
+# Local database connection config (may contain passwords)
 dbskiter/config/databases.json
 dbskiter/config/*.local.json
 dbskiter/config/secrets.json
 
-# 本地启动脚本
+# Local startup scripts
 start.bat
 start.sh
-
-# Python 字节码(任何 .pyc 都不应入库,虽然 GitHub 默认忽略但兜底)
-__pycache__/
-*.py[cod]
-*.pyo

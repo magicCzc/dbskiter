@@ -114,8 +114,8 @@ dbskiter --output-mode=ai --database=jump monitor health
 
 ## 相关文档
 
-- [CLI 使用指南](../../CLI使用指南.md) - 完整的 CLI 命令参考
-- [AI 集成指南](../../AI集成指南.md) - AI 助手集成说明
+- [CLI 使用指南](../../docs/guides/CLI使用指南.md) - 完整的 CLI 命令参考
+- [AI 集成指南](../../docs/guides/AI集成指南.md) - AI 助手集成说明
 - [项目 README](../../README.md) - 项目总体介绍
 
 ---

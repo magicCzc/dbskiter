@@ -55,7 +55,7 @@ pip install dbskiter-mcp-server
 - "分析这条 SQL：`SELECT * FROM orders WHERE created_at > '2026-01-01'`"
 - "给我列出今天最慢的 5 个查询"
 
-**完整 MCP 配置与示例**：[AI集成指南](AI集成指南.md) · [MCP Server 仓库](https://github.com/magicCzc/dbskiter-mcp-server)
+**完整 MCP 配置与示例**：[AI集成指南](docs/guides/AI集成指南.md) · [MCP Server 仓库](https://github.com/magicCzc/dbskiter-mcp-server)
 
 ---
 
@@ -112,7 +112,7 @@ dbskiter shell-setup --auto   # 一键启用
 | `inspector` | 综合巡检/HTML 报告 | `inspector report --output=r.html` |
 | `scheduler` | 备份/定时任务 | `scheduler backup run` |
 
-**详细命令说明**：[CLI使用指南](CLI使用指南.md)
+**详细命令说明**：[CLI使用指南](docs/guides/CLI使用指南.md)
 
 ---
 
@@ -120,8 +120,8 @@ dbskiter shell-setup --auto   # 一键启用
 
 - 📖 **[完整文档站](https://magicCzc.github.io/dbskiter/)** —— 6 大场景教程、命令字典
 - 🆕 **[新手快速上手](docs/examples/01-新手快速上手/01-安装与配置.md)** —— 5 分钟入门
-- 🤖 **[AI 集成指南](AI集成指南.md)** —— Claude/Cursor/MCP 集成
-- ⚙️ **[CLI 使用指南](CLI使用指南.md)** —— 完整命令参考
+- 🤖 **[AI 集成指南](docs/guides/AI集成指南.md)** —— Claude/Cursor/MCP 集成
+- ⚙️ **[CLI 使用指南](docs/guides/CLI使用指南.md)** —— 完整命令参考
 - 🔧 **[配置文档](docs/configuration.md)** —— `.env` / `config.yaml` / `--url` 三种方式
 - 🏗️ **[架构说明](#-架构概览)** —— 6+N 驱动架构详解
 - 🤝 **[贡献指南](CONTRIBUTING.md)** —— 如何参与

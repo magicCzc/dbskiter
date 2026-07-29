@@ -113,7 +113,7 @@ dbskiter shell-setup --auto   # One-line enable
 | `inspector` | Comprehensive inspection / HTML report | `inspector report --output=r.html` |
 | `scheduler` | Backup / scheduled tasks | `scheduler backup run` |
 
-**Full command reference**: [CLI Guide](https://magicczc.github.io/dbskiter/) · [中文版](CLI使用指南.md)
+**Full command reference**: [CLI Guide](https://magicczc.github.io/dbskiter/) · [中文版](docs/guides/CLI使用指南.md)
 
 ---
 
