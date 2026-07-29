@@ -433,8 +433,8 @@ analyzeDatabaseHealth('jump').then(console.log);
 ## 相关文档
 
 - [CLI 使用指南](CLI使用指南.md) - 完整的 CLI 命令参考
-- [.trae/skills/README.md](../../.trae/skills/README.md) - Skill 系统介绍
-- [项目 README](../../README.md) - 项目总体介绍
+- [.trae/skills/README.md](https://github.com/magicCzc/dbskiter/tree/main/.trae/skills/README.md) - Skill 系统介绍
+- [项目 README](https://github.com/magicCzc/dbskiter) - 项目总体介绍
 
 ---
 
