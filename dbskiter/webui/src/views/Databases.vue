@@ -5,6 +5,8 @@ import { api } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Edit, Delete } from '@element-plus/icons-vue'
 import type { DbConfig as DbConfigType, DbConfigListResponse } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 const dbStore = useDatabaseStore()
 
@@ -107,7 +109,7 @@ async function testConnection(alias: string) {
     const result = await api.testDbConfig({ alias })
     dbStore.connectionStatus[alias] = result.success ? 'online' : 'offline'
     if (result.success) {
-      ElMessage.success(`'${alias}' 连接成功 🎉`)
+      ElMessage.success(`'${alias}' 连接成功`)
     } else {
       ElMessage.error(`'${alias}' 连接失败: ${result.message || ''}`)
     }
@@ -130,7 +132,7 @@ async function testNewConnection() {
   try {
     const result = await api.testDbConfig(form.value)
     if (result.success) {
-      ElMessage.success(`'${form.value.alias}' 连接成功 🎉`)
+      ElMessage.success(`'${form.value.alias}' 连接成功`)
     } else {
       ElMessage.warning(`'${form.value.alias}' 连接失败: ${result.message || ''}，仍可保存`)
     }
@@ -146,47 +148,32 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <!-- 控制栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <h2 style="margin:0;font-size:16px;display:flex;align-items:center;gap:8px">🗄️ 数据库配置</h2>
-        </div>
-        <div class="control-right">
-          <el-button size="small" :loading="testingAll" @click="testAllConnections" v-if="dbList.length > 0">
-            🔌 测试全部
-          </el-button>
+    <SectionCard padding>
+      <div class="databases-controls">
+        <h2 class="databases-title">数据库配置</h2>
+        <div class="databases-controls__right">
+          <span v-if="lastUpdated" class="databases-updated">{{ lastUpdated }} 更新</span>
+          <el-button size="small" :loading="testingAll" @click="testAllConnections" v-if="dbList.length > 0">测试全部</el-button>
+          <el-button size="small" :loading="loading" @click="load">刷新</el-button>
           <el-button type="primary" size="small" @click="openAdd">
             <el-icon><Plus /></el-icon> 新增数据库
           </el-button>
-          <el-button size="small" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- 空状态 -->
-    <el-card v-if="!loading && dbList.length === 0" shadow="never" style="text-align:center;padding:60px">
-      <div style="font-size:48px;margin-bottom:16px">🗄️</div>
-      <p style="color:var(--el-text-color-secondary);margin-bottom:16px">暂无数据库配置，点击"新增数据库"开始配置</p>
-      <el-button type="primary" @click="openAdd"><el-icon><Plus /></el-icon> 新增数据库</el-button>
-    </el-card>
+    <SectionCard v-if="!loading && dbList.length === 0" padding>
+      <div class="databases-empty">
+        <p>暂无数据库配置，点击"新增数据库"开始配置</p>
+        <el-button type="primary" @click="openAdd"><el-icon><Plus /></el-icon> 新增数据库</el-button>
+      </div>
+    </SectionCard>
 
-    <!-- 数据库列表 -->
     <div v-else class="db-grid">
-      <el-card v-for="db in dbList" :key="db.alias" shadow="never" class="db-card"
-        :class="'status-' + (db.status || 'unknown')">
+      <div v-for="db in dbList" :key="db.alias" class="db-card" :class="`db-card--${db.status}`">
         <div class="db-header">
-          <div class="db-icon">{{ db.status === 'online' ? '🟢' : db.status === 'offline' ? '🔴' : '⚪' }}</div>
           <div class="db-name">{{ db.alias }}</div>
-          <el-tag :type="db.status === 'online' ? 'success' : db.status === 'offline' ? 'danger' : 'info'" size="small" effect="dark">
-            {{ db.status === 'online' ? '在线' : db.status === 'offline' ? '离线' : '未检测' }}
-          </el-tag>
+          <StatusTag :status="db.status" :label="db.status === 'online' ? '在线' : db.status === 'offline' ? '离线' : '未检测'" />
         </div>
         <div class="db-details">
           <div class="db-detail"><span>类型</span> {{ db.dialect || '-' }}</div>
@@ -199,10 +186,9 @@ onMounted(load)
           <el-button size="small" @click="openEdit(db.alias)"><el-icon><Edit /></el-icon></el-button>
           <el-button size="small" type="danger" plain @click="remove(db.alias)"><el-icon><Delete /></el-icon></el-button>
         </div>
-      </el-card>
+      </div>
     </div>
 
-    <!-- 新增/编辑对话框 -->
     <el-dialog v-model="dialogVisible" :title="dialogMode === 'add' ? '新增数据库' : '编辑数据库'" width="550px" :close-on-click-modal="false">
       <el-form :model="form" label-width="100px" size="small">
         <el-form-item label="别名" required>
@@ -246,9 +232,7 @@ onMounted(load)
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button :loading="testing[form.alias]" @click="testNewConnection" :disabled="!form.alias" v-if="dialogMode === 'add'">
-          🔌 测试连接
-        </el-button>
+        <el-button :loading="testing[form.alias]" @click="testNewConnection" :disabled="!form.alias" v-if="dialogMode === 'add'">测试连接</el-button>
         <el-button type="primary" :loading="saving" @click="save">保存</el-button>
       </template>
     </el-dialog>
@@ -257,27 +241,84 @@ onMounted(load)
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
 
-.db-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
-.db-card { border: 1px solid var(--el-border-color-light); }
-.db-card.status-online { border-left: 3px solid #22c55e; }
-.db-card.status-offline { border-left: 3px solid #ef4444; }
+.databases-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.databases-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.databases-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+.databases-updated {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.databases-empty {
+  text-align: center;
+  padding: var(--space-12);
+  color: var(--text-tertiary);
+}
+.databases-empty p { margin: 0 0 var(--space-4); }
 
-.db-header { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
-.db-icon { font-size: 20px; }
-.db-name { font-size: 16px; font-weight: 600; flex: 1; }
+.db-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  gap: var(--space-4);
+}
+.db-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+.db-card:hover {
+  box-shadow: var(--shadow-sm);
+}
+.db-card--online { border-left: 3px solid var(--color-success-500); }
+.db-card--offline { border-left: 3px solid var(--color-danger-500); }
+.db-card--unknown { border-left: 3px solid var(--color-gray-300); }
 
-.db-details { margin-bottom: 12px; }
-.db-detail { display: flex; gap: 8px; padding: 4px 0; font-size: 13px; border-bottom: 1px solid var(--el-border-color-lighter); }
-.db-detail span { color: var(--el-text-color-secondary); min-width: 50px; }
+.db-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+.db-name {
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  flex: 1;
+}
 
-.db-actions { display: flex; gap: 8px; }
-
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.db-details { margin-bottom: var(--space-3); }
+.db-detail {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+  border-bottom: 1px solid var(--border-muted);
+}
+.db-detail span {
+  color: var(--text-tertiary);
+  min-width: 50px;
+  flex-shrink: 0;
+}
+.db-actions {
+  display: flex;
+  gap: var(--space-2);
+}
 </style>

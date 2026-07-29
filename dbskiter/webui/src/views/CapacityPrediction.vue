@@ -9,6 +9,8 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { LineChart, BarChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent, LegendComponent, MarkLineComponent } from 'echarts/components'
 import VChart from 'vue-echarts'
+import SectionCard from '@/components/SectionCard.vue'
+import StatCard from '@/components/StatCard.vue'
 
 use([CanvasRenderer, LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, MarkLineComponent])
 
@@ -36,9 +38,9 @@ const usagePercent = computed(() => {
 })
 
 const urgencyColor = computed(() => {
-  if (daysRemaining.value < 30) return '#ef4444'
-  if (daysRemaining.value < 90) return '#f59e0b'
-  return '#22c55e'
+  if (daysRemaining.value < 30) return 'var(--color-danger-500)'
+  if (daysRemaining.value < 90) return 'var(--color-warning-500)'
+  return 'var(--color-success-500)'
 })
 
 const urgencyText = computed(() => {
@@ -54,7 +56,6 @@ const chartOption = computed(() => {
   const prediction = raw?.prediction || []
   const timestamps = raw?.timestamps || []
 
-  // 如果 CLI 返回 predictions 字典，转为数组用于图表
   const predValues = typeof preds === 'object' && !Array.isArray(preds)
     ? Object.values(preds).filter((v): v is number => typeof v === 'number')
     : prediction
@@ -62,7 +63,6 @@ const chartOption = computed(() => {
     ? Object.keys(preds)
     : timestamps
 
-  // 当前值作为历史数据点
   const currentVal = raw?.current_value ?? 0
   const histData = history.length ? history : [currentVal]
   const histLabels = timestamps.length ? timestamps : [raw?.current_time || '当前']
@@ -73,7 +73,7 @@ const chartOption = computed(() => {
       type: 'bar',
       data: [currentVal],
       barWidth: '30%',
-      itemStyle: { color: '#3B82F6', borderRadius: [4, 4, 0, 0] },
+      itemStyle: { color: 'var(--color-info-500)', borderRadius: [4, 4, 0, 0] },
     },
   ]
 
@@ -83,14 +83,14 @@ const chartOption = computed(() => {
       type: 'line',
       data: predValues,
       smooth: true,
-      lineStyle: { color: '#EF4444', width: 2, type: 'dashed' },
+      lineStyle: { color: 'var(--color-danger-500)', width: 2, type: 'dashed' },
       symbol: 'circle',
       symbolSize: 8,
     })
   }
 
   series[0].markLine = totalCapacity.value ? {
-    data: [{ yAxis: totalCapacity.value, label: { formatter: `容量上限: ${totalCapacity.value}`, color: '#ef4444' }, lineStyle: { color: '#ef4444', type: 'dashed' } }],
+    data: [{ yAxis: totalCapacity.value, label: { formatter: `容量上限: ${totalCapacity.value}`, color: 'var(--color-danger-500)' }, lineStyle: { color: 'var(--color-danger-500)', type: 'dashed' } }],
   } : undefined
 
   return {
@@ -98,7 +98,7 @@ const chartOption = computed(() => {
     legend: { bottom: 0, textStyle: { fontSize: 11 } },
     grid: { left: 60, right: 20, top: 20, bottom: 40 },
     xAxis: { type: 'category', data: ['当前', ...predLabels], axisLabel: { fontSize: 10, rotate: 0 } },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f3f4f6', type: 'dashed' } }, axisLabel: { fontSize: 10 } },
+    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'var(--color-gray-100)', type: 'dashed' } }, axisLabel: { fontSize: 10 } },
     series,
   }
 })
@@ -107,7 +107,6 @@ async function load() {
   loading.value = true
   try {
     const data = await api.capacity(dbStore.current, resource.value)
-    // CLI 返回数据在 data.raw_metrics 中
     const raw = data.data?.raw_metrics || data
     capacityData.value = raw
     lastUpdated.value = new Date().toLocaleTimeString()
@@ -124,20 +123,13 @@ onMounted(() => { dbStore.loadDatabases(); load() })
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <!-- 紧急告警 -->
     <el-alert
       v-if="daysRemaining < 30 && daysRemaining > 0"
       :title="`${resource} 将在 ${daysRemaining} 天后耗尽！建议立即扩容`"
       type="error"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="cap-alert"
     />
     <el-alert
       v-else-if="daysRemaining < 90 && daysRemaining > 0"
@@ -145,18 +137,17 @@ onMounted(() => { dbStore.loadDatabases(); load() })
       type="warning"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="cap-alert"
     />
 
-    <!-- 控制栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <label>数据库：</label>
+    <SectionCard padding>
+      <div class="cap-controls">
+        <div class="cap-controls__left">
+          <label>数据库</label>
           <el-select v-model="dbStore.current" size="small" style="width:160px" @change="load">
             <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
           </el-select>
-          <label>资源：</label>
+          <label>资源</label>
           <el-select v-model="resource" size="small" style="width:120px" @change="load">
             <el-option v-for="r in resources" :key="r.value" :label="r.label" :value="r.value" />
           </el-select>
@@ -164,74 +155,86 @@ onMounted(() => { dbStore.loadDatabases(); load() })
             <el-icon><Refresh /></el-icon> 刷新
           </el-button>
         </div>
-        <div class="control-right">
-          <el-tag :type="daysRemaining < 30 ? 'danger' : daysRemaining < 90 ? 'warning' : 'success'" size="medium" effect="dark">
+        <div class="cap-controls__right">
+          <el-tag :type="daysRemaining < 30 ? 'danger' : daysRemaining < 90 ? 'warning' : 'success'" effect="dark">
             {{ urgencyText }}
           </el-tag>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- KPI 卡片 -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#3b82f6">{{ currentUsage.toFixed(1) }}</div>
-        <div class="kpi-label">当前用量</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#6366f1">{{ totalCapacity.toFixed(1) }}</div>
-        <div class="kpi-label">总容量</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: growthRate > 10 ? '#ef4444' : '#f59e0b' }">{{ growthRate.toFixed(2) }}%</div>
-        <div class="kpi-label">增长率</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: urgencyColor }">{{ daysRemaining > 0 ? daysRemaining + ' 天' : '未知' }}</div>
-        <div class="kpi-label">预计剩余</div>
-      </div>
+    <div class="stat-grid">
+      <StatCard :value="currentUsage.toFixed(1)" label="当前用量" size="sm" color="var(--color-info-500)" />
+      <StatCard :value="totalCapacity.toFixed(1)" label="总容量" size="sm" color="var(--color-brand-500)" />
+      <StatCard
+        :value="growthRate.toFixed(2) + '%'"
+        label="增长率"
+        size="sm"
+        :color="growthRate > 10 ? 'var(--color-danger-500)' : 'var(--color-warning-500)'"
+      />
+      <StatCard
+        :value="daysRemaining > 0 ? daysRemaining + ' 天' : '未知'"
+        label="预计剩余"
+        size="sm"
+        :color="urgencyColor"
+      />
     </div>
 
-    <!-- 耗尽日期 -->
-    <el-card shadow="never" class="section-card" v-if="exhaustionDate">
+    <SectionCard v-if="exhaustionDate" title="预计耗尽">
       <div class="exhaustion-banner">
-        <span class="exhaustion-icon">📅</span>
         <span class="exhaustion-text">
           预计 <strong>{{ resource }}</strong> 将于
           <strong :style="{ color: urgencyColor }">{{ exhaustionDate }}</strong>
           耗尽，剩余 <strong :style="{ color: urgencyColor }">{{ daysRemaining }}</strong> 天
         </span>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- 趋势图 -->
-    <el-card shadow="never" class="section-card">
-      <template #header><span>📈 {{ resource }} 使用趋势与预测</span></template>
+    <SectionCard :title="`${resource} 使用趋势与预测`">
       <VChart :option="chartOption" autoresize style="height: 350px" />
       <div class="chart-note">虚线为预测趋势，红线为容量上限</div>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
-.control-row label { font-size: 14px; color: var(--el-text-color-secondary); }
+.cap-alert { margin-bottom: var(--space-4); }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.kpi-card { background: var(--el-bg-color); border-radius: 8px; padding: 20px; border: 1px solid var(--el-border-color-light); text-align: center; }
-.kpi-value { font-size: 28px; font-weight: 700; }
-.kpi-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.cap-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.cap-controls__left, .cap-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.cap-controls label { font-size: var(--text-sm); color: var(--text-secondary); }
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
 
-.exhaustion-banner { display: flex; align-items: center; gap: 12px; padding: 16px; background: var(--el-fill-color-light); border-radius: 8px; }
-.exhaustion-icon { font-size: 24px; }
-.exhaustion-text { font-size: 15px; }
-.chart-note { text-align: center; font-size: 12px; color: var(--el-text-color-placeholder); margin-top: 8px; }
+.exhaustion-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--bg-code);
+  border-radius: var(--radius-md);
+}
+.exhaustion-text { font-size: var(--text-base); color: var(--text-primary); }
+.chart-note {
+  text-align: center;
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  margin-top: var(--space-2);
+}
 </style>

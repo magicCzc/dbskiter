@@ -5,6 +5,9 @@ import { api } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import type { ConnectionInfo } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatCard from '@/components/StatCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 const dbStore = useDatabaseStore()
 const connections = ref<ConnectionInfo[]>([])
@@ -27,6 +30,12 @@ const idleConnections = computed(() => connections.value.filter(c => {
 const connPercent = computed(() => {
   if (!maxConnections.value) return 0
   return (totalConnections.value / maxConnections.value) * 100
+})
+
+const connColor = computed(() => {
+  if (connPercent.value > 80) return 'var(--color-danger-500)'
+  if (connPercent.value > 60) return 'var(--color-warning-500)'
+  return 'var(--color-info-500)'
 })
 
 async function load() {
@@ -59,9 +68,7 @@ async function killConnection(pid: number) {
     } else {
       ElMessage.error(`终止失败: ${result.error || '未知错误'}`)
     }
-  } catch {
-    // 用户取消
-  }
+  } catch { /* 用户取消 */ }
 }
 
 function toggleAuto() {
@@ -81,21 +88,13 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot" :class="{ active: autoRefresh }"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-      <el-switch v-model="autoRefresh" @change="toggleAuto" size="small" active-text="自动(10s)" inactive-text="" style="margin-left:8px" />
-    </div>
-
-    <!-- 连接数告警 -->
     <el-alert
       v-if="connPercent > 80"
       :title="`连接数已达 ${totalConnections}/${maxConnections} (${connPercent.toFixed(0)}%)，接近上限！`"
       type="error"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="conn-alert"
     />
     <el-alert
       v-else-if="connPercent > 60"
@@ -103,59 +102,41 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
       type="warning"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="conn-alert"
     />
 
-    <!-- 控制栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <label>数据库：</label>
+    <SectionCard padding>
+      <div class="conn-controls">
+        <div class="conn-controls__left">
+          <label>数据库</label>
           <el-select v-model="dbStore.current" size="small" style="width:160px" @change="load">
             <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
           </el-select>
+          <el-switch v-model="autoRefresh" @change="toggleAuto" size="small" active-text="自动(10s)" />
           <el-button type="primary" size="small" :loading="loading" @click="load">
             <el-icon><Refresh /></el-icon> 刷新
           </el-button>
         </div>
-        <div class="control-right">
-          <el-tag v-if="maxConnections > 0" :type="connPercent > 80 ? 'danger' : connPercent > 60 ? 'warning' : 'info'" size="medium">
+        <div class="conn-controls__right">
+          <el-tag v-if="maxConnections > 0" :type="connPercent > 80 ? 'danger' : connPercent > 60 ? 'warning' : 'info'">
             {{ totalConnections }} / {{ maxConnections }} ({{ connPercent.toFixed(0) }}%)
           </el-tag>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- KPI 卡片 -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: connPercent > 80 ? '#ef4444' : connPercent > 60 ? '#f59e0b' : '#3b82f6' }">{{ totalConnections }}</div>
-        <div class="kpi-label">总连接数</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#f59e0b">{{ activeQueries }}</div>
-        <div class="kpi-label">活跃查询</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#22c55e">{{ idleConnections }}</div>
-        <div class="kpi-label">空闲连接</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" style="color:#6366f1">{{ maxConnections }}</div>
-        <div class="kpi-label">最大连接数</div>
-      </div>
+    <div class="stat-grid">
+      <StatCard :value="totalConnections" label="总连接数" size="sm" :color="connColor" />
+      <StatCard :value="activeQueries" label="活跃查询" size="sm" color="var(--color-warning-500)" />
+      <StatCard :value="idleConnections" label="空闲连接" size="sm" color="var(--color-success-500)" />
+      <StatCard :value="maxConnections" label="最大连接数" size="sm" color="var(--color-brand-500)" />
     </div>
 
-    <!-- 连接表格 -->
-    <el-card shadow="never" class="section-card">
-      <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span>连接详情</span>
-          <el-button size="small" @click="load" :loading="loading">刷新</el-button>
-        </div>
+    <SectionCard title="连接详情">
+      <template #actions>
+        <el-button size="small" @click="load" :loading="loading">刷新</el-button>
       </template>
-      <el-table :data="connections" v-loading="loading" stripe style="width:100%" :empty-text="'暂无连接数据'"
-        :default-sort="{ prop: 'duration', order: 'descending' }">
+      <el-table :data="connections" v-loading="loading" stripe style="width:100%" :default-sort="{ prop: 'duration', order: 'descending' }">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="pid" label="PID" width="80" sortable />
         <el-table-column prop="user" label="用户" width="100" />
@@ -163,19 +144,15 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
         <el-table-column prop="database" label="数据库" width="120" />
         <el-table-column prop="state" label="状态" width="100">
           <template #default="{row}">
-            <el-tag
-              :type="(row.state || '').toLowerCase() === 'active' || (row.state || '').toLowerCase() === 'running' ? 'warning' : (row.state || '').toLowerCase() === 'sleep' ? 'info' : 'default'"
-              size="small">
-              {{ row.state || '-' }}
-            </el-tag>
+            <StatusTag :status="row.state || 'unknown'" />
           </template>
         </el-table-column>
         <el-table-column prop="query" label="当前 SQL" min-width="300" show-overflow-tooltip>
-          <template #default="{row}"><code style="font-size:11px">{{ row.query || '-' }}</code></template>
+          <template #default="{row}"><code class="conn-sql">{{ row.query || '-' }}</code></template>
         </el-table-column>
         <el-table-column prop="duration" label="耗时" width="90" sortable>
           <template #default="{row}">
-            <span :style="{ color: (row.duration || 0) > 30 ? '#ef4444' : (row.duration || 0) > 10 ? '#f59e0b' : '', fontWeight: 600 }">
+            <span :class="`conn-time--${(row.duration || 0) > 30 ? 'critical' : (row.duration || 0) > 10 ? 'warning' : 'ok'}`">
               {{ row.duration ? row.duration.toFixed(1) + 's' : '-' }}
             </span>
           </template>
@@ -188,25 +165,37 @@ onUnmounted(() => { if (refreshTimer) clearInterval(refreshTimer) })
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
-.control-row label { font-size: 14px; color: var(--el-text-color-secondary); }
+.conn-alert { margin-bottom: var(--space-4); }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.kpi-card { background: var(--el-bg-color); border-radius: 8px; padding: 20px; border: 1px solid var(--el-border-color-light); text-align: center; }
-.kpi-value { font-size: 28px; font-weight: 700; }
-.kpi-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.conn-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.conn-controls__left, .conn-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.conn-controls label { font-size: var(--text-sm); color: var(--text-secondary); }
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #94a3b8; }
-.live-dot.active { background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.conn-sql { font-size: var(--text-xs); font-family: var(--font-mono); }
+.conn-time--critical { color: var(--color-danger-500); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+.conn-time--warning { color: var(--color-warning-500); font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+.conn-time--ok { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 </style>
