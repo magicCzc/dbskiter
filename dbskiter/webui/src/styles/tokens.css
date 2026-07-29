@@ -139,5 +139,54 @@
 
 /* 暗色模式钩子(留好接口,阶段 5 补具体值) */
 [data-theme='dark'] {
-  /* 阶段 5 补全 */
+  /* ---------- 中性色 (暗色反转) ---------- */
+  --color-gray-0:   #0F172A;
+  --color-gray-50:  #1E293B;
+  --color-gray-100: #334155;
+  --color-gray-200: #475569;
+  --color-gray-300: #64748B;
+  --color-gray-400: #94A3B8;
+  --color-gray-500: #CBD5E1;
+  --color-gray-600: #E2E8F0;
+  --color-gray-700: #F1F5F9;
+  --color-gray-800: #F8FAFC;
+  --color-gray-900: #FFFFFF;
+
+  /* ---------- 语义色 (暗色适配) ---------- */
+  --color-success-50:  #022C22;
+  --color-warning-50:  #271A00;
+  --color-danger-50:   #2D0A0E;
+  --color-info-50:     #0F1D3D;
+
+  /* ---------- 语义别名(暗色) ---------- */
+  --bg-page:           var(--color-gray-0);
+  --bg-elevated:       var(--color-gray-50);
+  --bg-sidebar:        var(--color-gray-900);
+  --bg-sidebar-hover:  rgba(255, 255, 255, 0.08);
+  --bg-sidebar-active: var(--color-brand-600);
+  --bg-code:           rgba(0, 0, 0, 0.3);
+
+  --text-primary:      var(--color-gray-900);
+  --text-secondary:    var(--color-gray-600);
+  --text-tertiary:     var(--color-gray-500);
+  --text-placeholder:  var(--color-gray-400);
+  --text-on-dark:      var(--color-gray-100);
+  --text-on-dark-mute: var(--color-gray-400);
+  --text-on-brand:     var(--color-gray-0);
+  --text-link:         var(--color-brand-400);
+
+  --border-default:    var(--color-gray-100);
+  --border-strong:     var(--color-gray-200);
+  --border-muted:      rgba(255, 255, 255, 0.06);
+
+  --accent-primary:    var(--color-brand-400);
+  --accent-success:    var(--color-success-500);
+  --accent-warning:    var(--color-warning-500);
+  --accent-danger:     var(--color-danger-500);
+
+  /* ---------- 阴影(暗色用黑底) ---------- */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 24px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px rgba(59, 106, 232, 0.4);
 }

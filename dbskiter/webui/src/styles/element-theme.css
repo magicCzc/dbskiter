@@ -74,3 +74,48 @@
   --el-menu-hover-bg-color:         var(--bg-sidebar-hover);
   --el-menu-active-color:           var(--color-brand-300);
 }
+
+/* 暗色模式:覆盖 Element Plus 内置暗色变量 */
+[data-theme='dark'] {
+  --el-color-primary:               var(--color-brand-400);
+  --el-color-primary-dark-2:        var(--color-brand-500);
+
+  --el-text-color-primary:          var(--text-primary);
+  --el-text-color-regular:          var(--text-secondary);
+  --el-text-color-secondary:        var(--text-tertiary);
+  --el-text-color-placeholder:      var(--text-placeholder);
+  --el-text-color-disabled:         var(--color-gray-400);
+
+  --el-border-color:                var(--border-default);
+  --el-border-color-light:          var(--border-muted);
+  --el-border-color-lighter:        var(--color-gray-100);
+  --el-border-color-extra-light:    var(--color-gray-50);
+  --el-border-color-dark:           var(--border-strong);
+  --el-border-color-darker:         var(--color-gray-400);
+
+  --el-bg-color:                    var(--bg-elevated);
+  --el-bg-color-page:               var(--bg-page);
+  --el-bg-color-overlay:            var(--bg-elevated);
+
+  --el-fill-color:                  var(--color-gray-100);
+  --el-fill-color-light:            var(--color-gray-50);
+  --el-fill-color-lighter:          var(--color-gray-50);
+  --el-fill-color-extra-light:      var(--color-gray-50);
+  --el-fill-color-dark:             var(--color-gray-200);
+  --el-fill-color-darker:           var(--color-gray-300);
+  --el-fill-color-blank:            var(--bg-elevated);
+
+  --el-overlay-color:               rgba(0, 0, 0, 0.6);
+  --el-overlay-color-light:         rgba(0, 0, 0, 0.4);
+  --el-overlay-color-lighter:       rgba(0, 0, 0, 0.2);
+
+  --el-box-shadow:                  var(--shadow-md);
+  --el-box-shadow-light:            var(--shadow-sm);
+  --el-box-shadow-lighter:          var(--shadow-sm);
+  --el-box-shadow-dark:             var(--shadow-lg);
+
+  --el-menu-bg-color:               var(--bg-sidebar);
+  --el-menu-text-color:             var(--text-on-dark);
+  --el-menu-hover-bg-color:         var(--bg-sidebar-hover);
+  --el-menu-active-color:           var(--color-brand-300);
+}
