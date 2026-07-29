@@ -4,6 +4,8 @@ import { useDatabaseStore } from '@/stores/database'
 import { api, exportCSV } from '@/api'
 import { ElMessage } from 'element-plus'
 import type { SqlExecuteResponse, SchemaResponse } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 const dbStore = useDatabaseStore()
 const sql = ref('SELECT * FROM users LIMIT 10')
@@ -21,7 +23,6 @@ const error = ref('')
 const executionTime = ref(0)
 const lastUpdated = ref('')
 
-// SQL 语法高亮
 const SQL_KEYWORDS = [
   'SELECT', 'FROM', 'WHERE', 'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL',
   'INSERT', 'INTO', 'VALUES', 'UPDATE', 'SET', 'DELETE', 'CREATE', 'TABLE',
@@ -45,29 +46,21 @@ const SQL_KEYWORDS = [
 
 function highlightSQL(sqlText: string): string {
   if (!sqlText) return ''
-  // 转义 HTML 特殊字符
   let escaped = sqlText
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
 
-  // 高亮字符串 ('...' 和 "...")
   escaped = escaped.replace(/(['"`].*?['"`])/g, '<span class="sql-string">$1</span>')
-
-  // 高亮注释 (-- 和 /* */)
   escaped = escaped.replace(/(--[^\n]*)/g, '<span class="sql-comment">$1</span>')
   escaped = escaped.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="sql-comment">$1</span>')
-
-  // 高亮数字
   escaped = escaped.replace(/\b(\d+\.?\d*)\b/g, '<span class="sql-number">$1</span>')
 
-  // 高亮关键字（不区分大小写）
   for (const kw of SQL_KEYWORDS) {
     const regex = new RegExp(`\\b(${kw})\\b`, 'gi')
     escaped = escaped.replace(regex, '<span class="sql-keyword">$1</span>')
   }
-
   return escaped
 }
 
@@ -88,9 +81,7 @@ const tableData = computed(() => {
   const cols = results.value.columns
   return results.value.rows.map((row: unknown[]) => {
     const obj: Record<string, unknown> = {}
-    cols.forEach((col: string, i: number) => {
-      obj[col] = row[i]
-    })
+    cols.forEach((col: string, i: number) => { obj[col] = row[i] })
     return obj
   })
 })
@@ -117,7 +108,6 @@ async function execute() {
     lastUpdated.value = new Date().toLocaleTimeString()
     if (data.success) {
       results.value = data
-      // 保存到历史
       history.value.unshift({
         sql: sql.value,
         timestamp: new Date().toLocaleString(),
@@ -140,8 +130,7 @@ async function execute() {
 async function loadSchema() {
   loadingSchema.value = true
   try {
-    const data = await api.getSchema(dbStore.current)
-    schema.value = data
+    schema.value = await api.getSchema(dbStore.current)
   } catch (e: any) {
     ElMessage.error(`Schema 加载失败: ${e.message}`)
   } finally {
@@ -180,7 +169,6 @@ function clearHistory() {
 
 onMounted(() => {
   dbStore.loadDatabases()
-  // 检查是否有从其他页面传来的 SQL
   const pending = localStorage.getItem('sql-editor-pending')
   if (pending) {
     sql.value = pending
@@ -191,46 +179,43 @@ onMounted(() => {
 
 <template>
   <div class="page">
-    <!-- 工具栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="toolbar">
-        <div class="toolbar-left">
-          <label>数据库：</label>
+    <SectionCard padding>
+      <div class="sql-toolbar">
+        <div class="sql-toolbar__left">
+          <label>数据库</label>
           <el-select v-model="dbStore.current" size="small" style="width:160px">
             <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
           </el-select>
-          <div class="readonly-toggle">
-            <el-tag :type="readOnly ? 'success' : 'danger'" size="small" effect="dark" style="cursor:pointer" @click="readOnly = !readOnly">
-              {{ readOnly ? '🔒 只读' : '🔓 可写' }}
-            </el-tag>
-          </div>
-          <label>行数：</label>
+          <el-tag
+            :type="readOnly ? 'success' : 'danger'"
+            size="small"
+            effect="dark"
+            class="sql-mode"
+            @click="readOnly = !readOnly"
+          >
+            {{ readOnly ? '只读' : '可写' }}
+          </el-tag>
+          <label>行数</label>
           <el-input-number v-model="limit" :min="1" :max="10000" size="small" style="width:100px" />
-          <el-button type="primary" size="small" :loading="loading" @click="execute">
-            ▶ 运行 (Ctrl+Enter)
-          </el-button>
-          <el-button size="small" @click="loadSchema">
-            Schema
-          </el-button>
+          <el-button size="small" @click="loadSchema">Schema</el-button>
+          <el-button type="primary" size="small" :loading="loading" @click="execute">运行 (Ctrl+Enter)</el-button>
         </div>
-        <div class="toolbar-right">
-          <span class="live-text" v-if="lastUpdated">{{ lastUpdated }}</span>
+        <div class="sql-toolbar__right">
+          <span v-if="lastUpdated" class="sql-updated">{{ lastUpdated }}</span>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- 写入模式警告 -->
     <el-alert
       v-if="!readOnly"
       title="写入模式已开启！执行写操作将修改数据库数据，请谨慎操作"
       type="warning"
       show-icon
       closable
-      style="margin-bottom:8px"
+      class="sql-alert"
     />
 
-    <!-- SQL 编辑器（语法高亮） -->
-    <el-card shadow="never" class="section-card editor-card">
+    <SectionCard padding>
       <div class="code-editor">
         <pre class="code-display" aria-hidden="true"><code v-html="highlightedSQL"></code><br /></pre>
         <textarea
@@ -241,53 +226,50 @@ onMounted(() => {
           @keydown="handleKeydown"
         ></textarea>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- 错误提示 -->
-    <el-alert v-if="error" :title="error" type="error" show-icon style="margin-bottom:8px" closable @close="error = ''" />
+    <el-alert
+      v-if="error"
+      :title="error"
+      type="error"
+      show-icon
+      class="sql-alert"
+      closable
+      @close="error = ''"
+    />
 
-    <!-- 结果面板 -->
-    <el-card shadow="never" class="section-card">
+    <SectionCard padding>
       <el-tabs v-model="activeTab" type="border-card">
-        <!-- 结果 Tab -->
-        <el-tab-pane label="📊 结果" name="results">
+        <el-tab-pane label="结果" name="results">
           <div v-if="loading" class="panel-loading">执行中...</div>
-          <div v-else-if="!results" class="panel-empty">
-            <div style="font-size:40px;margin-bottom:12px">⌨️</div>
-            <div>输入 SQL 并点击运行</div>
-          </div>
+          <div v-else-if="!results" class="panel-empty">输入 SQL 并点击运行</div>
           <template v-else>
             <div class="result-info">
               <span>执行时间: <strong>{{ executionTime.toFixed(3) }}s</strong></span>
               <span>行数: <strong>{{ results.row_count || tableData.length }}</strong></span>
               <span>列数: <strong>{{ results.columns?.length || 0 }}</strong></span>
               <div class="result-actions">
-                <el-button size="small" @click="exportCSV(tableData, 'query-result.csv')" :disabled="!tableData.length">
-                  导出 CSV
-                </el-button>
-                <el-button size="small" @click="copyAsJSON" :disabled="!tableData.length">
-                  复制 JSON
-                </el-button>
+                <el-button size="small" @click="exportCSV(tableData, 'query-result.csv')" :disabled="!tableData.length">导出 CSV</el-button>
+                <el-button size="small" @click="copyAsJSON" :disabled="!tableData.length">复制 JSON</el-button>
               </div>
             </div>
-            <el-table :data="tableData" stripe border style="width:100%" max-height="500" :empty-text="'查询无结果'">
+            <el-table :data="tableData" stripe border style="width:100%" max-height="500" empty-text="查询无结果">
               <el-table-column v-for="col in columns" :key="col.key" :prop="col.key" :label="col.title" min-width="120" show-overflow-tooltip />
             </el-table>
           </template>
         </el-tab-pane>
 
-        <!-- Schema Tab -->
-        <el-tab-pane label="📋 Schema" name="schema">
+        <el-tab-pane label="Schema" name="schema">
           <div v-if="loadingSchema" class="panel-loading">加载中...</div>
           <div v-else-if="!schema" class="panel-empty">
             <el-button @click="loadSchema" type="primary">加载 Schema</el-button>
           </div>
           <div v-else>
             <div v-for="tbl in schemaTables" :key="tbl.name || tbl.table_name" class="schema-item">
-              <div class="schema-table-name">📄 {{ tbl.name || tbl.table_name }}</div>
+              <div class="schema-table-name">{{ tbl.name || tbl.table_name }}</div>
               <div class="schema-cols" v-if="tbl.columns">
                 <div v-for="col in tbl.columns" :key="col.name || col.COLUMN_NAME" class="schema-col">
-                  <code>{{ col.name || col.COLUMN_NAME }}</code>
+                  <code class="schema-col-name">{{ col.name || col.COLUMN_NAME }}</code>
                   <el-tag size="small" type="info">{{ col.type || col.DATA_TYPE }}</el-tag>
                   <span v-if="col.nullable === 'NO' || col.is_nullable === 'NO'" class="col-required">NOT NULL</span>
                   <span v-if="col.extra === 'auto_increment'" class="col-auto">AUTO_INC</span>
@@ -297,17 +279,13 @@ onMounted(() => {
           </div>
         </el-tab-pane>
 
-        <!-- 历史 Tab -->
-        <el-tab-pane label="🕐 最近查询" name="history">
+        <el-tab-pane label="最近查询" name="history">
           <div class="history-header">
             <span>{{ history.length }} 条记录</span>
             <el-button size="small" type="danger" plain @click="clearHistory" v-if="history.length > 0">清除历史</el-button>
           </div>
-          <div v-if="!history.length" class="panel-empty">
-            <div style="font-size:40px;margin-bottom:12px">🕐</div>
-            <div>暂无查询历史</div>
-          </div>
-          <div v-else>
+          <div v-if="!history.length" class="panel-empty">暂无查询历史</div>
+          <div v-else class="history-list">
             <div v-for="(item, i) in history" :key="i" class="history-item" @click="loadFromHistory(item)">
               <code class="history-sql">{{ item.sql.substring(0, 100) }}{{ item.sql.length > 100 ? '...' : '' }}</code>
               <span class="history-meta">{{ item.timestamp }} · {{ item.duration.toFixed(3) }}s</span>
@@ -315,37 +293,47 @@ onMounted(() => {
           </div>
         </el-tab-pane>
       </el-tabs>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 12px; }
+.sql-alert { margin-bottom: var(--space-3); }
 
-.toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-.toolbar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.toolbar-right { display: flex; align-items: center; gap: 8px; }
-.toolbar label { font-size: 14px; color: var(--el-text-color-secondary); white-space: nowrap; }
-.live-text { font-size: 12px; color: var(--el-text-color-placeholder); }
-
-.editor-card { padding: 0; }
+.sql-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.sql-toolbar__left, .sql-toolbar__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.sql-toolbar label { font-size: var(--text-sm); color: var(--text-secondary); white-space: nowrap; }
+.sql-mode { cursor: pointer; }
+.sql-updated { font-size: var(--text-xs); color: var(--text-tertiary); }
 
 .code-editor {
   position: relative;
   min-height: 200px;
   max-height: 400px;
   overflow: auto;
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-  font-size: 14px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   line-height: 1.6;
   tab-size: 2;
-  background: var(--el-bg-color);
+  background: var(--bg-elevated);
+  border-radius: var(--radius-md);
 }
 
 .code-display, .code-textarea {
   margin: 0;
-  padding: 16px;
+  padding: var(--space-4);
   border: 0;
   width: 100%;
   min-height: 200px;
@@ -365,7 +353,7 @@ onMounted(() => {
   right: 0;
   bottom: 0;
   pointer-events: none;
-  color: var(--el-text-color-primary);
+  color: var(--text-primary);
   background: transparent;
   overflow: visible;
 }
@@ -374,7 +362,7 @@ onMounted(() => {
   position: relative;
   display: block;
   color: transparent;
-  caret-color: var(--el-text-color-primary);
+  caret-color: var(--text-primary);
   background: transparent;
   border: none;
   outline: none;
@@ -382,47 +370,101 @@ onMounted(() => {
   z-index: 1;
 }
 
-.code-textarea:focus { box-shadow: inset 0 0 0 1px var(--el-color-primary); border-radius: 4px; }
-.code-textarea::placeholder { color: var(--el-text-color-placeholder); }
+.code-textarea:focus {
+  box-shadow: inset 0 0 0 1px var(--color-brand-500);
+  border-radius: var(--radius-sm);
+}
+.code-textarea::placeholder { color: var(--text-placeholder); }
 
 /* 语法高亮颜色 */
-:deep(.sql-keyword) { color: #3b82f6; font-weight: 600; }
-:deep(.sql-string) { color: #22c55e; }
-:deep(.sql-number) { color: #f59e0b; }
-:deep(.sql-comment) { color: #94a3b8; font-style: italic; }
+:deep(.sql-keyword) { color: var(--color-info-500); font-weight: var(--font-semibold); }
+:deep(.sql-string) { color: var(--color-success-700); }
+:deep(.sql-number) { color: var(--color-warning-500); }
+:deep(.sql-comment) { color: var(--text-tertiary); font-style: italic; }
 
-/* 暗色模式 */
-:global(.dark) :deep(.sql-keyword) { color: #60a5fa; }
-:global(.dark) :deep(.sql-string) { color: #4ade80; }
-:global(.dark) :deep(.sql-number) { color: #fbbf24; }
-:global(.dark) :deep(.sql-comment) { color: #64748b; }
+:global(.dark) :deep(.sql-keyword) { color: var(--color-brand-300); }
+:global(.dark) :deep(.sql-string) { color: var(--color-success-500); }
 
 .result-info {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 8px 0;
-  margin-bottom: 8px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
+  gap: var(--space-4);
+  padding: var(--space-2) 0;
+  margin-bottom: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
   flex-wrap: wrap;
 }
-.result-actions { margin-left: auto; display: flex; gap: 8px; }
+.result-info strong { color: var(--text-primary); font-weight: var(--font-semibold); }
+.result-actions { margin-left: auto; display: flex; gap: var(--space-2); }
 
-.panel-loading { text-align: center; padding: 40px; color: var(--el-text-color-placeholder); }
-.panel-empty { text-align: center; padding: 40px; color: var(--el-text-color-placeholder); }
+.panel-loading, .panel-empty {
+  text-align: center;
+  padding: var(--space-10);
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
 
-.schema-item { margin-bottom: 16px; border: 1px solid var(--el-border-color-light); border-radius: 8px; padding: 12px; }
-.schema-table-name { font-weight: 600; font-size: 14px; margin-bottom: 8px; }
-.schema-cols { display: flex; flex-direction: column; gap: 4px; }
-.schema-col { display: flex; align-items: center; gap: 8px; padding: 4px 0; font-size: 13px; }
-.schema-col code { font-size: 12px; }
-.col-required { font-size: 11px; color: #ef4444; }
-.col-auto { font-size: 11px; color: #3b82f6; }
+.schema-item {
+  margin-bottom: var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+.schema-table-name {
+  font-weight: var(--font-semibold);
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-2);
+  color: var(--text-primary);
+}
+.schema-cols { display: flex; flex-direction: column; gap: var(--space-1); }
+.schema-col {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+.schema-col-name { font-size: var(--text-xs); font-family: var(--font-mono); }
+.col-required { font-size: var(--text-xs); color: var(--color-danger-500); }
+.col-auto { font-size: var(--text-xs); color: var(--color-info-500); }
 
-.history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; font-size: 13px; color: var(--el-text-color-secondary); }
-.history-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid var(--el-border-color-light); border-radius: 6px; margin-bottom: 6px; cursor: pointer; transition: all 0.15s; }
-.history-item:hover { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.history-sql { font-size: 12px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.history-meta { font-size: 11px; color: var(--el-text-color-placeholder); white-space: nowrap; margin-left: 12px; }
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.history-list { display: flex; flex-direction: column; gap: var(--space-1); }
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+.history-item:hover {
+  border-color: var(--color-brand-300);
+  background: var(--color-brand-50);
+}
+.history-sql {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.history-meta {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  margin-left: var(--space-3);
+  font-variant-numeric: tabular-nums;
+}
 </style>
