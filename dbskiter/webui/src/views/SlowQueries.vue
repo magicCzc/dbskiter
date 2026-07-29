@@ -6,6 +6,8 @@ import { api, exportCSV } from '@/api'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import type { SlowQuery } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatCard from '@/components/StatCard.vue'
 
 const router = useRouter()
 const dbStore = useDatabaseStore()
@@ -17,6 +19,8 @@ const searchText = ref('')
 const explainVisible = ref(false)
 const explainSql = ref('')
 const explainResult = ref<{ success: boolean; columns?: string[]; rows?: unknown[][]; error?: string } | null>(null)
+const explainLoading = ref(false)
+const lastUpdated = ref('')
 
 const explainedRows = computed<Record<string, unknown>[]>(() => {
   if (!explainResult.value?.rows || !explainResult.value.columns) return []
@@ -27,8 +31,6 @@ const explainedRows = computed<Record<string, unknown>[]>(() => {
     return obj
   })
 })
-const explainLoading = ref(false)
-const lastUpdated = ref('')
 
 const filtered = computed(() => {
   if (!searchText.value) return queries.value
@@ -104,53 +106,48 @@ onMounted(load)
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <el-card shadow="never" class="filter-card">
+    <SectionCard padding>
       <div class="filter-row">
-        <label>数据库：</label>
+        <label>数据库</label>
         <el-select v-model="dbStore.current" size="small" style="width:160px" @change="load">
           <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
         </el-select>
-        <label>数量：</label>
+        <label>Top</label>
         <el-select v-model="top" size="small" style="width:100px" @change="load">
-          <el-option v-for="n in [5,10,20,50]" :key="n" :label="'Top '+n" :value="n" />
+          <el-option v-for="n in [5,10,20,50]" :key="n" :label="`Top ${n}`" :value="n" />
         </el-select>
-        <label>时间：</label>
-        <el-select v-model="hours" size="small" style="width:100px" @change="load">
+        <label>时间</label>
+        <el-select v-model="hours" size="small" style="width:110px" @change="load">
           <el-option v-for="[v,l] of [[1,'1小时'],[6,'6小时'],[24,'24小时'],[72,'3天']]" :key="v" :value="v" :label="l" />
         </el-select>
-        <el-button type="primary" size="small" :loading="loading" @click="load">查询</el-button>
         <el-input v-model="searchText" placeholder="搜索 SQL" size="small" style="width:200px" clearable :prefix-icon="Search" />
         <el-button size="small" @click="exportCSVData" :disabled="!filtered.length">导出 CSV</el-button>
+        <el-button type="primary" size="small" :loading="loading" @click="load">查询</el-button>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-value">{{ summary.total }}</div><div class="kpi-label">慢查询总数</div></div>
-      <div class="kpi-card"><div class="kpi-value">{{ summary.maxTime ? summary.maxTime.toFixed(2)+'s' : '-' }}</div><div class="kpi-label">最慢耗时</div></div>
-      <div class="kpi-card"><div class="kpi-value">{{ summary.avgTime ? summary.avgTime.toFixed(2)+'s' : '-' }}</div><div class="kpi-label">平均耗时</div></div>
-      <div class="kpi-card"><div class="kpi-value">{{ summary.totalRows.toLocaleString() }}</div><div class="kpi-label">总扫描行数</div></div>
+    <div class="stat-grid">
+      <StatCard :value="summary.total" label="慢查询总数" size="sm" />
+      <StatCard :value="summary.maxTime ? summary.maxTime.toFixed(2) + 's' : '-'" label="最慢耗时" size="sm" />
+      <StatCard :value="summary.avgTime ? summary.avgTime.toFixed(2) + 's' : '-'" label="平均耗时" size="sm" />
+      <StatCard :value="summary.totalRows.toLocaleString()" label="总扫描行数" size="sm" />
     </div>
 
-    <el-card shadow="never">
-      <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span>慢查询列表</span>
-          <el-button size="small" @click="load" :loading="loading">刷新</el-button>
-        </div>
+    <SectionCard title="慢查询列表">
+      <template #actions>
+        <el-button size="small" @click="load" :loading="loading">刷新</el-button>
       </template>
       <el-table :data="filtered" v-loading="loading" stripe style="width:100%">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="sql" label="SQL" min-width="250" show-overflow-tooltip>
-          <template #default="{row}"><code style="font-size:12px">{{ row.sql }}</code></template>
+          <template #default="{row}"><code class="slow-sql">{{ row.sql }}</code></template>
         </el-table-column>
         <el-table-column prop="execution_time" label="总耗时" width="90" sortable>
-          <template #default="{row}"><span :style="{color:row.execution_time>5?'#ef4444':row.execution_time>2?'#f59e0b':'#22c55e',fontWeight:600}">{{ row.execution_time.toFixed(2) }}s</span></template>
+          <template #default="{row}">
+            <span class="slow-time" :class="`slow-time--${row.execution_time > 5 ? 'critical' : row.execution_time > 2 ? 'warning' : 'ok'}`">
+              {{ row.execution_time.toFixed(2) }}s
+            </span>
+          </template>
         </el-table-column>
         <el-table-column prop="execution_count" label="次数" width="70" sortable />
         <el-table-column prop="avg_time" label="平均耗时" width="80">
@@ -169,15 +166,14 @@ onMounted(load)
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </SectionCard>
 
-    <!-- Explain 对话框 -->
     <el-dialog v-model="explainVisible" title="EXPLAIN 分析" width="800px" :close-on-click-modal="false">
-      <div v-if="explainLoading" style="text-align:center;padding:40px">加载中...</div>
-      <div v-else-if="explainResult?.error" style="color:#ef4444;padding:20px">{{ explainResult.error }}</div>
+      <div v-if="explainLoading" class="explain-loading">加载中...</div>
+      <div v-else-if="explainResult?.error" class="explain-error">{{ explainResult.error }}</div>
       <template v-else>
-        <div style="margin-bottom:12px">
-          <code style="font-size:12px;background:var(--el-fill-color-light);padding:8px;border-radius:4px;display:block;word-break:break-all">{{ explainSql.substring(0, 500) }}</code>
+        <div class="explain-sql-wrap">
+          <code class="explain-sql">{{ explainSql.substring(0, 500) }}</code>
         </div>
         <el-table :data="explainedRows" stripe border style="width:100%" max-height="400">
           <el-table-column v-for="col in (explainResult?.columns || [])" :key="col" :prop="col" :label="col" min-width="100" show-overflow-tooltip />
@@ -188,16 +184,42 @@ onMounted(load)
 </template>
 
 <style scoped>
-.page { max-width:1200px; margin:0 auto; }
-.filter-card { margin-bottom:16px; }
-.filter-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
-.filter-row label { font-size:14px; color:var(--el-text-color-secondary); }
-.kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:16px; }
-.kpi-card { background:var(--el-bg-color); border-radius:8px; padding:20px; border:1px solid var(--el-border-color-light); text-align:center; }
-.kpi-value { font-size:28px; font-weight:700; color:var(--el-color-primary); }
-.kpi-label { font-size:14px; color:var(--el-text-color-secondary); margin-top:4px; }
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.page { max-width: 1400px; margin: 0 auto; }
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.filter-row label {
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.slow-sql { font-size: var(--text-xs); font-family: var(--font-mono); }
+.slow-time { font-weight: var(--font-semibold); }
+.slow-time--critical { color: var(--color-danger-500); }
+.slow-time--warning { color: var(--color-warning-500); }
+.slow-time--ok { color: var(--color-success-500); }
+
+.explain-loading { text-align: center; padding: var(--space-10); color: var(--text-tertiary); }
+.explain-error { color: var(--color-danger-700); padding: var(--space-5); }
+.explain-sql-wrap { margin-bottom: var(--space-3); }
+.explain-sql {
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  background: var(--bg-code);
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  display: block;
+  word-break: break-all;
+}
 </style>

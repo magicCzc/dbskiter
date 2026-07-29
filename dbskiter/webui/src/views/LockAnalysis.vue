@@ -5,6 +5,9 @@ import { api } from '@/api'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import type { LockInfo } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatCard from '@/components/StatCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 const dbStore = useDatabaseStore()
 const locks = ref<LockInfo[]>([])
@@ -20,7 +23,6 @@ const maxWait = computed(() => {
   return Math.max(...locks.value.map(l => l.blocking_duration || 0))
 })
 const blockedQueries = computed(() => locks.value.filter(l => l.blocked_query).length)
-
 const criticalLocks = computed(() => {
   const threshold = 30
   return locks.value.filter(l => (l.blocking_duration || 0) > threshold).length
@@ -70,9 +72,7 @@ async function killQuery(pid: number, query: string) {
     } else {
       ElMessage.error(`终止失败: ${result.error || '未知错误'}`)
     }
-  } catch {
-    // 用户取消
-  }
+  } catch { /* 用户取消 */ }
 }
 
 onMounted(() => { dbStore.loadDatabases(); load() })
@@ -80,20 +80,13 @@ onMounted(() => { dbStore.loadDatabases(); load() })
 
 <template>
   <div class="page">
-    <!-- 实时反馈指示器 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <!-- 严重告警横幅 -->
     <el-alert
       v-if="criticalLocks > 0"
       :title="`发现 ${criticalLocks} 个长时间锁等待（超过 30s），建议立即处理`"
       type="error"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="lock-alert"
     />
     <el-alert
       v-else-if="totalLocks > 0 && totalLocks <= 3"
@@ -101,14 +94,13 @@ onMounted(() => { dbStore.loadDatabases(); load() })
       type="warning"
       show-icon
       closable
-      style="margin-bottom:16px"
+      class="lock-alert"
     />
 
-    <!-- 控制栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <label>数据库：</label>
+    <SectionCard padding>
+      <div class="lock-controls">
+        <div class="lock-controls__left">
+          <label>数据库</label>
           <el-select v-model="dbStore.current" size="small" style="width:160px" @change="load">
             <el-option v-for="d in dbStore.databases" :key="d" :label="d" :value="d" />
           </el-select>
@@ -116,53 +108,57 @@ onMounted(() => { dbStore.loadDatabases(); load() })
             <el-icon><Refresh /></el-icon> 刷新
           </el-button>
         </div>
-        <div class="control-right">
-          <el-tag v-if="totalLocks > 0" :type="criticalLocks > 0 ? 'danger' : 'warning'" size="medium" effect="dark">
+        <div class="lock-controls__right">
+          <el-tag v-if="totalLocks > 0" :type="criticalLocks > 0 ? 'danger' : 'warning'" effect="dark">
             {{ totalLocks }} 个锁等待
           </el-tag>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- KPI 卡片 -->
-    <div class="kpi-grid">
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: totalLocks > 5 ? '#ef4444' : '#6366f1' }">{{ totalLocks }}</div>
-        <div class="kpi-label">当前锁等待</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: maxWait > 30 ? '#ef4444' : maxWait > 10 ? '#f59e0b' : '#6366f1' }">
-          {{ maxWait ? maxWait.toFixed(1) + 's' : '-' }}
-        </div>
-        <div class="kpi-label">最长等待</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: blockedQueries > 0 ? '#ef4444' : '#6366f1' }">{{ blockedQueries }}</div>
-        <div class="kpi-label">阻塞查询数</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-value" :style="{ color: deadlockCount > 0 ? '#ef4444' : '#6366f1' }">{{ deadlockCount }}</div>
-        <div class="kpi-label">死锁记录</div>
-      </div>
+    <div class="stat-grid">
+      <StatCard
+        :value="totalLocks"
+        label="当前锁等待"
+        size="sm"
+        :color="totalLocks > 5 ? 'var(--color-danger-500)' : 'var(--color-brand-500)'"
+      />
+      <StatCard
+        :value="maxWait ? maxWait.toFixed(1) + 's' : '-'"
+        label="最长等待"
+        size="sm"
+        :color="maxWait > 30 ? 'var(--color-danger-500)' : maxWait > 10 ? 'var(--color-warning-500)' : 'var(--color-brand-500)'"
+      />
+      <StatCard
+        :value="blockedQueries"
+        label="阻塞查询数"
+        size="sm"
+        :color="blockedQueries > 0 ? 'var(--color-danger-500)' : 'var(--color-brand-500)'"
+      />
+      <StatCard
+        :value="deadlockCount"
+        label="死锁记录"
+        size="sm"
+        :color="deadlockCount > 0 ? 'var(--color-danger-500)' : 'var(--color-brand-500)'"
+      />
     </div>
 
-    <!-- 锁详情 -->
-    <el-card shadow="never" class="section-card">
+    <SectionCard padding>
       <el-tabs v-model="activeTab" type="border-card">
         <el-tab-pane label="当前锁等待" name="current">
-          <el-table :data="locks" v-loading="loading" stripe style="width:100%" :empty-text="loading ? '加载中...' : '当前无锁等待 ✅'">
+          <el-table :data="locks" v-loading="loading" stripe style="width:100%">
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="blocking_pid" label="阻塞进程" width="100" />
             <el-table-column prop="blocked_pid" label="被阻塞进程" width="100" />
             <el-table-column prop="blocking_query" label="阻塞 SQL" min-width="250" show-overflow-tooltip>
-              <template #default="{row}"><code style="font-size:12px">{{ row.blocking_query || '-' }}</code></template>
+              <template #default="{row}"><code class="lock-sql">{{ row.blocking_query || '-' }}</code></template>
             </el-table-column>
             <el-table-column prop="blocked_query" label="被阻塞 SQL" min-width="250" show-overflow-tooltip>
-              <template #default="{row}"><code style="font-size:12px">{{ row.blocked_query || '-' }}</code></template>
+              <template #default="{row}"><code class="lock-sql">{{ row.blocked_query || '-' }}</code></template>
             </el-table-column>
             <el-table-column prop="blocking_duration" label="等待时间" width="100" sortable>
               <template #default="{row}">
-                <span :style="{ color: row.blocking_duration > 30 ? '#ef4444' : row.blocking_duration > 10 ? '#f59e0b' : '#22c55e', fontWeight: 600 }">
+                <span class="lock-time" :class="`lock-time--${row.blocking_duration > 30 ? 'critical' : row.blocking_duration > 10 ? 'warning' : 'ok'}`">
                   {{ row.blocking_duration ? row.blocking_duration.toFixed(1) + 's' : '-' }}
                 </span>
               </template>
@@ -177,40 +173,54 @@ onMounted(() => { dbStore.loadDatabases(); load() })
           </el-table>
         </el-tab-pane>
         <el-tab-pane :label="`死锁历史 (${deadlockCount})`" name="history">
-          <el-table :data="deadlocks" v-loading="loading" stripe style="width:100%" :empty-text="'暂无死锁记录 ✅'">
+          <el-table :data="deadlocks" v-loading="loading" stripe style="width:100%">
             <el-table-column type="index" label="#" width="50" />
             <el-table-column prop="blocking_pid" label="阻塞进程" width="100" />
             <el-table-column prop="blocked_pid" label="被阻塞进程" width="100" />
             <el-table-column prop="blocking_query" label="SQL" min-width="300" show-overflow-tooltip>
-              <template #default="{row}"><code style="font-size:12px">{{ row.blocking_query || '-' }}</code></template>
+              <template #default="{row}"><code class="lock-sql">{{ row.blocking_query || '-' }}</code></template>
             </el-table-column>
             <el-table-column prop="timestamp" label="发生时间" width="180" />
             <el-table-column prop="severity" label="级别" width="90">
               <template #default="{row}">
-                <el-tag :type="row.severity === 'deadlock' ? 'danger' : 'warning'" size="small">{{ row.severity || 'deadlock' }}</el-tag>
+                <StatusTag :status="row.severity || 'critical'" />
               </template>
             </el-table-column>
           </el-table>
         </el-tab-pane>
       </el-tabs>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
-.control-row label { font-size: 14px; color: var(--el-text-color-secondary); }
+.lock-alert { margin-bottom: var(--space-4); }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.kpi-card { background: var(--el-bg-color); border-radius: 8px; padding: 20px; border: 1px solid var(--el-border-color-light); text-align: center; }
-.kpi-value { font-size: 28px; font-weight: 700; }
-.kpi-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.lock-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.lock-controls__left, .lock-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.lock-controls label { font-size: var(--text-sm); color: var(--text-secondary); }
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.lock-sql { font-size: var(--text-xs); font-family: var(--font-mono); }
+.lock-time { font-weight: var(--font-semibold); font-variant-numeric: tabular-nums; }
+.lock-time--critical { color: var(--color-danger-500); }
+.lock-time--warning { color: var(--color-warning-500); }
+.lock-time--ok { color: var(--color-success-500); }
 </style>
