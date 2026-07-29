@@ -13,6 +13,16 @@
 - 更新 CI 工作流：`actions/checkout@v4` → `@v5`，`actions/setup-node@v4` → `@v5`
 - CI 增加 `main` 分支 push 触发器
 
+### 🧹 仓库清理
+- 删除空目录 `web/`、`docs/archive/`
+- 删除已追踪的遗留二进制文件 `image.png`（246KB）
+- 移动中文文档到 `docs/guides/`，修复所有引用链接
+- 替换 `setup.py` 为 shim（兼容旧版 pip），配置迁移到 `pyproject.toml`
+- 删除重复的 `.coveragerc`（已合并到 `pyproject.toml`）
+- 清理 `.gitignore`：删除重复条目，补充缺失覆盖
+- 替换 `requirements.txt` 为依赖说明（指向 `pyproject.toml`）
+- 删除本地已合并的 feature 分支
+
 ## [3.0.43] - 2026-07-24
 
 ### 🐛 Bug 修复
