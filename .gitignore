@@ -77,18 +77,8 @@ monitor_data/
 # tests/  # 已从 gitignore 移除，确保 CI 可运行测试
 
 # Docs (track source files, ignore generated site)
-docs/
-!docs/source/
-!docs/guides/
-!docs/examples/
-!docs/archive/
-!docs/demo.md
-!docs/configuration.md
-!docs/index.md
-!docs/resources.md
-!docs/architecture.md
-!docs/faq.md
-!docs/security.md
+# docs/ 目录不再整体忽略，CI 构建需要所有文件
+# 构建产物 site/ 已在下方单独忽略
 
 # MkDocs build output
 site/

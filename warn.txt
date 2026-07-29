@@ -1,0 +1,50 @@
+
+ │  \u26a0  Warning from the Material for MkDocs team
+ │
+ │  MkDocs 2.0, the underlying framework of Material for MkDocs,
+ │  will introduce backward-incompatible changes, including:
+ │
+ │  × All plugins will stop working – the plugin system has been removed
+ │  × All theme overrides will break – the theming system has been rewritten
+ │  × No migration path exists – existing projects cannot be upgraded
+ │  × Closed contribution model – community members can't report bugs
+ │  × Currently unlicensed – unsuitable for production use
+ │
+ │  Our full analysis:
+ │
+ │  https://squidfunk.github.io/mkdocs-material/blog/2026/02/18/mkdocs-2.0/
+
+INFO    -  Cleaning site directory
+INFO    -  Building documentation to directory: E:\Chenzc-AIDev\DBskiter\site
+INFO    -  The following pages exist in the docs directory, but are not included in the "nav" configuration:
+  - api\README.md
+  - examples\index_en.md
+  - examples\01-quickstart\01-installation.md
+  - examples\01-quickstart\02-first-command.md
+  - examples\01-quickstart\03-multi-database.md
+  - examples\02-troubleshooting\01-slow-queries.md
+  - examples\02-troubleshooting\02-cpu-spike.md
+  - examples\02-troubleshooting\03-disk-space.md
+  - examples\02-troubleshooting\04-connections.md
+  - examples\03-security\01-monthly-inspection.md
+  - examples\03-security\02-security-audit.md
+  - examples\04-locks\01-lock-wait.md
+  - examples\05-capacity\01-disk-prediction.md
+  - examples\05-capacity\02-table-bloat.md
+  - examples\06-backup\01-scheduled-backup.md
+  - guides\AI集成指南.md
+  - guides\CLI使用指南.md
+  - guides\ai_integration_en.md
+  - guides\webui.md
+  - source\index.md
+  - videos\scripts\01-5分钟上手.md
+WARNING -  Doc file 'architecture.md' contains a link '../guides/CLI使用指南.md', but the target is not found among documentation files. Did you mean 'guides/CLI使用指南.md'?
+WARNING -  Doc file 'architecture.md' contains a link '../guides/AI集成指南.md', but the target is not found among documentation files. Did you mean 'guides/AI集成指南.md'?
+INFO    -  Doc file 'faq.md' contains a link '#q5-数据库连接失败怎么办', but there is no such anchor on this page.
+INFO    -  Doc file 'faq.md' contains a link 'architecture.md#11-未来演进', but the doc 'architecture.md' does not contain an anchor '#11-未来演进'.
+INFO    -  Doc file 'guides/troubleshooting.md' contains a link '#连接问题', but there is no such anchor on this page.
+INFO    -  Doc file 'guides/troubleshooting.md' contains a link '#性能问题', but there is no such anchor on this page.
+INFO    -  Doc file 'guides/troubleshooting.md' contains a link '#命令执行问题', but there is no such anchor on this page.
+INFO    -  Doc file 'guides/troubleshooting.md' contains a link '#配置问题', but there is no such anchor on this page.
+INFO    -  Doc file 'guides/troubleshooting.md' contains a link '#升级问题', but there is no such anchor on this page.
+INFO    -  Doc file 'guides/troubleshooting.md' contains a link '#调试技巧', but there is no such anchor on this page.
