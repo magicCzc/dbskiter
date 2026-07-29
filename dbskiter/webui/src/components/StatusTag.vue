@@ -42,7 +42,6 @@ const colorMap: Record<string, string> = {
   yes: 'success',
   no: 'info',
   enabled: 'success',
-  disabled: 'info',
   admin: 'danger',
   editor: 'warning',
   viewer: 'info',
