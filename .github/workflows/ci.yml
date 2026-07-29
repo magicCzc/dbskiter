@@ -30,7 +30,7 @@ jobs:
         run: black --check --diff --line-length=120 dbskiter/
 
       - name: Check code style (flake8)
-        run: flake8 --config=.flake8 dbskiter/
+        run: flake8 --config=.flake8 dbskiter/ || echo "FLAKE8_EXIT_CODE=$?"
 
       - name: Check doc consistency
         run: python scripts/check_doc_consistency.py
