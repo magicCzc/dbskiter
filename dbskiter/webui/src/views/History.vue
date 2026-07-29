@@ -4,6 +4,8 @@ import { useDatabaseStore } from '@/stores/database'
 import { api } from '@/api'
 import { ElMessage } from 'element-plus'
 import type { LogEntry } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 const dbStore = useDatabaseStore()
 const entries = ref<LogEntry[]>([])
@@ -61,67 +63,55 @@ onMounted(() => { dbStore.loadDatabases(); load() })
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <!-- 控制栏 -->
-    <el-card shadow="never" class="section-card">
-      <div class="control-row">
-        <div class="control-left">
-          <h2 style="margin:0;font-size:16px;display:flex;align-items:center;gap:8px">📜 操作历史</h2>
+    <SectionCard padding>
+      <div class="history-controls">
+        <div class="history-controls__left">
+          <h2 class="history-title">操作历史</h2>
         </div>
-        <div class="control-right">
-          <label>命令：</label>
+        <div class="history-controls__right">
+          <label>命令</label>
           <el-select v-model="filterCmd" size="small" style="width:140px" @change="load">
             <el-option label="全部命令" value="all" />
             <template v-for="cmd in commands" :key="cmd">
               <el-option v-if="cmd !== 'all'" :label="cmd" :value="cmd" />
             </template>
           </el-select>
+          <span v-if="lastUpdated" class="history-updated">{{ lastUpdated }} 更新</span>
           <el-button type="primary" size="small" :loading="loading" @click="load">刷新</el-button>
         </div>
       </div>
-    </el-card>
+    </SectionCard>
 
-    <!-- KPI 卡片 -->
-    <div class="kpi-grid">
-      <div class="kpi-card"><div class="kpi-value" style="color:#6366f1">{{ stats.total }}</div><div class="kpi-label">总操作数</div></div>
-      <div class="kpi-card"><div class="kpi-value" style="color:#3b82f6">{{ stats.diagnose }}</div><div class="kpi-label">诊断</div></div>
-      <div class="kpi-card"><div class="kpi-value" style="color:#22c55e">{{ stats.monitor }}</div><div class="kpi-label">监控</div></div>
-      <div class="kpi-card"><div class="kpi-value" style="color:#f59e0b">{{ stats.security }}</div><div class="kpi-label">安全审计</div></div>
-      <div class="kpi-card"><div class="kpi-value" style="color:#ef4444">{{ stats.failed }}</div><div class="kpi-label">失败</div></div>
+    <div class="stat-grid">
+      <div class="stat-item"><div class="stat-item__value">{{ stats.total }}</div><div class="stat-item__label">总操作数</div></div>
+      <div class="stat-item"><div class="stat-item__value" style="color:var(--color-brand-500)">{{ stats.diagnose }}</div><div class="stat-item__label">诊断</div></div>
+      <div class="stat-item"><div class="stat-item__value" style="color:var(--color-success-500)">{{ stats.monitor }}</div><div class="stat-item__label">监控</div></div>
+      <div class="stat-item"><div class="stat-item__value" style="color:var(--color-warning-500)">{{ stats.security }}</div><div class="stat-item__label">安全审计</div></div>
+      <div class="stat-item"><div class="stat-item__value" style="color:var(--color-danger-500)">{{ stats.failed }}</div><div class="stat-item__label">失败</div></div>
     </div>
 
-    <!-- 历史表格 -->
-    <el-card shadow="never" class="section-card">
-      <el-table :data="filtered" v-loading="loading" stripe style="width:100%" :empty-text="'暂无历史记录'"
+    <SectionCard padding>
+      <el-table :data="filtered" v-loading="loading" stripe style="width:100%"
         :default-sort="{ prop: 'timestamp', order: 'descending' }">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="timestamp" label="时间" width="180" sortable>
           <template #default="{row}">
-            <span style="font-size:12px">{{ row.timestamp ? row.timestamp.replace('T', ' ').substring(0, 19) : '-' }}</span>
+            <span class="history-time">{{ row.timestamp ? row.timestamp.replace('T', ' ').substring(0, 19) : '-' }}</span>
           </template>
         </el-table-column>
         <el-table-column prop="command" label="命令" width="100">
           <template #default="{row}">
-            <el-tag :type="row.command === 'diagnose' ? 'primary' : row.command === 'monitor' ? 'success' : row.command === 'security' ? 'warning' : 'info'" size="small">
-              {{ row.command || '-' }}
-            </el-tag>
+            <StatusTag :status="row.command || 'info'" />
           </template>
         </el-table-column>
         <el-table-column prop="action" label="动作" width="120" />
         <el-table-column prop="database" label="数据库" width="120" />
         <el-table-column label="参数" min-width="200" show-overflow-tooltip>
-          <template #default="{row}"><code style="font-size:11px">{{ formatArgs(row.args) }}</code></template>
+          <template #default="{row}"><code class="history-code">{{ formatArgs(row.args) }}</code></template>
         </el-table-column>
         <el-table-column label="状态" width="80">
           <template #default="{row}">
-            <el-tag :type="row.status_code === 0 ? 'success' : 'danger'" size="small">
-              {{ row.status_code === 0 ? '✅' : '❌' }}
-            </el-tag>
+            <StatusTag :status="row.status_code === 0 ? 'success' : 'error'" :label="row.status_code === 0 ? '成功' : '失败'" />
           </template>
         </el-table-column>
         <el-table-column label="耗时" width="100" sortable>
@@ -131,24 +121,62 @@ onMounted(() => { dbStore.loadDatabases(); load() })
           </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
 .page { max-width: 1400px; margin: 0 auto; }
-.section-card { margin-bottom: 16px; }
-.control-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.control-left, .control-right { display: flex; align-items: center; gap: 12px; }
-.control-row label { font-size: 14px; color: var(--el-text-color-secondary); }
 
-.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 16px; }
-.kpi-card { background: var(--el-bg-color); border-radius: 8px; padding: 20px; border: 1px solid var(--el-border-color-light); text-align: center; }
-.kpi-value { font-size: 28px; font-weight: 700; }
-.kpi-label { font-size: 14px; color: var(--el-text-color-secondary); margin-top: 4px; }
+.history-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.history-controls__left, .history-controls__right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.history-controls label { font-size: var(--text-sm); color: var(--text-secondary); }
+.history-title {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+}
+.history-updated {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
+.history-time { font-size: var(--text-xs); }
+.history-code { font-size: var(--text-xs); font-family: var(--font-mono); }
 
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+.stat-item {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  text-align: center;
+}
+.stat-item__value {
+  font-size: var(--text-2xl);
+  font-weight: var(--font-semibold);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+  margin-bottom: var(--space-1);
+}
+.stat-item__label {
+  font-size: var(--text-xs);
+  color: var(--text-tertiary);
+}
 </style>

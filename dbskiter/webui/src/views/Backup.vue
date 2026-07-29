@@ -4,6 +4,8 @@ import { useDatabaseStore } from '@/stores/database'
 import { api, formatBytes, exportCSV } from '@/api'
 import { ElMessage } from 'element-plus'
 import type { BackupRecord } from '@/types'
+import SectionCard from '@/components/SectionCard.vue'
+import StatusTag from '@/components/StatusTag.vue'
 
 const dbStore = useDatabaseStore()
 const backupType = ref('full')
@@ -18,7 +20,7 @@ async function createBackup() {
   try {
     const data = await api.createBackup(dbStore.current, backupType.value, tables.value || undefined)
     if (data.success) {
-      result.value = { type: 'success', msg: `备份成功！\nID: ${data.backup_id}\n文件: ${data.file_path}\n大小: ${formatBytes(data.file_size)}` }
+      result.value = { type: 'success', msg: `备份成功\nID: ${data.backup_id}\n文件: ${data.file_path}\n大小: ${formatBytes(data.file_size)}` }
       ElMessage.success('备份成功')
     } else {
       result.value = { type: 'error', msg: `备份失败: ${data.error || '未知错误'}` }
@@ -30,8 +32,11 @@ async function createBackup() {
 
 async function loadBackups() {
   loading.value = true
-  try { const data = await api.listBackups(dbStore.current); backups.value = data.backups || []; lastUpdated.value = new Date().toLocaleTimeString() }
-  catch { /* 静默 */ }
+  try {
+    const data = await api.listBackups(dbStore.current)
+    backups.value = data.backups || []
+    lastUpdated.value = new Date().toLocaleTimeString()
+  } catch { /* 静默 */ }
   finally { loading.value = false }
 }
 
@@ -50,14 +55,7 @@ function exportCSVData() {
 
 <template>
   <div class="page">
-    <!-- 实时反馈 -->
-    <div class="live-bar" v-if="lastUpdated">
-      <span class="live-dot"></span>
-      <span class="live-text">{{ lastUpdated }} 更新</span>
-    </div>
-
-    <el-card shadow="never" class="section-card">
-      <template #header><span>💾 创建备份</span></template>
+    <SectionCard title="创建备份">
       <el-form :inline="true" size="small">
         <el-form-item label="数据库">
           <el-select v-model="dbStore.current" style="width:160px">
@@ -79,42 +77,37 @@ function exportCSVData() {
         </el-form-item>
       </el-form>
       <el-alert v-if="result" :title="result.msg" :type="(result.type as 'info' | 'success' | 'error' | 'warning')" show-icon style="white-space:pre-line" />
-    </el-card>
+    </SectionCard>
 
-    <el-card shadow="never" class="section-card">
-      <template #header>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <span>备份记录 <el-tag size="small">{{ backups.length }}</el-tag></span>
-          <div style="display:flex;gap:8px">
-            <el-button size="small" @click="exportCSVData" :disabled="!backups.length">导出 CSV</el-button>
-            <el-button size="small" @click="loadBackups" :loading="loading">刷新</el-button>
-          </div>
-        </div>
+    <SectionCard title="备份记录">
+      <template #actions>
+        <span v-if="lastUpdated" class="backup-updated">{{ lastUpdated }} 更新</span>
+        <el-button size="small" @click="exportCSVData" :disabled="!backups.length">导出 CSV</el-button>
+        <el-button size="small" @click="loadBackups" :loading="loading">刷新</el-button>
       </template>
       <el-table :data="backups" v-loading="loading" stripe style="width:100%">
         <el-table-column prop="backup_id" label="备份 ID" min-width="200">
-          <template #default="{row}"><code style="font-size:11px">{{ row.backup_id || '-' }}</code></template>
+          <template #default="{row}"><code class="backup-code">{{ row.backup_id || '-' }}</code></template>
         </el-table-column>
         <el-table-column prop="backup_type" label="类型" width="100">
-          <template #default="{row}"><el-tag size="small">{{ row.backup_type || 'full' }}</el-tag></template>
+          <template #default="{row}"><StatusTag :status="row.backup_type || 'full'" /></template>
         </el-table-column>
         <el-table-column prop="file_path" label="文件路径" min-width="200" show-overflow-tooltip />
         <el-table-column prop="file_size" label="大小" width="100">
           <template #default="{row}">{{ formatBytes(row.file_size || 0) }}</template>
         </el-table-column>
         <el-table-column label="状态" width="100">
-          <template #default="{row}"><el-tag :type="row.success ? 'success' : 'danger'" size="small">{{ row.success ? '成功' : '失败' }}</el-tag></template>
+          <template #default="{row}">
+            <StatusTag :status="row.success ? 'success' : 'error'" :label="row.success ? '成功' : '失败'" />
+          </template>
         </el-table-column>
       </el-table>
-    </el-card>
+    </SectionCard>
   </div>
 </template>
 
 <style scoped>
-.page { max-width:1200px; margin:0 auto; }
-.section-card { margin-bottom:16px; }
-.live-bar { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-placeholder); margin-bottom: 8px; }
-.live-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; animation: pulse 2s infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-.live-text { font-size: 12px; }
+.page { max-width: 1200px; margin: 0 auto; }
+.backup-code { font-size: var(--text-xs); font-family: var(--font-mono); }
+.backup-updated { font-size: var(--text-xs); color: var(--text-tertiary); }
 </style>
