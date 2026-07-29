@@ -82,6 +82,7 @@ docs/
 !docs/guides/
 !docs/examples/
 !docs/archive/
+!docs/demo.md
 !docs/configuration.md
 !docs/index.md
 !docs/resources.md
