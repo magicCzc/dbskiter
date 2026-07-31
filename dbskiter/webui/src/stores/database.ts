@@ -1,16 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { api } from '@/api'
+import { getString, setString } from '@/utils/storage'
 
 export const useDatabaseStore = defineStore('database', () => {
   const databases = ref<string[]>(['default'])
-  const current = ref(localStorage.getItem('dbskiter-db') || 'default')
+  const current = ref(getString('db', 'default'))
   const connectionStatus = ref<Record<string, 'unknown' | 'online' | 'offline'>>({})
   const loading = ref(false)
 
   function setCurrent(db: string) {
     current.value = db
-    localStorage.setItem('dbskiter-db', db)
+    setString('db', db)
   }
 
   async function loadDatabases() {

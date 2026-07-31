@@ -15,6 +15,12 @@ from pathlib import Path
 from fastapi import APIRouter, Query, HTTPException
 from pydantic import BaseModel, Field
 
+from .database import (
+    get_all_db_configs,
+    save_db_config,
+    delete_db_config,
+    log_audit,
+)
 from .connector_helper import get_connector, test_connection
 
 logger = logging.getLogger(__name__)
@@ -232,7 +238,6 @@ async def get_health(
 @router.get("/health/all", response_model=dict)
 async def get_all_health():
     """所有数据库健康状态概览"""
-    from .database import get_all_db_configs
     from dbskiter.db_monitor.skill import MonitorSkill
 
     configs = get_all_db_configs()
@@ -563,8 +568,6 @@ async def get_recent_logs(
 @router.get("/databases", response_model=dict)
 async def list_databases():
     """可用数据库列表"""
-    from .database import get_all_db_configs
-
     configs = get_all_db_configs()
     databases = sorted(configs.keys())
 
@@ -677,13 +680,28 @@ async def get_schema(
 
 @router.post("/sql/execute", response_model=dict)
 async def execute_sql(
-    database: str = Query("default"),
-    sql: str = Query(..., description="SQL 语句"),
-    limit: int = Query(100, ge=1, le=10000, description="返回行数上限"),
-    read_only: bool = Query(True, description="是否只读模式"),
+    payload: dict,
+    database: str = Query("default", description="数据库别名"),
 ):
-    """执行 SQL 查询（默认只读模式，写操作需显式关闭 read_only）"""
+    """
+    执行 SQL 查询（默认只读模式，写操作需显式传 read_only=false）
+
+    Body:
+        {
+            "sql": "SELECT 1",
+            "limit": 100,
+            "read_only": true
+        }
+    """
     from dbskiter.sql_master.skill import SQLMasterSkill
+
+    sql = payload.get("sql", "").strip()
+    if not sql:
+        raise HTTPException(status_code=400, detail="SQL 语句不能为空")
+    limit = int(payload.get("limit", 100))
+    if limit < 1 or limit > 10000:
+        raise HTTPException(status_code=400, detail="limit 必须在 1-10000 之间")
+    read_only = bool(payload.get("read_only", True))
 
     success, data, error = _execute_skill(
         database,
@@ -708,13 +726,6 @@ async def execute_sql(
 
 
 # ── 数据库配置管理 ─────────────────────────────────────────────
-
-from .database import (
-    get_all_db_configs,
-    save_db_config,
-    delete_db_config as db_delete_config,
-    log_audit,
-)
 
 
 @router.get("/config/databases", response_model=dict)
@@ -767,13 +778,13 @@ async def update_db_config(alias: str, config: dict):
 
 
 @router.delete("/config/databases/{alias}", response_model=dict)
-async def delete_db_config(alias: str):
+async def remove_db_config(alias: str):
     """删除数据库配置"""
     existing = get_all_db_configs()
     if alias not in existing:
         raise HTTPException(status_code=404, detail=f"数据库 '{alias}' 不存在")
 
-    if db_delete_config(alias):
+    if delete_db_config(alias):
         log_audit(None, "system", "delete", f"database:{alias}", f"删除数据库 {alias}")
         return {"success": True, "alias": alias, "message": f"数据库 '{alias}' 已删除"}
     raise HTTPException(status_code=500, detail="保存配置失败")

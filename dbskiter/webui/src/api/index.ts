@@ -9,14 +9,53 @@ import type {
 import { IS_DEMO, shouldMock, handleMock } from '@/mock'
 
 const API_BASE = '/api'
-const CACHE_TTL = 30000 // 30 秒缓存
+
+// ── 精细化缓存 TTL 配置 ──────────────────────────────
+// 按端点前缀设置不同缓存时长，匹配最长前缀
+const TTL_CONFIG: Record<string, number> = {
+  health: 10_000,       // 健康指标变化快
+  status: 10_000,       // 运行状态
+  connections: 10_000,  // 连接数实时变化
+
+  'monitor/trends': 30_000,   // 监控趋势
+  'monitor/anomalies': 30_000, // 异常检测
+  'monitor/capacity': 30_000,  // 容量预测
+  'slow-queries': 30_000,      // 慢查询分析
+  diagnose: 30_000,            // 实时诊断
+  inspector: 30_000,           // 巡检报告
+  security: 30_000,            // 安全审计
+
+  backups: 15_000,       // 备份列表
+  tasks: 15_000,         // 调度任务
+  alerts: 15_000,        // 告警列表
+  logs: 15_000,          // 操作日志
+  'auth/users': 15_000,  // 用户管理
+  locks: 15_000,         // 锁分析（实时变化）
+
+  'config/databases': 60_000,  // 数据库配置（变化慢）
+  databases: 60_000,           // 数据库列表
+  space: 60_000,               // 空间分析（变化慢）
+  'sql/schema': 120_000,       // 表结构（极少变化）
+}
+
+// 默认 TTL
+const DEFAULT_TTL = 30_000
+
+/** 根据路径匹配最长前缀的 TTL */
+function _getTTL(path: string): number {
+  const sorted = Object.keys(TTL_CONFIG).sort((a, b) => b.length - a.length)
+  for (const prefix of sorted) {
+    if (path.startsWith(prefix)) return TTL_CONFIG[prefix]
+  }
+  return DEFAULT_TTL
+}
 
 // 简单缓存层
-const cache = new Map<string, { data: unknown; time: number }>()
+const cache = new Map<string, { data: unknown; time: number; ttl: number }>()
 
 function getCached<T>(key: string): T | null {
   const hit = cache.get(key)
-  if (hit && Date.now() - hit.time < CACHE_TTL) {
+  if (hit && Date.now() - hit.time < hit.ttl) {
     return hit.data as T
   }
   cache.delete(key)
@@ -24,7 +63,7 @@ function getCached<T>(key: string): T | null {
 }
 
 function setCache(key: string, data: unknown) {
-  cache.set(key, { data, time: Date.now() })
+  cache.set(key, { data, time: Date.now(), ttl: _getTTL(key) })
   // 限制缓存大小
   if (cache.size > 50) {
     const oldest = cache.keys().next().value
@@ -145,7 +184,7 @@ export const api = {
     request<{ logs: LogEntry[] }>(`/logs?database=${encodeURIComponent(db)}&hours=${hours}`),
 
   databases: () =>
-    request<DatabasesResponse>('/databases', { headers: { 'X-No-Cache': 'true' } as unknown as HeadersInit }),
+    request<DatabasesResponse>('/databases'),
 
   anomalies: (db = 'default', hours = 6) =>
     request<{ success: boolean; data?: { anomalies?: AnomalyInfo[]; raw_metrics?: { anomalies?: AnomalyInfo[] } } }>(`/monitor/anomalies?database=${encodeURIComponent(db)}&hours=${hours}`),
@@ -175,10 +214,12 @@ export const api = {
 
   // ── Phase 2: SQL 编辑器 API ─────────────────────────
 
-  executeSQL: async (db: string, sql: string, limit = 100, readOnly = true) => {
-    const url = `/sql/execute?database=${encodeURIComponent(db)}&sql=${encodeURIComponent(sql)}&limit=${limit}&read_only=${readOnly}`
-    return request<SqlExecuteResponse>(url, { method: 'POST' })
-  },
+  executeSQL: async (db: string, sql: string, limit = 100, readOnly = true) =>
+    request<SqlExecuteResponse>(`/sql/execute?database=${encodeURIComponent(db)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sql, limit, read_only: readOnly }),
+    }),
 
   getSchema: (db = 'default', table?: string) => {
     let url = `/sql/schema?database=${encodeURIComponent(db)}`

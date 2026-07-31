@@ -355,6 +355,18 @@ def get_metric_history(db_alias: str, metric: str, hours: int = 24) -> List[dict
         return [{"timestamp": r.collected_at.isoformat(), "value": r.value, "unit": r.unit} for r in records]
 
 
+def cleanup_old_metrics(retention_days: int = 30):
+    """清理超过 retention_days 的旧指标数据"""
+    from datetime import timedelta
+
+    cutoff = datetime.utcnow() - timedelta(days=retention_days)
+    with session_scope() as session:
+        deleted = session.query(MetricHistory).filter(MetricHistory.collected_at < cutoff).delete()
+        if deleted:
+            logger.info(f"清理 {deleted} 条过期指标数据（>{retention_days}天）")
+        return deleted
+
+
 # ── 告警操作 ──────────────────────────────────────────
 
 

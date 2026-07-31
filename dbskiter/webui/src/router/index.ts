@@ -1,5 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router'
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { getString } from '@/utils/storage'
 
 export const routes: RouteRecordRaw[] = [
   {
@@ -122,7 +123,7 @@ export const router = createRouter({ history: createWebHashHistory('/ui/'), rout
 
 // 路由守卫：检查登录状态
 router.beforeEach((to, _from, next) => {
-  const token = localStorage.getItem('dbskiter-token')
+  const token = getString('token')
   if (to.meta.noAuth) {
     next()
   } else if (!token && to.path !== '/login') {

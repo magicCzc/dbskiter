@@ -4,7 +4,32 @@
 
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
-## [3.0.44] - 2026-07-29
+## [3.0.45] - 2026-07-31
+
+### 🔒 安全加固
+- **JWT 密钥强制**：新增 `DBSKITER_REQUIRE_JWT_SECRET=1` 环境变量，生产环境未设置密钥时拒绝启动
+- **CORS 显式配置**：`DBSKITER_CORS_ORIGINS` 环境变量替代通配符 `*`，支持多域名列表；显式控制 `allow_credentials`
+- **XSS 防护**：SQL 执行接口 `/sql/execute` 从 Query 参数改为 Body 参数（JSON），避免 URL 中记录 SQL 内容
+
+### 🐛 Bug 修复
+- **备份 Mixin 架构**：修复 8 个 Mixin 文件中 17 个方法缺少 `@staticmethod` 装饰器导致的运行时错误；补全 8 个文件缺失的 `import os`/`import subprocess`/`import hashlib`/`from datetime import date` 等依赖
+- **调度器事件循环泄漏**：`collector.py` 替换 `asyncio.get_event_loop().run_in_executor()` 为 `asyncio.to_thread()`，消除线程上下文中的事件循环引用错误
+- **ORM detached instance**：`scheduler.py` `_add_job_to_scheduler` 将 ORM 属性提前缓存到本地变量，避免 session 关闭后访问 detached 对象
+- **路由命名冲突**：`delete_db_config` 路由更名为 `remove_db_config`，移除冗余的 `db_delete_config` 别名
+- **api.py 重复 import**：清理模块级和行内惰性 import 重复，修复 `remove_db_config` 路由体中调用的错误函数名
+
+### ♻️ 重构
+- **scheduler 去 subprocess**：`scheduler.py` 移除 `_run_cli_sync` 方法，改用 `connector_helper.run_skill` 直接进程内调用 Skill 类，消除子进程开销和跨平台兼容问题
+- **webui 缓存精细化**：按端点前缀设置不同 TTL（health 10s / 诊断 30s / 配置 60s / schema 120s），替代全局 30s 一刀切
+- **localStorage 工具类**：抽取 `webui/src/utils/storage.ts`，提供类型安全 `get<T>()`/`set()`/`remove()` 及带过期时间 `getWithExpiry()`/`setWithExpiry()` 支持，9 个原始 `localStorage` 调用点全部迁移
+- **MetricHistory TTL**：`database.py` 新增 `cleanup_old_metrics()`，`collector.py` 每 24 轮采集（~2h）自动清理 30 天前旧指标
+
+### 📝 文档
+- **MkDocs nav 完整性**：补齐 22 个缺失页面到 `mkdocs.yml`（API 参考、源码参考、视频脚本、英文示例等），`mkdocs build --strict` 零警告通过
+- **配置示例**：`.env.example` 新增 Web UI 安全配置节（JWT 密钥、CORS 域名）
+
+### 🔧 依赖
+- 新增 `web` optional-deps 组：`pyjwt>=2.8.0`、`werkzeug>=3.0.0`、`apscheduler>=3.10.0`
 
 ### 🐛 Bug 修复
 - 修复 WebUI 构建失败：`StatusTag.vue` 中 `colorMap` 对象字面量存在重复的 `disabled` 属性，导致 TypeScript 严格模式报错 TS1117

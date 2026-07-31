@@ -20,7 +20,7 @@ dbskiter/web/collector.py
 
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Dict
 
 from .database import (
@@ -28,6 +28,7 @@ from .database import (
     get_all_db_configs,
     get_open_alerts,
     create_alert,
+    cleanup_old_metrics,
 )
 from .connector_helper import get_connector, run_skill
 
@@ -130,7 +131,7 @@ async def collect_all():
     configs = get_all_db_configs()
     for alias in configs:
         try:
-            metrics = await asyncio.get_event_loop().run_in_executor(None, collect_metrics, alias)
+            metrics = await asyncio.to_thread(collect_metrics, alias)
             for metric, value in metrics.items():
                 save_metric(alias, metric, value)
                 _check_alert(alias, metric, value)
@@ -200,9 +201,18 @@ class MetricsCollector:
 
     async def _run_loop(self):
         """采集循环"""
+        cleanup_counter = 0
         while self._running:
             try:
                 await collect_all()
+                # 每 24 次采集（约 2 小时）清理一次旧数据
+                cleanup_counter += 1
+                if cleanup_counter >= 24:
+                    try:
+                        await asyncio.to_thread(cleanup_old_metrics, 30)
+                    except Exception as e:
+                        logger.warning(f"清理旧指标数据失败: {e}")
+                    cleanup_counter = 0
             except Exception as e:
                 logger.error(f"采集循环异常: {e}")
             await asyncio.sleep(COLLECT_INTERVAL)

@@ -32,8 +32,9 @@ from .database import (
     User,
 )
 
-# 密钥
-SECRET_KEY = os.environ.get("DBSKITER_JWT_SECRET", "dbskiter-web-secret-change-in-production")
+# 密钥：生产环境必须显式设置 DBSKITER_JWT_SECRET，否则在 init_auth() 启动时会报错
+DEFAULT_SECRET = "dbskiter-web-secret-change-in-production"
+SECRET_KEY = os.environ.get("DBSKITER_JWT_SECRET", DEFAULT_SECRET)
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
 
@@ -297,11 +298,36 @@ async def toggle_user(user_id: int, payload: dict = Depends(require_admin)):
 
 
 def init_auth():
-    """初始化认证系统"""
+    """
+    初始化认证系统
+
+    安全策略：
+      - 若 DBSKITER_JWT_SECRET 未设置且 DBSKITER_REQUIRE_JWT_SECRET=1 → 启动失败
+      - 若 DBSKITER_JWT_SECRET 未设置但环境为开发/测试 → 仅打 WARN
+      - 始终建议设置 DBSKITER_JWT_SECRET（32+ 字节随机字符串）
+    """
     init_db()
     init_default_admin()
+
+    secret_set = os.environ.get("DBSKITER_JWT_SECRET")
+    require = os.environ.get("DBSKITER_REQUIRE_JWT_SECRET", "").lower() in ("1", "true", "yes")
+    is_default = secret_set is None or secret_set == DEFAULT_SECRET
+
+    if is_default:
+        msg = (
+            "⚠️  DBSKITER_JWT_SECRET 未设置，正在使用默认密钥（仅供开发测试）。\n"
+            "      生产环境请设置：export DBSKITER_JWT_SECRET=<32+ 字节随机字符串>\n"
+            "      强制要求：export DBSKITER_REQUIRE_JWT_SECRET=1"
+        )
+        if require:
+            raise RuntimeError(
+                "DBSKITER_JWT_SECRET 未设置但 DBSKITER_REQUIRE_JWT_SECRET=1，启动失败。"
+                "请设置强随机密钥：python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+            )
+        print(msg)
+
     if not JWT_AVAILABLE:
-        print("[WARN] pyjwt 未安装，使用简单令牌模式")
+        print("[WARN] pyjwt 未安装，使用简单令牌模式（生产环境不安全）")
         print("      建议安装: pip install pyjwt")
     else:
         print("[OK] JWT 认证已就绪")

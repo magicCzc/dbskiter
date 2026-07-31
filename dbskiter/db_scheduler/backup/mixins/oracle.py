@@ -5,8 +5,10 @@ Auto-extracted from manager.py.
 """
 
 import logging
+import os
+import subprocess
 logger = logging.getLogger(__name__)
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
@@ -158,12 +160,18 @@ class OracleBackupMixin:
         return f"-- Oracle DDL for {table}"
 
 
-    def _quote_oracle_table(table: str) -> str:
+    @staticmethod
+    def _quote_oracle_table(
+        table: str,
+    ) -> str:
         """Oracle 表名加双引号"""
         return f'"{table}"'
 
 
-    def _escape_oracle_value(value: Any) -> str:
+    @staticmethod
+    def _escape_oracle_value(
+        value: Any,
+    ) -> str:
         """Oracle 值转义"""
         if value is None:
             return "NULL"

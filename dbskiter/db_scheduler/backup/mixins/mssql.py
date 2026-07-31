@@ -5,8 +5,10 @@ Auto-extracted from manager.py.
 """
 
 import logging
+import os
+import subprocess
 logger = logging.getLogger(__name__)
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
@@ -323,12 +325,18 @@ class MSSQLBackupMixin:
         return f"-- SQL Server DDL for {table}"
 
 
-    def _quote_mssql_table(table: str) -> str:
+    @staticmethod
+    def _quote_mssql_table(
+        table: str,
+    ) -> str:
         """SQL Server 表名加方括号"""
         return f"[{table}]"
 
 
-    def _escape_mssql_value(value: Any) -> str:
+    @staticmethod
+    def _escape_mssql_value(
+        value: Any,
+    ) -> str:
         """SQL Server 值转义"""
         if value is None:
             return "NULL"

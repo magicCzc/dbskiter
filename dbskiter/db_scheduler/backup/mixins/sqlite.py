@@ -5,8 +5,10 @@ Auto-extracted from manager.py.
 """
 
 import logging
+import os
+import shutil
 logger = logging.getLogger(__name__)
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
@@ -220,7 +222,10 @@ class SQLiteBackupMixin:
         )
         return [row[0] for row in result.rows]
 
-    def _escape_sqlite_value(value: Any) -> str:
+    @staticmethod
+    def _escape_sqlite_value(
+        value: Any,
+    ) -> str:
         """
         SQLite值转义
 

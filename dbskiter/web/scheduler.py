@@ -34,6 +34,7 @@ from .database import (
     save_metric,
     create_alert,
 )
+from .connector_helper import run_skill
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -71,72 +72,83 @@ TASK_TYPES = {
 
 # ── 任务执行函数 ──────────────────────────────────────
 
-import subprocess
-import json
 
-
-def _run_cli_sync(db_alias: str, args: list) -> dict:
-    """同步执行 CLI 命令"""
-    try:
-        cmd = ["dbskiter", "--output-mode=raw", "--database", db_alias] + args
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=120,
-        )
-        stdout = result.stdout.strip()
-        if not stdout:
-            return {"success": False, "error": "No output"}
-        first = stdout.find("{")
-        if first >= 0:
-            stdout = stdout[first:]
-        last = stdout.rfind("}")
-        if last >= 0:
-            stdout = stdout[: last + 1]
-        return json.loads(stdout)
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+def _extract_score(data: dict, key: str) -> float:
+    """从结果数据中提取评分，兼容多种嵌套格式"""
+    if not isinstance(data, dict):
+        return 0.0
+    for path in [(key,), ("raw_metrics", key), ("data", key), ("data", "raw_metrics", key)]:
+        cur = data
+        for p in path:
+            if not isinstance(cur, dict) or p not in cur:
+                cur = None
+                break
+            cur = cur[p]
+        if cur is not None:
+            try:
+                return float(cur)
+            except (TypeError, ValueError):
+                return 0.0
+    return 0.0
 
 
 def execute_task(task_type: str, db_alias: str, task_id: str):
-    """执行定时任务"""
+    """
+    执行定时任务（进程内调用 skill，不再走 CLI 子进程）。
+
+    APScheduler 在线程池中执行此函数，因此可以安全调用同步阻塞代码。
+    """
     logger.info(f"执行任务 [{task_id}] {task_type} on {db_alias}")
     start = datetime.utcnow()
 
     if task_type == "diagnose":
-        result = _run_cli_sync(db_alias, ["diagnose", "realtime"])
+        result = run_skill(db_alias, _skill_class_diagnose(), "realtime_diagnose", threshold=5)
         if result.get("success"):
             data = result.get("data", {})
-            raw = data.get("raw_metrics", {})
-            score = raw.get("score", data.get("score", 0))
-            issues = raw.get("issues", [])
-            save_metric(db_alias, "health_score", float(score))
+            score = _extract_score(data, "score")
+            save_metric(db_alias, "health_score", score)
 
     elif task_type == "inspect":
-        result = _run_cli_sync(db_alias, ["inspector", "run", "--type", "performance"])
+        result = run_skill(db_alias, _skill_class_inspector(), "inspect", inspection_types=None)
         if result.get("success"):
             data = result.get("data", {})
-            raw = data.get("raw_metrics", {})
-            score = raw.get("health_score", 0)
-            save_metric(db_alias, "inspect_score", float(score))
+            score = _extract_score(data, "health_score")
+            save_metric(db_alias, "inspect_score", score)
 
     elif task_type == "collect":
         from .collector import collect_metrics
 
         try:
-            loop = asyncio.new_event_loop()
             metrics = collect_metrics(db_alias)
             for metric, value in metrics.items():
                 save_metric(db_alias, metric, value)
-            loop.close()
         except Exception as e:
             logger.error(f"采集失败: {e}")
 
     elapsed = (datetime.utcnow() - start).total_seconds()
     logger.info(f"任务完成 [{task_id}] {task_type} on {db_alias} ({elapsed:.1f}s)")
+
+
+# ── 懒加载 Skill 类（避免循环依赖） ──────────────────────
+
+
+_SKILL_CACHE: Dict[str, type] = {}
+
+
+def _skill_class_diagnose():
+    """懒加载 DiagnoseSkill"""
+    if "diagnose" not in _SKILL_CACHE:
+        from dbskiter.db_diagnose.skill import DiagnoseSkill
+        _SKILL_CACHE["diagnose"] = DiagnoseSkill
+    return _SKILL_CACHE["diagnose"]
+
+
+def _skill_class_inspector():
+    """懒加载 InspectorSkill"""
+    if "inspector" not in _SKILL_CACHE:
+        from dbskiter.db_inspector.skill import InspectorSkill
+        _SKILL_CACHE["inspector"] = InspectorSkill
+    return _SKILL_CACHE["inspector"]
 
 
 # ── 调度器管理 ──────────────────────────────────────
@@ -281,21 +293,50 @@ async def delete_task(task_id: int):
 @router.post("/{task_id}/toggle", response_model=dict)
 async def toggle_task(task_id: int):
     """启用/禁用定时任务"""
+    # 在 session 关闭前把需要的字段缓存到局部变量，避免 detached instance 错误
+    task_name = ""
+    task_cron = ""
+    task_type = ""
+    task_db_alias = ""
+    new_state = False
     with session_scope() as session:
         task = session.query(ScheduledTask).filter(ScheduledTask.id == task_id).first()
         if not task:
             raise HTTPException(status_code=404, detail="任务不存在")
         task.is_enabled = not task.is_enabled
-        enabled = task.is_enabled
+        new_state = task.is_enabled
+        task_name = task.name
+        task_cron = task.cron_expr
+        task_type = task.task_type
+        task_db_alias = task.db_alias
 
-    if enabled and scheduler:
-        _add_job_to_scheduler(task)
+    if new_state and scheduler:
+        # detached 状态：构造一个简化的 dict 替代 task 对象传给 add_job
+        _add_job_to_dict(task_id, task_name, task_cron, task_type, task_db_alias)
     elif scheduler:
         scheduler.remove_job(f"task_{task_id}")
 
-    status = "启用" if enabled else "禁用"
-    log_audit(None, "system", "update", f"task:{task.name}", f"{status}定时任务")
-    return {"success": True, "is_enabled": enabled, "message": f"任务已{status}"}
+    status = "启用" if new_state else "禁用"
+    log_audit(None, "system", "update", f"task:{task_name}", f"{status}定时任务")
+    return {"success": True, "is_enabled": new_state, "message": f"任务已{status}"}
+
+
+def _add_job_to_dict(task_id: int, name: str, cron_expr: str, task_type: str = "diagnose", db_alias: str = "default"):
+    """将已 detached 的任务数据添加到调度器（避免 ORM detached instance 问题）"""
+    if not scheduler:
+        return
+    try:
+        trigger = CronTrigger.from_crontab(cron_expr)
+        scheduler.add_job(
+            execute_task,
+            trigger=trigger,
+            args=[task_type, db_alias, f"task_{task_id}"],
+            id=f"task_{task_id}",
+            replace_existing=True,
+            name=name,
+        )
+    except Exception as e:
+        logger.warning(f"添加任务失败 [{name}]: {e}")
 
 
 def _get_next_run(cron_expr: str) -> Optional[str]:

@@ -5,8 +5,9 @@ Auto-extracted from manager.py.
 """
 
 import logging
+import os
 logger = logging.getLogger(__name__)
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
@@ -14,6 +15,12 @@ from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
 
 class GenericBackupMixin:
     """generic backup methods for BackupManager"""
+
+    # 通用恢复允许的SQL语句类型白名单（防止备份文件被篡改后执行危险操作）
+    _RESTORE_ALLOWED_PREFIXES = (
+        "INSERT", "CREATE TABLE", "DROP TABLE IF EXISTS",
+        "ALTER TABLE", "CREATE INDEX", "DROP INDEX",
+    )
 
     def _generic_fallback_backup(
         self,
@@ -208,6 +215,7 @@ class GenericBackupMixin:
         return total_rows
 
 
+    @staticmethod
     def _escape_generic_value(value: Any) -> str:
         """
         通用 SQL 值转义
@@ -231,12 +239,6 @@ class GenericBackupMixin:
         # 字符串转义
         s = str(value).replace("'", "''")
         return f"'{s}'"
-
-    # 通用恢复允许的SQL语句类型白名单
-    _RESTORE_ALLOWED_PREFIXES = (
-        "INSERT", "CREATE TABLE", "DROP TABLE IF EXISTS",
-        "ALTER TABLE", "CREATE INDEX", "DROP INDEX",
-    )
 
 
     def _generic_restore(
@@ -338,6 +340,7 @@ class GenericBackupMixin:
             return self._error(backup_id, f"通用恢复失败: {exc}")
 
 
+    @staticmethod
     def _detect_backup_type(filename: str) -> str:
         """从文件名推断备份类型"""
         name = filename.lower()

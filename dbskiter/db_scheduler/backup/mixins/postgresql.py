@@ -5,8 +5,10 @@ Auto-extracted from manager.py.
 """
 
 import logging
+import os
+import subprocess
 logger = logging.getLogger(__name__)
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
@@ -300,7 +302,10 @@ class PostgreSQLBackupMixin:
     # =====================================================================
 
 
-    def _escape_pg_value(value: Any) -> str:
+    @staticmethod
+    def _escape_pg_value(
+        value: Any,
+    ) -> str:
         """
         PostgreSQL值转义
 

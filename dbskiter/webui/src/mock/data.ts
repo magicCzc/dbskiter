@@ -584,7 +584,7 @@ export function mockTestConnection(): any {
 export function mockStatus(): ApiStatus {
   return {
     status: 'ok',
-    version: '3.0.44-demo',
+    version: '3.0.45-demo',
     api_endpoints: [
       '/api/health', '/api/health/all', '/api/slow-queries', '/api/security',
       '/api/diagnose/realtime', '/api/diagnose/top', '/api/diagnose/locks',

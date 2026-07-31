@@ -8,6 +8,7 @@ import { Search } from '@element-plus/icons-vue'
 import type { SlowQuery } from '@/types'
 import SectionCard from '@/components/SectionCard.vue'
 import StatCard from '@/components/StatCard.vue'
+import { setString } from '@/utils/storage'
 
 const router = useRouter()
 const dbStore = useDatabaseStore()
@@ -64,7 +65,7 @@ function copySql(sql: string) {
 }
 
 function openInEditor(sql: string) {
-  localStorage.setItem('sql-editor-pending', sql)
+  setString('sql-editor-pending', sql)
   router.push('/sql-editor')
 }
 

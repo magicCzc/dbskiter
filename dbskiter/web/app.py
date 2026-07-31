@@ -14,6 +14,7 @@ DBSKiter Web UI - FastAPI 应用入口
     - Swagger UI 自动文档 (http://localhost:8000/docs)
 """
 
+import os
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -38,10 +39,21 @@ app = FastAPI(
 )
 
 # CORS 中间件
+#   - 优先从环境变量 DBSKITER_CORS_ORIGINS 读取（逗号分隔）
+#   - 默认开发用 ["*"]（注意：allow_credentials=True 时浏览器会拒绝 *)
+#   - 生产请设置为前端实际地址，例如 http://localhost:5173
+_cors_raw = os.environ.get("DBSKITER_CORS_ORIGINS", "*").strip()
+if _cors_raw == "*":
+    _cors_origins = ["*"]
+    _cors_credentials = False  # 浏览器规范下 * + credentials 非法
+else:
+    _cors_origins = [o.strip() for o in _cors_raw.split(",") if o.strip()]
+    _cors_credentials = True
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_cors_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

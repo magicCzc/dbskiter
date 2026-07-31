@@ -6,13 +6,14 @@ import { ElMessage } from 'element-plus'
 import type { SqlExecuteResponse, SchemaResponse } from '@/types'
 import SectionCard from '@/components/SectionCard.vue'
 import StatusTag from '@/components/StatusTag.vue'
+import { get, set, remove, getString, setString } from '@/utils/storage'
 
 const dbStore = useDatabaseStore()
 const sql = ref('SELECT * FROM users LIMIT 10')
 const results = ref<SqlExecuteResponse | null>(null)
 const schema = ref<SchemaResponse | null>(null)
 const history = ref<{ sql: string; timestamp: string; duration: number }[]>(
-  JSON.parse(localStorage.getItem('sql-history') || '[]')
+  get('sql-history', [])!
 )
 const loading = ref(false)
 const loadingSchema = ref(false)
@@ -114,7 +115,7 @@ async function execute() {
         duration: executionTime.value,
       })
       if (history.value.length > 50) history.value.pop()
-      localStorage.setItem('sql-history', JSON.stringify(history.value))
+      set('sql-history', history.value)
       ElMessage.success(`查询完成 (${executionTime.value.toFixed(3)}s)`)
     } else {
       error.value = data.error || '执行失败'
@@ -163,16 +164,16 @@ function loadFromHistory(item: { sql: string }) {
 
 function clearHistory() {
   history.value = []
-  localStorage.removeItem('sql-history')
+  remove('sql-history')
   ElMessage.success('历史已清除')
 }
 
 onMounted(() => {
   dbStore.loadDatabases()
-  const pending = localStorage.getItem('sql-editor-pending')
+  const pending = getString('sql-editor-pending')
   if (pending) {
     sql.value = pending
-    localStorage.removeItem('sql-editor-pending')
+    remove('sql-editor-pending')
   }
 })
 </script>

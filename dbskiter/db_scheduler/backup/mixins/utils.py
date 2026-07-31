@@ -5,8 +5,12 @@ Auto-extracted from manager.py.
 """
 
 import logging
+import hashlib
+import os
+import re
+import shutil
 logger = logging.getLogger(__name__)
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Dict, Any, Optional
 
 from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
@@ -15,6 +19,7 @@ from dbskiter.db_scheduler.backup.models import BackupInfo, BackupResult
 class BackupUtilsMixin:
     """utils backup methods for BackupManager"""
 
+    @staticmethod
     def _safe_table_name(table: str) -> str:
         """
         安全验证表名, 防止SQL注入
@@ -33,7 +38,10 @@ class BackupUtilsMixin:
         return table
 
 
-    def _safe_qualified_table_name(table: str) -> str:
+    @staticmethod
+    def _safe_qualified_table_name(
+        table: str,
+    ) -> str:
         """
         验证限定表名(支持 schema.table 格式)
 
@@ -90,7 +98,10 @@ class BackupUtilsMixin:
         return f"`{table}`"
 
 
-    def _safe_filename(name: str) -> str:
+    @staticmethod
+    def _safe_filename(
+        name: str,
+    ) -> str:
         """
         将字符串转换为安全的文件名
 
@@ -110,7 +121,10 @@ class BackupUtilsMixin:
         return safe or "unknown"
 
 
-    def _has_native_tool(tool_name: str) -> bool:
+    @staticmethod
+    def _has_native_tool(
+        tool_name: str,
+    ) -> bool:
         """
         检查系统是否有原生数据库工具
 
@@ -123,6 +137,7 @@ class BackupUtilsMixin:
         return shutil.which(tool_name) is not None
 
 
+    @staticmethod
     def _gzip_file(input_file: str) -> str:
         """
         gzip压缩文件, 删除原文件
@@ -143,6 +158,7 @@ class BackupUtilsMixin:
         return output_file
 
 
+    @staticmethod
     def _gunzip_file(input_file: str, output_file: str) -> None:
         """
         gzip解压文件
@@ -158,7 +174,10 @@ class BackupUtilsMixin:
                 shutil.copyfileobj(f_in, f_out)
 
 
-    def _compute_sha256(file_path: str) -> str:
+    @staticmethod
+    def _compute_sha256(
+        file_path: str,
+    ) -> str:
         """计算文件SHA256哈希"""
         h = hashlib.sha256()
         with open(file_path, "rb") as f:
@@ -176,7 +195,10 @@ class BackupUtilsMixin:
         logger.debug(f"校验文件已写入: {checksum_file}")
 
 
-    def _read_checksum(file_path: str) -> Optional[str]:
+    @staticmethod
+    def _read_checksum(
+        file_path: str,
+    ) -> Optional[str]:
         """读取文件的SHA256校验值"""
         checksum_file = file_path + ".sha256"
         if not os.path.exists(checksum_file):
@@ -190,7 +212,10 @@ class BackupUtilsMixin:
             return None
 
 
-    def _human_size(size_bytes: int) -> str:
+    @staticmethod
+    def _human_size(
+        size_bytes: int,
+    ) -> str:
         """字节大小转人类可读格式"""
         for unit in ("B", "KB", "MB", "GB", "TB"):
             if size_bytes < 1024:
@@ -199,7 +224,10 @@ class BackupUtilsMixin:
         return f"{size_bytes:.1f} PB"
 
 
-    def _split_sql_statements(sql_content: str) -> List[str]:
+    @staticmethod
+    def _split_sql_statements(
+        sql_content: str,
+    ) -> List[str]:
         """
         安全拆分SQL语句
 
@@ -265,6 +293,7 @@ class BackupUtilsMixin:
     # =====================================================================
 
 
+    @staticmethod
     def _is_readonly() -> bool:
         """
         检查系统是否处于只读模式

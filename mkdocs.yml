@@ -59,10 +59,39 @@ nav:
   - 实战指南:
     - 故障排查: guides/troubleshooting.md
     - 性能调优: guides/performance-tuning.md
+    - CLI 使用指南: guides/CLI使用指南.md
+    - AI 集成指南: guides/AI集成指南.md
+    - Web UI 指南: guides/webui.md
     - v3→v4 迁移: guides/migration-v3-to-v4.md
+  - 视频脚本:
+    - 5分钟上手: videos/scripts/01-5分钟上手.md
+  - API 参考:
+    - Web API 文档: api/README.md
+    - 源码 API 参考: source/index.md
   - English:
     - CLI Guide: guides/cli_guide_en.md
+    - AI Integration: guides/ai_integration_en.md
     - README (EN): https://github.com/magicCzc/dbskiter/blob/main/README_EN.md
+    - Examples Index: examples/index_en.md
+    - Quickstart:
+      - Installation: examples/01-quickstart/01-installation.md
+      - First Command: examples/01-quickstart/02-first-command.md
+      - Multi Database: examples/01-quickstart/03-multi-database.md
+    - Troubleshooting:
+      - Slow Queries: examples/02-troubleshooting/01-slow-queries.md
+      - CPU Spike: examples/02-troubleshooting/02-cpu-spike.md
+      - Disk Space: examples/02-troubleshooting/03-disk-space.md
+      - Connections: examples/02-troubleshooting/04-connections.md
+    - Security Audit:
+      - Monthly Inspection: examples/03-security/01-monthly-inspection.md
+      - Security Audit: examples/03-security/02-security-audit.md
+    - Locks & Deadlocks:
+      - Lock Wait: examples/04-locks/01-lock-wait.md
+    - Capacity Planning:
+      - Disk Prediction: examples/05-capacity/01-disk-prediction.md
+      - Table Bloat: examples/05-capacity/02-table-bloat.md
+    - Backup Scheduling:
+      - Scheduled Backup: examples/06-backup/01-scheduled-backup.md
   - 相关资源: resources.md
 
 markdown_extensions:
