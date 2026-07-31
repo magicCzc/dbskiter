@@ -82,8 +82,8 @@ onUnmounted(() => {
 })
 
 const emit = defineEmits<{
-  toggle: []
   (e: 'update:collapsed', val: boolean): void
+  (e: 'toggle'): void
 }>()
 
 function toggle() {
